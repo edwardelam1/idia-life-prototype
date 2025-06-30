@@ -10,8 +10,7 @@ import {
   DollarSign, 
   CheckCircle, 
   Lock,
-  Users,
-  Activity
+  Users
 } from 'lucide-react';
 
 interface NikeConnectionModalProps {
@@ -39,8 +38,12 @@ const NikeConnectionModal = ({ isOpen, onClose, onConnect }: NikeConnectionModal
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
-              <Activity className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
+              <img 
+                src="https://upload.wikimedia.org/wikipedia/commons/a/a6/Logo_NIKE.svg" 
+                alt="Nike Run Club" 
+                className="w-8 h-8 object-contain"
+              />
             </div>
             <span>Connect Nike Run Club</span>
           </DialogTitle>

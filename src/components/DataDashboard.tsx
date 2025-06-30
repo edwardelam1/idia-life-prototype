@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -177,11 +176,11 @@ const DataDashboard = () => {
               className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => setShowNikeModal(true)}
             >
-              <div className="w-16 h-16 rounded-lg overflow-hidden">
+              <div className="w-16 h-16 rounded-lg overflow-hidden bg-white">
                 <img 
-                  src="/lovable-uploads/06b7764e-1013-42f5-a125-b1230ee1ddd8.png" 
+                  src="https://upload.wikimedia.org/wikipedia/commons/a/a6/Logo_NIKE.svg" 
                   alt="Nike Run Club" 
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-contain p-2"
                 />
               </div>
               <span className="text-sm font-medium text-gray-700 mt-2">NRC</span>
