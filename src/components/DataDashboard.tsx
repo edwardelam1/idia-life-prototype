@@ -168,16 +168,23 @@ const DataDashboard = () => {
         </div>
       )}
 
-      {/* Available Data Sources - Only Nike Logo */}
+      {/* Available Data Sources - Nike Logo and NRC Text */}
       {connections.length === 0 && (
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-gray-900">Available Data Sources</h2>
           <div className="flex justify-center">
             <div 
-              className="w-16 h-16 bg-black rounded-lg flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-colors"
+              className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => setShowNikeModal(true)}
             >
-              <Activity className="w-8 h-8 text-white" />
+              <div className="w-16 h-16 rounded-lg overflow-hidden">
+                <img 
+                  src="/lovable-uploads/06b7764e-1013-42f5-a125-b1230ee1ddd8.png" 
+                  alt="Nike Run Club" 
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <span className="text-sm font-medium text-gray-700 mt-2">NRC</span>
             </div>
           </div>
         </div>
