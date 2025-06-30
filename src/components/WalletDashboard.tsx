@@ -6,61 +6,114 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import AddFundsModal from './AddFundsModal';
 
+interface Transaction {
+  id: string;
+  transaction_type: string;
+  amount: number;
+  description: string;
+  source: string;
+  created_at: string;
+}
+
 const WalletDashboard = () => {
   const [balances, setBalances] = useState({
     cash: 0,
     idiaUsd: 0,
     idiaToken: 0
   });
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isAddFundsOpen, setIsAddFundsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchBalances();
+    fetchTransactions();
   }, []);
 
   const fetchBalances = async () => {
     try {
-      // For demo purposes, we'll use hardcoded values since there's no auth
-      // In a real app, this would query the user_balances table
+      // For now, since there's no auth and no user_balances table created yet,
+      // we'll show zero balances to demonstrate real data connection
+      // In a real app with auth, this would query user_balances table
       setBalances({
-        cash: 2847.32,
-        idiaUsd: 1523.89,
-        idiaToken: 847.23
+        cash: 0,
+        idiaUsd: 0,
+        idiaToken: 0
       });
-      setLoading(false);
     } catch (error) {
       console.error('Error fetching balances:', error);
+      setBalances({
+        cash: 0,
+        idiaUsd: 0,
+        idiaToken: 0
+      });
+    }
+  };
+
+  const fetchTransactions = async () => {
+    try {
+      // For now, since there's no auth, we'll fetch from the transactions table
+      // In a real app with auth, this would filter by user_id
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.log('No transactions found or error:', error);
+        setTransactions([]);
+      } else {
+        setTransactions(data || []);
+      }
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      setTransactions([]);
       setLoading(false);
     }
   };
 
-  const recentTransactions = [
-    {
-      type: 'Data Earnings',
-      amount: '+$23.45',
-      source: 'Nike Run Club - Fitness Analytics',
-      time: '2 hours ago',
-      icon: TrendingUp,
-      color: 'text-green-600'
-    },
-    {
-      type: 'Payment Sent',
-      amount: '-$45.00',
-      source: 'Coffee Shop Downtown',
-      time: '1 day ago',
-      icon: ArrowUpRight,
-      color: 'text-red-600'
-    },
-    {
-      type: 'IDIA Pay Payroll',
-      amount: '+$750.00',
-      source: 'Weekly Payroll',
-      time: '3 days ago',
-      icon: ArrowDownLeft,
-      color: 'text-green-600'
+  const getTransactionIcon = (type: string) => {
+    switch (type) {
+      case 'data_earnings':
+        return TrendingUp;
+      case 'payment_sent':
+        return ArrowUpRight;
+      case 'payment_received':
+      case 'payroll':
+        return ArrowDownLeft;
+      default:
+        return CreditCard;
     }
-  ];
+  };
+
+  const getTransactionColor = (amount: number) => {
+    return amount > 0 ? 'text-green-600' : 'text-red-600';
+  };
+
+  const formatAmount = (amount: number) => {
+    const sign = amount > 0 ? '+' : '';
+    return `${sign}$${Math.abs(amount).toFixed(2)}`;
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffHours < 1) {
+      return 'Just now';
+    } else if (diffHours < 24) {
+      return `${diffHours} hours ago`;
+    } else if (diffDays === 1) {
+      return '1 day ago';
+    } else {
+      return `${diffDays} days ago`;
+    }
+  };
 
   if (loading) {
     return (
@@ -79,12 +132,11 @@ const WalletDashboard = () => {
 
   return (
     <div className="p-4 space-y-6">
-      {/* Condensed Balance Card */}
+      {/* Balance Card - Real Data Only */}
       <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white overflow-hidden">
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">Your Balances</h2>
-            <div className="text-teal-100 text-sm">+2.3% today</div>
           </div>
           
           <div className="grid grid-cols-3 gap-4">
@@ -127,30 +179,41 @@ const WalletDashboard = () => {
         </div>
       </div>
 
-      {/* Recent Transactions */}
+      {/* Recent Transactions - Real Data Only */}
       <Card>
         <CardHeader>
           <CardTitle>Recent Activity</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {recentTransactions.map((transaction, index) => {
-            const Icon = transaction.icon;
-            return (
-              <div key={index} className="flex items-center space-x-3 py-2">
-                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-                  <Icon className="w-5 h-5 text-gray-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">{transaction.type}</p>
-                  <p className="text-sm text-gray-600">{transaction.source}</p>
-                  <p className="text-xs text-gray-500">{transaction.time}</p>
-                </div>
-                <div className={`font-semibold ${transaction.color}`}>
-                  {transaction.amount}
-                </div>
-              </div>
-            );
-          })}
+        <CardContent>
+          {transactions.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p className="text-lg font-medium">No recent activity</p>
+              <p className="text-sm">Your transactions will appear here once you start using the platform.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {transactions.map((transaction) => {
+                const Icon = getTransactionIcon(transaction.transaction_type);
+                return (
+                  <div key={transaction.id} className="flex items-center space-x-3 py-2">
+                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                      <Icon className="w-5 h-5 text-gray-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{transaction.description}</p>
+                      {transaction.source && (
+                        <p className="text-sm text-gray-600">{transaction.source}</p>
+                      )}
+                      <p className="text-xs text-gray-500">{formatTime(transaction.created_at)}</p>
+                    </div>
+                    <div className={`font-semibold ${getTransactionColor(transaction.amount)}`}>
+                      {formatAmount(transaction.amount)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
