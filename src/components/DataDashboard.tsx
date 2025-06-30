@@ -58,17 +58,6 @@ const DataDashboard = () => {
     setTotalEarnings(67.50);
   };
 
-  const nikeRunClubSource = {
-    id: 'nike-run-club',
-    name: 'Nike Run Club',
-    icon: Activity,
-    estimatedEarnings: '$40-60/month',
-    description: 'Share your running and fitness data to help improve health research and fitness app development.',
-    dataTypes: ['Running distance and pace', 'Workout frequency', 'Achievement patterns', 'App usage statistics'],
-    privacyLevel: 'Very High',
-    demandLevel: 'Very High'
-  };
-
   if (loading) {
     return (
       <div className="p-4 space-y-6">
@@ -179,46 +168,18 @@ const DataDashboard = () => {
         </div>
       )}
 
-      {/* Potential Data Sources */}
+      {/* Available Data Sources - Only Nike Logo */}
       {connections.length === 0 && (
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-gray-900">Available Data Sources</h2>
-          <Card className="border-2 border-dashed border-gray-200 hover:border-teal-300 transition-colors">
-            <CardContent className="p-4">
-              <div className="flex items-start space-x-3">
-                <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
-                  <Activity className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-semibold text-gray-900">{nikeRunClubSource.name}</h3>
-                    <Badge className="bg-red-100 text-red-800">
-                      Very High Demand
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-gray-600 mb-2">{nikeRunClubSource.description}</p>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4 text-xs text-gray-500">
-                      <span className="flex items-center space-x-1">
-                        <Shield className="w-3 h-3 text-green-600" />
-                        <span>{nikeRunClubSource.privacyLevel} Privacy</span>
-                      </span>
-                      <span className="font-medium text-green-600">
-                        {nikeRunClubSource.estimatedEarnings}
-                      </span>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      onClick={() => setShowNikeModal(true)}
-                      className="bg-black hover:bg-gray-800"
-                    >
-                      Connect
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="flex justify-center">
+            <div 
+              className="w-16 h-16 bg-black rounded-lg flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-colors"
+              onClick={() => setShowNikeModal(true)}
+            >
+              <Activity className="w-8 h-8 text-white" />
+            </div>
+          </div>
         </div>
       )}
 
