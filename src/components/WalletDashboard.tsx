@@ -1,35 +1,45 @@
 
+import { useState, useEffect } from 'react';
 import { ArrowUpRight, ArrowDownLeft, CreditCard, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
+import AddFundsModal from './AddFundsModal';
 
 const WalletDashboard = () => {
-  const balances = [
-    {
-      type: 'Cash',
-      amount: '$2,847.32',
-      change: '+$127.45',
-      color: 'from-green-500 to-emerald-600'
-    },
-    {
-      type: 'IDIA-USD',
-      amount: '$1,523.89',
-      change: '+$89.23',
-      color: 'from-teal-500 to-cyan-600'
-    },
-    {
-      type: 'IDIA Token',
-      amount: '847.23 IDIA',
-      change: '+12.5%',
-      color: 'from-purple-500 to-violet-600'
+  const [balances, setBalances] = useState({
+    cash: 0,
+    idiaUsd: 0,
+    idiaToken: 0
+  });
+  const [isAddFundsOpen, setIsAddFundsOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchBalances();
+  }, []);
+
+  const fetchBalances = async () => {
+    try {
+      // For demo purposes, we'll use hardcoded values since there's no auth
+      // In a real app, this would query the user_balances table
+      setBalances({
+        cash: 2847.32,
+        idiaUsd: 1523.89,
+        idiaToken: 847.23
+      });
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching balances:', error);
+      setLoading(false);
     }
-  ];
+  };
 
   const recentTransactions = [
     {
       type: 'Data Earnings',
       amount: '+$23.45',
-      source: 'Location Data - Retail Analytics',
+      source: 'Nike Run Club - Fitness Analytics',
       time: '2 hours ago',
       icon: TrendingUp,
       color: 'text-green-600'
@@ -43,14 +53,6 @@ const WalletDashboard = () => {
       color: 'text-red-600'
     },
     {
-      type: 'Data Earnings',
-      amount: '+$18.92',
-      source: 'Shopping Behavior - Market Research',
-      time: '2 days ago',
-      icon: TrendingUp,
-      color: 'text-green-600'
-    },
-    {
       type: 'IDIA Pay Payroll',
       amount: '+$750.00',
       source: 'Weekly Payroll',
@@ -60,29 +62,47 @@ const WalletDashboard = () => {
     }
   ];
 
+  if (loading) {
+    return (
+      <div className="p-4 space-y-6">
+        <div className="animate-pulse">
+          <div className="h-32 bg-gray-200 rounded-lg mb-6"></div>
+          <div className="space-y-3">
+            <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+            <div className="h-16 bg-gray-200 rounded"></div>
+            <div className="h-16 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 space-y-6">
-      {/* Balance Cards */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-bold text-gray-900">Your Balances</h2>
-        {balances.map((balance, index) => (
-          <Card key={index} className="overflow-hidden">
-            <div className={`h-1 bg-gradient-to-r ${balance.color}`} />
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 font-medium">{balance.type}</p>
-                  <p className="text-2xl font-bold text-gray-900">{balance.amount}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-green-600 font-medium">{balance.change}</p>
-                  <p className="text-xs text-gray-500">24h</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* Condensed Balance Card */}
+      <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white overflow-hidden">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold">Your Balances</h2>
+            <div className="text-teal-100 text-sm">+2.3% today</div>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-4">
+            <div className="text-center">
+              <p className="text-teal-100 text-xs font-medium">Cash</p>
+              <p className="text-xl font-bold">${balances.cash.toFixed(2)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-teal-100 text-xs font-medium">IDIA-USD</p>
+              <p className="text-xl font-bold">${balances.idiaUsd.toFixed(2)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-teal-100 text-xs font-medium">IDIA Token</p>
+              <p className="text-xl font-bold">{balances.idiaToken.toFixed(2)}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Quick Actions */}
       <div className="space-y-4">
@@ -94,7 +114,11 @@ const WalletDashboard = () => {
               <span className="block text-sm font-semibold">Send Money</span>
             </div>
           </Button>
-          <Button variant="outline" className="py-6 rounded-xl border-2 hover:bg-gray-50">
+          <Button 
+            variant="outline" 
+            className="py-6 rounded-xl border-2 hover:bg-gray-50"
+            onClick={() => setIsAddFundsOpen(true)}
+          >
             <div className="text-center">
               <CreditCard className="w-6 h-6 mx-auto mb-1 text-gray-600" />
               <span className="block text-sm font-semibold text-gray-700">Add Funds</span>
@@ -129,6 +153,11 @@ const WalletDashboard = () => {
           })}
         </CardContent>
       </Card>
+
+      <AddFundsModal 
+        isOpen={isAddFundsOpen}
+        onClose={() => setIsAddFundsOpen(false)}
+      />
     </div>
   );
 };
