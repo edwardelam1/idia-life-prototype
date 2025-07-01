@@ -23,18 +23,21 @@ const CollapsedAvatar = ({
 
   return (
     <div className="flex flex-col items-center space-y-2 animate-scale-in">
-      {/* Dynamic State Orb */}
-      <div className={`relative w-14 h-14 rounded-full ${orbStyle.background} ${orbStyle.animation} ${orbStyle.glow} ${orbStyle.scale} transition-all duration-300 flex items-center justify-center cursor-pointer`}>
+      {/* Dynamic State Orb - Now clickable for voice activation */}
+      <div 
+        className={`relative w-14 h-14 rounded-full ${orbStyle.background} ${orbStyle.animation} ${orbStyle.glow} ${orbStyle.scale} transition-all duration-500 flex items-center justify-center cursor-pointer hover:scale-110`}
+        onClick={onVoiceToggle}
+      >
         {/* Inner flame effect */}
-        <div className={`w-8 h-8 rounded-full bg-white/30 ${orbStyle.animation} transition-all duration-300`}>
-          <div className="w-full h-full rounded-full bg-white/20 animate-pulse"></div>
+        <div className={`w-8 h-8 rounded-full bg-white/30 transition-all duration-500`}>
+          <div className="w-full h-full rounded-full bg-white/20"></div>
         </div>
         
         {/* State indicator */}
         <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white flex items-center justify-center">
           {friendState === 'listening' && <Mic className="w-2 h-2 text-purple-600" />}
           {friendState === 'thinking' && <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce"></div>}
-          {friendState === 'speaking' && <div className="w-2 h-2 bg-yellow-600 rounded-full animate-ping"></div>}
+          {friendState === 'speaking' && <div className="w-2 h-2 bg-yellow-600 rounded-full animate-pulse"></div>}
           {friendState === 'idle' && <Bot className="w-2 h-2 text-blue-600" />}
         </div>
       </div>
@@ -49,7 +52,7 @@ const CollapsedAvatar = ({
         Chat
       </Button>
       
-      {/* Voice Button */}
+      {/* Voice Status Button */}
       <Button
         onClick={onVoiceToggle}
         size="sm"

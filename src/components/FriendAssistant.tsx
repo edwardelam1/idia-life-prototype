@@ -94,6 +94,17 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
     }
   };
 
+  const handleCollapse = () => {
+    setIsExpanded(false);
+  };
+
+  const handleClose = () => {
+    setIsExpanded(false);
+    setIsListening(false);
+    setFriendState('idle');
+    onClose();
+  };
+
   if (!isVisible) return null;
 
   return (
@@ -105,7 +116,7 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
           isListening={isListening}
           onChatClick={handleChatClick}
           onVoiceToggle={handleVoiceToggle}
-          onClose={onClose}
+          onClose={handleClose}
         />
       )}
 
@@ -120,8 +131,8 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
           onSendMessage={handleSendMessage}
           onKeyPress={handleKeyPress}
           onVoiceToggle={handleVoiceToggle}
-          onCollapse={() => setIsExpanded(false)}
-          onClose={onClose}
+          onCollapse={handleCollapse}
+          onClose={handleClose}
         />
       )}
     </div>

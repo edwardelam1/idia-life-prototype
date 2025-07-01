@@ -38,8 +38,11 @@ const ExpandedChat = ({
       <CardHeader className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-4 rounded-t-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            {/* Mini state orb in header */}
-            <div className={`w-6 h-6 rounded-full ${orbStyle.background} ${orbStyle.animation} ${orbStyle.scale} transition-all duration-300 flex items-center justify-center`}>
+            {/* Mini state orb in header - clickable for voice */}
+            <div 
+              className={`w-6 h-6 rounded-full ${orbStyle.background} ${orbStyle.animation} ${orbStyle.scale} transition-all duration-500 flex items-center justify-center cursor-pointer hover:scale-110`}
+              onClick={onVoiceToggle}
+            >
               <div className="w-3 h-3 rounded-full bg-white/40"></div>
             </div>
             <span className="font-semibold">IDIA Friend</span>

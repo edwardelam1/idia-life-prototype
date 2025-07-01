@@ -13,7 +13,7 @@ export const getOrbStyling = (friendState: FriendState): OrbStyling => {
     case 'listening':
       return {
         background: 'bg-gradient-to-r from-purple-500 to-purple-700',
-        animation: 'animate-[pulse_1s_ease-in-out_infinite]',
+        animation: 'animate-pulse',
         glow: 'shadow-xl shadow-purple-500/60',
         scale: 'scale-110'
       };
@@ -27,7 +27,7 @@ export const getOrbStyling = (friendState: FriendState): OrbStyling => {
     case 'speaking':
       return {
         background: 'bg-gradient-to-r from-yellow-400 to-orange-500',
-        animation: 'animate-[pulse_0.5s_ease-in-out_infinite]',
+        animation: 'animate-pulse',
         glow: 'shadow-xl shadow-yellow-500/60',
         scale: 'scale-110'
       };
