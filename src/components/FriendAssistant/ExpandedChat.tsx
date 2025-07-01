@@ -1,0 +1,137 @@
+
+import { X, MessageCircle, Send, Mic, MicOff } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Message, FriendState } from './types';
+import { getOrbStyling } from './orbUtils';
+
+interface ExpandedChatProps {
+  messages: Message[];
+  inputValue: string;
+  friendState: FriendState;
+  isListening: boolean;
+  onInputChange: (value: string) => void;
+  onSendMessage: () => void;
+  onKeyPress: (e: React.KeyboardEvent) => void;
+  onVoiceToggle: () => void;
+  onCollapse: () => void;
+  onClose: () => void;
+}
+
+const ExpandedChat = ({
+  messages,
+  inputValue,
+  friendState,
+  isListening,
+  onInputChange,
+  onSendMessage,
+  onKeyPress,
+  onVoiceToggle,
+  onCollapse,
+  onClose
+}: ExpandedChatProps) => {
+  const orbStyle = getOrbStyling(friendState);
+
+  return (
+    <Card className="w-80 h-96 shadow-xl animate-scale-in">
+      <CardHeader className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-4 rounded-t-lg">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            {/* Mini state orb in header */}
+            <div className={`w-6 h-6 rounded-full ${orbStyle.background} ${orbStyle.animation} ${orbStyle.scale} transition-all duration-300 flex items-center justify-center`}>
+              <div className="w-3 h-3 rounded-full bg-white/40"></div>
+            </div>
+            <span className="font-semibold">IDIA Friend</span>
+            <span className="text-xs opacity-75 capitalize">({friendState})</span>
+          </div>
+          <div className="flex items-center space-x-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onCollapse}
+              className="text-white hover:bg-white/20 p-1"
+            >
+              <MessageCircle className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="text-white hover:bg-white/20 p-1"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="p-0 flex flex-col h-80">
+        {/* Messages area */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`max-w-[80%] p-3 rounded-lg text-sm ${
+                  message.isUser
+                    ? 'bg-teal-500 text-white rounded-br-none'
+                    : 'bg-gray-100 text-gray-900 rounded-bl-none'
+                }`}
+              >
+                {message.text}
+              </div>
+            </div>
+          ))}
+          
+          {/* Thinking indicator */}
+          {friendState === 'thinking' && (
+            <div className="flex justify-start">
+              <div className="bg-gray-100 text-gray-900 rounded-lg rounded-bl-none p-3 text-sm">
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input area */}
+        <div className="border-t p-4">
+          <div className="flex space-x-2">
+            <Input
+              value={inputValue}
+              onChange={(e) => onInputChange(e.target.value)}
+              onKeyPress={onKeyPress}
+              placeholder="Ask me anything about IDIA..."
+              className="flex-1"
+              disabled={friendState === 'thinking'}
+            />
+            <Button
+              onClick={onSendMessage}
+              size="sm"
+              className="bg-teal-500 hover:bg-teal-600"
+              disabled={friendState === 'thinking'}
+            >
+              <Send className="w-4 h-4" />
+            </Button>
+            <Button
+              onClick={onVoiceToggle}
+              size="sm"
+              variant="outline"
+              className={`${isListening ? 'bg-purple-100 border-purple-300' : ''}`}
+            >
+              {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default ExpandedChat;

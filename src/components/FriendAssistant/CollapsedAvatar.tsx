@@ -1,0 +1,75 @@
+
+import { X, MessageCircle, Bot, Mic, MicOff } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { FriendState } from './types';
+import { getOrbStyling } from './orbUtils';
+
+interface CollapsedAvatarProps {
+  friendState: FriendState;
+  isListening: boolean;
+  onChatClick: () => void;
+  onVoiceToggle: () => void;
+  onClose: () => void;
+}
+
+const CollapsedAvatar = ({ 
+  friendState, 
+  isListening, 
+  onChatClick, 
+  onVoiceToggle, 
+  onClose 
+}: CollapsedAvatarProps) => {
+  const orbStyle = getOrbStyling(friendState);
+
+  return (
+    <div className="flex flex-col items-center space-y-2 animate-scale-in">
+      {/* Dynamic State Orb */}
+      <div className={`relative w-14 h-14 rounded-full ${orbStyle.background} ${orbStyle.animation} ${orbStyle.glow} ${orbStyle.scale} transition-all duration-300 flex items-center justify-center cursor-pointer`}>
+        {/* Inner flame effect */}
+        <div className={`w-8 h-8 rounded-full bg-white/30 ${orbStyle.animation} transition-all duration-300`}>
+          <div className="w-full h-full rounded-full bg-white/20 animate-pulse"></div>
+        </div>
+        
+        {/* State indicator */}
+        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white flex items-center justify-center">
+          {friendState === 'listening' && <Mic className="w-2 h-2 text-purple-600" />}
+          {friendState === 'thinking' && <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce"></div>}
+          {friendState === 'speaking' && <div className="w-2 h-2 bg-yellow-600 rounded-full animate-ping"></div>}
+          {friendState === 'idle' && <Bot className="w-2 h-2 text-blue-600" />}
+        </div>
+      </div>
+      
+      {/* Chat Button */}
+      <Button
+        onClick={onChatClick}
+        size="sm"
+        className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg"
+      >
+        <MessageCircle className="w-4 h-4 mr-1" />
+        Chat
+      </Button>
+      
+      {/* Voice Button */}
+      <Button
+        onClick={onVoiceToggle}
+        size="sm"
+        variant="outline"
+        className={`${isListening ? 'bg-purple-100 border-purple-300' : ''} transition-colors`}
+      >
+        {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+      </Button>
+      
+      {/* Close button */}
+      <Button
+        onClick={onClose}
+        variant="ghost"
+        size="sm"
+        className="text-gray-500 hover:text-gray-700"
+      >
+        <X className="w-4 h-4" />
+      </Button>
+    </div>
+  );
+};
+
+export default CollapsedAvatar;
