@@ -1,42 +1,67 @@
 
-import { User, MessageCircle } from 'lucide-react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Menu, X, Wallet, TestTube } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const Header = () => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const navigate = useNavigate();
+
   return (
-    <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 px-4 py-3 sticky top-0 z-50">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <img 
-            src="/lovable-uploads/a1fcabab-f9bb-4a81-9b30-10d1aab93545.png" 
-            alt="IDIA Life" 
-            className="w-8 h-8 rounded-lg"
-          />
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">IDIA Life</h1>
-            <p className="text-xs text-gray-500">Enterprise Edition</p>
+    <header className="bg-white shadow-sm border-b border-gray-200">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
+          {/* Logo */}
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-lg flex items-center justify-center">
+              <Wallet className="w-5 h-5 text-white" />
+            </div>
+            <h1 className="text-xl font-bold text-gray-900">IDIA Life</h1>
+          </div>
+
+          {/* Desktop Menu */}
+          <div className="hidden md:flex items-center space-x-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/pipeline-test')}
+              className="flex items-center space-x-2"
+            >
+              <TestTube className="w-4 h-4" />
+              <span>Test Pipeline</span>
+            </Button>
+          </div>
+
+          {/* Mobile menu button */}
+          <div className="md:hidden">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+            >
+              {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </Button>
           </div>
         </div>
 
-        <div className="flex items-center space-x-3">
-          {/* Friend AI Assistant */}
-          <Button 
-            size="sm" 
-            variant="outline" 
-            className="rounded-full p-2 border-teal-200 text-teal-600 hover:bg-teal-50"
-          >
-            <MessageCircle className="w-4 h-4" />
-          </Button>
-
-          {/* Profile Button */}
-          <Button 
-            size="sm" 
-            variant="outline" 
-            className="rounded-full p-2 border-gray-200 hover:bg-gray-50"
-          >
-            <User className="w-4 h-4" />
-          </Button>
-        </div>
+        {/* Mobile Menu */}
+        {isMenuOpen && (
+          <div className="md:hidden py-3 border-t border-gray-200">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                navigate('/pipeline-test');
+                setIsMenuOpen(false);
+              }}
+              className="w-full flex items-center justify-center space-x-2"
+            >
+              <TestTube className="w-4 h-4" />
+              <span>Test Pipeline</span>
+            </Button>
+          </div>
+        )}
       </div>
     </header>
   );

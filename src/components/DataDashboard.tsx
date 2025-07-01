@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,6 +20,9 @@ const DataDashboard = () => {
   const [showNikeModal, setShowNikeModal] = useState(false);
   const [showStravaModal, setShowStravaModal] = useState(false);
 
+  // Mock user ID for testing - in production this would come from auth
+  const TEST_USER_ID = '00000000-0000-0000-0000-000000000001';
+
   useEffect(() => {
     fetchConnections();
     
@@ -42,6 +44,7 @@ const DataDashboard = () => {
       const { data: connectionsData, error: connectionsError } = await supabase
         .from('data_connections')
         .select('*')
+        .eq('user_id', TEST_USER_ID)
         .eq('is_active', true);
 
       if (connectionsError) {
@@ -56,6 +59,7 @@ const DataDashboard = () => {
       const { data: walletData, error: walletError } = await supabase
         .from('user_wallets')
         .select('*')
+        .eq('user_id', TEST_USER_ID)
         .single();
 
       const monthlyEarnings = walletData?.total_earned || 0;
@@ -72,33 +76,33 @@ const DataDashboard = () => {
   };
 
   const handleStravaAuth = () => {
-    // Strava OAuth configuration
-    const clientId = 'YOUR_STRAVA_CLIENT_ID'; // This will be replaced with actual client ID
-    const redirectUri = encodeURIComponent(window.location.origin);
-    const scope = 'read,activity:read_all';
-    const state = 'strava_auth';
-    
-    const stravaAuthUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&approval_prompt=force&scope=${scope}&state=${state}`;
-    
-    window.location.href = stravaAuthUrl;
+    // For now, just open the modal for API key connection
+    setShowStravaModal(true);
   };
 
   const handleStravaCallback = async (code: string) => {
     try {
       console.log('Strava authorization code:', code);
       
-      // In a real implementation, this would exchange the code for an access token
-      // and store the connection in the database
-      const newConnection = {
-        id: Date.now().toString(),
-        connection_name: 'Strava',
-        connection_type: 'strava',
-        is_active: true,
-        created_at: new Date().toISOString()
-      };
+      // Create a test connection
+      const { data: newConnection, error: connectionError } = await supabase
+        .from('data_connections')
+        .insert({
+          user_id: TEST_USER_ID,
+          connection_name: 'Strava',
+          connection_type: 'strava',
+          access_token: 'test_access_token_' + Date.now(),
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (connectionError) {
+        console.error('Error creating connection:', connectionError);
+        return;
+      }
       
-      setConnections([newConnection]);
-      // Refresh earnings after connection
+      // Refresh connections after successful creation
       fetchConnections();
     } catch (error) {
       console.error('Error handling Strava callback:', error);
@@ -110,10 +114,30 @@ const DataDashboard = () => {
     setShowStravaModal(true);
   };
 
-  const handleStravaComplete = () => {
+  const handleStravaComplete = async () => {
     setShowStravaModal(false);
-    // Refresh connections after modal completion
-    fetchConnections();
+    
+    // Create a test connection when modal completes
+    try {
+      const { data: newConnection, error: connectionError } = await supabase
+        .from('data_connections')
+        .insert({
+          user_id: TEST_USER_ID,
+          connection_name: 'Strava',
+          connection_type: 'strava',
+          access_token: 'test_access_token_' + Date.now(),
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (!connectionError) {
+        // Refresh connections after successful creation
+        await fetchConnections();
+      }
+    } catch (error) {
+      console.error('Error creating connection:', error);
+    }
   };
 
   if (loading) {
