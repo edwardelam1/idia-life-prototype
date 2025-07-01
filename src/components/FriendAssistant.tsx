@@ -4,6 +4,7 @@ import { X, MessageCircle, Bot, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 interface Message {
   id: string;
@@ -44,9 +45,8 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
         isUser: false,
         timestamp: new Date()
       }]);
-      setIsExpanded(true);
     }
-  }, [isVisible, trigger]);
+  }, [isVisible, trigger, messages.length]);
 
   const handleSendMessage = () => {
     if (!inputValue.trim()) return;
@@ -88,27 +88,59 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
     }
   };
 
+  const handleChatClick = () => {
+    setIsExpanded(true);
+  };
+
   if (!isVisible) return null;
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
-      {/* Collapsed state - floating icon */}
+      {/* Collapsed state - Avatar with chat button */}
       {!isExpanded && (
-        <Button
-          onClick={() => setIsExpanded(true)}
-          className="w-14 h-14 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg animate-pulse"
-        >
-          <Bot className="w-6 h-6 text-white" />
-        </Button>
+        <div className="flex flex-col items-center space-y-2 animate-scale-in">
+          {/* Avatar */}
+          <Avatar className="w-12 h-12 border-2 border-purple-500 shadow-lg">
+            <AvatarImage src="/placeholder.svg" alt="IDIA Friend" />
+            <AvatarFallback className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold">
+              IF
+            </AvatarFallback>
+          </Avatar>
+          
+          {/* Chat Button */}
+          <Button
+            onClick={handleChatClick}
+            size="sm"
+            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg animate-pulse"
+          >
+            <MessageCircle className="w-4 h-4 mr-1" />
+            Chat
+          </Button>
+          
+          {/* Close button */}
+          <Button
+            onClick={onClose}
+            variant="ghost"
+            size="sm"
+            className="text-gray-500 hover:text-gray-700"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
       )}
 
-      {/* Expanded state - chat interface */}
+      {/* Expanded state - Full chat interface */}
       {isExpanded && (
         <Card className="w-80 h-96 shadow-xl animate-scale-in">
           <CardHeader className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-4 rounded-t-lg">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <Bot className="w-5 h-5" />
+                <Avatar className="w-6 h-6">
+                  <AvatarImage src="/placeholder.svg" alt="IDIA Friend" />
+                  <AvatarFallback className="bg-white/20 text-white text-xs">
+                    IF
+                  </AvatarFallback>
+                </Avatar>
                 <span className="font-semibold">IDIA Friend</span>
               </div>
               <div className="flex items-center space-x-1">
