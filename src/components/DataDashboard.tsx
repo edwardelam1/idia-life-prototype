@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -37,13 +38,35 @@ const DataDashboard = () => {
 
   const fetchConnections = async () => {
     try {
-      // For demo purposes, we'll start with no connections
-      // In a real app, this would query the data_connections table
-      setConnections([]);
-      setTotalEarnings(0);
+      // Fetch real connections from database
+      const { data: connectionsData, error: connectionsError } = await supabase
+        .from('data_connections')
+        .select('*')
+        .eq('is_active', true);
+
+      if (connectionsError) {
+        console.error('Error fetching connections:', connectionsError);
+        setConnections([]);
+        setTotalEarnings(0);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch user wallet to get real earnings
+      const { data: walletData, error: walletError } = await supabase
+        .from('user_wallets')
+        .select('*')
+        .single();
+
+      const monthlyEarnings = walletData?.total_earned || 0;
+
+      setConnections(connectionsData || []);
+      setTotalEarnings(monthlyEarnings);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching connections:', error);
+      setConnections([]);
+      setTotalEarnings(0);
       setLoading(false);
     }
   };
@@ -62,22 +85,21 @@ const DataDashboard = () => {
 
   const handleStravaCallback = async (code: string) => {
     try {
-      // This would typically exchange the code for an access token
-      // For now, we'll simulate a successful connection
       console.log('Strava authorization code:', code);
       
-      // Simulate connection success
+      // In a real implementation, this would exchange the code for an access token
+      // and store the connection in the database
       const newConnection = {
-        id: 1,
+        id: Date.now().toString(),
         connection_name: 'Strava',
-        earnings_this_month: 67.50,
-        total_earnings: 203.25,
+        connection_type: 'strava',
         is_active: true,
-        connected_at: new Date().toISOString()
+        created_at: new Date().toISOString()
       };
       
       setConnections([newConnection]);
-      setTotalEarnings(67.50);
+      // Refresh earnings after connection
+      fetchConnections();
     } catch (error) {
       console.error('Error handling Strava callback:', error);
     }
@@ -90,17 +112,8 @@ const DataDashboard = () => {
 
   const handleStravaComplete = () => {
     setShowStravaModal(false);
-    // Add the connection to state
-    const newConnection = {
-      id: 1,
-      connection_name: 'Strava',
-      earnings_this_month: 67.50,
-      total_earnings: 203.25,
-      is_active: true,
-      connected_at: new Date().toISOString()
-    };
-    setConnections([newConnection]);
-    setTotalEarnings(67.50);
+    // Refresh connections after modal completion
+    fetchConnections();
   };
 
   if (loading) {
@@ -124,10 +137,10 @@ const DataDashboard = () => {
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-teal-100 mb-1">Monthly Data Earnings</p>
+              <p className="text-teal-100 mb-1">Total Data Earnings</p>
               <p className="text-3xl font-bold">${totalEarnings.toFixed(2)}</p>
               <p className="text-sm text-teal-100 mt-1">
-                {connections.length > 0 ? '+23% from last month' : 'Start earning by connecting data sources'}
+                {connections.length > 0 ? 'Earnings from connected data sources' : 'Start earning by connecting data sources'}
               </p>
             </div>
             <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
@@ -150,7 +163,7 @@ const DataDashboard = () => {
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">Your data helped improve:</span>
-                <Badge variant="secondary">2 studies this month</Badge>
+                <Badge variant="secondary">Research studies</Badge>
               </div>
               <div className="space-y-2 text-sm">
                 <p className="flex items-center space-x-2">
@@ -188,20 +201,20 @@ const DataDashboard = () => {
                         <h3 className="font-semibold text-gray-900">{connection.connection_name}</h3>
                         <div className="text-right">
                           <p className="text-sm font-medium text-green-600">
-                            ${connection.earnings_this_month.toFixed(2)}/mo
+                            Active Pipeline
                           </p>
                           <p className="text-xs text-gray-500">
-                            Total: ${connection.total_earnings.toFixed(2)}
+                            Processing data automatically
                           </p>
                         </div>
                       </div>
                       <p className="text-sm text-gray-600 mb-2">
-                        Fitness data from Strava activities
+                        {connection.connection_type === 'strava' ? 'Fitness data from Strava activities' : 'Connected data source'}
                       </p>
                       <div className="flex items-center space-x-4 text-xs text-gray-500">
                         <span className="flex items-center space-x-1">
                           <Shield className="w-3 h-3 text-green-600" />
-                          <span>Very High Privacy</span>
+                          <span>Privacy Protected</span>
                         </span>
                         <span className="flex items-center space-x-1">
                           <CheckCircle className="w-3 h-3 text-green-500" />

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { ArrowUpRight, ArrowDownLeft, CreditCard, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,13 +31,26 @@ const WalletDashboard = () => {
 
   const fetchBalances = async () => {
     try {
-      // For now, since there's no auth and no user_balances table created yet,
-      // we'll show zero balances to demonstrate real data connection
-      // In a real app with auth, this would query user_balances table
+      // Fetch real user wallet data
+      const { data: walletData, error: walletError } = await supabase
+        .from('user_wallets')
+        .select('*')
+        .single();
+
+      if (walletError && walletError.code !== 'PGRST116') {
+        console.error('Error fetching wallet:', walletError);
+        setBalances({
+          cash: 0,
+          idiaUsd: 0,
+          idiaToken: 0
+        });
+        return;
+      }
+
       setBalances({
-        cash: 0,
-        idiaUsd: 0,
-        idiaToken: 0
+        cash: 0, // Still not implemented
+        idiaUsd: walletData?.idia_usd_balance || 0,
+        idiaToken: 0 // Still not implemented
       });
     } catch (error) {
       console.error('Error fetching balances:', error);
@@ -52,8 +64,7 @@ const WalletDashboard = () => {
 
   const fetchTransactions = async () => {
     try {
-      // For now, since there's no auth, we'll fetch from the transactions table
-      // In a real app with auth, this would filter by user_id
+      // Fetch real transactions from database
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
@@ -61,7 +72,7 @@ const WalletDashboard = () => {
         .limit(10);
 
       if (error) {
-        console.log('No transactions found or error:', error);
+        console.log('Error fetching transactions:', error);
         setTransactions([]);
       } else {
         setTransactions(data || []);
@@ -132,7 +143,7 @@ const WalletDashboard = () => {
 
   return (
     <div className="p-4 space-y-6">
-      {/* Balance Card - Real Data Only */}
+      {/* Balance Card - Real Data */}
       <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white overflow-hidden">
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-4">
@@ -179,7 +190,7 @@ const WalletDashboard = () => {
         </div>
       </div>
 
-      {/* Recent Transactions - Real Data Only */}
+      {/* Recent Transactions - Real Data */}
       <Card>
         <CardHeader>
           <CardTitle>Recent Activity</CardTitle>

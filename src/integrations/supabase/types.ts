@@ -9,6 +9,157 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      data_connections: {
+        Row: {
+          access_token: string | null
+          connection_name: string
+          connection_type: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          last_sync_at: string | null
+          refresh_token: string | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          connection_name: string
+          connection_type: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          connection_name?: string
+          connection_type?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      raw_strava_data: {
+        Row: {
+          activity_id: number
+          connection_id: string
+          id: string
+          processed: boolean | null
+          raw_data: Json
+          received_at: string
+          user_id: string
+        }
+        Insert: {
+          activity_id: number
+          connection_id: string
+          id?: string
+          processed?: boolean | null
+          raw_data: Json
+          received_at?: string
+          user_id: string
+        }
+        Update: {
+          activity_id?: number
+          connection_id?: string
+          id?: string
+          processed?: boolean | null
+          raw_data?: Json
+          received_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "raw_strava_data_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "data_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staged_data: {
+        Row: {
+          activity_type: string
+          anonymized_location_zone: string | null
+          average_heartrate: number | null
+          average_speed_mps: number | null
+          device_type: string | null
+          distance_meters: number | null
+          duration_seconds: number | null
+          effort_score: number | null
+          elevation_gain_meters: number | null
+          id: string
+          max_heartrate: number | null
+          max_speed_mps: number | null
+          processed_at: string
+          raw_data_id: string
+          reward_amount: number | null
+          reward_calculated: boolean | null
+          user_id: string
+          weather_conditions: Json | null
+        }
+        Insert: {
+          activity_type: string
+          anonymized_location_zone?: string | null
+          average_heartrate?: number | null
+          average_speed_mps?: number | null
+          device_type?: string | null
+          distance_meters?: number | null
+          duration_seconds?: number | null
+          effort_score?: number | null
+          elevation_gain_meters?: number | null
+          id?: string
+          max_heartrate?: number | null
+          max_speed_mps?: number | null
+          processed_at?: string
+          raw_data_id: string
+          reward_amount?: number | null
+          reward_calculated?: boolean | null
+          user_id: string
+          weather_conditions?: Json | null
+        }
+        Update: {
+          activity_type?: string
+          anonymized_location_zone?: string | null
+          average_heartrate?: number | null
+          average_speed_mps?: number | null
+          device_type?: string | null
+          distance_meters?: number | null
+          duration_seconds?: number | null
+          effort_score?: number | null
+          elevation_gain_meters?: number | null
+          id?: string
+          max_heartrate?: number | null
+          max_speed_mps?: number | null
+          processed_at?: string
+          raw_data_id?: string
+          reward_amount?: number | null
+          reward_calculated?: boolean | null
+          user_id?: string
+          weather_conditions?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staged_data_raw_data_id_fkey"
+            columns: ["raw_data_id"]
+            isOneToOne: false
+            referencedRelation: "raw_strava_data"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transactions: {
         Row: {
           amount: number
@@ -38,6 +189,33 @@ export type Database = {
           source?: string | null
           status?: string | null
           transaction_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_wallets: {
+        Row: {
+          created_at: string
+          id: string
+          idia_usd_balance: number | null
+          total_earned: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          idia_usd_balance?: number | null
+          total_earned?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          idia_usd_balance?: number | null
+          total_earned?: number | null
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
