@@ -40,12 +40,14 @@ const ExpandedChat = ({
       <CardHeader className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-4 rounded-t-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            {/* Mini state orb in header - clickable for voice */}
+            {/* Mini mystical state orb in header - clickable for voice */}
             <div 
-              className={`w-6 h-6 rounded-full ${orbStyle.background} ${orbStyle.animation} ${orbStyle.scale} transition-all duration-500 flex items-center justify-center cursor-pointer hover:scale-110`}
+              className={`relative w-6 h-6 rounded-full ${orbStyle.background} ${orbStyle.animation} ${orbStyle.scale} transition-all duration-500 flex items-center justify-center cursor-pointer hover:scale-110 border border-white/30`}
               onClick={onVoiceToggle}
             >
-              <div className="w-3 h-3 rounded-full bg-white/40"></div>
+              {/* Mini mystical layers */}
+              <div className="absolute inset-1 rounded-full bg-white/15 blur-[0.5px]"></div>
+              <div className="w-2 h-2 rounded-full bg-white/30 backdrop-blur-sm"></div>
             </div>
             <span className="font-semibold">IDIA Friend</span>
             <span className="text-xs opacity-75 capitalize">({friendState})</span>

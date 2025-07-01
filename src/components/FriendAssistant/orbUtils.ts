@@ -5,37 +5,37 @@ export const getOrbStyling = (friendState: FriendState, isBlinking?: boolean): O
   switch (friendState) {
     case 'idle':
       return {
-        background: 'bg-gradient-to-r from-blue-400 to-blue-600',
-        animation: 'animate-pulse',
-        glow: 'shadow-lg shadow-blue-500/50',
+        background: 'bg-gradient-radial from-blue-300/80 via-blue-500/60 to-blue-800/90',
+        animation: 'animate-[pulse_5s_ease-in-out_infinite]', // Slowed down by 2/3 (from ~2s to 5s)
+        glow: 'shadow-2xl shadow-blue-400/40 backdrop-blur-sm',
         scale: 'scale-100'
       };
     case 'listening':
       return {
-        background: 'bg-gradient-to-r from-purple-500 to-purple-700',
+        background: 'bg-gradient-radial from-purple-300/80 via-purple-500/60 to-purple-800/90',
         animation: 'animate-pulse',
-        glow: 'shadow-xl shadow-purple-500/60',
+        glow: 'shadow-2xl shadow-purple-400/50 backdrop-blur-sm',
         scale: 'scale-110'
       };
     case 'thinking':
       return {
-        background: 'bg-gradient-to-r from-gray-400 to-gray-600',
+        background: 'bg-gradient-radial from-gray-300/70 via-gray-500/50 to-gray-700/80',
         animation: 'animate-spin',
-        glow: 'shadow-lg shadow-gray-500/50',
+        glow: 'shadow-2xl shadow-gray-400/30 backdrop-blur-sm',
         scale: 'scale-105'
       };
     case 'speaking':
       return {
-        background: 'bg-gradient-to-r from-yellow-400 to-orange-500',
+        background: 'bg-gradient-radial from-yellow-300/80 via-orange-400/60 to-orange-600/90',
         animation: isBlinking ? 'animate-pulse' : '', // Dynamic blinking based on syllables
-        glow: 'shadow-xl shadow-yellow-500/60',
+        glow: 'shadow-2xl shadow-yellow-400/50 backdrop-blur-sm',
         scale: 'scale-110'
       };
     default:
       return {
-        background: 'bg-gradient-to-r from-blue-400 to-blue-600',
-        animation: 'animate-pulse',
-        glow: 'shadow-lg shadow-blue-500/50',
+        background: 'bg-gradient-radial from-blue-300/80 via-blue-500/60 to-blue-800/90',
+        animation: 'animate-[pulse_5s_ease-in-out_infinite]',
+        glow: 'shadow-2xl shadow-blue-400/40 backdrop-blur-sm',
         scale: 'scale-100'
       };
   }

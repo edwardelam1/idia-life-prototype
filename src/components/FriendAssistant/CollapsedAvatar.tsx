@@ -25,18 +25,26 @@ const CollapsedAvatar = ({
 
   return (
     <div className="flex flex-col items-center space-y-2 animate-scale-in">
-      {/* Dynamic State Orb - Now clickable for voice activation */}
+      {/* Dynamic State Orb - Now clickable for voice activation with mystical smoky appearance */}
       <div 
-        className={`relative w-14 h-14 rounded-full ${orbStyle.background} ${orbStyle.animation} ${orbStyle.glow} ${orbStyle.scale} transition-all duration-500 flex items-center justify-center cursor-pointer hover:scale-110`}
+        className={`relative w-14 h-14 rounded-full ${orbStyle.background} ${orbStyle.animation} ${orbStyle.glow} ${orbStyle.scale} transition-all duration-500 flex items-center justify-center cursor-pointer hover:scale-110 border border-white/20`}
         onClick={onVoiceToggle}
       >
-        {/* Inner flame effect */}
-        <div className={`w-8 h-8 rounded-full bg-white/30 transition-all duration-500`}>
-          <div className="w-full h-full rounded-full bg-white/20"></div>
+        {/* Mystical inner layers for smoky effect */}
+        <div className="absolute inset-2 rounded-full bg-white/10 blur-[1px]">
+          <div className="w-full h-full rounded-full bg-gradient-radial from-white/20 via-transparent to-transparent"></div>
+        </div>
+        <div className="absolute inset-3 rounded-full bg-white/5 blur-[2px]">
+          <div className="w-full h-full rounded-full bg-gradient-radial from-white/15 via-transparent to-transparent"></div>
+        </div>
+        
+        {/* Core mystical center */}
+        <div className="relative w-6 h-6 rounded-full bg-white/20 backdrop-blur-sm">
+          <div className="absolute inset-1 rounded-full bg-white/10"></div>
         </div>
         
         {/* State indicator */}
-        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white flex items-center justify-center">
+        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center border border-white/30">
           {friendState === 'listening' && <Mic className="w-2 h-2 text-purple-600" />}
           {friendState === 'thinking' && <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce"></div>}
           {friendState === 'speaking' && <div className="w-2 h-2 bg-yellow-600 rounded-full animate-pulse"></div>}
