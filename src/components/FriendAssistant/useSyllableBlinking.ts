@@ -1,39 +1,17 @@
-
 import { useState, useEffect } from 'react';
 
-export const useSyllableBlinking = (isActive: boolean, text?: string) => {
-  const [isBlinking, setIsBlinking] = useState(false);
+export const useSyllableBlinking = () => {
+  const [currentSyllable, setCurrentSyllable] = useState(0);
 
   useEffect(() => {
-    if (!isActive || !text) {
-      setIsBlinking(false);
-      return;
-    }
-
-    // Estimate syllables in the text (rough approximation)
-    const syllableCount = estimateSyllables(text);
-    // Average speaking rate is about 4-5 syllables per second
-    const syllableDuration = 1000 / 4.5; // ~222ms per syllable
-    
-    let currentSyllable = 0;
     const interval = setInterval(() => {
-      if (currentSyllable >= syllableCount) {
-        setIsBlinking(false);
-        clearInterval(interval);
-        return;
-      }
-      
-      // Toggle blink for each syllable
-      setIsBlinking(true);
-      setTimeout(() => setIsBlinking(false), syllableDuration * 0.4); // Blink for 40% of syllable duration
-      
-      currentSyllable++;
-    }, syllableDuration);
+      setCurrentSyllable(prev => (prev + 1) % 4);
+    }, 1000); // Changed from 500ms to 1000ms (slowed by half)
 
     return () => clearInterval(interval);
-  }, [isActive, text]);
+  }, []);
 
-  return isBlinking;
+  return { currentSyllable };
 };
 
 // Simple syllable estimation function

@@ -217,6 +217,33 @@ export type Database = {
         }
         Relationships: []
       }
+      password_reset_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          token: string
+          used: boolean
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          token: string
+          used?: boolean
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          token?: string
+          used?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
       raw_strava_data: {
         Row: {
           activity_id: number
@@ -453,6 +480,48 @@ export type Database = {
           source?: string | null
           status?: string | null
           transaction_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_proposals: {
+        Row: {
+          ai_validation_feedback: string | null
+          ai_validation_score: number | null
+          category: string
+          created_at: string
+          description: string
+          id: string
+          status: string
+          suggested_impact: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_validation_feedback?: string | null
+          ai_validation_score?: number | null
+          category: string
+          created_at?: string
+          description: string
+          id?: string
+          status?: string
+          suggested_impact?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_validation_feedback?: string | null
+          ai_validation_score?: number | null
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          status?: string
+          suggested_impact?: string
+          title?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
