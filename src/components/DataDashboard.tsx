@@ -114,6 +114,14 @@ const DataDashboard = () => {
     setShowStravaModal(true);
   };
 
+  // Add function to trigger Friend Assistant for data connection events
+  const triggerFriendForDataEvent = () => {
+    // Dispatch custom event that MainApp can listen for
+    window.dispatchEvent(new CustomEvent('showFriend', { 
+      detail: { trigger: 'data' } 
+    }));
+  };
+
   const handleStravaComplete = async () => {
     setShowStravaModal(false);
     
@@ -134,6 +142,8 @@ const DataDashboard = () => {
       if (!connectionError) {
         // Refresh connections after successful creation
         await fetchConnections();
+        // Trigger Friend Assistant to celebrate the connection
+        triggerFriendForDataEvent();
       }
     } catch (error) {
       console.error('Error creating connection:', error);
