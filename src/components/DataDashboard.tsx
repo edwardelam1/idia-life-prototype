@@ -167,7 +167,7 @@ const DataDashboard = () => {
         </div>
       )}
 
-      {/* Available Data Sources - Nike Logo and NRC Text */}
+      {/* Available Data Sources - Strava Logo and Strava Text */}
       {connections.length === 0 && (
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-gray-900">Available Data Sources</h2>
@@ -178,12 +178,12 @@ const DataDashboard = () => {
             >
               <div className="w-16 h-16 rounded-lg overflow-hidden bg-white">
                 <img 
-                  src="https://upload.wikimedia.org/wikipedia/commons/a/a6/Logo_NIKE.svg" 
-                  alt="Nike Run Club" 
+                  src="/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png" 
+                  alt="Strava" 
                   className="w-full h-full object-contain p-2"
                 />
               </div>
-              <span className="text-sm font-medium text-gray-700 mt-2">NRC</span>
+              <span className="text-sm font-medium text-gray-700 mt-2">Strava</span>
             </div>
           </div>
         </div>
