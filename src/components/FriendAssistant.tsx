@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Message, FriendAssistantProps, FriendState } from './FriendAssistant/types';
 import { getContextualGreeting } from './FriendAssistant/orbUtils';
@@ -14,10 +15,8 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
   const [currentSpeechText, setCurrentSpeechText] = useState<string>('');
 
   // Use syllable blinking hook
-  const isSyllableBlinking = useSyllableBlinking(
-    friendState === 'speaking',
-    currentSpeechText
-  );
+  const { currentSyllable } = useSyllableBlinking();
+  const isSyllableBlinking = friendState === 'speaking';
 
   // Initialize with contextual greeting based on trigger
   useEffect(() => {

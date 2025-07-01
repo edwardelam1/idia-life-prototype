@@ -57,11 +57,11 @@ const ProposalForm = ({ onClose, onSuccess }: ProposalFormProps) => {
       if (insertError) throw insertError;
 
       // Call AI validation function
-      const response = await fetch(`${supabase.supabaseUrl}/functions/v1/validate-proposal`, {
+      const response = await fetch(`https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/validate-proposal`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabase.supabaseKey}`
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4eW5ncWNpaXBjdnZlaWdyenF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEzMjIwNzYsImV4cCI6MjA2Njg5ODA3Nn0.w-fUxBsH8wZ5ewzQkGAO6sEooqPEYbYJI_vL5F36HSU`
         },
         body: JSON.stringify({
           proposalId: proposal.id,
