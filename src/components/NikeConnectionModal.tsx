@@ -2,16 +2,7 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
-import { 
-  Shield, 
-  DollarSign, 
-  CheckCircle, 
-  Lock,
-  Users
-} from 'lucide-react';
+import { CheckCircle, DollarSign, Shield, Zap } from 'lucide-react';
 
 interface NikeConnectionModalProps {
   isOpen: boolean;
@@ -20,12 +11,9 @@ interface NikeConnectionModalProps {
 }
 
 const NikeConnectionModal = ({ isOpen, onClose, onConnect }: NikeConnectionModalProps) => {
-  const [consentGiven, setConsentGiven] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
 
   const handleConnect = async () => {
-    if (!consentGiven) return;
-    
     setIsConnecting(true);
     // Simulate connection process
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -35,127 +23,73 @@ const NikeConnectionModal = ({ isOpen, onClose, onConnect }: NikeConnectionModal
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
+            <div className="w-12 h-12 rounded-lg overflow-hidden bg-white">
               <img 
-                src="https://upload.wikimedia.org/wikipedia/commons/a/a6/Logo_NIKE.svg" 
-                alt="Nike Run Club" 
-                className="w-8 h-8 object-contain"
+                src="/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png" 
+                alt="Strava" 
+                className="w-full h-full object-contain p-1"
               />
             </div>
-            <span>Connect Nike Run Club</span>
+            <span>Connect Strava</span>
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Earnings Info */}
-          <div className="bg-gradient-to-r from-teal-50 to-cyan-50 p-4 rounded-lg">
-            <div className="flex items-center space-x-2 mb-2">
-              <DollarSign className="w-5 h-5 text-teal-600" />
-              <span className="font-semibold text-teal-900">Earning Potential</span>
-            </div>
-            <p className="text-2xl font-bold text-teal-900">$40-60/month</p>
-            <p className="text-sm text-teal-700">Estimated monthly earnings from fitness data</p>
-          </div>
-
-          {/* Privacy Level */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Shield className="w-5 h-5 text-gray-600" />
-              <span className="font-medium">Privacy Level</span>
-            </div>
-            <Badge className="text-green-600 bg-green-100">
-              Very High
-            </Badge>
-          </div>
-
-          {/* Description */}
-          <div>
-            <h4 className="font-medium text-gray-900 mb-2">How it works</h4>
-            <p className="text-sm text-gray-600">
-              Share your anonymized running and fitness data from Nike Run Club to help improve 
-              health research and fitness app development. Your personal identity is never shared.
+          <div className="text-center">
+            <p className="text-gray-600 mb-4">
+              Share your Strava activity data to earn money while contributing to fitness research.
             </p>
-          </div>
-
-          {/* Data Types */}
-          <div>
-            <h4 className="font-medium text-gray-900 mb-2">Data collected</h4>
-            <div className="space-y-2">
-              {[
-                'Running distance and pace',
-                'Workout frequency and duration',
-                'Achievement patterns',
-                'App usage statistics'
-              ].map((type, index) => (
-                <div key={index} className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  <span className="text-sm text-gray-600">{type}</span>
-                </div>
-              ))}
+            <div className="bg-green-50 p-4 rounded-lg">
+              <p className="text-2xl font-bold text-green-700 mb-1">$45-65/month</p>
+              <p className="text-sm text-green-600">Estimated earnings from your Strava data</p>
             </div>
           </div>
 
-          <Separator />
-
-          {/* Privacy Guarantees */}
           <div className="space-y-3">
-            <h4 className="font-medium text-gray-900 flex items-center space-x-2">
-              <Lock className="w-4 h-4" />
-              <span>Privacy Guarantees</span>
-            </h4>
-            <div className="space-y-2 text-sm">
-              {[
-                'Data is anonymized before sharing',
-                'No personal identifiers are included', 
-                'You can disconnect at any time',
-                'Full transparency on data usage'
-              ].map((guarantee, index) => (
-                <div key={index} className="flex items-start space-x-2">
-                  <CheckCircle className="w-4 h-4 text-green-500 mt-0.5" />
-                  <span className="text-gray-600">{guarantee}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Usage Info */}
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <div className="flex items-start space-x-2">
-              <Users className="w-5 h-5 text-blue-600 mt-0.5" />
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                <Shield className="w-4 h-4 text-blue-600" />
+              </div>
               <div>
-                <p className="font-medium text-blue-900 mb-1">Who uses this data?</p>
-                <p className="text-sm text-blue-700">
-                  Health research institutions, fitness app developers, and wellness studies 
-                  focused on improving public health outcomes and digital fitness experiences.
-                </p>
+                <p className="font-medium text-gray-900">Complete Privacy</p>
+                <p className="text-sm text-gray-600">Your personal data stays anonymous</p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                <DollarSign className="w-4 h-4 text-green-600" />
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">Monthly Payments</p>
+                <p className="text-sm text-gray-600">Get paid for your activity data</p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                <Zap className="w-4 h-4 text-purple-600" />
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">Help Research</p>
+                <p className="text-sm text-gray-600">Contribute to fitness and health studies</p>
               </div>
             </div>
           </div>
 
-          {/* Consent */}
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="flex items-start space-x-3">
-              <Switch 
-                checked={consentGiven}
-                onCheckedChange={setConsentGiven}
-                className="mt-1"
-              />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900 mb-1">
-                  I consent to sharing my Nike Run Club data
-                </p>
-                <p className="text-xs text-gray-600">
-                  I understand that my fitness data will be anonymized and used for research purposes. 
-                  I can revoke this consent at any time through the app settings.
-                </p>
-              </div>
-            </div>
+          <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+            <h4 className="font-medium text-orange-900 mb-2">What data is shared?</h4>
+            <ul className="text-sm text-orange-800 space-y-1">
+              <li>• Activity types (running, cycling, etc.)</li>
+              <li>• Duration and distance metrics</li>
+              <li>• General location data (city level)</li>
+              <li>• Performance trends over time</li>
+            </ul>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex space-x-3">
             <Button 
               variant="outline" 
@@ -166,9 +100,9 @@ const NikeConnectionModal = ({ isOpen, onClose, onConnect }: NikeConnectionModal
               Cancel
             </Button>
             <Button 
-              className="flex-1 bg-black hover:bg-gray-800" 
+              className="flex-1 bg-orange-500 hover:bg-orange-600" 
               onClick={handleConnect}
-              disabled={!consentGiven || isConnecting}
+              disabled={isConnecting}
             >
               {isConnecting ? (
                 <div className="flex items-center space-x-2">
@@ -176,7 +110,7 @@ const NikeConnectionModal = ({ isOpen, onClose, onConnect }: NikeConnectionModal
                   <span>Connecting...</span>
                 </div>
               ) : (
-                'Connect to Nike'
+                'Connect Strava'
               )}
             </Button>
           </div>
