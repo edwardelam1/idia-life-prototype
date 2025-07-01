@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,8 +30,8 @@ const PipelineTestManager = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [testUser, setTestUser] = useState<any>(null);
   const [showAuth, setShowAuth] = useState(false);
-  const [email, setEmail] = useState('pipeline-test@idia.dev');
-  const [password, setPassword] = useState('testpassword123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const { toast } = useToast();
@@ -70,6 +69,15 @@ const PipelineTestManager = () => {
   };
 
   const handleSignUp = async () => {
+    if (!email || !password) {
+      toast({
+        title: "Missing information",
+        description: "Please enter both email and password.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsSigningUp(true);
     
     const { data, error } = await supabase.auth.signUp({
@@ -91,12 +99,26 @@ const PipelineTestManager = () => {
         title: "Check your email",
         description: "We sent you a confirmation link. Please check your email and click the link to verify your account.",
       });
+    } else if (data.session) {
+      toast({
+        title: "Sign up successful",
+        description: "Your account has been created and you're now signed in.",
+      });
     }
     
     setIsSigningUp(false);
   };
 
   const handleSignIn = async () => {
+    if (!email || !password) {
+      toast({
+        title: "Missing information",
+        description: "Please enter both email and password.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsSigningIn(true);
     
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -118,6 +140,8 @@ const PipelineTestManager = () => {
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setTestResults([]);
+    setEmail('');
+    setPassword('');
     toast({
       title: "Signed out",
       description: "Test user has been signed out."
@@ -341,7 +365,7 @@ const PipelineTestManager = () => {
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <Mail className="w-4 h-4" />
-              Test Authentication
+              Authentication
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -351,7 +375,7 @@ const PipelineTestManager = () => {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter test email"
+                placeholder="Enter your email"
               />
             </div>
             <div className="space-y-2">
@@ -360,7 +384,7 @@ const PipelineTestManager = () => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password"
+                placeholder="Enter your password"
               />
             </div>
             <div className="flex gap-2">
