@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { X, MessageCircle, Bot, Send } from 'lucide-react';
+import { X, MessageCircle, Bot, Send, Mic, MicOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -19,10 +19,14 @@ interface FriendAssistantProps {
   trigger?: 'social' | 'wallet' | 'data' | 'achievement';
 }
 
+type FriendState = 'idle' | 'listening' | 'thinking' | 'speaking';
+
 const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
+  const [friendState, setFriendState] = useState<FriendState>('idle');
+  const [isListening, setIsListening] = useState(false);
 
   // Initialize with contextual greeting based on trigger
   useEffect(() => {
@@ -61,8 +65,13 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
 
-    // Simulate AI response (in a real implementation, this would call an AI service)
+    // Set thinking state
+    setFriendState('thinking');
+
+    // Simulate AI response with state transitions
     setTimeout(() => {
+      setFriendState('speaking');
+      
       const responses = [
         "That's a great question! Let me help you with that.",
         "I understand what you're looking for. Here's what I know about that topic.",
@@ -79,7 +88,12 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
       };
 
       setMessages(prev => [...prev, aiResponse]);
-    }, 1000);
+
+      // Return to idle state after speaking
+      setTimeout(() => {
+        setFriendState('idle');
+      }, 2000);
+    }, 1500);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -92,29 +106,104 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
     setIsExpanded(true);
   };
 
+  const handleVoiceToggle = () => {
+    if (isListening) {
+      setIsListening(false);
+      setFriendState('thinking');
+      // Simulate processing voice input
+      setTimeout(() => {
+        setFriendState('idle');
+      }, 1000);
+    } else {
+      setIsListening(true);
+      setFriendState('listening');
+    }
+  };
+
+  // Get orb styling based on current state
+  const getOrbStyling = () => {
+    switch (friendState) {
+      case 'idle':
+        return {
+          background: 'bg-gradient-to-r from-blue-400 to-blue-600',
+          animation: 'animate-pulse',
+          glow: 'shadow-lg shadow-blue-500/50',
+          scale: 'scale-100'
+        };
+      case 'listening':
+        return {
+          background: 'bg-gradient-to-r from-purple-500 to-purple-700',
+          animation: 'animate-[pulse_1s_ease-in-out_infinite]',
+          glow: 'shadow-xl shadow-purple-500/60',
+          scale: 'scale-110'
+        };
+      case 'thinking':
+        return {
+          background: 'bg-gradient-to-r from-gray-400 to-gray-600',
+          animation: 'animate-spin',
+          glow: 'shadow-lg shadow-gray-500/50',
+          scale: 'scale-105'
+        };
+      case 'speaking':
+        return {
+          background: 'bg-gradient-to-r from-yellow-400 to-orange-500',
+          animation: 'animate-[pulse_0.5s_ease-in-out_infinite]',
+          glow: 'shadow-xl shadow-yellow-500/60',
+          scale: 'scale-110'
+        };
+      default:
+        return {
+          background: 'bg-gradient-to-r from-blue-400 to-blue-600',
+          animation: 'animate-pulse',
+          glow: 'shadow-lg shadow-blue-500/50',
+          scale: 'scale-100'
+        };
+    }
+  };
+
+  const orbStyle = getOrbStyling();
+
   if (!isVisible) return null;
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
-      {/* Collapsed state - Avatar with chat button */}
+      {/* Collapsed state - Dynamic Avatar with chat button */}
       {!isExpanded && (
         <div className="flex flex-col items-center space-y-2 animate-scale-in">
-          {/* Avatar */}
-          <Avatar className="w-12 h-12 border-2 border-purple-500 shadow-lg">
-            <AvatarImage src="/placeholder.svg" alt="IDIA Friend" />
-            <AvatarFallback className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold">
-              IF
-            </AvatarFallback>
-          </Avatar>
+          {/* Dynamic State Orb */}
+          <div className={`relative w-14 h-14 rounded-full ${orbStyle.background} ${orbStyle.animation} ${orbStyle.glow} ${orbStyle.scale} transition-all duration-300 flex items-center justify-center cursor-pointer`}>
+            {/* Inner flame effect */}
+            <div className={`w-8 h-8 rounded-full bg-white/30 ${orbStyle.animation} transition-all duration-300`}>
+              <div className="w-full h-full rounded-full bg-white/20 animate-pulse"></div>
+            </div>
+            
+            {/* State indicator */}
+            <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white flex items-center justify-center">
+              {friendState === 'listening' && <Mic className="w-2 h-2 text-purple-600" />}
+              {friendState === 'thinking' && <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce"></div>}
+              {friendState === 'speaking' && <div className="w-2 h-2 bg-yellow-600 rounded-full animate-ping"></div>}
+              {friendState === 'idle' && <Bot className="w-2 h-2 text-blue-600" />}
+            </div>
+          </div>
           
           {/* Chat Button */}
           <Button
             onClick={handleChatClick}
             size="sm"
-            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg animate-pulse"
+            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg"
           >
             <MessageCircle className="w-4 h-4 mr-1" />
             Chat
+          </Button>
+          
+          {/* Voice Button */}
+          <Button
+            onClick={handleVoiceToggle}
+            size="sm"
+            variant="outline"
+            className={`${isListening ? 'bg-purple-100 border-purple-300' : ''} transition-colors`}
+          >
+            {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
           </Button>
           
           {/* Close button */}
@@ -135,13 +224,12 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
           <CardHeader className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-4 rounded-t-lg">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <Avatar className="w-6 h-6">
-                  <AvatarImage src="/placeholder.svg" alt="IDIA Friend" />
-                  <AvatarFallback className="bg-white/20 text-white text-xs">
-                    IF
-                  </AvatarFallback>
-                </Avatar>
+                {/* Mini state orb in header */}
+                <div className={`w-6 h-6 rounded-full ${orbStyle.background} ${orbStyle.animation} ${orbStyle.scale} transition-all duration-300 flex items-center justify-center`}>
+                  <div className="w-3 h-3 rounded-full bg-white/40"></div>
+                </div>
                 <span className="font-semibold">IDIA Friend</span>
+                <span className="text-xs opacity-75 capitalize">({friendState})</span>
               </div>
               <div className="flex items-center space-x-1">
                 <Button
@@ -183,6 +271,19 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
                   </div>
                 </div>
               ))}
+              
+              {/* Thinking indicator */}
+              {friendState === 'thinking' && (
+                <div className="flex justify-start">
+                  <div className="bg-gray-100 text-gray-900 rounded-lg rounded-bl-none p-3 text-sm">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Input area */}
@@ -194,13 +295,23 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
                   onKeyPress={handleKeyPress}
                   placeholder="Ask me anything about IDIA..."
                   className="flex-1"
+                  disabled={friendState === 'thinking'}
                 />
                 <Button
                   onClick={handleSendMessage}
                   size="sm"
                   className="bg-teal-500 hover:bg-teal-600"
+                  disabled={friendState === 'thinking'}
                 >
                   <Send className="w-4 h-4" />
+                </Button>
+                <Button
+                  onClick={handleVoiceToggle}
+                  size="sm"
+                  variant="outline"
+                  className={`${isListening ? 'bg-purple-100 border-purple-300' : ''}`}
+                >
+                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                 </Button>
               </div>
             </div>
