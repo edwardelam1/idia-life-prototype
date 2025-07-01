@@ -2,15 +2,19 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
   Play, 
   CheckCircle, 
   AlertCircle, 
   Zap,
-  User
+  User,
+  Mail,
+  Key
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface TestResult {
   step: string;
@@ -26,13 +30,35 @@ const PipelineTestManager = () => {
   const [currentStep, setCurrentStep] = useState<string>('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [testUser, setTestUser] = useState<any>(null);
-
-  // Test credentials
-  const TEST_EMAIL = 'pipeline-test@idia.dev';
-  const TEST_PASSWORD = 'testpassword123';
+  const [showAuth, setShowAuth] = useState(false);
+  const [email, setEmail] = useState('pipeline-test@idia.dev');
+  const [password, setPassword] = useState('testpassword123');
+  const [isSigningUp, setIsSigningUp] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     checkAuthStatus();
+    
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        setIsAuthenticated(true);
+        setTestUser(session.user);
+        setShowAuth(false);
+        if (event === 'SIGNED_IN') {
+          toast({
+            title: "Authentication successful",
+            description: "Test user is now authenticated and ready for pipeline testing."
+          });
+        }
+      } else {
+        setIsAuthenticated(false);
+        setTestUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const checkAuthStatus = async () => {
@@ -43,59 +69,59 @@ const PipelineTestManager = () => {
     }
   };
 
-  const createTestAuthWithServiceRole = async () => {
-    try {
-      // First try to sign in normally
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: TEST_EMAIL,
-        password: TEST_PASSWORD,
-      });
-
-      if (signInError && signInError.message.includes('Invalid login credentials')) {
-        // User doesn't exist, create them
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: TEST_EMAIL,
-          password: TEST_PASSWORD,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`
-          }
-        });
-
-        if (signUpError) throw signUpError;
-
-        // If email confirmation is required, we'll use service role for testing
-        if (signUpData.user && !signUpData.session) {
-          // Create a test session by calling our edge function with service role
-          const { data: testSessionData, error: testSessionError } = await supabase.functions.invoke(
-            'create-test-session',
-            {
-              body: { 
-                email: TEST_EMAIL,
-                user_id: signUpData.user.id 
-              }
-            }
-          );
-
-          if (testSessionError) {
-            console.warn('Service role session creation failed, proceeding with limited testing');
-            return signUpData.user;
-          }
-
-          return signUpData.user;
-        }
-
-        return signUpData.user;
-      } else if (signInError) {
-        throw signInError;
-      } else if (signInData.user) {
-        setTestUser(signInData.user);
-        setIsAuthenticated(true);
-        return signInData.user;
+  const handleSignUp = async () => {
+    setIsSigningUp(true);
+    
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/pipeline-test`
       }
-    } catch (error) {
-      console.error('Auth error:', error);
-      throw error;
+    });
+
+    if (error) {
+      toast({
+        title: "Sign up failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    } else if (data.user && !data.session) {
+      toast({
+        title: "Check your email",
+        description: "We sent you a confirmation link. Please check your email and click the link to verify your account.",
+      });
     }
+    
+    setIsSigningUp(false);
+  };
+
+  const handleSignIn = async () => {
+    setIsSigningIn(true);
+    
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      toast({
+        title: "Sign in failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+    
+    setIsSigningIn(false);
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setTestResults([]);
+    toast({
+      title: "Signed out",
+      description: "Test user has been signed out."
+    });
   };
 
   const addTestResult = (result: TestResult) => {
@@ -114,34 +140,22 @@ const PipelineTestManager = () => {
   };
 
   const runPipelineTest = async () => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in before running the pipeline test.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsRunning(true);
     setTestResults([]);
 
     try {
-      // Step 0: Ensure authentication
-      setCurrentStep('authentication');
-      addTestResult({
-        step: 'Authentication',
-        status: 'pending',
-        message: 'Setting up test user authentication...'
-      });
+      const userId = testUser.id;
 
-      const startTimeAuth = Date.now();
-      const user = await createTestAuthWithServiceRole();
-      const userId = user?.id;
-
-      if (!userId) {
-        throw new Error('Failed to authenticate test user');
-      }
-
-      updateLastResult({
-        status: 'success',
-        message: `Test user ready: ${TEST_EMAIL}`,
-        duration: Date.now() - startTimeAuth,
-        data: { user_id: userId }
-      });
-
-      // Step 1: Test wallet creation/fetching using service role
+      // Step 1: Test wallet creation
       setCurrentStep('wallet-setup');
       addTestResult({
         step: 'Wallet Setup',
@@ -151,66 +165,49 @@ const PipelineTestManager = () => {
 
       const startTime1 = Date.now();
       
-      // Use edge function to bypass RLS for testing
-      const { data: walletResult, error: walletError } = await supabase.functions.invoke(
-        'test-wallet-setup',
-        {
-          body: { 
-            user_id: userId,
-            initial_balance: 100.00
-          }
-        }
-      );
+      let { data: wallet, error: walletError } = await supabase
+        .from('user_wallets')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
 
-      if (walletError) {
-        // Fallback to direct table access if edge function doesn't exist
-        let { data: wallet, error: directWalletError } = await supabase
+      if (walletError && walletError.code === 'PGRST116') {
+        // Wallet doesn't exist, create it
+        const { data: newWallet, error: createError } = await supabase
           .from('user_wallets')
-          .select('*')
-          .eq('user_id', userId)
+          .insert({
+            user_id: userId,
+            idia_usd_balance: 100.00,
+            total_earned: 0
+          })
+          .select()
           .single();
 
-        if (directWalletError && directWalletError.code === 'PGRST116') {
-          // Wallet doesn't exist, try to create it
-          const { data: newWallet, error: createError } = await supabase
-            .from('user_wallets')
-            .insert({
-              user_id: userId,
-              idia_usd_balance: 100.00,
-              total_earned: 0
-            })
-            .select()
-            .single();
-
-          if (createError) {
-            updateLastResult({
-              status: 'error',
-              message: `Wallet setup failed: ${createError.message}. This may be due to email confirmation requirement.`,
-              duration: Date.now() - startTime1
-            });
-            throw createError;
-          }
-          wallet = newWallet;
-        } else if (directWalletError) {
-          throw directWalletError;
+        if (createError) {
+          updateLastResult({
+            status: 'error',
+            message: `Wallet creation failed: ${createError.message}`,
+            duration: Date.now() - startTime1
+          });
+          throw createError;
         }
-
+        wallet = newWallet;
+      } else if (walletError) {
         updateLastResult({
-          status: 'success',
-          message: `Wallet ready. Balance: $${wallet.idia_usd_balance}`,
-          duration: Date.now() - startTime1,
-          data: wallet
+          status: 'error',
+          message: `Wallet access failed: ${walletError.message}`,
+          duration: Date.now() - startTime1
         });
-      } else {
-        updateLastResult({
-          status: 'success',
-          message: `Wallet setup via service role. Balance: $${walletResult.balance}`,
-          duration: Date.now() - startTime1,
-          data: walletResult
-        });
+        throw walletError;
       }
 
-      // Continue with remaining steps...
+      updateLastResult({
+        status: 'success',
+        message: `Wallet ready. Balance: $${wallet.idia_usd_balance}`,
+        duration: Date.now() - startTime1,
+        data: wallet
+      });
+
       // Step 2: Test data connection setup
       setCurrentStep('connection-setup');
       addTestResult({
@@ -250,14 +247,22 @@ const PipelineTestManager = () => {
         data: connection
       });
 
-      // Continue with remaining pipeline steps...
       setCurrentStep('complete');
+      toast({
+        title: "Pipeline test completed",
+        description: "All tests passed successfully!"
+      });
 
     } catch (error) {
       console.error('Pipeline test failed:', error);
       updateLastResult({
         status: 'error',
         message: `Error: ${error.message || 'Unknown error occurred'}`
+      });
+      toast({
+        title: "Pipeline test failed",
+        description: error.message || 'Unknown error occurred',
+        variant: "destructive"
       });
     } finally {
       setIsRunning(false);
@@ -302,25 +307,89 @@ const PipelineTestManager = () => {
         <p className="text-gray-600 text-sm">End-to-end testing of the data processing pipeline</p>
       </div>
 
-      {/* Auth Status - Minimalist */}
+      {/* Auth Status */}
       <div className={`border rounded-lg p-3 ${isAuthenticated ? 'border-green-200 bg-green-50/30' : 'border-amber-200 bg-amber-50/30'}`}>
-        <div className="flex items-center gap-2 text-sm">
-          <User className={`w-4 h-4 ${isAuthenticated ? 'text-green-600' : 'text-amber-600'}`} />
-          <span className={`font-medium ${isAuthenticated ? 'text-green-900' : 'text-amber-900'}`}>
-            {isAuthenticated ? 'Ready' : 'Test auth will be created automatically'}
-          </span>
-          {isAuthenticated && (
-            <span className="text-gray-600">• {testUser?.email}</span>
-          )}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm">
+            <User className={`w-4 h-4 ${isAuthenticated ? 'text-green-600' : 'text-amber-600'}`} />
+            <span className={`font-medium ${isAuthenticated ? 'text-green-900' : 'text-amber-900'}`}>
+              {isAuthenticated ? 'Authenticated' : 'Not Authenticated'}
+            </span>
+            {isAuthenticated && (
+              <span className="text-gray-600">• {testUser?.email}</span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            {isAuthenticated && (
+              <Button onClick={handleSignOut} variant="outline" size="sm">
+                Sign Out
+              </Button>
+            )}
+            {!isAuthenticated && (
+              <Button onClick={() => setShowAuth(!showAuth)} variant="outline" size="sm">
+                <Key className="w-3 h-3 mr-1" />
+                Sign In
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Test Control - Minimalist */}
+      {/* Authentication Form */}
+      {showAuth && !isAuthenticated && (
+        <Card className="border-gray-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Mail className="w-4 h-4" />
+              Test Authentication
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Email</label>
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter test email"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Password</label>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter password"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                onClick={handleSignIn} 
+                disabled={isSigningIn}
+                className="flex-1"
+              >
+                {isSigningIn ? 'Signing In...' : 'Sign In'}
+              </Button>
+              <Button 
+                onClick={handleSignUp} 
+                disabled={isSigningUp}
+                variant="outline"
+                className="flex-1"
+              >
+                {isSigningUp ? 'Signing Up...' : 'Sign Up'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Test Control */}
       <Card className="border-gray-200">
         <CardContent className="p-4">
           <Button 
             onClick={runPipelineTest} 
-            disabled={isRunning}
+            disabled={isRunning || !isAuthenticated}
             className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
             size="lg"
           >
@@ -336,10 +405,15 @@ const PipelineTestManager = () => {
               </>
             )}
           </Button>
+          {!isAuthenticated && (
+            <p className="text-sm text-gray-500 text-center mt-2">
+              Please sign in to run the pipeline test
+            </p>
+          )}
         </CardContent>
       </Card>
 
-      {/* Test Results - Condensed */}
+      {/* Test Results */}
       {testResults.length > 0 && (
         <Card className="border-gray-200">
           <CardHeader className="pb-3">
