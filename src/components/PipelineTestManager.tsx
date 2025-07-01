@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
   Play, 
@@ -9,8 +8,6 @@ import {
   AlertCircle, 
   Zap,
   User,
-  Mail,
-  Key,
   ArrowLeft
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -32,11 +29,6 @@ const PipelineTestManager = () => {
   const [currentStep, setCurrentStep] = useState<string>('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [testUser, setTestUser] = useState<any>(null);
-  const [showAuth, setShowAuth] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isSigningUp, setIsSigningUp] = useState(false);
-  const [isSigningIn, setIsSigningIn] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -47,7 +39,6 @@ const PipelineTestManager = () => {
       if (session?.user) {
         setIsAuthenticated(true);
         setTestUser(session.user);
-        setShowAuth(false);
         if (event === 'SIGNED_IN') {
           toast({
             title: "Authentication successful",
@@ -71,80 +62,9 @@ const PipelineTestManager = () => {
     }
   };
 
-  const handleSignUp = async () => {
-    if (!email || !password) {
-      toast({
-        title: "Missing information",
-        description: "Please enter both email and password.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsSigningUp(true);
-    
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/pipeline-test`
-      }
-    });
-
-    if (error) {
-      toast({
-        title: "Sign up failed",
-        description: error.message,
-        variant: "destructive"
-      });
-    } else if (data.user && !data.session) {
-      toast({
-        title: "Check your email",
-        description: "We sent you a confirmation link. Please check your email and click the link to verify your account.",
-      });
-    } else if (data.session) {
-      toast({
-        title: "Sign up successful",
-        description: "Your account has been created and you're now signed in.",
-      });
-    }
-    
-    setIsSigningUp(false);
-  };
-
-  const handleSignIn = async () => {
-    if (!email || !password) {
-      toast({
-        title: "Missing information",
-        description: "Please enter both email and password.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsSigningIn(true);
-    
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      toast({
-        title: "Sign in failed",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-    
-    setIsSigningIn(false);
-  };
-
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setTestResults([]);
-    setEmail('');
-    setPassword('');
     toast({
       title: "Signed out",
       description: "Test user has been signed out."
@@ -366,63 +286,13 @@ const PipelineTestManager = () => {
               </Button>
             )}
             {!isAuthenticated && (
-              <Button onClick={() => setShowAuth(!showAuth)} variant="outline" size="sm">
-                <Key className="w-3 h-3 mr-1" />
+              <Button onClick={() => navigate('/auth')} variant="outline" size="sm">
                 Sign In
               </Button>
             )}
           </div>
         </div>
       </div>
-
-      {/* Authentication Form */}
-      {showAuth && !isAuthenticated && (
-        <Card className="border-gray-200">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Mail className="w-4 h-4" />
-              Authentication
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Email</label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Password</label>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button 
-                onClick={handleSignIn} 
-                disabled={isSigningIn}
-                className="flex-1"
-              >
-                {isSigningIn ? 'Signing In...' : 'Sign In'}
-              </Button>
-              <Button 
-                onClick={handleSignUp} 
-                disabled={isSigningUp}
-                variant="outline"
-                className="flex-1"
-              >
-                {isSigningUp ? 'Signing Up...' : 'Sign Up'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Test Control */}
       <Card className="border-gray-200">
