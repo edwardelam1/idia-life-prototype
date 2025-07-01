@@ -130,6 +130,33 @@ export type Database = {
           },
         ]
       }
+      device_events: {
+        Row: {
+          event_timestamp: string
+          event_type: string
+          id: number
+          json_payload: Json
+          processed_at: string | null
+          user_id: string
+        }
+        Insert: {
+          event_timestamp?: string
+          event_type: string
+          id?: number
+          json_payload: Json
+          processed_at?: string | null
+          user_id: string
+        }
+        Update: {
+          event_timestamp?: string
+          event_type?: string
+          id?: number
+          json_payload?: Json
+          processed_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       marketplace_bundles: {
         Row: {
           bundle_id: string
