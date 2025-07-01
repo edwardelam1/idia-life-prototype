@@ -7,6 +7,7 @@ import { getOrbStyling } from './orbUtils';
 interface CollapsedAvatarProps {
   friendState: FriendState;
   isListening: boolean;
+  isSyllableBlinking?: boolean;
   onChatClick: () => void;
   onVoiceToggle: () => void;
   onClose: () => void;
@@ -15,11 +16,12 @@ interface CollapsedAvatarProps {
 const CollapsedAvatar = ({ 
   friendState, 
   isListening, 
+  isSyllableBlinking,
   onChatClick, 
   onVoiceToggle, 
   onClose 
 }: CollapsedAvatarProps) => {
-  const orbStyle = getOrbStyling(friendState);
+  const orbStyle = getOrbStyling(friendState, isSyllableBlinking);
 
   return (
     <div className="flex flex-col items-center space-y-2 animate-scale-in">

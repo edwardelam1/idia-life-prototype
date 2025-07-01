@@ -1,7 +1,7 @@
 
 import { FriendState, OrbStyling } from './types';
 
-export const getOrbStyling = (friendState: FriendState): OrbStyling => {
+export const getOrbStyling = (friendState: FriendState, isBlinking?: boolean): OrbStyling => {
   switch (friendState) {
     case 'idle':
       return {
@@ -27,7 +27,7 @@ export const getOrbStyling = (friendState: FriendState): OrbStyling => {
     case 'speaking':
       return {
         background: 'bg-gradient-to-r from-yellow-400 to-orange-500',
-        animation: 'animate-pulse',
+        animation: isBlinking ? 'animate-pulse' : '', // Dynamic blinking based on syllables
         glow: 'shadow-xl shadow-yellow-500/60',
         scale: 'scale-110'
       };

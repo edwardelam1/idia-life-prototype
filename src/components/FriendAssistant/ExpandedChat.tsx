@@ -11,6 +11,7 @@ interface ExpandedChatProps {
   inputValue: string;
   friendState: FriendState;
   isListening: boolean;
+  isSyllableBlinking?: boolean;
   onInputChange: (value: string) => void;
   onSendMessage: () => void;
   onKeyPress: (e: React.KeyboardEvent) => void;
@@ -24,6 +25,7 @@ const ExpandedChat = ({
   inputValue,
   friendState,
   isListening,
+  isSyllableBlinking,
   onInputChange,
   onSendMessage,
   onKeyPress,
@@ -31,7 +33,7 @@ const ExpandedChat = ({
   onCollapse,
   onClose
 }: ExpandedChatProps) => {
-  const orbStyle = getOrbStyling(friendState);
+  const orbStyle = getOrbStyling(friendState, isSyllableBlinking);
 
   return (
     <Card className="w-80 h-96 shadow-xl animate-scale-in">

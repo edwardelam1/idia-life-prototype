@@ -1,7 +1,7 @@
-
 import { useState, useEffect } from 'react';
 import { Message, FriendAssistantProps, FriendState } from './FriendAssistant/types';
 import { getContextualGreeting } from './FriendAssistant/orbUtils';
+import { useSyllableBlinking } from './FriendAssistant/useSyllableBlinking';
 import CollapsedAvatar from './FriendAssistant/CollapsedAvatar';
 import ExpandedChat from './FriendAssistant/ExpandedChat';
 
@@ -11,6 +11,13 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
   const [inputValue, setInputValue] = useState('');
   const [friendState, setFriendState] = useState<FriendState>('idle');
   const [isListening, setIsListening] = useState(false);
+  const [currentSpeechText, setCurrentSpeechText] = useState<string>('');
+
+  // Use syllable blinking hook
+  const isSyllableBlinking = useSyllableBlinking(
+    friendState === 'speaking',
+    currentSpeechText
+  );
 
   // Initialize with contextual greeting based on trigger
   useEffect(() => {
@@ -54,9 +61,12 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
         "That's exactly the kind of thinking that makes IDIA special!"
       ];
       
+      const responseText = responses[Math.floor(Math.random() * responses.length)];
+      setCurrentSpeechText(responseText); // Set the text for syllable blinking
+      
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: responses[Math.floor(Math.random() * responses.length)],
+        text: responseText,
         isUser: false,
         timestamp: new Date()
       };
@@ -66,6 +76,7 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
       // Return to idle state after speaking
       setTimeout(() => {
         setFriendState('idle');
+        setCurrentSpeechText(''); // Clear speech text
       }, 2000);
     }, 1500);
   };
@@ -114,6 +125,7 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
         <CollapsedAvatar
           friendState={friendState}
           isListening={isListening}
+          isSyllableBlinking={isSyllableBlinking}
           onChatClick={handleChatClick}
           onVoiceToggle={handleVoiceToggle}
           onClose={handleClose}
@@ -127,6 +139,7 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
           inputValue={inputValue}
           friendState={friendState}
           isListening={isListening}
+          isSyllableBlinking={isSyllableBlinking}
           onInputChange={setInputValue}
           onSendMessage={handleSendMessage}
           onKeyPress={handleKeyPress}
