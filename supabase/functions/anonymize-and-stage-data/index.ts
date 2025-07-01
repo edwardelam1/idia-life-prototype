@@ -44,7 +44,7 @@ serve(async (req) => {
 
     const activity = rawData.raw_data;
     
-    // Anonymize and extract key metrics
+    // Enhanced anonymization and extraction
     const anonymizedData = {
       user_id: rawData.user_id,
       raw_data_id: rawData.id,
@@ -63,9 +63,11 @@ serve(async (req) => {
     };
 
     // Insert anonymized data into staged_data table
-    const { error: stageError } = await supabase
+    const { data: stagedData, error: stageError } = await supabase
       .from('staged_data')
-      .insert(anonymizedData);
+      .insert(anonymizedData)
+      .select()
+      .single();
 
     if (stageError) {
       console.error('Failed to stage data:', stageError);
@@ -85,11 +87,31 @@ serve(async (req) => {
       console.error('Failed to mark data as processed:', updateError);
     }
 
-    console.log('Data successfully anonymized and staged');
+    // Process the staged data with enhanced rewards
+    const { error: processError } = await supabase.functions.invoke(
+      'process-staged-data',
+      {
+        body: { staged_data_id: stagedData.id }
+      }
+    );
+
+    if (processError) {
+      console.error('Failed to process staged data:', processError);
+    }
+
+    console.log('Data successfully anonymized, staged, and processed');
     
-    return new Response('Data processed successfully', { 
+    return new Response(JSON.stringify({
+      success: true,
+      staged_data_id: stagedData.id,
+      anonymized_fields: {
+        location_zone: stagedData.anonymized_location_zone,
+        device_type: stagedData.device_type,
+        activity_type: stagedData.activity_type
+      }
+    }), { 
       status: 200, 
-      headers: corsHeaders 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
@@ -144,11 +166,12 @@ function anonymizeDevice(deviceName: string | null): string | null {
 }
 
 function calculateEffortScore(activity: any): number | null {
-  // Simple effort calculation based on available data
+  // Enhanced effort calculation
   if (!activity.moving_time || !activity.distance) return null;
   
   const avgPace = activity.moving_time / (activity.distance / 1000); // minutes per km
   const elevationFactor = (activity.total_elevation_gain || 0) / 100;
+  const heartRateFactor = activity.average_heartrate ? activity.average_heartrate / 180 : 0;
   
-  return Math.round(avgPace + elevationFactor);
+  return Math.round((avgPace * 0.4) + (elevationFactor * 0.3) + (heartRateFactor * 0.3) * 100);
 }
