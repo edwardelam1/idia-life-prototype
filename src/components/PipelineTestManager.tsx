@@ -10,8 +10,10 @@ import {
   Zap,
   User,
   Mail,
-  Key
+  Key,
+  ArrowLeft
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -24,6 +26,7 @@ interface TestResult {
 }
 
 const PipelineTestManager = () => {
+  const navigate = useNavigate();
   const [isRunning, setIsRunning] = useState(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [currentStep, setCurrentStep] = useState<string>('');
@@ -322,6 +325,19 @@ const PipelineTestManager = () => {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
+      {/* Back Button */}
+      <div className="flex items-center">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Home
+        </Button>
+      </div>
+
       {/* Header */}
       <div className="text-center">
         <div className="flex items-center justify-center gap-3 mb-2">
