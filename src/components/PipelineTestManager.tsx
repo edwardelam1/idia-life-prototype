@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +10,8 @@ import {
   Users, 
   TrendingUp,
   Database,
-  Zap
+  Zap,
+  User
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -27,25 +27,63 @@ const PipelineTestManager = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [currentStep, setCurrentStep] = useState<string>('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [testUser, setTestUser] = useState<any>(null);
 
-  // Mock user ID for testing (in a real app, this would come from auth)
-  const TEST_USER_ID = '00000000-0000-0000-0000-000000000001';
+  // Test credentials
+  const TEST_EMAIL = 'pipeline-test@idia.dev';
+  const TEST_PASSWORD = 'testpassword123';
 
-  // Mock Strava activity data for testing
-  const mockStravaActivity = {
-    id: Date.now(),
-    type: 'Run',
-    distance: 5000, // 5km
-    moving_time: 1800, // 30 minutes
-    elapsed_time: 1900,
-    total_elevation_gain: 150,
-    average_heartrate: 145,
-    max_heartrate: 165,
-    average_speed: 2.78, // m/s
-    max_speed: 4.2,
-    start_latlng: [37.7749, -122.4194], // San Francisco (will be anonymized)
-    device_name: 'Garmin Forerunner 945',
-    suffer_score: 85
+  useEffect(() => {
+    checkAuthStatus();
+  }, []);
+
+  const checkAuthStatus = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      setIsAuthenticated(true);
+      setTestUser(session.user);
+    }
+  };
+
+  const createTestAuth = async () => {
+    try {
+      // Try to sign in first
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: TEST_EMAIL,
+        password: TEST_PASSWORD,
+      });
+
+      if (signInError && signInError.message.includes('Invalid login credentials')) {
+        // User doesn't exist, create them
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: TEST_EMAIL,
+          password: TEST_PASSWORD,
+          options: {
+            emailRedirectTo: `${window.location.origin}/`
+          }
+        });
+
+        if (signUpError) {
+          throw signUpError;
+        }
+
+        if (signUpData.user) {
+          setTestUser(signUpData.user);
+          setIsAuthenticated(true);
+          return signUpData.user;
+        }
+      } else if (signInError) {
+        throw signInError;
+      } else if (signInData.user) {
+        setTestUser(signInData.user);
+        setIsAuthenticated(true);
+        return signInData.user;
+      }
+    } catch (error) {
+      console.error('Auth error:', error);
+      throw error;
+    }
   };
 
   const addTestResult = (result: TestResult) => {
@@ -68,6 +106,29 @@ const PipelineTestManager = () => {
     setTestResults([]);
 
     try {
+      // Step 0: Ensure authentication
+      setCurrentStep('authentication');
+      addTestResult({
+        step: 'Authentication',
+        status: 'pending',
+        message: 'Setting up test user authentication...'
+      });
+
+      const startTimeAuth = Date.now();
+      const user = await createTestAuth();
+      const userId = user?.id;
+
+      if (!userId) {
+        throw new Error('Failed to authenticate test user');
+      }
+
+      updateLastResult({
+        status: 'success',
+        message: `Test user authenticated: ${TEST_EMAIL}`,
+        duration: Date.now() - startTimeAuth,
+        data: { user_id: userId }
+      });
+
       // Step 1: Test wallet creation/fetching
       setCurrentStep('wallet-setup');
       addTestResult({
@@ -82,7 +143,7 @@ const PipelineTestManager = () => {
       let { data: wallet, error: walletError } = await supabase
         .from('user_wallets')
         .select('*')
-        .eq('user_id', TEST_USER_ID)
+        .eq('user_id', userId)
         .single();
 
       if (walletError && walletError.code === 'PGRST116') {
@@ -90,8 +151,8 @@ const PipelineTestManager = () => {
         const { data: newWallet, error: createError } = await supabase
           .from('user_wallets')
           .insert({
-            user_id: TEST_USER_ID,
-            idia_usd_balance: 100.00, // Mock initial balance for testing
+            user_id: userId,
+            idia_usd_balance: 100.00,
             total_earned: 0
           })
           .select()
@@ -124,7 +185,7 @@ const PipelineTestManager = () => {
       const { data: connection, error: connectionError } = await supabase
         .from('data_connections')
         .upsert({
-          user_id: TEST_USER_ID,
+          user_id: userId,
           connection_type: 'strava',
           connection_name: 'Test Strava Connection',
           access_token: 'test_access_token',
@@ -153,10 +214,26 @@ const PipelineTestManager = () => {
 
       const startTime3 = Date.now();
       
+      const mockStravaActivity = {
+        id: Date.now(),
+        type: 'Run',
+        distance: 5000,
+        moving_time: 1800,
+        elapsed_time: 1900,
+        total_elevation_gain: 150,
+        average_heartrate: 145,
+        max_heartrate: 165,
+        average_speed: 2.78,
+        max_speed: 4.2,
+        start_latlng: [37.7749, -122.4194],
+        device_name: 'Garmin Forerunner 945',
+        suffer_score: 85
+      };
+
       const { data: rawData, error: rawError } = await supabase
         .from('raw_strava_data')
         .insert({
-          user_id: TEST_USER_ID,
+          user_id: userId,
           connection_id: connection.id,
           activity_id: mockStravaActivity.id,
           raw_data: mockStravaActivity,
@@ -234,7 +311,7 @@ const PipelineTestManager = () => {
       const { data: updatedWallet, error: balanceError } = await supabase
         .from('user_wallets')
         .select('*')
-        .eq('user_id', TEST_USER_ID)
+        .eq('user_id', userId)
         .single();
 
       if (balanceError) throw balanceError;
@@ -243,7 +320,7 @@ const PipelineTestManager = () => {
       const { data: transaction, error: txError } = await supabase
         .from('transactions')
         .select('*')
-        .eq('user_id', TEST_USER_ID)
+        .eq('user_id', userId)
         .eq('transaction_type', 'data_earnings')
         .order('created_at', { ascending: false })
         .limit(1)
@@ -343,6 +420,26 @@ const PipelineTestManager = () => {
 
   return (
     <div className="p-4 space-y-6">
+      {/* Authentication Status */}
+      <Card className={isAuthenticated ? "border-green-200 bg-green-50" : "border-yellow-200 bg-yellow-50"}>
+        <CardContent className="p-4">
+          <div className="flex items-center space-x-3">
+            <User className={`w-5 h-5 ${isAuthenticated ? 'text-green-600' : 'text-yellow-600'}`} />
+            <div>
+              <p className={`font-semibold ${isAuthenticated ? 'text-green-900' : 'text-yellow-900'}`}>
+                Authentication Status: {isAuthenticated ? 'Ready' : 'Not Authenticated'}
+              </p>
+              <p className={`text-sm ${isAuthenticated ? 'text-green-700' : 'text-yellow-700'}`}>
+                {isAuthenticated 
+                  ? `Test user: ${testUser?.email || 'Authenticated'}`
+                  : 'Test authentication will be created automatically when running pipeline'
+                }
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Pipeline Overview */}
       <Card className="bg-gradient-to-r from-purple-500 to-pink-600 text-white">
         <CardContent className="p-6">
