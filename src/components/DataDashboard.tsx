@@ -22,6 +22,17 @@ const DataDashboard = () => {
 
   useEffect(() => {
     fetchConnections();
+    
+    // Check for Strava authorization code in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const state = urlParams.get('state');
+    
+    if (code && state === 'strava_auth') {
+      handleStravaCallback(code);
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, []);
 
   const fetchConnections = async () => {
@@ -37,6 +48,41 @@ const DataDashboard = () => {
     }
   };
 
+  const handleStravaAuth = () => {
+    // Strava OAuth configuration
+    const clientId = 'YOUR_STRAVA_CLIENT_ID'; // This will be replaced with actual client ID
+    const redirectUri = encodeURIComponent(window.location.origin);
+    const scope = 'read,activity:read_all';
+    const state = 'strava_auth';
+    
+    const stravaAuthUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&approval_prompt=force&scope=${scope}&state=${state}`;
+    
+    window.location.href = stravaAuthUrl;
+  };
+
+  const handleStravaCallback = async (code: string) => {
+    try {
+      // This would typically exchange the code for an access token
+      // For now, we'll simulate a successful connection
+      console.log('Strava authorization code:', code);
+      
+      // Simulate connection success
+      const newConnection = {
+        id: 1,
+        connection_name: 'Strava',
+        earnings_this_month: 67.50,
+        total_earnings: 203.25,
+        is_active: true,
+        connected_at: new Date().toISOString()
+      };
+      
+      setConnections([newConnection]);
+      setTotalEarnings(67.50);
+    } catch (error) {
+      console.error('Error handling Strava callback:', error);
+    }
+  };
+
   const handleNikeConnect = () => {
     setShowNikeModal(false);
     setShowStravaModal(true);
@@ -47,7 +93,7 @@ const DataDashboard = () => {
     // Add the connection to state
     const newConnection = {
       id: 1,
-      connection_name: 'Nike Run Club + Strava',
+      connection_name: 'Strava',
       earnings_this_month: 67.50,
       total_earnings: 203.25,
       is_active: true,
@@ -130,8 +176,12 @@ const DataDashboard = () => {
               <Card key={connection.id} className="border-l-4 border-l-green-500">
                 <CardContent className="p-4">
                   <div className="flex items-start space-x-3">
-                    <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
-                      <Activity className="w-5 h-5 text-white" />
+                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-white">
+                      <img 
+                        src="/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png" 
+                        alt="Strava" 
+                        className="w-full h-full object-contain p-1"
+                      />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-2">
@@ -146,7 +196,7 @@ const DataDashboard = () => {
                         </div>
                       </div>
                       <p className="text-sm text-gray-600 mb-2">
-                        Combined fitness data from Nike Run Club and Strava
+                        Fitness data from Strava activities
                       </p>
                       <div className="flex items-center space-x-4 text-xs text-gray-500">
                         <span className="flex items-center space-x-1">
@@ -167,14 +217,14 @@ const DataDashboard = () => {
         </div>
       )}
 
-      {/* Available Data Sources - Strava Logo and Strava Text */}
+      {/* Available Data Sources - Strava */}
       {connections.length === 0 && (
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-gray-900">Available Data Sources</h2>
           <div className="flex justify-center">
             <div 
               className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => setShowNikeModal(true)}
+              onClick={handleStravaAuth}
             >
               <div className="w-16 h-16 rounded-lg overflow-hidden bg-white">
                 <img 
