@@ -28,6 +28,9 @@ const PipelineTestManager = () => {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [currentStep, setCurrentStep] = useState<string>('');
 
+  // Mock user ID for testing (in a real app, this would come from auth)
+  const TEST_USER_ID = '00000000-0000-0000-0000-000000000001';
+
   // Mock Strava activity data for testing
   const mockStravaActivity = {
     id: Date.now(),
@@ -79,6 +82,7 @@ const PipelineTestManager = () => {
       let { data: wallet, error: walletError } = await supabase
         .from('user_wallets')
         .select('*')
+        .eq('user_id', TEST_USER_ID)
         .single();
 
       if (walletError && walletError.code === 'PGRST116') {
@@ -86,6 +90,7 @@ const PipelineTestManager = () => {
         const { data: newWallet, error: createError } = await supabase
           .from('user_wallets')
           .insert({
+            user_id: TEST_USER_ID,
             idia_usd_balance: 100.00, // Mock initial balance for testing
             total_earned: 0
           })
@@ -119,6 +124,7 @@ const PipelineTestManager = () => {
       const { data: connection, error: connectionError } = await supabase
         .from('data_connections')
         .upsert({
+          user_id: TEST_USER_ID,
           connection_type: 'strava',
           connection_name: 'Test Strava Connection',
           access_token: 'test_access_token',
@@ -150,6 +156,7 @@ const PipelineTestManager = () => {
       const { data: rawData, error: rawError } = await supabase
         .from('raw_strava_data')
         .insert({
+          user_id: TEST_USER_ID,
           connection_id: connection.id,
           activity_id: mockStravaActivity.id,
           raw_data: mockStravaActivity,
@@ -220,13 +227,14 @@ const PipelineTestManager = () => {
 
       const startTime5 = Date.now();
       
-      // Wait for trigger to process and credit wallet
+      // Wait for processing to complete
       await new Promise(resolve => setTimeout(resolve, 3000));
 
       // Check updated wallet balance
       const { data: updatedWallet, error: balanceError } = await supabase
         .from('user_wallets')
         .select('*')
+        .eq('user_id', TEST_USER_ID)
         .single();
 
       if (balanceError) throw balanceError;
@@ -235,10 +243,11 @@ const PipelineTestManager = () => {
       const { data: transaction, error: txError } = await supabase
         .from('transactions')
         .select('*')
+        .eq('user_id', TEST_USER_ID)
         .eq('transaction_type', 'data_earnings')
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       const rewardAmount = stagedData.reward_amount || 0;
 
