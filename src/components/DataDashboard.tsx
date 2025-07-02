@@ -10,16 +10,12 @@ import {
   Zap
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import NikeConnectionModal from './NikeConnectionModal';
-import StravaConnectionModal from './StravaConnectionModal';
 import AppleHealthModal from './AppleHealthModal';
 
 const DataDashboard = () => {
   const [connections, setConnections] = useState<any[]>([]);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [showNikeModal, setShowNikeModal] = useState(false);
-  const [showStravaModal, setShowStravaModal] = useState(false);
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
 
   // Get real authenticated user ID
@@ -36,17 +32,6 @@ const DataDashboard = () => {
     
     getUser();
     fetchConnections();
-    
-    // Check for Strava authorization code in URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const state = urlParams.get('state');
-    
-    if (code && state === 'strava_auth') {
-      handleStravaCallback(code);
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
   }, []);
 
   // Re-fetch connections when user ID changes
@@ -95,44 +80,6 @@ const DataDashboard = () => {
     }
   };
 
-  const handleStravaAuth = () => {
-    // For now, just open the modal for API key connection
-    setShowStravaModal(true);
-  };
-
-  const handleStravaCallback = async (code: string) => {
-    try {
-      console.log('Strava authorization code:', code);
-      
-      // Create a test connection
-      const { data: newConnection, error: connectionError } = await supabase
-        .from('data_connections')
-        .insert({
-          user_id: currentUserId,
-          connection_name: 'Strava',
-          connection_type: 'strava',
-          access_token: 'test_access_token_' + Date.now(),
-          is_active: true
-        })
-        .select()
-        .single();
-
-      if (connectionError) {
-        console.error('Error creating connection:', connectionError);
-        return;
-      }
-      
-      // Refresh connections after successful creation
-      fetchConnections();
-    } catch (error) {
-      console.error('Error handling Strava callback:', error);
-    }
-  };
-
-  const handleNikeConnect = () => {
-    setShowNikeModal(false);
-    setShowStravaModal(true);
-  };
 
   // Add function to trigger Friend Assistant for data connection events
   const triggerFriendForDataEvent = () => {
@@ -142,33 +89,6 @@ const DataDashboard = () => {
     }));
   };
 
-  const handleStravaComplete = async () => {
-    setShowStravaModal(false);
-    
-    // Create a test connection when modal completes
-    try {
-      const { data: newConnection, error: connectionError } = await supabase
-        .from('data_connections')
-        .insert({
-          user_id: currentUserId,
-          connection_name: 'Strava',
-          connection_type: 'strava',
-          access_token: 'test_access_token_' + Date.now(),
-          is_active: true
-        })
-        .select()
-        .single();
-
-      if (!connectionError) {
-        // Refresh connections after successful creation
-        await fetchConnections();
-        // Trigger Friend Assistant to celebrate the connection
-        triggerFriendForDataEvent();
-      }
-    } catch (error) {
-      console.error('Error creating connection:', error);
-    }
-  };
 
   const handleAppleHealthComplete = async () => {
     setShowAppleHealthModal(false);
@@ -273,8 +193,8 @@ const DataDashboard = () => {
                   <div className="flex items-start space-x-3">
                     <div className="w-10 h-10 rounded-lg overflow-hidden bg-white">
                       <img 
-                        src="/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png" 
-                        alt="Strava" 
+                        src={connection.connection_type === 'apple_health' ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"} 
+                        alt={connection.connection_name} 
                         className="w-full h-full object-contain p-1"
                       />
                     </div>
@@ -291,7 +211,7 @@ const DataDashboard = () => {
                         </div>
                       </div>
                       <p className="text-sm text-gray-600 mb-2">
-                        {connection.connection_type === 'strava' ? 'Fitness data from Strava activities' : 'Connected data source'}
+                        {connection.connection_type === 'apple_health' ? 'Health data from Apple Health' : 'Connected data source'}
                       </p>
                       <div className="flex items-center space-x-4 text-xs text-gray-500">
                         <span className="flex items-center space-x-1">
@@ -316,7 +236,7 @@ const DataDashboard = () => {
       {connections.length === 0 && (
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-gray-900">Available Data Sources</h2>
-          <div className="flex justify-center space-x-8">
+          <div className="flex justify-center">
             <div 
               className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => setShowAppleHealthModal(true)}
@@ -330,34 +250,10 @@ const DataDashboard = () => {
               </div>
               <span className="text-sm font-medium text-gray-700 mt-2">Apple Health</span>
             </div>
-            <div 
-              className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={handleStravaAuth}
-            >
-              <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border">
-                <img 
-                  src="/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png" 
-                  alt="Strava" 
-                  className="w-full h-full object-contain p-2"
-                />
-              </div>
-              <span className="text-sm font-medium text-gray-700 mt-2">Strava</span>
-            </div>
           </div>
         </div>
       )}
 
-      <NikeConnectionModal 
-        isOpen={showNikeModal}
-        onClose={() => setShowNikeModal(false)}
-        onConnect={handleNikeConnect}
-      />
-
-      <StravaConnectionModal 
-        isOpen={showStravaModal}
-        onClose={() => setShowStravaModal(false)}
-        onComplete={handleStravaComplete}
-      />
 
       <AppleHealthModal 
         isOpen={showAppleHealthModal}
