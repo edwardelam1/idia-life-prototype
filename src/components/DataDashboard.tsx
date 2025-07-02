@@ -22,10 +22,19 @@ const DataDashboard = () => {
   const [showStravaModal, setShowStravaModal] = useState(false);
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
 
-  // Mock user ID for testing - in production this would come from auth
-  const TEST_USER_ID = '00000000-0000-0000-0000-000000000001';
+  // Get real authenticated user ID
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
+    // Get authenticated user
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+      }
+    };
+    
+    getUser();
     fetchConnections();
     
     // Check for Strava authorization code in URL
@@ -40,13 +49,22 @@ const DataDashboard = () => {
     }
   }, []);
 
+  // Re-fetch connections when user ID changes
+  useEffect(() => {
+    if (currentUserId) {
+      fetchConnections();
+    }
+  }, [currentUserId]);
+
   const fetchConnections = async () => {
+    if (!currentUserId) return;
+    
     try {
       // Fetch real connections from database
       const { data: connectionsData, error: connectionsError } = await supabase
         .from('data_connections')
         .select('*')
-        .eq('user_id', TEST_USER_ID)
+        .eq('user_id', currentUserId)
         .eq('is_active', true);
 
       if (connectionsError) {
@@ -61,7 +79,7 @@ const DataDashboard = () => {
       const { data: walletData, error: walletError } = await supabase
         .from('user_wallets')
         .select('*')
-        .eq('user_id', TEST_USER_ID)
+        .eq('user_id', currentUserId)
         .single();
 
       const monthlyEarnings = walletData?.total_earned || 0;
@@ -90,7 +108,7 @@ const DataDashboard = () => {
       const { data: newConnection, error: connectionError } = await supabase
         .from('data_connections')
         .insert({
-          user_id: TEST_USER_ID,
+          user_id: currentUserId,
           connection_name: 'Strava',
           connection_type: 'strava',
           access_token: 'test_access_token_' + Date.now(),
@@ -132,7 +150,7 @@ const DataDashboard = () => {
       const { data: newConnection, error: connectionError } = await supabase
         .from('data_connections')
         .insert({
-          user_id: TEST_USER_ID,
+          user_id: currentUserId,
           connection_name: 'Strava',
           connection_type: 'strava',
           access_token: 'test_access_token_' + Date.now(),
@@ -160,7 +178,7 @@ const DataDashboard = () => {
       const { data: newConnection, error: connectionError } = await supabase
         .from('data_connections')
         .insert({
-          user_id: TEST_USER_ID,
+          user_id: currentUserId,
           connection_name: 'Apple Health',
           connection_type: 'apple_health',
           access_token: 'apple_health_token_' + Date.now(),
