@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Menu, X, Wallet, TestTube } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import ProfileMenu from './ProfileMenu';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -31,10 +32,12 @@ const Header = () => {
               <TestTube className="w-4 h-4" />
               <span>Test Pipeline</span>
             </Button>
+            <ProfileMenu />
           </div>
 
           {/* Mobile menu button */}
-          <div className="md:hidden">
+          <div className="md:hidden flex items-center space-x-2">
+            <ProfileMenu />
             <Button
               variant="ghost"
               size="sm"

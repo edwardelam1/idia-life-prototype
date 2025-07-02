@@ -118,6 +118,24 @@ const DataDashboard = () => {
     }
   };
 
+  const handleDisconnect = async (connectionId: string) => {
+    if (!currentUserId) return;
+    
+    try {
+      const { error } = await supabase
+        .from('data_connections')
+        .update({ is_active: false })
+        .eq('id', connectionId)
+        .eq('user_id', currentUserId);
+
+      if (!error) {
+        await fetchConnections();
+      }
+    } catch (error) {
+      console.error('Error disconnecting data source:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-4 space-y-6">
@@ -201,13 +219,23 @@ const DataDashboard = () => {
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="font-semibold text-gray-900">{connection.connection_name}</h3>
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-green-600">
-                            Active Pipeline
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Processing data automatically
-                          </p>
+                        <div className="flex items-center space-x-2">
+                          <div className="text-right">
+                            <p className="text-sm font-medium text-green-600">
+                              Active Pipeline
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Processing data automatically
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDisconnect(connection.id)}
+                            className="text-xs h-8"
+                          >
+                            Disconnect
+                          </Button>
                         </div>
                       </div>
                       <p className="text-sm text-gray-600 mb-2">
