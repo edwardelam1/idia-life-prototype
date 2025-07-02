@@ -157,6 +157,30 @@ export type Database = {
         }
         Relationships: []
       }
+      health_metrics: {
+        Row: {
+          created_at: string | null
+          id: number
+          recorded_at: string | null
+          step_count: number | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: never
+          recorded_at?: string | null
+          step_count?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: never
+          recorded_at?: string | null
+          step_count?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       marketplace_bundles: {
         Row: {
           bundle_id: string
@@ -281,6 +305,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      security_events: {
+        Row: {
+          action_type: string
+          agent_name: string
+          created_at: string | null
+          id: string
+          resolved: boolean | null
+          result_data: Json
+          severity: string
+          timestamp: string
+        }
+        Insert: {
+          action_type: string
+          agent_name: string
+          created_at?: string | null
+          id?: string
+          resolved?: boolean | null
+          result_data: Json
+          severity?: string
+          timestamp?: string
+        }
+        Update: {
+          action_type?: string
+          agent_name?: string
+          created_at?: string | null
+          id?: string
+          resolved?: boolean | null
+          result_data?: Json
+          severity?: string
+          timestamp?: string
+        }
+        Relationships: []
       }
       staged_data: {
         Row: {

@@ -12,6 +12,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import NikeConnectionModal from './NikeConnectionModal';
 import StravaConnectionModal from './StravaConnectionModal';
+import AppleHealthModal from './AppleHealthModal';
 
 const DataDashboard = () => {
   const [connections, setConnections] = useState<any[]>([]);
@@ -19,6 +20,7 @@ const DataDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [showNikeModal, setShowNikeModal] = useState(false);
   const [showStravaModal, setShowStravaModal] = useState(false);
+  const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
 
   // Mock user ID for testing - in production this would come from auth
   const TEST_USER_ID = '00000000-0000-0000-0000-000000000001';
@@ -150,6 +152,34 @@ const DataDashboard = () => {
     }
   };
 
+  const handleAppleHealthComplete = async () => {
+    setShowAppleHealthModal(false);
+    
+    // Create Apple Health connection
+    try {
+      const { data: newConnection, error: connectionError } = await supabase
+        .from('data_connections')
+        .insert({
+          user_id: TEST_USER_ID,
+          connection_name: 'Apple Health',
+          connection_type: 'apple_health',
+          access_token: 'apple_health_token_' + Date.now(),
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (!connectionError) {
+        // Refresh connections after successful creation
+        await fetchConnections();
+        // Trigger Friend Assistant to celebrate the connection
+        triggerFriendForDataEvent();
+      }
+    } catch (error) {
+      console.error('Error creating Apple Health connection:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-4 space-y-6">
@@ -264,16 +294,29 @@ const DataDashboard = () => {
         </div>
       )}
 
-      {/* Available Data Sources - Strava */}
+      {/* Available Data Sources */}
       {connections.length === 0 && (
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-gray-900">Available Data Sources</h2>
-          <div className="flex justify-center">
+          <div className="flex justify-center space-x-8">
+            <div 
+              className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => setShowAppleHealthModal(true)}
+            >
+              <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border">
+                <img 
+                  src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" 
+                  alt="Apple Health" 
+                  className="w-full h-full object-contain p-2"
+                />
+              </div>
+              <span className="text-sm font-medium text-gray-700 mt-2">Apple Health</span>
+            </div>
             <div 
               className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity"
               onClick={handleStravaAuth}
             >
-              <div className="w-16 h-16 rounded-lg overflow-hidden bg-white">
+              <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border">
                 <img 
                   src="/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png" 
                   alt="Strava" 
@@ -296,6 +339,12 @@ const DataDashboard = () => {
         isOpen={showStravaModal}
         onClose={() => setShowStravaModal(false)}
         onComplete={handleStravaComplete}
+      />
+
+      <AppleHealthModal 
+        isOpen={showAppleHealthModal}
+        onClose={() => setShowAppleHealthModal(false)}
+        onComplete={handleAppleHealthComplete}
       />
     </div>
   );
