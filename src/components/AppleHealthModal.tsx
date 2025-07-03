@@ -135,6 +135,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
           setConnectionStatus('connected');
           setIsConnecting(false);
           
+          // Trigger the IDIA data flow
+          await triggerIdiaDataFlow(realHealthData);
+          
           // Complete the connection after showing data
           setTimeout(() => {
             onComplete();
@@ -152,9 +155,37 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
           setHealthData(fallbackData);
           setConnectionStatus('connected');
           setIsConnecting(false);
+          
+          // Trigger the IDIA data flow even with fallback data
+          await triggerIdiaDataFlow(fallbackData);
+          
           setTimeout(() => onComplete(), 3000);
         }
       }, 2000);
+    }
+  };
+
+  const triggerIdiaDataFlow = async (healthData: any) => {
+    if (!currentUserId) return;
+    
+    try {
+      console.log('Triggering IDIA data flow with health data:', healthData);
+      
+      // Call IDIA-Synapse to start the data processing pipeline
+      const { error } = await supabase.functions.invoke('idia-synapse', {
+        body: {
+          user_id: currentUserId,
+          health_data: healthData
+        }
+      });
+
+      if (error) {
+        console.error('IDIA-Synapse error:', error);
+      } else {
+        console.log('IDIA data flow triggered successfully');
+      }
+    } catch (error) {
+      console.error('Error triggering IDIA data flow:', error);
     }
   };
 
