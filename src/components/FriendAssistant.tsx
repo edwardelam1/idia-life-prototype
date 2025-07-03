@@ -5,6 +5,7 @@ import { getContextualGreeting } from './FriendAssistant/orbUtils';
 import { useSyllableBlinking } from './FriendAssistant/useSyllableBlinking';
 import CollapsedAvatar from './FriendAssistant/CollapsedAvatar';
 import ExpandedChat from './FriendAssistant/ExpandedChat';
+import { supabase } from '@/integrations/supabase/client';
 
 const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -31,6 +32,23 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
       }]);
     }
   }, [isVisible, trigger, messages.length]);
+
+  const speakText = async (text: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('text-to-speech', {
+        body: { text, voice: '9BWtsMINqrJLrRacOk9x' } // Aria voice
+      });
+
+      if (error) throw error;
+
+      if (data?.audioContent) {
+        const audio = new Audio(`data:audio/mpeg;base64,${data.audioContent}`);
+        audio.play();
+      }
+    } catch (error) {
+      console.error('Error playing speech:', error);
+    }
+  };
 
   const handleSendMessage = () => {
     if (!inputValue.trim()) return;
@@ -72,11 +90,14 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
 
       setMessages(prev => [...prev, aiResponse]);
 
+      // Speak the response using ElevenLabs
+      speakText(responseText);
+
       // Return to idle state after speaking
       setTimeout(() => {
         setFriendState('idle');
         setCurrentSpeechText(''); // Clear speech text
-      }, 2000);
+      }, 3000);
     }, 1500);
   };
 
@@ -128,6 +149,7 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
           onChatClick={handleChatClick}
           onVoiceToggle={handleVoiceToggle}
           onClose={handleClose}
+          onSpeakText={speakText}
         />
       )}
 
@@ -145,6 +167,7 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
           onVoiceToggle={handleVoiceToggle}
           onCollapse={handleCollapse}
           onClose={handleClose}
+          onSpeakText={speakText}
         />
       )}
     </div>

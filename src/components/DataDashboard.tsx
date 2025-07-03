@@ -17,6 +17,7 @@ const DataDashboard = () => {
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
+  const [virtuousImpacts, setVirtuousImpacts] = useState<string[]>([]);
 
   // Get real authenticated user ID
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -71,6 +72,12 @@ const DataDashboard = () => {
 
       setConnections(connectionsData || []);
       setTotalEarnings(monthlyEarnings);
+      
+      // Fetch live virtuous cycle impacts
+      if (connectionsData && connectionsData.length > 0) {
+        await fetchVirtuousImpacts();
+      }
+      
       setLoading(false);
     } catch (error) {
       console.error('Error fetching connections:', error);
@@ -80,6 +87,24 @@ const DataDashboard = () => {
     }
   };
 
+  const fetchVirtuousImpacts = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-virtuous-cycle-impacts', {
+        body: { user_id: currentUserId }
+      });
+
+      if (error) {
+        console.error('Error fetching virtuous impacts:', error);
+        return;
+      }
+
+      if (data?.impacts) {
+        setVirtuousImpacts(data.impacts);
+      }
+    } catch (error) {
+      console.error('Error fetching virtuous impacts:', error);
+    }
+  };
 
   // Add function to trigger Friend Assistant for data connection events
   const triggerFriendForDataEvent = () => {
@@ -158,7 +183,7 @@ const DataDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-teal-100 mb-1">Total Data Earnings</p>
-              <p className="text-3xl font-bold">${totalEarnings.toFixed(2)}</p>
+              <p className="text-3xl font-bold">{totalEarnings.toFixed(2)} IDIA-USD</p>
               <p className="text-sm text-teal-100 mt-1">
                 {connections.length > 0 ? 'Earnings from connected data sources' : 'Start earning by connecting data sources'}
               </p>
@@ -180,20 +205,25 @@ const DataDashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
+              <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">Your data helped improve:</span>
-                <Badge variant="secondary">Research studies</Badge>
+                <Badge variant="secondary">Live Research Impact</Badge>
               </div>
               <div className="space-y-2 text-sm">
-                <p className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  <span>Marathon training optimization research</span>
-                </p>
-                <p className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  <span>Fitness app accessibility improvements</span>
-                </p>
+                {virtuousImpacts.length > 0 ? (
+                  virtuousImpacts.map((impact, index) => (
+                    <p key={index} className="flex items-center space-x-2">
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                      <span>{impact}</span>
+                    </p>
+                  ))
+                ) : (
+                  <p className="flex items-center space-x-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>Generating live impact analysis...</span>
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>

@@ -1,7 +1,8 @@
 
-import { X, MessageCircle, Send, Mic, MicOff } from 'lucide-react';
+import { X, MessageCircle, Send, Mic, Minimize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Message, FriendState } from './types';
 import { getOrbStyling } from './orbUtils';
@@ -18,6 +19,7 @@ interface ExpandedChatProps {
   onVoiceToggle: () => void;
   onCollapse: () => void;
   onClose: () => void;
+  onSpeakText: (text: string) => void;
 }
 
 const ExpandedChat = ({
@@ -31,7 +33,8 @@ const ExpandedChat = ({
   onKeyPress,
   onVoiceToggle,
   onCollapse,
-  onClose
+  onClose,
+  onSpeakText
 }: ExpandedChatProps) => {
   const orbStyle = getOrbStyling(friendState, isSyllableBlinking);
 
@@ -132,7 +135,7 @@ const ExpandedChat = ({
               variant="outline"
               className={`${isListening ? 'bg-purple-100 border-purple-300' : ''}`}
             >
-              {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              <Mic className="w-4 h-4" />
             </Button>
           </div>
         </div>

@@ -63,10 +63,18 @@ serve(async (req) => {
       });
     }
 
+    // Determine the raw_data_id for staged_data table, ensuring it's a valid UUID
+    let rewardRawDataId: string;
+    if (health_data.health_metric_id && isValidUUID(health_data.health_metric_id)) {
+      rewardRawDataId = health_data.health_metric_id;
+    } else {
+      rewardRawDataId = crypto.randomUUID(); // Generate new UUID if original is missing or invalid
+    }
+
     // Create corresponding entry in staged_data for reward processing
     const rewardStagedData = {
       user_id: user_id,
-      raw_data_id: health_data.health_metric_id || crypto.randomUUID(),
+      raw_data_id: rewardRawDataId, // Use the validated/generated UUID
       activity_type: 'Health Data',
       duration_seconds: health_data.activeMinutes ? health_data.activeMinutes * 60 : null,
       average_heartrate: health_data.heartRate || null,
@@ -118,6 +126,12 @@ serve(async (req) => {
     });
   }
 })
+
+// Helper function to validate if a string is a valid UUID
+function isValidUUID(uuidString: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuidString);
+}
 
 // Helper functions
 async function generatePseudonym(userId: string): Promise<string> {

@@ -11,15 +11,17 @@ interface CollapsedAvatarProps {
   onChatClick: () => void;
   onVoiceToggle: () => void;
   onClose: () => void;
+  onSpeakText: (text: string) => void;
 }
 
-const CollapsedAvatar = ({ 
-  friendState, 
-  isListening, 
+const CollapsedAvatar = ({
+  friendState,
+  isListening,
   isSyllableBlinking,
-  onChatClick, 
-  onVoiceToggle, 
-  onClose 
+  onChatClick,
+  onVoiceToggle,
+  onClose,
+  onSpeakText
 }: CollapsedAvatarProps) => {
   const orbStyle = getOrbStyling(friendState, isSyllableBlinking);
 
