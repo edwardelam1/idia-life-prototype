@@ -50,7 +50,7 @@ serve(async (req) => {
       .from('staged_data')
       .select('*')
       .eq('id', staged_data_id)
-      .single();
+      .maybeSingle();
 
     if (fetchError) {
       console.error('Failed to fetch staged data:', fetchError);

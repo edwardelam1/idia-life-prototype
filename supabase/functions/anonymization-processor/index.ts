@@ -87,7 +87,7 @@ serve(async (req) => {
       .from('staged_data')
       .insert(rewardStagedData)
       .select()
-      .single();
+      .maybeSingle();
 
     if (rewardError) {
       console.error('Failed to create reward staging:', rewardError);

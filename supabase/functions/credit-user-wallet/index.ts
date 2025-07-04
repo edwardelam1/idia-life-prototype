@@ -35,7 +35,7 @@ serve(async (req) => {
       .from('user_wallets')
       .select('*')
       .eq('user_id', user_id)
-      .single();
+      .maybeSingle();
 
     let wallet;
     if (walletFetchError && walletFetchError.code === 'PGRST116') {
@@ -48,7 +48,7 @@ serve(async (req) => {
           total_earned: 0
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (createError) {
         console.error('Failed to create wallet:', createError);

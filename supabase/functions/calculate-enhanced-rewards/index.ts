@@ -41,7 +41,7 @@ serve(async (req) => {
       .from('staged_data')
       .select('*')
       .eq('id', staged_data_id)
-      .single();
+      .maybeSingle();
 
     if (fetchError || !stagedData) {
       return new Response('Staged data not found', { 
@@ -76,7 +76,7 @@ serve(async (req) => {
       .from('user_wallets')
       .select('*')
       .eq('user_id', stagedData.user_id)
-      .single();
+      .maybeSingle();
 
     let payoutEligible = false;
     let projectedMonthlyEarnings = 0;
