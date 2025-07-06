@@ -38,9 +38,17 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
       
       console.log("Sending 'syncHealthData' message to the native iOS app.");
       
-      // This is the key line: it sends a message to the native code.
-      // The name "syncHealthData" must exactly match the name you registered in the Swift code.
-      webkit.messageHandlers.syncHealthData.postMessage("start_sync");
+      // Send configuration to native iOS app for data ingestion
+      const ingestorConfig = {
+        endpoint: 'https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/data_ingestor',
+        user_id: currentUserId,
+        auth_token: localStorage.getItem('supabase.auth.token') // Get current auth token
+      };
+      
+      webkit.messageHandlers.syncHealthData.postMessage({
+        action: "start_sync",
+        config: ingestorConfig
+      });
       
       // Fetch real health data from Supabase
       setTimeout(async () => {
