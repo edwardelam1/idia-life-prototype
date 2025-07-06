@@ -175,7 +175,20 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
     try {
       console.log('Triggering IDIA data flow with health data:', healthData);
       
-      // Call IDIA-Synapse to start the data processing pipeline
+      // Call test-reward-pipeline to ensure everything works end-to-end
+      const { data: testResult, error: testError } = await supabase.functions.invoke('test-reward-pipeline', {
+        body: {
+          user_id: currentUserId
+        }
+      });
+
+      if (testError) {
+        console.error('Test reward pipeline error:', testError);
+      } else {
+        console.log('Reward pipeline test completed:', testResult);
+      }
+      
+      // Also call IDIA-Synapse for the traditional flow
       const { error } = await supabase.functions.invoke('idia-synapse', {
         body: {
           user_id: currentUserId,

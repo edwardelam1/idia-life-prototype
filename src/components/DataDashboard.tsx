@@ -61,17 +61,17 @@ const DataDashboard = () => {
         return;
       }
 
-      // Fetch user wallet to get real earnings
+      // Fetch user wallet to get real earnings - REFRESH EVERY TIME
       const { data: walletData, error: walletError } = await supabase
         .from('user_wallets')
         .select('*')
         .eq('user_id', currentUserId)
-        .single();
+        .maybeSingle(); // Use maybeSingle to avoid errors
 
-      const monthlyEarnings = walletData?.total_earned || 0;
+      const totalEarned = walletData?.total_earned || 0;
 
       setConnections(connectionsData || []);
-      setTotalEarnings(monthlyEarnings);
+      setTotalEarnings(totalEarned);
       
       // Fetch live virtuous cycle impacts
       if (connectionsData && connectionsData.length > 0) {
@@ -181,13 +181,13 @@ const DataDashboard = () => {
       <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white">
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-teal-100 mb-1">Total Data Earnings</p>
-              <p className="text-3xl font-bold">{totalEarnings.toFixed(2)} IDIA-USD</p>
-              <p className="text-sm text-teal-100 mt-1">
-                {connections.length > 0 ? 'Earnings from connected data sources' : 'Start earning by connecting data sources'}
-              </p>
-            </div>
+          <div>
+            <p className="text-teal-100 mb-1">Total Data Earnings</p>
+            <p className="text-3xl font-bold">${totalEarnings.toFixed(2)} IDIA-USD</p>
+            <p className="text-sm text-teal-100 mt-1">
+              {connections.length > 0 ? 'Earnings from connected data sources' : 'Start earning by connecting data sources'}
+            </p>
+          </div>
             <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
               <DollarSign className="w-8 h-8" />
             </div>
