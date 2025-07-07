@@ -42,7 +42,7 @@ serve(async (req) => {
       workout_intensity: health_data.activeMinutes || null,
       device_type: 'Apple Health',
       data_quality_score: calculateDataQuality(health_data),
-      anonymized_location_zone: anonymizeLocation(),
+      anonymized_location_zone: anonymizeLocation(health_data.latitude, health_data.longitude),
       processed_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
       raw_data_id: health_data.health_metric_id || null
@@ -143,10 +143,16 @@ async function generatePseudonym(userId: string): Promise<string> {
   return hashHex;
 }
 
-function anonymizeLocation(): string {
-  // Generate a randomized location zone for privacy
-  const zones = ['ZONE_A', 'ZONE_B', 'ZONE_C', 'ZONE_D', 'ZONE_E'];
-  return zones[Math.floor(Math.random() * zones.length)];
+function anonymizeLocation(lat?: number, lng?: number): string {
+  // Use proper location anonymization if coordinates provided
+  if (lat && lng) {
+    // Round to ~1km precision for privacy while maintaining geographic utility
+    const roundedLat = Math.round(lat * 100) / 100;
+    const roundedLng = Math.round(lng * 100) / 100;
+    return `ZONE_${Math.abs(roundedLat).toString().replace('.', '')}_${Math.abs(roundedLng).toString().replace('.', '')}`;
+  }
+  // If no location data provided, return null to indicate no location
+  return null;
 }
 
 function calculateDataQuality(healthData: any): number {

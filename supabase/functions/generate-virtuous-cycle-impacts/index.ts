@@ -26,86 +26,137 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const { user_id } = await req.json();
 
-    // Get user's data contributions
-    const { data: stagedData, error: stagedError } = await supabase
+    // Get comprehensive data analysis from all data sources
+    const { data: stagedHealthData, error: healthError } = await supabase
       .from('staged_health_data')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(10);
+      .limit(100);
 
-    if (stagedError) {
-      console.error('Error fetching staged data:', stagedError);
+    const { data: stagedData, error: stagedError } = await supabase
+      .from('staged_data')
+      .select('*')
+      .order('processed_at', { ascending: false })
+      .limit(100);
+
+    if (healthError || stagedError) {
+      console.error('Error fetching data:', { healthError, stagedError });
       return new Response('Failed to fetch data', { 
         status: 500, 
         headers: corsHeaders 
       });
     }
 
-    const dataCount = stagedData?.length || 0;
+    const healthDataCount = stagedHealthData?.length || 0;
+    const activityDataCount = stagedData?.length || 0;
+    const totalDataPoints = healthDataCount + activityDataCount;
+
+    // Analyze data patterns and types
+    const dataTypes = new Set();
+    const qualityScores = [];
     
+    stagedHealthData?.forEach(data => {
+      if (data.steps_count) dataTypes.add('steps');
+      if (data.average_heartrate) dataTypes.add('heart_rate');
+      if (data.sleep_duration) dataTypes.add('sleep');
+      if (data.calories_burned) dataTypes.add('calories');
+      if (data.workout_intensity) dataTypes.add('exercise_intensity');
+      if (data.data_quality_score) qualityScores.push(data.data_quality_score);
+    });
+
+    stagedData?.forEach(data => {
+      if (data.activity_type) dataTypes.add(data.activity_type.toLowerCase());
+      if (data.duration_seconds) dataTypes.add('activity_duration');
+      if (data.distance_meters) dataTypes.add('distance');
+      if (data.elevation_gain_meters) dataTypes.add('elevation');
+    });
+
+    const avgQuality = qualityScores.length > 0 
+      ? (qualityScores.reduce((a, b) => a + b, 0) / qualityScores.length).toFixed(2)
+      : 0;
+
     let impacts = [];
     
-    // Try to use OpenAI if available, otherwise use fallback
-    if (openaiApiKey) {
-      try {
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openaiApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [
-              {
-                role: 'system',
-                content: 'You are an AI that generates realistic, positive impact statements for health data contributions. Generate 2-3 specific research improvements that health data could realistically help with. Keep each impact statement under 50 characters and make them sound authentic and meaningful.'
-              },
-              {
-                role: 'user',
-                content: `Generate virtuous cycle impacts for a health data platform that has received ${dataCount} recent health data contributions. Focus on realistic research and health improvements.`
-              }
-            ],
-            temperature: 0.7,
-            max_tokens: 200
-          }),
-        });
-
-        if (response.ok) {
-          const aiResponse = await response.json();
-          const impactText = aiResponse.choices[0].message.content;
-          
-          // Parse the response into individual impacts
-          impacts = impactText.split('\n')
-            .filter(line => line.trim().length > 0)
-            .map(line => line.replace(/^\d+\.\s*/, '').replace(/^[-•]\s*/, '').trim())
-            .slice(0, 3);
-        }
-      } catch (error) {
-        console.log('OpenAI failed, using fallback impacts');
-      }
+    // Generate AI insights based on real data analysis - NO FALLBACKS
+    if (!openaiApiKey) {
+      return new Response('OpenAI API key required for live insights', { 
+        status: 500, 
+        headers: corsHeaders 
+      });
     }
-    
-    // Fallback impacts if OpenAI is not available or fails
-    if (impacts.length === 0) {
-      const fallbackImpacts = [
-        "Improved diabetes prediction models",
-        "Enhanced cardiovascular health research",
-        "Better sleep disorder treatment protocols",
-        "Advanced fitness tracking algorithms",
-        "Personalized health recommendations",
-        "Chronic disease prevention insights"
-      ];
+
+    try {
+      const dataAnalysis = `
+        Platform Data Analysis:
+        - Total data points: ${totalDataPoints}
+        - Health data entries: ${healthDataCount} 
+        - Activity data entries: ${activityDataCount}
+        - Data types collected: ${Array.from(dataTypes).join(', ')}
+        - Average data quality score: ${avgQuality}
+        - Active data sources: ${dataTypes.size}
+      `;
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a data science expert analyzing real health data contributions. Generate 2-3 specific, actionable research impacts based on the actual data patterns provided. Focus on realistic improvements that this exact dataset could enable. Keep each impact under 45 characters and make them data-driven and specific.'
+            },
+            {
+              role: 'user',
+              content: `Analyze this real health data platform and generate specific research impacts: ${dataAnalysis}. Generate impacts that could realistically result from this exact data composition and quality.`
+            }
+          ],
+          temperature: 0.3,
+          max_tokens: 300
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenAI API error: ${response.status}`);
+      }
+
+      const aiResponse = await response.json();
+      const impactText = aiResponse.choices[0].message.content;
       
-      // Select 2-3 random impacts based on data count
-      impacts = fallbackImpacts.slice(0, Math.min(3, Math.max(1, Math.floor(dataCount / 2) + 1)));
+      // Parse the response into individual impacts
+      impacts = impactText.split('\n')
+        .filter(line => line.trim().length > 0 && !line.includes(':'))
+        .map(line => line.replace(/^\d+\.\s*/, '').replace(/^[-•]\s*/, '').trim())
+        .filter(impact => impact.length > 10 && impact.length <= 45)
+        .slice(0, 3);
+
+      if (impacts.length === 0) {
+        throw new Error('Failed to generate valid impacts from AI response');
+      }
+
+    } catch (error) {
+      console.error('AI impact generation failed:', error);
+      return new Response('Failed to generate live insights - AI required', { 
+        status: 500, 
+        headers: corsHeaders 
+      });
     }
 
     return new Response(JSON.stringify({
       success: true,
       impacts: impacts,
-      data_contributions: dataCount
-    }), { 
+      data_contributions: totalDataPoints,
+      data_analysis: {
+        health_data_count: healthDataCount,
+        activity_data_count: activityDataCount,
+        data_types: Array.from(dataTypes),
+        average_quality: avgQuality,
+        active_sources: dataTypes.size
+      }
+    }), {
       status: 200, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
