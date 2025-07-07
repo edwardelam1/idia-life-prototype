@@ -1,49 +1,114 @@
-
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import { 
-  Shield, 
-  DollarSign, 
-  CheckCircle, 
-  AlertCircle, 
+import {
+  Shield,
+  DollarSign,
+  CheckCircle,
+  AlertCircle,
   Lock,
   Eye,
   Users,
   Zap
 } from 'lucide-react';
 
+// Assuming you have a Supabase client instance available
+// You might pass it as a prop or import it from a global setup file.
+// For this example, let's assume it's imported:
+import { createClient } from '@supabase/supabase-js'; // Make sure this path is correct
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'YOUR_SUPABASE_URL'; // Replace with your actual Supabase URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY'; // Replace with your actual Supabase Anon Key
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+
 interface DataSourceModalProps {
   source: any;
   isOpen: boolean;
   onClose: () => void;
+  // Potentially pass user ID here if not fetching globally
+  // userId: string;
 }
 
 const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
   const [consentGiven, setConsentGiven] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null); // State for error messages
 
   if (!source) return null;
 
   const handleConnect = async () => {
-    if (!consentGiven) return;
-    
+    if (!consentGiven) {
+      setErrorMessage("Please give consent to connect.");
+      return;
+    }
+
     setIsConnecting(true);
-    // Simulate connection process
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setConnected(true);
-    setIsConnecting(false);
-    
-    // Close modal after showing success
-    setTimeout(() => {
-      onClose();
-      setConnected(false);
-      setConsentGiven(false);
-    }, 2000);
+    setErrorMessage(null); // Clear previous errors
+
+    try {
+      // 1. Get the authenticated user ID
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        console.error("Authentication required: User not found or session expired.", userError);
+        setErrorMessage("Authentication failed. Please log in again.");
+        setIsConnecting(false);
+        return;
+      }
+      const userId = user.id;
+
+      // 2. Prepare the health_data payload
+      // This is a crucial step. You need to gather actual health data here.
+      // The structure must match what your IDIA-Synapse Edge Function expects.
+      // Based on your Edge Function, it expects `health_data.steps` at a minimum.
+      const healthDataPayload = {
+        steps: source.currentSteps || 5000, // Replace 'source.currentSteps' with actual collected step data
+        heartRate: source.currentHeartRate || 75, // Example: add other relevant data
+        activityMinutes: source.currentActivity || 60,
+        // ... include any other relevant data points your health_data object should contain
+        // Ensure this matches the `health_data` structure your IDIA-Synapse function uses.
+      };
+
+      // 3. Invoke the IDIA-Synapse Edge Function
+      // Replace 'idia-synapse' with the actual deployed name of your function if different.
+      const { data: synapseResponse, error: invokeError } = await supabase.functions.invoke('idia-synapse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Optionally include authorization header if your function requires it
+          // 'Authorization': `Bearer ${user.token}` // Or retrieve token from session
+        },
+        body: {
+          user_id: userId,
+          health_data: healthDataPayload,
+        },
+      });
+
+      if (invokeError) {
+        console.error("Error invoking IDIA-Synapse function:", invokeError);
+        setErrorMessage(`Connection failed: ${invokeError.message || 'Unknown error'}. Please try again.`);
+        setConnected(false); // Ensure connected state is false on error
+      } else {
+        console.log("IDIA-Synapse invoked successfully. Response:", synapseResponse);
+        setConnected(true);
+        // Do not close modal immediately, allow success message to show
+        setTimeout(() => {
+          onClose();
+          setConnected(false);
+          setConsentGiven(false);
+        }, 2000);
+      }
+
+    } catch (error: any) {
+      console.error("Unexpected error during connection process:", error);
+      setErrorMessage(`An unexpected error occurred: ${error.message || 'Please try again.'}`);
+      setConnected(false); // Ensure connected state is false on error
+    } finally {
+      setIsConnecting(false); // Always stop connecting state
+    }
   };
 
   const Icon = source.icon;
@@ -91,6 +156,12 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
         </DialogHeader>
 
         <div className="space-y-6">
+          {errorMessage && ( // Display error message if present
+            <div className="flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-lg">
+              <AlertCircle className="w-5 h-5" />
+              <p className="text-sm">{errorMessage}</p>
+            </div>
+          )}
           {/* Earnings Info */}
           <div className="bg-gradient-to-r from-teal-50 to-cyan-50 p-4 rounded-lg">
             <div className="flex items-center space-x-2 mb-2">
@@ -166,7 +237,7 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
               <div>
                 <p className="font-medium text-blue-900 mb-1">Who uses this data?</p>
                 <p className="text-sm text-blue-700">
-                  Verified research institutions, ethical AI companies, and academic studies 
+                  Verified research institutions, ethical AI companies, and academic studies
                   focused on improving digital experiences and social good.
                 </p>
               </div>
@@ -176,7 +247,7 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
           {/* Consent */}
           <div className="bg-gray-50 p-4 rounded-lg">
             <div className="flex items-start space-x-3">
-              <Switch 
+              <Switch
                 checked={consentGiven}
                 onCheckedChange={setConsentGiven}
                 className="mt-1"
@@ -186,7 +257,7 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
                   I consent to sharing my {source.name.toLowerCase()} data
                 </p>
                 <p className="text-xs text-gray-600">
-                  I understand that my data will be anonymized and used for research purposes. 
+                  I understand that my data will be anonymized and used for research purposes.
                   I can revoke this consent at any time through the app settings.
                 </p>
               </div>
@@ -195,16 +266,16 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
 
           {/* Action Buttons */}
           <div className="flex space-x-3">
-            <Button 
-              variant="outline" 
-              className="flex-1" 
+            <Button
+              variant="outline"
+              className="flex-1"
               onClick={onClose}
               disabled={isConnecting}
             >
               Cancel
             </Button>
-            <Button 
-              className="flex-1 bg-teal-500 hover:bg-teal-600" 
+            <Button
+              className="flex-1 bg-teal-500 hover:bg-teal-600"
               onClick={handleConnect}
               disabled={!consentGiven || isConnecting}
             >
