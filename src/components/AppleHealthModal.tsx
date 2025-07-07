@@ -82,14 +82,17 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
             calories: stagedHealth?.calories_burned || (healthMetrics?.step_count ? Math.round(healthMetrics.step_count * 0.04) : 0)
           };
           
-          setHealthData(realHealthData);
-          setConnectionStatus('connected');
-          setIsConnecting(false);
-          
-          // Complete the connection after showing data
-          setTimeout(() => {
-            onComplete();
-          }, 3000);
+           setHealthData(realHealthData);
+           setConnectionStatus('connected');
+           setIsConnecting(false);
+           
+           // Trigger the IDIA data flow for iOS
+           await triggerIdiaDataFlow(realHealthData);
+           
+           // Complete the connection after showing data
+           setTimeout(() => {
+             onComplete();
+           }, 3000);
         } catch (error) {
           console.error('Error fetching health data:', error);
           // Fallback to demo data if no real data available
@@ -100,10 +103,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
             sleepHours: '0',
             calories: 0
           };
-          setHealthData(fallbackData);
-          setConnectionStatus('connected');
-          setIsConnecting(false);
-          setTimeout(() => onComplete(), 3000);
+           setHealthData(fallbackData);
+           setConnectionStatus('connected');
+           setIsConnecting(false);
+           
+           // Trigger the IDIA data flow even with fallback data for iOS
+           await triggerIdiaDataFlow(fallbackData);
+           
+           setTimeout(() => onComplete(), 3000);
         }
       }, 2000);
 
@@ -113,8 +120,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
       
       // For demo purposes, we'll fetch real data from Supabase
       setTimeout(async () => {
-        if (!currentUserId) return;
-        
+        if (!currentUserId) {
+          console.error('Cannot proceed: currentUserId is null after 2 second timeout');
+          return;
+        }
         try {
           // Get latest health metrics
           const { data: healthMetrics, error: healthError } = await supabase
@@ -178,7 +187,17 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
   };
 
   const triggerIdiaDataFlow = async (healthData: any) => {
-    if (!currentUserId) return;
+    console.log('triggerIdiaDataFlow called with:', { currentUserId, healthData });
+    
+    if (!currentUserId) {
+      console.error('Cannot trigger IDIA data flow: currentUserId is null');
+      return;
+    }
+    
+    if (!healthData || Object.keys(healthData).length === 0) {
+      console.error('Cannot trigger IDIA data flow: healthData is empty');
+      return;
+    }
     
     try {
       console.log('Triggering IDIA data flow with health data:', healthData);
@@ -215,6 +234,11 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
   };
 
   const handleConnect = () => {
+    console.log('handleConnect called, currentUserId:', currentUserId);
+    if (!currentUserId) {
+      console.error('Cannot connect: User not authenticated');
+      return;
+    }
     syncHealthDataWithNativeApp();
   };
 
