@@ -21,6 +21,7 @@ const DataDashboard = () => {
 
   // Get real authenticated user ID
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [testingPipeline, setTestingPipeline] = useState(false);
 
   useEffect(() => {
     // Get authenticated user
@@ -112,6 +113,52 @@ const DataDashboard = () => {
     window.dispatchEvent(new CustomEvent('showFriend', { 
       detail: { trigger: 'data' } 
     }));
+  };
+
+  // Test function to manually trigger the IDIA pipeline
+  const testPipeline = async () => {
+    if (!currentUserId) {
+      console.error('No user ID available for testing');
+      return;
+    }
+
+    setTestingPipeline(true);
+    console.log('Testing IDIA pipeline manually...');
+
+    try {
+      // Create test health data
+      const testHealthData = {
+        steps: 8245,
+        heartRate: 78,
+        activeMinutes: 65,
+        sleepHours: 7.2,
+        calories: 330
+      };
+
+      console.log('Testing with health data:', testHealthData);
+
+      // Call IDIA-Synapse directly
+      const { data: result, error } = await supabase.functions.invoke('idia-synapse', {
+        body: {
+          user_id: currentUserId,
+          health_data: testHealthData
+        }
+      });
+
+      console.log('Pipeline test result:', { data: result, error });
+
+      if (error) {
+        console.error('Pipeline test failed:', error);
+      } else {
+        console.log('Pipeline test successful!');
+        // Refresh data
+        await fetchConnections();
+      }
+    } catch (error) {
+      console.error('Pipeline test error:', error);
+    } finally {
+      setTestingPipeline(false);
+    }
   };
 
 
@@ -289,6 +336,23 @@ const DataDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Test Pipeline Button */}
+      <Card className="border-dashed border-2 border-gray-300">
+        <CardContent className="p-4 text-center">
+          <h3 className="font-semibold text-gray-900 mb-2">Test Data Pipeline</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Test the complete IDIA data processing pipeline with sample health data
+          </p>
+          <Button 
+            onClick={testPipeline}
+            disabled={testingPipeline || !currentUserId}
+            className="bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700"
+          >
+            {testingPipeline ? 'Testing Pipeline...' : 'Test Pipeline'}
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Available Data Sources */}
       {connections.length === 0 && (

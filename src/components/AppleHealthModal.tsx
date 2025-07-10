@@ -194,10 +194,22 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
       return;
     }
     
+    // Enhanced validation for health data
     if (!healthData || Object.keys(healthData).length === 0) {
       console.error('Cannot trigger IDIA data flow: healthData is empty');
       return;
     }
+
+    // Ensure health data has valid structure with non-zero values where appropriate
+    const validatedHealthData = {
+      steps: Number(healthData.steps) || 0,
+      heartRate: Number(healthData.heartRate) || 0,
+      activeMinutes: Number(healthData.activeMinutes) || 0,
+      sleepHours: Number(healthData.sleepHours) || 0,
+      calories: Number(healthData.calories) || 0
+    };
+
+    console.log('Validated health data:', validatedHealthData);
     
     try {
       console.log('Triggering IDIA data flow with health data:', healthData);
@@ -216,12 +228,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
       }
       
       // Also call IDIA-Synapse for the traditional flow
-      const { error } = await supabase.functions.invoke('idia-synapse', {
+      const { data: idiaResult, error } = await supabase.functions.invoke('idia-synapse', {
         body: {
           user_id: currentUserId,
-          health_data: healthData
+          health_data: validatedHealthData
         }
       });
+
+      console.log('IDIA-Synapse response:', { data: idiaResult, error });
 
       if (error) {
         console.error('IDIA-Synapse error:', error);

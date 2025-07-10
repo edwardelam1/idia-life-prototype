@@ -25,10 +25,19 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { user_id, health_data } = await req.json();
+    const requestBody = await req.json();
+    console.log('IDIA-Synapse received request body:', requestBody);
+    
+    const { user_id, health_data } = requestBody;
 
     if (!user_id || !health_data) {
-      console.error('Missing required data:', { user_id: !!user_id, health_data: !!health_data });
+      console.error('Missing required data:', { 
+        user_id: !!user_id, 
+        health_data: !!health_data,
+        received_user_id: user_id,
+        received_health_data: health_data,
+        full_body: requestBody
+      });
       return new Response('Missing user_id or health_data', { 
         status: 400, 
         headers: corsHeaders 
