@@ -63,13 +63,11 @@ serve(async (req) => {
       });
     }
 
-    // Determine the raw_data_id for staged_data table, ensuring it's a valid UUID
-    let rewardRawDataId: string;
-    if (health_data.health_metric_id && isValidUUID(health_data.health_metric_id)) {
-      rewardRawDataId = health_data.health_metric_id;
-    } else {
-      rewardRawDataId = crypto.randomUUID(); // Generate new UUID if original is missing or invalid
-    }
+    // Generate a proper UUID for staged_data table
+    // health_metrics.id is a bigint, not a UUID, so we always generate a new UUID
+    const rewardRawDataId = crypto.randomUUID();
+    
+    console.log(`Generated new UUID ${rewardRawDataId} for health_metric_id: ${health_data.health_metric_id}`);
 
     // Create corresponding entry in staged_data for reward processing
     const rewardStagedData = {
