@@ -126,7 +126,7 @@ const DataDashboard = () => {
     console.log('Testing IDIA pipeline manually...');
 
     try {
-      // Create test health data
+      // Test 1: Direct IDIA-Synapse call (UI format)
       const testHealthData = {
         steps: 8245,
         heartRate: 78,
@@ -135,20 +135,34 @@ const DataDashboard = () => {
         calories: 330
       };
 
-      console.log('Testing with health data:', testHealthData);
+      console.log('Test 1: Testing IDIA-Synapse with UI format:', testHealthData);
 
-      // Call IDIA-Synapse directly
-      const { data: result, error } = await supabase.functions.invoke('idia-synapse', {
+      const { data: result1, error: error1 } = await supabase.functions.invoke('idia-synapse', {
         body: {
           user_id: currentUserId,
           health_data: testHealthData
         }
       });
 
-      console.log('Pipeline test result:', { data: result, error });
+      console.log('Test 1 result:', { data: result1, error: error1 });
 
-      if (error) {
-        console.error('Pipeline test failed:', error);
+      // Test 2: Insert into health_metrics to trigger database flow
+      console.log('Test 2: Testing database trigger by inserting health_metrics...');
+      
+      const { data: healthInsert, error: healthError } = await supabase
+        .from('health_metrics')
+        .insert({
+          user_id: currentUserId,
+          step_count: 5055,
+          recorded_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      console.log('Test 2 health_metrics insert:', { data: healthInsert, error: healthError });
+
+      if (error1) {
+        console.error('Pipeline test failed:', error1);
       } else {
         console.log('Pipeline test successful!');
         // Refresh data

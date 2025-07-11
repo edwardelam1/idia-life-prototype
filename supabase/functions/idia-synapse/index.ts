@@ -28,10 +28,38 @@ serve(async (req) => {
     const requestBody = await req.json();
     console.log('IDIA-Synapse received request body:', requestBody);
     
-    const { user_id, health_data } = requestBody;
+    // Handle two different input formats:
+    // 1. Manual UI calls: { user_id, health_data: { steps, heartRate, ... } }
+    // 2. Database trigger calls: { recorded_at, step_count, user_id }
+    
+    let user_id, health_data;
+    
+    if (requestBody.user_id && requestBody.health_data) {
+      // Format 1: Manual UI call
+      user_id = requestBody.user_id;
+      health_data = requestBody.health_data;
+      console.log('Processing manual UI call format');
+    } else if (requestBody.step_count !== undefined) {
+      // Format 2: Database trigger call - transform to expected format
+      user_id = requestBody.user_id || null;
+      health_data = {
+        steps: requestBody.step_count || 0,
+        heartRate: 0, // Not available from health_metrics table
+        activeMinutes: requestBody.step_count ? Math.round(requestBody.step_count / 120) : 0,
+        sleepHours: 0, // Not available from health_metrics table
+        calories: requestBody.step_count ? Math.round(requestBody.step_count * 0.04) : 0
+      };
+      console.log('Processing database trigger format, transformed health_data:', health_data);
+    } else {
+      console.error('Invalid request format:', requestBody);
+      return new Response('Invalid request format - expected either {user_id, health_data} or {step_count, user_id}', { 
+        status: 400, 
+        headers: corsHeaders 
+      });
+    }
 
     if (!user_id || !health_data) {
-      console.error('Missing required data:', { 
+      console.error('Missing required data after processing:', { 
         user_id: !!user_id, 
         health_data: !!health_data,
         received_user_id: user_id,
