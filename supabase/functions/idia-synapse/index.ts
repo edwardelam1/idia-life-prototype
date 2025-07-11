@@ -40,43 +40,18 @@ serve(async (req) => {
       health_data = requestBody.health_data;
       console.log('Processing manual UI call format');
     } else if (requestBody.step_count !== undefined) {
-      // Format 2: Database trigger call - transform to expected format
-      user_id = requestBody.user_id || null;
+      // Format 2: Database trigger call - the health_metrics table already has triggers
+      // that handle anonymization and reward processing, so we just acknowledge receipt
+      console.log('Database trigger call detected, health_metrics triggers will handle processing');
       
-      // If user_id is missing, try to look it up from health_metrics table
-      if (!user_id && requestBody.recorded_at && requestBody.step_count) {
-        console.log('Missing user_id, attempting to look up from health_metrics...');
-        try {
-          const { data: healthRecord, error: lookupError } = await supabase
-            .from('health_metrics')
-            .select('user_id')
-            .eq('step_count', requestBody.step_count)
-            .eq('recorded_at', requestBody.recorded_at)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          
-          if (lookupError) {
-            console.error('Error looking up user_id:', lookupError);
-          } else if (healthRecord?.user_id) {
-            user_id = healthRecord.user_id;
-            console.log('Successfully found user_id:', user_id);
-          } else {
-            console.warn('No matching health record found for lookup');
-          }
-        } catch (error) {
-          console.error('Exception during user_id lookup:', error);
-        }
-      }
-      
-      health_data = {
-        steps: requestBody.step_count || 0,
-        heartRate: 0, // Not available from health_metrics table
-        activeMinutes: requestBody.step_count ? Math.round(requestBody.step_count / 120) : 0,
-        sleepHours: 0, // Not available from health_metrics table
-        calories: requestBody.step_count ? Math.round(requestBody.step_count * 0.04) : 0
-      };
-      console.log('Processing database trigger format, transformed health_data:', health_data);
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Database trigger call acknowledged - processing handled by health_metrics triggers',
+        trigger_data: requestBody
+      }), { 
+        status: 200, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     } else {
       console.error('Invalid request format:', requestBody);
       return new Response('Invalid request format - expected either {user_id, health_data} or {step_count, user_id}', { 
