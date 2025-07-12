@@ -30,29 +30,23 @@ serve(async (req) => {
 
     // Generate pseudonym for anonymized data using new function
     const { data: pseudoResult, error: pseudoError } = await supabase
-      .rpc('generate_pseudonym');
+      .rpc('generate_pseudonym', { input_text: raw_data_id });
     
     const pseudonym = pseudoResult || `ANON_${Date.now()}`;
 
     // Step 1: Create anonymized entry in staged_health_data
     const locationZone = await generateLocationZone(supabase);
-    const anonymizedData = {
-      pseudonym: pseudonym,
-      step_count: step_count,
-      recorded_at: recorded_at,
-      location_zone: locationZone,
-      data_quality_score: step_count ? 0.8 : 0.5,
-      anonymized_at: new Date().toISOString()
-    };
 
     const { data: stagedHealthData, error: healthError } = await supabase
       .from('staged_health_data')
       .insert({
         raw_data_id: raw_data_id,
-        pseudonym: pseudonym,
-        anonymized_data: anonymizedData,
-        location_zone: locationZone,
-        recorded_at: recorded_at || new Date().toISOString()
+        pseudo_user_id: pseudonym,
+        activity_type: 'health_metrics',
+        steps_count: step_count,
+        anonymized_location_zone: locationZone,
+        data_quality_score: step_count ? 0.8 : 0.5,
+        processed_at: new Date().toISOString()
       })
       .select()
       .single();
@@ -75,10 +69,9 @@ serve(async (req) => {
         .insert({
           user_id: user_id,
           raw_data_id: raw_data_id,
-          data_type: 'steps',
-          step_count: step_count || 0,
-          recorded_at: recorded_at || new Date().toISOString(),
-          processed: false
+          activity_type: 'health_metrics',
+          anonymized_location_zone: locationZone,
+          processed_at: new Date().toISOString()
         })
         .select()
         .single();
@@ -115,8 +108,9 @@ serve(async (req) => {
 
 async function generateLocationZone(supabase: any) {
   try {
+    // Use default coordinates if no location data is available
     const { data: locationResult, error } = await supabase
-      .rpc('anonymize_location');
+      .rpc('anonymize_location', { lat: 0, lng: 0 });
     
     return locationResult || 'ZONE_DEFAULT';
   } catch (error) {
