@@ -28,7 +28,7 @@ const GovernanceScreen = () => {
   const fetchProposals = async () => {
     try {
       const { data, error } = await supabase
-        .from('governance_proposals')
+        .from('user_proposals')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -38,12 +38,12 @@ const GovernanceScreen = () => {
           id: proposal.id,
           title: proposal.title,
           description: proposal.description,
-          category: proposal.proposal_type,
+          category: proposal.category,
           status: proposal.status || 'active',
-          votes: proposal.yes_votes || 0,
-          totalVotes: (proposal.yes_votes || 0) + (proposal.no_votes || 0),
-          ai_validation_score: null,
-          ai_validation_feedback: null,
+          votes: 0,
+          totalVotes: 0,
+          ai_validation_score: proposal.ai_validation_score,
+          ai_validation_feedback: proposal.ai_validation_feedback,
           created_at: proposal.created_at || new Date().toISOString()
         })));
       }

@@ -85,7 +85,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
           console.log('Health data fetched:', { healthMetrics, stagedHealth });
 
           const realHealthData = {
-            steps: healthMetrics?.metric_value || 0,
+            steps: healthMetrics?.step_count || 0,
             heartRate: 0,
             activeMinutes: 0,
             sleepHours: '0',
@@ -98,13 +98,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
            
            // Update connection status to connected
            await supabase
-             .from('user_connections')
+             .from('data_connections')
              .update({ 
-               connection_status: 'connected',
+               is_active: true,
                last_sync_at: new Date().toISOString() 
              })
              .eq('user_id', currentUserId)
-             .eq('provider', 'apple_health');
+             .eq('connection_type', 'apple_health');
            
            // Trigger the IDIA data flow for iOS
            try {
@@ -169,7 +169,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
           console.log('Health data fetched (web):', { healthMetrics, stagedHealth });
 
           const realHealthData = {
-            steps: healthMetrics?.metric_value || 0,
+            steps: healthMetrics?.step_count || 0,
             heartRate: 0,
             activeMinutes: 0,
             sleepHours: '0',
@@ -182,13 +182,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
           
           // Update connection status to connected
           await supabase
-            .from('user_connections')
+            .from('data_connections')
             .update({ 
-              connection_status: 'connected',
+              is_active: true,
               last_sync_at: new Date().toISOString() 
             })
             .eq('user_id', currentUserId)
-            .eq('provider', 'apple_health');
+            .eq('connection_type', 'apple_health');
           
           // Trigger the IDIA data flow
           try {
@@ -312,10 +312,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
     try {
       // First check if connection already exists
       const { data: existingConnection, error: selectError } = await supabase
-        .from('user_connections')
+        .from('data_connections')
         .select('*')
         .eq('user_id', currentUserId)
-        .eq('provider', 'apple_health')
+        .eq('connection_type', 'apple_health')
         .maybeSingle();
       
       console.log('Existing connection check:', { existingConnection, selectError });
@@ -325,10 +325,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
         // Update existing connection
         console.log('Updating existing connection:', existingConnection.id);
         connectionOperation = supabase
-          .from('user_connections')
+          .from('data_connections')
           .update({
-            connection_status: 'connecting',
-            connection_data: { device_type: 'iPhone Health App' },
+            is_active: true,
             updated_at: new Date().toISOString()
           })
           .eq('id', existingConnection.id)
@@ -338,12 +337,12 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
         // Insert new connection
         console.log('Creating new connection record');
         connectionOperation = supabase
-          .from('user_connections')
+          .from('data_connections')
           .insert({
             user_id: currentUserId,
-            provider: 'apple_health',
-            connection_status: 'connecting',
-            connection_data: { device_type: 'iPhone Health App' }
+            connection_type: 'apple_health',
+            connection_name: 'Apple Health',
+            is_active: true
           })
           .select()
           .single();

@@ -43,13 +43,13 @@ const ProposalForm = ({ onClose, onSuccess }: ProposalFormProps) => {
 
       // Create the proposal
       const { data: proposal, error: insertError } = await supabase
-        .from('governance_proposals')
+        .from('user_proposals')
         .insert({
-          created_by: user.id,
+          user_id: user.id,
           title: title.trim(),
           description: description.trim(),
-          proposal_type: category,
-          voting_ends_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+          category: category,
+          suggested_impact: impact
         })
         .select()
         .single();

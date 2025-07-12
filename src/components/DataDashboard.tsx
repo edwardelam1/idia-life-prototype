@@ -49,10 +49,10 @@ const DataDashboard = () => {
     try {
       // Fetch real connections from database
       const { data: connectionsData, error: connectionsError } = await supabase
-        .from('user_connections')
+        .from('data_connections')
         .select('*')
         .eq('user_id', currentUserId)
-        .eq('connection_status', 'connected');
+        .eq('is_active', true);
 
       if (connectionsError) {
         console.error('Error fetching connections:', connectionsError);
@@ -181,9 +181,9 @@ const DataDashboard = () => {
     if (!currentUserId) return;
     
     try {
-      const { error } = await supabase
-        .from('user_connections')
-        .update({ connection_status: 'disconnected' })
+    const { error } = await supabase
+      .from('data_connections')
+        .update({ is_active: false })
         .eq('id', connectionId)
         .eq('user_id', currentUserId);
 
