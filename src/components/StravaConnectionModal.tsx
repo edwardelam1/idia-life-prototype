@@ -68,18 +68,17 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
     setIsConnecting(true);
 
     try {
-      // Generate OAuth URL with the actual client ID from secrets
-      const redirectUri = `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/strava-oauth-callback`;
-      const scope = "read,activity:read_all";
-      const state = currentUserId; // Pass user ID as state parameter
-      
-      // Get client ID from environment or use a default for development
-      const clientId = "134535"; // Replace with actual client ID from secrets
-      
-      const oauthUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&approval_prompt=force&scope=${scope}&state=${state}`;
+      // Get OAuth URL from edge function with proper client ID
+      const { data: urlData, error: urlError } = await supabase.functions.invoke('strava-auth-url', {
+        body: { userId: currentUserId }
+      });
+
+      if (urlError || !urlData?.oauthUrl) {
+        throw new Error('Failed to generate OAuth URL');
+      }
       
       // Open OAuth window
-      const popup = window.open(oauthUrl, 'strava-oauth', 'width=600,height=700,scrollbars=yes,resizable=yes');
+      const popup = window.open(urlData.oauthUrl, 'strava-oauth', 'width=600,height=700,scrollbars=yes,resizable=yes');
       
       if (!popup) {
         throw new Error('Failed to open popup window');
