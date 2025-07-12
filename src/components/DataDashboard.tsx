@@ -167,28 +167,13 @@ const DataDashboard = () => {
   const handleAppleHealthComplete = async () => {
     setShowAppleHealthModal(false);
     
-    // Create Apple Health connection
+    // Just refresh connections - the modal already created/updated the connection
     try {
-      const { data: newConnection, error: connectionError } = await supabase
-        .from('user_connections')
-        .insert({
-          user_id: currentUserId,
-          provider: 'apple_health',
-          connection_status: 'connected',
-          connection_data: { connected_at: new Date().toISOString() },
-          last_sync_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (!connectionError) {
-        // Refresh connections after successful creation
-        await fetchConnections();
-        // Trigger Friend Assistant to celebrate the connection
-        triggerFriendForDataEvent();
-      }
+      await fetchConnections();
+      // Trigger Friend Assistant to celebrate the connection
+      triggerFriendForDataEvent();
     } catch (error) {
-      console.error('Error creating Apple Health connection:', error);
+      console.error('Error refreshing connections:', error);
     }
   };
 

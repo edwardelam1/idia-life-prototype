@@ -85,11 +85,11 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
           console.log('Health data fetched:', { healthMetrics, stagedHealth });
 
           const realHealthData = {
-            steps: healthMetrics?.metric_value || 8245,
-            heartRate: 78,
-            activeMinutes: healthMetrics?.metric_value ? Math.round(healthMetrics.metric_value / 120) : 0,
-            sleepHours: '7.2',
-            calories: healthMetrics?.metric_value ? Math.round(healthMetrics.metric_value * 0.04) : 0
+            steps: healthMetrics?.metric_value || 0,
+            heartRate: 0,
+            activeMinutes: 0,
+            sleepHours: '0',
+            calories: 0
           };
           
            setHealthData(realHealthData);
@@ -109,10 +109,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
            // Trigger the IDIA data flow for iOS
            await triggerIdiaDataFlow(realHealthData);
            
-           // Complete the connection after showing data
-           setTimeout(() => {
-             onComplete();
-           }, 3000);
+           // Complete the connection immediately
+           onComplete();
         } catch (error) {
           console.error('Error fetching health data:', error);
           // Fallback to demo data if no real data available
@@ -130,7 +128,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
            // Trigger the IDIA data flow even with fallback data for iOS
            await triggerIdiaDataFlow(fallbackData);
            
-           setTimeout(() => onComplete(), 3000);
+           onComplete();
         }
       }, 2000);
 
@@ -165,11 +163,11 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
           console.log('Health data fetched (web):', { healthMetrics, stagedHealth });
 
           const realHealthData = {
-            steps: healthMetrics?.metric_value || 8245,
-            heartRate: 78,
-            activeMinutes: healthMetrics?.metric_value ? Math.round(healthMetrics.metric_value / 120) : 0,
-            sleepHours: '7.2',
-            calories: healthMetrics?.metric_value ? Math.round(healthMetrics.metric_value * 0.04) : 0
+            steps: healthMetrics?.metric_value || 0,
+            heartRate: 0,
+            activeMinutes: 0,
+            sleepHours: '0',
+            calories: 0
           };
           
           setHealthData(realHealthData);
@@ -189,10 +187,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
           // Trigger the IDIA data flow
           await triggerIdiaDataFlow(realHealthData);
           
-          // Complete the connection after showing data
-          setTimeout(() => {
-            onComplete();
-          }, 3000);
+          // Complete the connection immediately
+          onComplete();
         } catch (error) {
           console.error('Error fetching health data:', error);
           // Fallback to demo data if no real data available
@@ -210,7 +206,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
           // Trigger the IDIA data flow even with fallback data
           await triggerIdiaDataFlow(fallbackData);
           
-          setTimeout(() => onComplete(), 3000);
+          onComplete();
         }
       }, 2000);
     }
