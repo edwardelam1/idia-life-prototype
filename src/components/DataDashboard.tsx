@@ -11,12 +11,14 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import AppleHealthModal from './AppleHealthModal';
+import StravaConnectionModal from './StravaConnectionModal';
 
 const DataDashboard = () => {
   const [connections, setConnections] = useState<any[]>([]);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
+  const [showStravaModal, setShowStravaModal] = useState(false);
   const [virtuousImpacts, setVirtuousImpacts] = useState<string[]>([]);
 
   // Get real authenticated user ID
@@ -130,6 +132,17 @@ const DataDashboard = () => {
     }
   };
 
+  const handleStravaComplete = async () => {
+    setShowStravaModal(false);
+    
+    try {
+      await fetchConnections();
+      triggerFriendForDataEvent();
+    } catch (error) {
+      console.error('Error refreshing connections:', error);
+    }
+  };
+
   const handleDisconnect = async (connectionId: string) => {
     if (!currentUserId) return;
     
@@ -228,14 +241,14 @@ const DataDashboard = () => {
                       <div className="flex items-start space-x-3">
                         <div className="w-10 h-10 rounded-lg overflow-hidden bg-white">
                           <img 
-                            src={connection.provider === 'apple_health' ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"} 
-                            alt={connection.provider} 
+                            src={connection.connection_type === 'apple_health' ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"} 
+                            alt={connection.connection_type} 
                             className="w-full h-full object-contain p-1"
                           />
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-semibold text-gray-900">{connection.provider === 'apple_health' ? 'Apple Health' : connection.provider}</h3>
+                            <h3 className="font-semibold text-gray-900">{connection.connection_type === 'apple_health' ? 'Apple Health' : connection.connection_type === 'strava' ? 'Strava' : connection.connection_name}</h3>
                         <div className="flex items-center space-x-2">
                           <div className="text-right">
                             <p className="text-sm font-medium text-green-600">
@@ -256,7 +269,7 @@ const DataDashboard = () => {
                         </div>
                       </div>
                       <p className="text-sm text-gray-600 mb-2">
-                        {connection.provider === 'apple_health' ? 'Health data from Apple Health' : 'Connected data source'}
+                        {connection.connection_type === 'apple_health' ? 'Health data from Apple Health' : connection.connection_type === 'strava' ? 'Activity data from Strava' : 'Connected data source'}
                       </p>
                       <div className="flex items-center space-x-4 text-xs text-gray-500">
                         <span className="flex items-center space-x-1">
@@ -282,7 +295,7 @@ const DataDashboard = () => {
       {connections.length === 0 && (
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-gray-900">Available Data Sources</h2>
-          <div className="flex justify-center">
+          <div className="flex justify-center space-x-8">
             <div 
               className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => setShowAppleHealthModal(true)}
@@ -296,6 +309,20 @@ const DataDashboard = () => {
               </div>
               <span className="text-sm font-medium text-gray-700 mt-2">Apple Health</span>
             </div>
+            
+            <div 
+              className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => setShowStravaModal(true)}
+            >
+              <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border">
+                <img 
+                  src="/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png" 
+                  alt="Strava" 
+                  className="w-full h-full object-contain p-2"
+                />
+              </div>
+              <span className="text-sm font-medium text-gray-700 mt-2">Strava</span>
+            </div>
           </div>
         </div>
       )}
@@ -305,6 +332,12 @@ const DataDashboard = () => {
         isOpen={showAppleHealthModal}
         onClose={() => setShowAppleHealthModal(false)}
         onComplete={handleAppleHealthComplete}
+      />
+
+      <StravaConnectionModal 
+        isOpen={showStravaModal}
+        onClose={() => setShowStravaModal(false)}
+        onComplete={handleStravaComplete}
       />
     </div>
   );
