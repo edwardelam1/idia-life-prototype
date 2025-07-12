@@ -77,7 +77,8 @@ const WalletDashboard = () => {
       } else {
         setTransactions((data || []).map(transaction => ({
           ...transaction,
-          source: transaction.source || 'System'
+          description: transaction.description.replace('Staged_data_reward', 'Health Data Contribution'),
+          source: transaction.source || 'IDIA Platform'
         })));
       }
       setLoading(false);
@@ -90,6 +91,7 @@ const WalletDashboard = () => {
 
   const getTransactionIcon = (type: string) => {
     switch (type) {
+      case 'data_reward':
       case 'data_earnings':
         return TrendingUp;
       case 'payment_sent':
@@ -205,22 +207,19 @@ const WalletDashboard = () => {
               <p className="text-sm">Your transactions will appear here once you start using the platform.</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {transactions.map((transaction) => {
                 const Icon = getTransactionIcon(transaction.transaction_type);
                 return (
-                  <div key={transaction.id} className="flex items-center space-x-3 py-2">
-                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-                      <Icon className="w-5 h-5 text-gray-600" />
+                  <div key={transaction.id} className="flex items-center space-x-3 py-1.5">
+                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                      <Icon className="w-4 h-4 text-gray-600" />
                     </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">{transaction.description}</p>
-                      {transaction.source && (
-                        <p className="text-sm text-gray-600">{transaction.source}</p>
-                      )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 text-sm truncate">{transaction.description}</p>
                       <p className="text-xs text-gray-500">{formatTime(transaction.created_at)}</p>
                     </div>
-                    <div className={`font-semibold ${getTransactionColor(transaction.amount)}`}>
+                    <div className={`font-semibold text-sm ${getTransactionColor(transaction.amount)}`}>
                       {formatAmount(transaction.amount)}
                     </div>
                   </div>
