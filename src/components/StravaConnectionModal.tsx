@@ -68,42 +68,101 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
     setIsConnecting(true);
 
     try {
+      console.log('Starting Strava connection for user:', currentUserId);
+      
       // Get OAuth URL from edge function with proper client ID
       const { data: urlData, error: urlError } = await supabase.functions.invoke('strava-auth-url', {
         body: { userId: currentUserId }
       });
 
-      if (urlError || !urlData?.oauthUrl) {
-        throw new Error('Failed to generate OAuth URL');
+      console.log('OAuth URL response:', { urlData, urlError });
+
+      if (urlError) {
+        console.error('Edge function error:', urlError);
+        throw new Error(`Edge function error: ${urlError.message || 'Unknown error'}`);
+      }
+
+      if (!urlData?.oauthUrl) {
+        console.error('No OAuth URL returned:', urlData);
+        throw new Error('No OAuth URL received from server');
       }
       
-      // Open OAuth window
-      const popup = window.open(urlData.oauthUrl, 'strava-oauth', 'width=600,height=700,scrollbars=yes,resizable=yes');
+      console.log('Opening popup with URL:', urlData.oauthUrl);
       
-      if (!popup) {
-        throw new Error('Failed to open popup window');
+      // Check if popup will be blocked
+      const popup = window.open('', 'strava-oauth', 'width=600,height=700,scrollbars=yes,resizable=yes');
+      
+      if (!popup || popup.closed || typeof popup.closed == 'undefined') {
+        // Popup was blocked - offer alternative
+        setIsConnecting(false);
+        toast({
+          title: "Popup Blocked",
+          description: "Please allow popups for this site and try again, or use the direct link below.",
+          variant: "destructive",
+        });
+        
+        // Show direct link option
+        const useDirectLink = confirm(
+          "Your browser blocked the popup. Would you like to open Strava in a new tab instead?\n\n" +
+          "Note: You'll need to manually return to this page after connecting."
+        );
+        
+        if (useDirectLink) {
+          window.open(urlData.oauthUrl, '_blank');
+          toast({
+            title: "Strava Opened",
+            description: "Please complete the connection and return to this page.",
+          });
+        }
+        return;
       }
+      
+      // Navigate to the OAuth URL
+      popup.location.href = urlData.oauthUrl;
       
       // Monitor popup for closure
       const checkClosed = setInterval(() => {
-        if (popup.closed) {
-          clearInterval(checkClosed);
-          setIsConnecting(false);
-          // Check if connection was successful
-          setTimeout(() => {
-            checkConnection();
-          }, 1000);
+        try {
+          if (popup.closed) {
+            clearInterval(checkClosed);
+            setIsConnecting(false);
+            console.log('Popup closed, checking connection status...');
+            // Check if connection was successful
+            setTimeout(() => {
+              checkConnection();
+            }, 1000);
+          }
+        } catch (error) {
+          // Handle cross-origin errors when checking popup status
+          console.log('Popup monitoring error (expected):', error);
         }
       }, 1000);
 
+      // Timeout after 5 minutes
+      setTimeout(() => {
+        if (!popup.closed) {
+          clearInterval(checkClosed);
+          popup.close();
+          setIsConnecting(false);
+          toast({
+            title: "Connection Timeout",
+            description: "The connection process took too long. Please try again.",
+            variant: "destructive",
+          });
+        }
+      }, 300000); // 5 minutes
+
     } catch (error) {
       console.error('Error starting OAuth flow:', error);
+      setIsConnecting(false);
+      
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      
       toast({
         title: "Connection Failed",
-        description: "Failed to start Strava connection. Please try again.",
+        description: `Failed to start Strava connection: ${errorMessage}. Please try again.`,
         variant: "destructive",
       });
-      setIsConnecting(false);
     }
   };
 
@@ -165,7 +224,7 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
             <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
               <Key className="w-5 h-5 text-white" />
             </div>
-            <span>{existingConnection ? 'Strava' : 'Connect Strava API'}</span>
+            <span>{existingConnection ? 'Strava' : 'Connect Strava'}</span>
           </DialogTitle>
         </DialogHeader>
 
