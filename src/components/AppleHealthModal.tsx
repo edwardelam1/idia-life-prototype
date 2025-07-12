@@ -187,16 +187,17 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
   };
 
   const triggerIdiaDataFlow = async (healthData: any) => {
-    console.log('triggerIdiaDataFlow called with:', { currentUserId, healthData });
+    console.log('=== APPLE HEALTH MODAL: Starting data flow ===');
+    console.log('AppleHealthModal: triggerIdiaDataFlow called with:', { currentUserId, healthData });
     
     if (!currentUserId) {
-      console.error('Cannot trigger IDIA data flow: currentUserId is null');
+      console.error('AppleHealthModal: Cannot trigger data flow - currentUserId is null');
       return;
     }
     
     // Enhanced validation for health data
     if (!healthData || Object.keys(healthData).length === 0) {
-      console.error('Cannot trigger IDIA data flow: healthData is empty');
+      console.error('AppleHealthModal: Cannot trigger data flow - healthData is empty');
       return;
     }
 
@@ -206,15 +207,18 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
       heartRate: Number(healthData.heartRate) || 0,
       activeMinutes: Number(healthData.activeMinutes) || 0,
       sleepHours: Number(healthData.sleepHours) || 0,
-      calories: Number(healthData.calories) || 0
+      calories: Number(healthData.calories) || 0,
+      device_type: 'iPhone Health App',
+      recorded_at: new Date().toISOString()
     };
 
-    console.log('Validated health data:', validatedHealthData);
+    console.log('AppleHealthModal: Validated health data:', validatedHealthData);
     
     try {
-      console.log('Triggering IDIA data flow with health data:', healthData);
+      console.log('AppleHealthModal: Calling health-data-bridge (single entry point)...');
+      console.log('AppleHealthModal: Expected flow: health-data-bridge → raw_health_data → trigger → IDIA-Synapse → anonymization');
       
-      // Call health-data-bridge as the single entry point
+      // Call health-data-bridge as the ONLY entry point
       const { data: bridgeResult, error } = await supabase.functions.invoke('health-data-bridge', {
         body: {
           user_id: currentUserId,
@@ -222,16 +226,23 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
         }
       });
 
-      console.log('Health data bridge response:', { data: bridgeResult, error });
+      console.log('AppleHealthModal: Health data bridge response:', { data: bridgeResult, error });
 
       if (error) {
-        console.error('Health data bridge error:', error);
+        console.error('AppleHealthModal: Health data bridge error:', error);
+        console.error('AppleHealthModal: Error details:', JSON.stringify(error, null, 2));
       } else {
-        console.log('Health data flow triggered successfully');
+        console.log('AppleHealthModal: Health data flow initiated successfully!');
+        console.log('AppleHealthModal: Pipeline should now execute automatically via database triggers');
+        console.log('AppleHealthModal: Bridge result:', JSON.stringify(bridgeResult, null, 2));
       }
     } catch (error) {
-      console.error('Error triggering IDIA data flow:', error);
+      console.error('AppleHealthModal: Unexpected error triggering data flow:', error);
+      console.error('AppleHealthModal: Error name:', error.name);
+      console.error('AppleHealthModal: Error message:', error.message);
     }
+    
+    console.log('=== APPLE HEALTH MODAL: Data flow initiation complete ===');
   };
 
   const handleConnect = () => {
