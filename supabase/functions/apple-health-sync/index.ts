@@ -14,15 +14,26 @@ serve(async (req) => {
   }
 
   try {
-    const appleHealthApiKey = Deno.env.get('APPLE_HEALTH_API_KEY');
+    // Get Apple JWT credentials for verification
+    const appleTeamId = Deno.env.get('APPLE_TEAM_ID');
+    const appleKeyId = Deno.env.get('APPLE_KEY_ID');
+    const applePrivateKey = Deno.env.get('APPLE_PRIVATE_KEY');
     
-    if (!appleHealthApiKey) {
+    if (!appleTeamId || !appleKeyId || !applePrivateKey) {
       return new Response(JSON.stringify({
-        error: 'Apple Health API key not configured. Please add APPLE_HEALTH_API_KEY to your Supabase secrets.'
+        error: 'Apple credentials not configured. Please add APPLE_TEAM_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY to your Supabase secrets.'
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    // Verify JWT token from iOS app (optional - implement based on your security requirements)
+    const authHeader = req.headers.get('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      // Add JWT verification logic here if needed for additional security
+      console.log('Received JWT token for verification:', token.substring(0, 20) + '...');
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -41,14 +52,14 @@ serve(async (req) => {
 
     console.log('Processing Apple Health data for user:', user_id);
 
-    // Update user connection status
+    // Update user connection status in data_connections table
     await supabase
-      .from('user_connections')
+      .from('data_connections')
       .upsert({
         user_id: user_id,
-        provider: 'apple_health',
-        connection_status: 'connected',
-        connection_data: apple_health_data,
+        connection_type: 'apple_health',
+        connection_name: 'Apple Health',
+        is_active: true,
         last_sync_at: new Date().toISOString()
       });
 
