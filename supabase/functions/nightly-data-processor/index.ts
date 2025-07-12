@@ -87,19 +87,20 @@ serve(async (req) => {
     if (!healthFetchError && unprocessedHealthMetrics) {
       for (const metric of unprocessedHealthMetrics) {
         try {
-          // Convert health metrics to health data format
+          // Convert health metrics to proper format for health-data-bridge
           const healthData = {
             steps: metric.step_count || 0,
             heartRate: 70 + Math.floor(Math.random() * 20), // Simulated
             activeMinutes: Math.floor((metric.step_count || 0) / 120),
             sleepHours: '7.5',
             calories: Math.floor((metric.step_count || 0) * 0.04),
-            health_metric_id: metric.id.toString()
+            health_metric_id: metric.id.toString(),
+            recorded_at: metric.recorded_at || metric.created_at
           };
 
-          // Trigger IDIA-Synapse for processing
-          const { error: synapseError } = await supabase.functions.invoke(
-            'idia-synapse',
+          // Use health-data-bridge for proper pipeline flow
+          const { error: bridgeError } = await supabase.functions.invoke(
+            'health-data-bridge',
             {
               body: {
                 user_id: metric.user_id,
@@ -108,8 +109,8 @@ serve(async (req) => {
             }
           );
 
-          if (synapseError) {
-            console.error(`Failed to process health metric ${metric.id}:`, synapseError);
+          if (bridgeError) {
+            console.error(`Failed to process health metric ${metric.id}:`, bridgeError);
           } else {
             console.log(`Successfully processed health metric ${metric.id}`);
           }
