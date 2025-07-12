@@ -16,15 +16,25 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
   const [healthData, setHealthData] = useState<any>(null);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [authSession, setAuthSession] = useState<any>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setCurrentUserId(user.id);
+    const getSession = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error('Error getting session:', error);
+        setErrorMessage('Authentication error. Please log in again.');
+        return;
+      }
+      if (session?.user) {
+        setCurrentUserId(session.user.id);
+        setAuthSession(session);
+      } else {
+        setErrorMessage('Please log in to connect Apple Health data.');
       }
     };
-    getUser();
+    getSession();
   }, []);
 
   const syncHealthDataWithNativeApp = () => {
@@ -42,7 +52,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
         const ingestorConfig = {
           endpoint: 'https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/health-data-bridge',
           user_id: currentUserId,
-          auth_token: localStorage.getItem('supabase.auth.token') // Get current auth token
+          auth_token: authSession?.access_token // Get proper auth token from session
         };
       
       webkit.messageHandlers.syncHealthData.postMessage({
@@ -85,6 +95,16 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
            setHealthData(realHealthData);
            setConnectionStatus('connected');
            setIsConnecting(false);
+           
+           // Update connection status to connected
+           await supabase
+             .from('user_connections')
+             .update({ 
+               connection_status: 'connected',
+               last_sync_at: new Date().toISOString() 
+             })
+             .eq('user_id', currentUserId)
+             .eq('provider', 'apple_health');
            
            // Trigger the IDIA data flow for iOS
            await triggerIdiaDataFlow(realHealthData);
@@ -155,6 +175,16 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
           setHealthData(realHealthData);
           setConnectionStatus('connected');
           setIsConnecting(false);
+          
+          // Update connection status to connected
+          await supabase
+            .from('user_connections')
+            .update({ 
+              connection_status: 'connected',
+              last_sync_at: new Date().toISOString() 
+            })
+            .eq('user_id', currentUserId)
+            .eq('provider', 'apple_health');
           
           // Trigger the IDIA data flow
           await triggerIdiaDataFlow(realHealthData);
@@ -245,13 +275,40 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
     console.log('=== APPLE HEALTH MODAL: Data flow initiation complete ===');
   };
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
     console.log('handleConnect called, currentUserId:', currentUserId);
-    if (!currentUserId) {
-      console.error('Cannot connect: User not authenticated');
+    setErrorMessage(null);
+    
+    if (!currentUserId || !authSession) {
+      setErrorMessage('Please log in to connect Apple Health data.');
+      setConnectionStatus('error');
       return;
     }
-    syncHealthDataWithNativeApp();
+    
+    // Create user_connections record before starting sync
+    try {
+      const { error: connectionError } = await supabase
+        .from('user_connections')
+        .upsert({
+          user_id: currentUserId,
+          provider: 'apple_health',
+          connection_status: 'connecting',
+          connection_data: { device_type: 'iPhone Health App' }
+        });
+      
+      if (connectionError) {
+        console.error('Error creating connection record:', connectionError);
+        setErrorMessage('Failed to initialize connection. Please try again.');
+        setConnectionStatus('error');
+        return;
+      }
+      
+      syncHealthDataWithNativeApp();
+    } catch (error) {
+      console.error('Error in handleConnect:', error);
+      setErrorMessage('Connection failed. Please try again.');
+      setConnectionStatus('error');
+    }
   };
 
   return (
@@ -269,6 +326,12 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
         </DialogHeader>
         
         <div className="space-y-4">
+          {errorMessage && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-600">{errorMessage}</p>
+            </div>
+          )}
+          
           {connectionStatus === 'idle' && (
             <>
               <p className="text-sm text-gray-600">
@@ -289,11 +352,27 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
               <Button 
                 onClick={handleConnect}
                 className="w-full"
-                disabled={isConnecting}
+                disabled={isConnecting || !currentUserId}
               >
                 {isConnecting ? 'Connecting...' : 'Connect Apple Health'}
               </Button>
             </>
+          )}
+          
+          {connectionStatus === 'error' && (
+            <div className="text-center py-6">
+              <p className="text-sm text-red-600 mb-4">Connection failed. Please try again.</p>
+              <Button 
+                onClick={() => {
+                  setConnectionStatus('idle');
+                  setErrorMessage(null);
+                }}
+                variant="outline"
+                className="w-full"
+              >
+                Try Again
+              </Button>
+            </div>
           )}
           
           {connectionStatus === 'connecting' && (

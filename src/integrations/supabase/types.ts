@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      data_processing_queue: {
+        Row: {
+          attempts: number
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          input_data: Json
+          job_type: string
+          max_attempts: number
+          output_data: Json | null
+          priority: number
+          scheduled_at: string
+          started_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          input_data?: Json
+          job_type: string
+          max_attempts?: number
+          output_data?: Json | null
+          priority?: number
+          scheduled_at?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          input_data?: Json
+          job_type?: string
+          max_attempts?: number
+          output_data?: Json | null
+          priority?: number
+          scheduled_at?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       governance_proposals: {
         Row: {
           created_at: string | null
@@ -127,6 +181,69 @@ export type Database = {
         }
         Relationships: []
       }
+      marketplace_bundles: {
+        Row: {
+          bundle_id: string
+          bundle_version: number
+          category: string
+          contacts_count: number
+          created_at: string
+          data_json: Json
+          data_points: string[]
+          description: string
+          features: string[]
+          id: string
+          is_active: boolean
+          key_insights: string[]
+          match_percentage: number
+          price: number
+          suggested_filters: string[]
+          tier: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          bundle_id: string
+          bundle_version?: number
+          category?: string
+          contacts_count?: number
+          created_at?: string
+          data_json?: Json
+          data_points?: string[]
+          description: string
+          features?: string[]
+          id?: string
+          is_active?: boolean
+          key_insights?: string[]
+          match_percentage?: number
+          price?: number
+          suggested_filters?: string[]
+          tier?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          bundle_id?: string
+          bundle_version?: number
+          category?: string
+          contacts_count?: number
+          created_at?: string
+          data_json?: Json
+          data_points?: string[]
+          description?: string
+          features?: string[]
+          id?: string
+          is_active?: boolean
+          key_insights?: string[]
+          match_percentage?: number
+          price?: number
+          suggested_filters?: string[]
+          tier?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -223,6 +340,39 @@ export type Database = {
           reference_id?: string | null
           reward_type?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      security_events: {
+        Row: {
+          action_type: string
+          agent_name: string
+          created_at: string | null
+          id: string
+          resolved: boolean | null
+          result_data: Json
+          severity: string
+          timestamp: string
+        }
+        Insert: {
+          action_type: string
+          agent_name: string
+          created_at?: string | null
+          id?: string
+          resolved?: boolean | null
+          result_data?: Json
+          severity?: string
+          timestamp?: string
+        }
+        Update: {
+          action_type?: string
+          agent_name?: string
+          created_at?: string | null
+          id?: string
+          resolved?: boolean | null
+          result_data?: Json
+          severity?: string
+          timestamp?: string
         }
         Relationships: []
       }
