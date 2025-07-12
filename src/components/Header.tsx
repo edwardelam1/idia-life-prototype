@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Menu, X, Wallet, TestTube } from 'lucide-react';
+import { Menu, X, Wallet } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ProfileMenu from './ProfileMenu';
 
@@ -23,15 +23,6 @@ const Header = () => {
 
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center space-x-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate('/pipeline-test')}
-              className="flex items-center space-x-2"
-            >
-              <TestTube className="w-4 h-4" />
-              <span>Test Pipeline</span>
-            </Button>
             <ProfileMenu />
           </div>
 
@@ -48,23 +39,6 @@ const Header = () => {
           </div>
         </div>
 
-        {/* Mobile Menu */}
-        {isMenuOpen && (
-          <div className="md:hidden py-3 border-t border-gray-200">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                navigate('/pipeline-test');
-                setIsMenuOpen(false);
-              }}
-              className="w-full flex items-center justify-center space-x-2"
-            >
-              <TestTube className="w-4 h-4" />
-              <span>Test Pipeline</span>
-            </Button>
-          </div>
-        )}
       </div>
     </header>
   );
