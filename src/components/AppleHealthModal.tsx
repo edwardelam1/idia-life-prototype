@@ -107,10 +107,16 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
              .eq('provider', 'apple_health');
            
            // Trigger the IDIA data flow for iOS
-           await triggerIdiaDataFlow(realHealthData);
-           
-           // Complete the connection immediately
-           onComplete();
+           try {
+             await triggerIdiaDataFlow(realHealthData);
+             // Complete the connection immediately
+             onComplete();
+           } catch (dataFlowError) {
+             console.error('Data flow failed:', dataFlowError);
+             setErrorMessage('Health data sync failed. Please try again.');
+             setConnectionStatus('error');
+             setIsConnecting(false);
+           }
         } catch (error) {
           console.error('Error fetching health data:', error);
           // Fallback to demo data if no real data available
@@ -185,10 +191,16 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
             .eq('provider', 'apple_health');
           
           // Trigger the IDIA data flow
-          await triggerIdiaDataFlow(realHealthData);
-          
-          // Complete the connection immediately
-          onComplete();
+          try {
+            await triggerIdiaDataFlow(realHealthData);
+            // Complete the connection immediately
+            onComplete();
+          } catch (dataFlowError) {
+            console.error('Data flow failed:', dataFlowError);
+            setErrorMessage('Health data sync failed. Please try again.');
+            setConnectionStatus('error');
+            setIsConnecting(false);
+          }
         } catch (error) {
           console.error('Error fetching health data:', error);
           // Fallback to demo data if no real data available
@@ -227,13 +239,15 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
       return;
     }
 
-    // Ensure health data has valid structure with non-zero values where appropriate
+    // Ensure health data has valid structure - include source and type for edge function
     const validatedHealthData = {
       steps: Number(healthData.steps) || 0,
       heartRate: Number(healthData.heartRate) || 0,
       activeMinutes: Number(healthData.activeMinutes) || 0,
       sleepHours: Number(healthData.sleepHours) || 0,
       calories: Number(healthData.calories) || 0,
+      source: 'apple_health',
+      type: 'health_metrics',
       device_type: 'iPhone Health App',
       recorded_at: new Date().toISOString()
     };
@@ -257,6 +271,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
       if (error) {
         console.error('AppleHealthModal: Health data bridge error:', error);
         console.error('AppleHealthModal: Error details:', JSON.stringify(error, null, 2));
+        throw new Error(`Health data bridge failed: ${error.message || 'Unknown error'}`);
       } else {
         console.log('AppleHealthModal: Health data flow initiated successfully!');
         console.log('AppleHealthModal: Pipeline should now execute automatically via database triggers');
@@ -266,45 +281,106 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
       console.error('AppleHealthModal: Unexpected error triggering data flow:', error);
       console.error('AppleHealthModal: Error name:', error.name);
       console.error('AppleHealthModal: Error message:', error.message);
+      throw error; // Re-throw to handle in calling function
     }
     
     console.log('=== APPLE HEALTH MODAL: Data flow initiation complete ===');
   };
 
   const handleConnect = async () => {
+    console.log('=== HANDLECONNECT START ===');
     console.log('handleConnect called, currentUserId:', currentUserId);
+    console.log('authSession present:', !!authSession);
+    console.log('authSession.access_token present:', !!authSession?.access_token);
+    
     setErrorMessage(null);
     
     if (!currentUserId || !authSession) {
-      setErrorMessage('Please log in to connect Apple Health data.');
+      const errorMsg = 'Please log in to connect Apple Health data.';
+      console.error('Authentication check failed:', { currentUserId, authSession: !!authSession });
+      setErrorMessage(errorMsg);
       setConnectionStatus('error');
       return;
     }
     
+    // Wait a moment to ensure authentication is fully loaded
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    console.log('Creating/updating user_connections record...');
+    
     // Create user_connections record before starting sync
     try {
-      const { error: connectionError } = await supabase
+      // First check if connection already exists
+      const { data: existingConnection, error: selectError } = await supabase
         .from('user_connections')
-        .upsert({
-          user_id: currentUserId,
-          provider: 'apple_health',
-          connection_status: 'connecting',
-          connection_data: { device_type: 'iPhone Health App' }
-        });
+        .select('*')
+        .eq('user_id', currentUserId)
+        .eq('provider', 'apple_health')
+        .maybeSingle();
+      
+      console.log('Existing connection check:', { existingConnection, selectError });
+      
+      let connectionOperation;
+      if (existingConnection) {
+        // Update existing connection
+        console.log('Updating existing connection:', existingConnection.id);
+        connectionOperation = supabase
+          .from('user_connections')
+          .update({
+            connection_status: 'connecting',
+            connection_data: { device_type: 'iPhone Health App' },
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingConnection.id)
+          .select()
+          .single();
+      } else {
+        // Insert new connection
+        console.log('Creating new connection record');
+        connectionOperation = supabase
+          .from('user_connections')
+          .insert({
+            user_id: currentUserId,
+            provider: 'apple_health',
+            connection_status: 'connecting',
+            connection_data: { device_type: 'iPhone Health App' }
+          })
+          .select()
+          .single();
+      }
+      
+      const { data: connectionResult, error: connectionError } = await connectionOperation;
+      
+      console.log('Connection operation result:', { connectionResult, connectionError });
       
       if (connectionError) {
-        console.error('Error creating connection record:', connectionError);
-        setErrorMessage('Failed to initialize connection. Please try again.');
+        console.error('Database connection error details:', {
+          code: connectionError.code,
+          message: connectionError.message,
+          details: connectionError.details,
+          hint: connectionError.hint
+        });
+        setErrorMessage(`Failed to initialize connection: ${connectionError.message}`);
         setConnectionStatus('error');
         return;
       }
       
+      console.log('Connection record created/updated successfully:', connectionResult);
+      console.log('Starting health data sync...');
+      
       syncHealthDataWithNativeApp();
     } catch (error) {
-      console.error('Error in handleConnect:', error);
-      setErrorMessage('Connection failed. Please try again.');
+      console.error('Unexpected error in handleConnect:', error);
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+      setErrorMessage(`Connection failed: ${error.message}`);
       setConnectionStatus('error');
     }
+    
+    console.log('=== HANDLECONNECT END ===');
   };
 
   return (
