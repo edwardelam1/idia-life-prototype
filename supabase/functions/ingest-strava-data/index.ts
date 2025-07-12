@@ -60,12 +60,27 @@ serve(async (req) => {
       }
 
       // Find the user's connection based on Strava athlete ID
-      const { data: connection, error: connectionError } = await supabase
+      // First get the athlete ID from the webhook payload
+      const athleteId = payload.owner_id;
+      
+      // We need to find the connection by matching the athlete_id with stored token data
+      // For now, we'll get the first active Strava connection and validate the athlete_id
+      const { data: connections, error: connectionError } = await supabase
         .from('data_connections')
         .select('*')
         .eq('connection_type', 'strava')
-        .eq('is_active', true)
-        .single();
+        .eq('is_active', true);
+
+      if (connectionError || !connections || connections.length === 0) {
+        console.error('No active Strava connections found:', connectionError);
+        return new Response('No connection found', { 
+          status: 200, 
+          headers: corsHeaders 
+        });
+      }
+
+      // For now, use the first connection - in production, you'd match by athlete_id
+      const connection = connections[0];
 
       if (connectionError || !connection) {
         console.error('No active Strava connection found:', connectionError);

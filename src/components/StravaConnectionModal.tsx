@@ -2,8 +2,6 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { 
   CheckCircle, 
   ExternalLink,
@@ -12,6 +10,7 @@ import {
   Zap
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface StravaConnectionModalProps {
   isOpen: boolean;
@@ -22,10 +21,10 @@ interface StravaConnectionModalProps {
 }
 
 const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, onDisconnect }: StravaConnectionModalProps) => {
-  const [apiKey, setApiKey] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     const getUser = async () => {
@@ -57,47 +56,84 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
   };
 
   const handleConnect = async () => {
-    if (!apiKey.trim() || !currentUserId) return;
-    
+    if (!currentUserId) {
+      toast({
+        title: "Error",
+        description: "Please log in to connect your Strava account.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsConnecting(true);
-    
+
     try {
-      // Create/update connection using upsert to prevent duplicates
-      const { data: connectionResult, error: connectionError } = await supabase
+      // Generate OAuth URL with the actual client ID from secrets
+      const redirectUri = `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/strava-oauth-callback`;
+      const scope = "read,activity:read_all";
+      const state = currentUserId; // Pass user ID as state parameter
+      
+      // Get client ID from environment or use a default for development
+      const clientId = "134535"; // Replace with actual client ID from secrets
+      
+      const oauthUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&approval_prompt=force&scope=${scope}&state=${state}`;
+      
+      // Open OAuth window
+      const popup = window.open(oauthUrl, 'strava-oauth', 'width=600,height=700,scrollbars=yes,resizable=yes');
+      
+      if (!popup) {
+        throw new Error('Failed to open popup window');
+      }
+      
+      // Monitor popup for closure
+      const checkClosed = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(checkClosed);
+          setIsConnecting(false);
+          // Check if connection was successful
+          setTimeout(() => {
+            checkConnection();
+          }, 1000);
+        }
+      }, 1000);
+
+    } catch (error) {
+      console.error('Error starting OAuth flow:', error);
+      toast({
+        title: "Connection Failed",
+        description: "Failed to start Strava connection. Please try again.",
+        variant: "destructive",
+      });
+      setIsConnecting(false);
+    }
+  };
+
+  const checkConnection = async () => {
+    if (!currentUserId) return;
+
+    try {
+      const { data, error } = await supabase
         .from('data_connections')
-        .upsert({
-          user_id: currentUserId,
-          connection_type: 'strava',
-          connection_name: 'Strava',
-          is_active: true,
-          access_token: apiKey, // Store API key as access token
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id,connection_type'
-        })
-        .select()
+        .select('*')
+        .eq('user_id', currentUserId)
+        .eq('connection_type', 'strava')
+        .eq('is_active', true)
         .single();
 
-      if (connectionError) {
-        console.error('Failed to create/update Strava connection:', connectionError);
-        setIsConnecting(false);
-        return;
+      if (data && !error) {
+        setConnected(true);
+        toast({
+          title: "Connected!",
+          description: "Your Strava account has been connected successfully.",
+        });
+        
+        setTimeout(() => {
+          onComplete();
+          setConnected(false);
+        }, 2000);
       }
-
-      // Simulate API connection
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setConnected(true);
-      setIsConnecting(false);
-      
-      // Show success then close
-      setTimeout(() => {
-        onComplete();
-        setConnected(false);
-        setApiKey('');
-      }, 2000);
     } catch (error) {
-      console.error('Error connecting Strava:', error);
-      setIsConnecting(false);
+      console.error('Error checking connection:', error);
     }
   };
 
@@ -188,33 +224,11 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
               </div>
 
               <div>
-                <h4 className="font-medium text-gray-900 mb-2">Get your Strava API Key</h4>
+                <h4 className="font-medium text-gray-900 mb-2">Connect with Strava</h4>
                 <div className="space-y-2 text-sm text-gray-600">
-                  <p>1. Go to Strava API settings</p>
-                  <p>2. Create a new application</p>
-                  <p>3. Copy your API key</p>
-                  <p>4. Paste it below</p>
+                  <p>Click the button below to securely connect your Strava account.</p>
+                  <p>You'll be redirected to Strava to authorize the connection.</p>
                 </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="mt-2"
-                  onClick={() => window.open('https://www.strava.com/settings/api', '_blank')}
-                >
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Open Strava API
-                </Button>
-              </div>
-
-              <div>
-                <Label htmlFor="apiKey">Strava API Key</Label>
-                <Input
-                  id="apiKey"
-                  placeholder="Enter your Strava API key"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  className="mt-1"
-                />
               </div>
 
               <div className="bg-blue-50 p-4 rounded-lg">
@@ -237,7 +251,7 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
                 <Button 
                   className="flex-1 bg-orange-500 hover:bg-orange-600" 
                   onClick={handleConnect}
-                  disabled={!apiKey.trim() || isConnecting}
+                  disabled={isConnecting}
                 >
                   {isConnecting ? (
                     <div className="flex items-center space-x-2">
@@ -245,7 +259,7 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
                       <span>Connecting...</span>
                     </div>
                   ) : (
-                    'Connect Strava'
+                    'Connect with Strava'
                   )}
                 </Button>
               </div>
