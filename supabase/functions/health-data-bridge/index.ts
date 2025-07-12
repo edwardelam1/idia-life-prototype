@@ -108,16 +108,33 @@ serve(async (req) => {
     console.log('Health-Data-Bridge: Successfully inserted raw data!');
     console.log('Health-Data-Bridge: Inserted record ID:', rawHealthData.id);
     console.log('Health-Data-Bridge: Inserted record data:', JSON.stringify(rawHealthData, null, 2));
-    console.log('Health-Data-Bridge: Database trigger should now fire automatically');
-
-    // Give a brief moment for the trigger to fire, then log
-    setTimeout(() => {
-      console.log('Health-Data-Bridge: Trigger should have fired by now for record:', rawHealthData.id);
-    }, 1000);
+    
+    // Process the data immediately instead of relying on database triggers
+    try {
+      console.log('Health-Data-Bridge: Processing health data directly...');
+      
+      // Call IDIA-Synapse orchestrator directly
+      const { data: processResult, error: processError } = await supabase.functions.invoke('idia-synapse', {
+        body: {
+          raw_data_id: rawHealthData.id,
+          orchestration_mode: true
+        }
+      });
+      
+      if (processError) {
+        console.error('Health-Data-Bridge: Error processing health data:', processError);
+        // Don't fail the main request if processing fails
+      } else {
+        console.log('Health-Data-Bridge: Health data processing initiated successfully');
+      }
+    } catch (processingError) {
+      console.error('Health-Data-Bridge: Exception during health data processing:', processingError);
+      // Continue even if processing fails - data is still ingested
+    }
 
     return new Response(JSON.stringify({
       success: true,
-      message: 'Health data ingested successfully',
+      message: 'Health data ingested and processing initiated',
       raw_data_id: rawHealthData.id,
       user_id: user_id,
       processed_at: new Date().toISOString()
