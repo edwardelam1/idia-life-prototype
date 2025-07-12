@@ -1,1 +1,82 @@
 project_id = "zxyngqciipcvveigrzqt"
+
+[api]
+enabled = true
+port = 54321
+
+[db]
+port = 54322
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+
+[auth]
+enabled = true
+
+[edge_runtime]
+enabled = true
+
+[functions.ai-chat]
+verify_jwt = false
+
+[functions.anonymization-processor]
+verify_jwt = false
+
+[functions.anonymize-and-stage-data]
+verify_jwt = false
+
+[functions.apple-health-sync]
+verify_jwt = false
+
+[functions.calculate-enhanced-rewards]
+verify_jwt = false
+
+[functions.create-test-session]
+verify_jwt = false
+
+[functions.credit-user-wallet]
+verify_jwt = false
+
+[functions.gemini-chat]
+verify_jwt = false
+
+[functions.generate-virtuous-cycle-impacts]
+verify_jwt = false
+
+[functions.google-fit-sync]
+verify_jwt = false
+
+[functions.health-data-bridge]
+verify_jwt = false
+
+[functions.idia-synapse]
+verify_jwt = false
+
+[functions.ingest-strava-data]
+verify_jwt = false
+
+[functions.nightly-data-processor]
+verify_jwt = false
+
+[functions.process-staged-data]
+verify_jwt = false
+
+[functions.reset-password]
+verify_jwt = false
+
+[functions.text-to-speech]
+verify_jwt = false
+
+[functions.validate-proposal]
+verify_jwt = false
+
+[functions.test-reward-pipeline]
+verify_jwt = false

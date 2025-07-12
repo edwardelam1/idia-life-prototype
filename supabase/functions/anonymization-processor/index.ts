@@ -86,6 +86,25 @@ serve(async (req) => {
       } else {
         stagedDataResult = stagedData;
         console.log('Staged data for rewards created:', stagedData.id);
+        
+        // Trigger the reward calculation pipeline
+        console.log('Triggering reward calculation for staged_data_id:', stagedData.id);
+        try {
+          const { data: processResult, error: processError } = await supabase.functions.invoke(
+            'process-staged-data',
+            {
+              body: { staged_data_id: stagedData.id }
+            }
+          );
+          
+          if (processError) {
+            console.error('Failed to process staged data for rewards:', processError);
+          } else {
+            console.log('Reward processing completed:', processResult);
+          }
+        } catch (processErr) {
+          console.error('Error calling process-staged-data:', processErr);
+        }
       }
     }
 

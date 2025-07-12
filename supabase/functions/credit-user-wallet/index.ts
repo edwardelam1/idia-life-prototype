@@ -45,14 +45,14 @@ serve(async (req) => {
       });
     }
 
-    // Update wallet balance
-    const newBalance = parseFloat(wallet.balance) + parseFloat(reward_amount);
-    const newTotalEarned = parseFloat(wallet.total_earned) + parseFloat(reward_amount);
+    // Update wallet balance - using correct column names from schema
+    const newBalance = parseFloat(wallet.idia_usd_balance || 0) + parseFloat(reward_amount);
+    const newTotalEarned = parseFloat(wallet.total_earned || 0) + parseFloat(reward_amount);
 
     const { error: updateError } = await supabase
       .from('user_wallets')
       .update({
-        balance: newBalance,
+        idia_usd_balance: newBalance,
         total_earned: newTotalEarned,
         updated_at: new Date().toISOString()
       })
@@ -66,7 +66,7 @@ serve(async (req) => {
       });
     }
 
-    // Create transaction record
+    // Create transaction record - using correct schema
     const { data: transaction, error: transactionError } = await supabase
       .from('transactions')
       .insert({
@@ -74,9 +74,7 @@ serve(async (req) => {
         transaction_type: 'earn',
         amount: parseFloat(reward_amount),
         description: 'Health data contribution reward',
-        reference_type: 'reward',
-        reference_id: staged_data_id,
-        balance_after: newBalance
+        source: 'staged_data_reward'
       })
       .select('id')
       .single();

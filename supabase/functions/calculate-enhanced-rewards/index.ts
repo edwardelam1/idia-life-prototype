@@ -93,7 +93,7 @@ serve(async (req) => {
       .from('staged_data')
       .update({
         reward_amount: finalReward,
-        processed: true,
+        reward_calculated: true,
         processed_at: new Date().toISOString()
       })
       .eq('id', staged_data_id);

@@ -444,15 +444,7 @@ export type Database = {
           user_id?: string
           weather_conditions?: Json | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "staged_data_raw_data_id_fkey"
-            columns: ["raw_data_id"]
-            isOneToOne: false
-            referencedRelation: "raw_strava_data"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       staged_health_data: {
         Row: {
