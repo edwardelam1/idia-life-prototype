@@ -123,50 +123,38 @@ const DataDashboard = () => {
     }
 
     setTestingPipeline(true);
-    console.log('Testing IDIA pipeline manually...');
+    console.log('Testing IDIA pipeline through health-data-bridge...');
 
     try {
-      // Test 1: Direct IDIA-Synapse call (UI format)
+      // Test the proper pipeline: health-data-bridge -> raw_health_data -> trigger -> IDIA-Synapse
       const testHealthData = {
         steps: 8245,
         heartRate: 78,
         activeMinutes: 65,
         sleepHours: 7.2,
-        calories: 330
+        calories: 330,
+        recorded_at: new Date().toISOString()
       };
 
-      console.log('Test 1: Testing IDIA-Synapse with UI format:', testHealthData);
+      console.log('Testing health-data-bridge with health data:', testHealthData);
 
-      const { data: result1, error: error1 } = await supabase.functions.invoke('idia-synapse', {
+      const { data: result, error } = await supabase.functions.invoke('health-data-bridge', {
         body: {
           user_id: currentUserId,
           health_data: testHealthData
         }
       });
 
-      console.log('Test 1 result:', { data: result1, error: error1 });
+      console.log('Pipeline test result:', { data: result, error });
 
-      // Test 2: Insert into health_metrics to trigger database flow
-      console.log('Test 2: Testing database trigger by inserting health_metrics...');
-      
-      const { data: healthInsert, error: healthError } = await supabase
-        .from('health_metrics')
-        .insert({
-          user_id: currentUserId,
-          step_count: 5055,
-          recorded_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      console.log('Test 2 health_metrics insert:', { data: healthInsert, error: healthError });
-
-      if (error1) {
-        console.error('Pipeline test failed:', error1);
+      if (error) {
+        console.error('Pipeline test failed:', error);
       } else {
-        console.log('Pipeline test successful!');
-        // Refresh data
-        await fetchConnections();
+        console.log('Pipeline test successful! Data is now processing...');
+        // Refresh data after a brief delay to allow processing
+        setTimeout(async () => {
+          await fetchConnections();
+        }, 2000);
       }
     } catch (error) {
       console.error('Pipeline test error:', error);

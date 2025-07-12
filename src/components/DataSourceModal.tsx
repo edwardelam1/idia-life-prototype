@@ -62,25 +62,18 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
 
       // 2. Prepare the health_data payload
       // This is a crucial step. You need to gather actual health data here.
-      // The structure must match what your IDIA-Synapse Edge Function expects.
-      // Based on your Edge Function, it expects `health_data.steps` at a minimum.
+      // The structure must match what your health-data-bridge Edge Function expects.
       const healthDataPayload = {
         steps: source.currentSteps || 5000, // Replace 'source.currentSteps' with actual collected step data
         heartRate: source.currentHeartRate || 75, // Example: add other relevant data
         activityMinutes: source.currentActivity || 60,
+        recorded_at: new Date().toISOString(),
         // ... include any other relevant data points your health_data object should contain
-        // Ensure this matches the `health_data` structure your IDIA-Synapse function uses.
+        // Ensure this matches the `health_data` structure your health-data-bridge function uses.
       };
 
-      // 3. Invoke the IDIA-Synapse Edge Function
-      // Replace 'idia-synapse' with the actual deployed name of your function if different.
-      const { data: synapseResponse, error: invokeError } = await supabase.functions.invoke('idia-synapse', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Optionally include authorization header if your function requires it
-          // 'Authorization': `Bearer ${user.token}` // Or retrieve token from session
-        },
+      // 3. Invoke the health-data-bridge Edge Function (proper pipeline entry point)
+      const { data: bridgeResponse, error: invokeError } = await supabase.functions.invoke('health-data-bridge', {
         body: {
           user_id: userId,
           health_data: healthDataPayload,
@@ -88,11 +81,11 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
       });
 
       if (invokeError) {
-        console.error("Error invoking IDIA-Synapse function:", invokeError);
+        console.error("Error invoking health-data-bridge function:", invokeError);
         setErrorMessage(`Connection failed: ${invokeError.message || 'Unknown error'}. Please try again.`);
         setConnected(false); // Ensure connected state is false on error
       } else {
-        console.log("IDIA-Synapse invoked successfully. Response:", synapseResponse);
+        console.log("Health data bridge invoked successfully. Response:", bridgeResponse);
         setConnected(true);
         // Do not close modal immediately, allow success message to show
         setTimeout(() => {

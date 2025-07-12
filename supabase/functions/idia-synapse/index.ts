@@ -97,11 +97,13 @@ serve(async (req) => {
     }
 
     // All direct calls should now go through health-data-bridge
-    if (requestBody.user_id && requestBody.health_data) {
-      console.log('DEPRECATED: Direct UI calls should use health-data-bridge');
+    if (requestBody.user_id || requestBody.health_data) {
+      console.error('DEPRECATED: Direct UI calls detected. Format received:', JSON.stringify(requestBody, null, 2));
       return new Response(JSON.stringify({
         error: 'Direct calls deprecated. Use health-data-bridge endpoint instead.',
-        recommended_endpoint: '/functions/v1/health-data-bridge'
+        recommended_endpoint: '/functions/v1/health-data-bridge',
+        message: 'IDIA-Synapse is now purely an orchestration function triggered by database events.',
+        received_format: requestBody
       }), { 
         status: 400, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
