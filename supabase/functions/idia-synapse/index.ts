@@ -14,6 +14,8 @@ serve(async (req) => {
   try {
     console.log('IDIA-Synapse: Request received, method:', req.method);
     console.log('IDIA-Synapse: Request headers:', Object.fromEntries(req.headers.entries()));
+    console.log('IDIA-Synapse: Request URL:', req.url);
+    
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
@@ -31,6 +33,14 @@ serve(async (req) => {
     console.log('IDIA-Synapse: Full request body received:', JSON.stringify(requestBody, null, 2));
     console.log('IDIA-Synapse: Request body type:', typeof requestBody);
     console.log('IDIA-Synapse: Request body keys:', Object.keys(requestBody));
+    
+    // SAFETY MEASURE: Log request source for debugging invalid calls
+    const userAgent = req.headers.get('user-agent') || 'unknown';
+    const referer = req.headers.get('referer') || 'unknown';
+    const xForwardedFor = req.headers.get('x-forwarded-for') || 'unknown';
+    console.log('IDIA-Synapse: Call source - User-Agent:', userAgent);
+    console.log('IDIA-Synapse: Call source - Referer:', referer);
+    console.log('IDIA-Synapse: Call source - X-Forwarded-For:', xForwardedFor);
     
     // Check if this is orchestration mode (from database trigger)
     if (requestBody.orchestration_mode && requestBody.raw_data_id) {
@@ -97,26 +107,38 @@ serve(async (req) => {
       });
     }
 
-    // All direct calls should now go through health-data-bridge
-    if (requestBody.user_id || requestBody.health_data) {
-      console.error('DEPRECATED: Direct UI calls detected. Format received:', JSON.stringify(requestBody, null, 2));
-      return new Response(JSON.stringify({
-        error: 'Direct calls deprecated. Use health-data-bridge endpoint instead.',
-        recommended_endpoint: '/functions/v1/health-data-bridge',
-        message: 'IDIA-Synapse is now purely an orchestration function triggered by database events.',
-        received_format: requestBody
-      }), { 
-        status: 400, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    console.error('IDIA-Synapse: Invalid request format. Received:', JSON.stringify(requestBody, null, 2));
+    // SAFETY MEASURE: Reject ALL non-orchestration calls with detailed logging
+    console.error('IDIA-Synapse: REJECTED - Invalid request format');
     console.error('IDIA-Synapse: Expected format: {"raw_data_id": "uuid", "orchestration_mode": true}');
+    console.error('IDIA-Synapse: Received format:', JSON.stringify(requestBody, null, 2));
+    
+    // Log the exact source of this invalid call for debugging
+    console.error('IDIA-Synapse: Invalid call source details:');
+    console.error('  - User-Agent:', userAgent);
+    console.error('  - Referer:', referer);
+    console.error('  - X-Forwarded-For:', xForwardedFor);
+    console.error('  - Method:', req.method);
+    console.error('  - URL:', req.url);
+    
+    // Check for common invalid call patterns
+    if (requestBody.user_id || requestBody.health_data) {
+      console.error('IDIA-Synapse: DEPRECATED UI CALL DETECTED - Use health-data-bridge instead');
+    } else if (requestBody.recorded_at || requestBody.step_count) {
+      console.error('IDIA-Synapse: DIRECT HEALTH DATA CALL DETECTED - This should go through health-data-bridge');
+    } else {
+      console.error('IDIA-Synapse: UNKNOWN CALL PATTERN - Investigate source');
+    }
+    
     return new Response(JSON.stringify({
-      error: 'Invalid request format',
-      expected: 'orchestration_mode with raw_data_id',
-      received: requestBody
+      error: 'Invalid request format. This endpoint only accepts orchestration calls from database triggers.',
+      expected: { raw_data_id: 'uuid', orchestration_mode: true },
+      received: requestBody,
+      message: 'Direct calls must use health-data-bridge endpoint: /functions/v1/health-data-bridge',
+      source_info: {
+        user_agent: userAgent,
+        referer: referer,
+        method: req.method
+      }
     }), { 
       status: 400, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
