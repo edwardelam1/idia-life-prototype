@@ -74,11 +74,12 @@ serve(async (req) => {
         });
       }
 
-      // Step 2: Mark raw data as processed
+      // Step 2: Mark raw data as processed with processing timestamps
       await supabase
         .from('raw_health_data')
         .update({ 
           processed: true, 
+          processing_started_at: new Date().toISOString(),
           processing_completed_at: new Date().toISOString() 
         })
         .eq('id', rawData.id);
