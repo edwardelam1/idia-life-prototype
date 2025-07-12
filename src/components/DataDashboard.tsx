@@ -217,46 +217,48 @@ const DataDashboard = () => {
         </Card>
       )}
 
-      {/* Available Data Sources - Always Visible */}
+      {/* Available Data Sources - Only show unconnected sources */}
       <div className="space-y-4">
         <h2 className="text-xl font-bold text-gray-900">Available Data Sources</h2>
-        <div className="flex justify-center space-x-8">
-          <div 
-            className="relative cursor-pointer group"
-            onClick={() => setShowAppleHealthModal(true)}
-          >
-            <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
-              <img 
-                src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" 
-                alt="Apple Health" 
-                className="w-full h-full object-contain p-2"
-              />
-            </div>
-            {getConnectionStatus('apple_health') && (
-              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white">
-                <CheckCircle className="w-3 h-3 text-white" />
+        {!getConnectionStatus('apple_health') || !getConnectionStatus('strava') ? (
+          <div className="flex justify-center space-x-8">
+            {!getConnectionStatus('apple_health') && (
+              <div 
+                className="relative cursor-pointer group"
+                onClick={() => setShowAppleHealthModal(true)}
+              >
+                <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
+                  <img 
+                    src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" 
+                    alt="Apple Health" 
+                    className="w-full h-full object-contain p-2"
+                  />
+                </div>
+              </div>
+            )}
+            
+            {!getConnectionStatus('strava') && (
+              <div 
+                className="relative cursor-pointer group"
+                onClick={() => setShowStravaModal(true)}
+              >
+                <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
+                  <img 
+                    src="/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png" 
+                    alt="Strava" 
+                    className="w-full h-full object-contain p-2"
+                  />
+                </div>
               </div>
             )}
           </div>
-          
-          <div 
-            className="relative cursor-pointer group"
-            onClick={() => setShowStravaModal(true)}
-          >
-            <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
-              <img 
-                src="/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png" 
-                alt="Strava" 
-                className="w-full h-full object-contain p-2"
-              />
-            </div>
-            {getConnectionStatus('strava') && (
-              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white">
-                <CheckCircle className="w-3 h-3 text-white" />
-              </div>
-            )}
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">All available data sources connected</p>
+            <p className="text-xs">Manage your connections below</p>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Connected Data Sources - Always Visible */}

@@ -57,20 +57,48 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
   };
 
   const handleConnect = async () => {
-    if (!apiKey.trim()) return;
+    if (!apiKey.trim() || !currentUserId) return;
     
     setIsConnecting(true);
-    // Simulate API connection
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setConnected(true);
-    setIsConnecting(false);
     
-    // Show success then close
-    setTimeout(() => {
-      onComplete();
-      setConnected(false);
-      setApiKey('');
-    }, 2000);
+    try {
+      // Create/update connection using upsert to prevent duplicates
+      const { data: connectionResult, error: connectionError } = await supabase
+        .from('data_connections')
+        .upsert({
+          user_id: currentUserId,
+          connection_type: 'strava',
+          connection_name: 'Strava',
+          is_active: true,
+          access_token: apiKey, // Store API key as access token
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id,connection_type'
+        })
+        .select()
+        .single();
+
+      if (connectionError) {
+        console.error('Failed to create/update Strava connection:', connectionError);
+        setIsConnecting(false);
+        return;
+      }
+
+      // Simulate API connection
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setConnected(true);
+      setIsConnecting(false);
+      
+      // Show success then close
+      setTimeout(() => {
+        onComplete();
+        setConnected(false);
+        setApiKey('');
+      }, 2000);
+    } catch (error) {
+      console.error('Error connecting Strava:', error);
+      setIsConnecting(false);
+    }
   };
 
   if (connected) {

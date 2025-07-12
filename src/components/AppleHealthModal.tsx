@@ -329,47 +329,23 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     
     console.log('Creating/updating user_connections record...');
     
-    // Create user_connections record before starting sync
-    try {
-      // First check if connection already exists
-      const { data: existingConnection, error: selectError } = await supabase
-        .from('data_connections')
-        .select('*')
-        .eq('user_id', currentUserId)
-        .eq('connection_type', 'apple_health')
-        .maybeSingle();
-      
-      console.log('Existing connection check:', { existingConnection, selectError });
-      
-      let connectionOperation;
-      if (existingConnection) {
-        // Update existing connection
-        console.log('Updating existing connection:', existingConnection.id);
-        connectionOperation = supabase
+      // Create user_connections record before starting sync
+      try {
+        // Use upsert to handle connection creation/update atomically
+        console.log('Creating/updating connection record with upsert');
+        const { data: connectionResult, error: connectionError } = await supabase
           .from('data_connections')
-          .update({
-            is_active: true,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existingConnection.id)
-          .select()
-          .single();
-      } else {
-        // Insert new connection
-        console.log('Creating new connection record');
-        connectionOperation = supabase
-          .from('data_connections')
-          .insert({
+          .upsert({
             user_id: currentUserId,
             connection_type: 'apple_health',
             connection_name: 'Apple Health',
-            is_active: true
+            is_active: true,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id,connection_type'
           })
           .select()
           .single();
-      }
-      
-      const { data: connectionResult, error: connectionError } = await connectionOperation;
       
       console.log('Connection operation result:', { connectionResult, connectionError });
       
