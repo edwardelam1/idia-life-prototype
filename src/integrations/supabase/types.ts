@@ -542,15 +542,7 @@ export type Database = {
           weather_conditions?: Json | null
           workout_intensity?: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "staged_health_data_raw_data_id_fkey"
-            columns: ["raw_data_id"]
-            isOneToOne: false
-            referencedRelation: "raw_strava_data"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       transactions: {
         Row: {

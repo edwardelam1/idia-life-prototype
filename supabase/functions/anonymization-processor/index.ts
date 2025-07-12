@@ -36,6 +36,9 @@ serve(async (req) => {
 
     // Step 1: Create anonymized entry in staged_health_data
     const locationZone = await generateLocationZone(supabase);
+    
+    console.log(`Anonymization-processor: Using pseudonym: ${pseudonym}`);
+    console.log(`Anonymization-processor: Generated location zone: ${locationZone}`);
 
     const { data: stagedHealthData, error: healthError } = await supabase
       .from('staged_health_data')
