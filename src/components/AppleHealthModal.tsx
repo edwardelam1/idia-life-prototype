@@ -407,14 +407,42 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               </p>
               
               <div className="space-y-2">
-                <h4 className="font-medium text-sm">Data we'll access:</h4>
-                <ul className="text-xs text-gray-500 space-y-1">
-                  <li>• Step count and walking distance</li>
-                  <li>• Heart rate and active minutes</li>
-                  <li>• Sleep duration and quality</li>
-                  <li>• Calories burned</li>
-                  <li>• Workout data</li>
-                </ul>
+                <h4 className="font-medium text-sm">Comprehensive HealthKit Data we'll access:</h4>
+                <div className="max-h-32 overflow-y-auto">
+                  <ul className="text-xs text-gray-500 space-y-1">
+                    <li><strong>Activity & Fitness:</strong></li>
+                    <li>• Steps, distance walking/running/cycling</li>
+                    <li>• Active & resting energy burned, exercise time</li>
+                    <li>• Flights climbed, walking speed & metrics</li>
+                    
+                    <li><strong>Heart & Vitals:</strong></li>
+                    <li>• Heart rate, HRV, blood oxygen (SpO2)</li>
+                    <li>• Blood pressure, respiratory rate, ECG</li>
+                    <li>• Body temperature, VO2 Max</li>
+                    
+                    <li><strong>Body Measurements:</strong></li>
+                    <li>• Height, weight, BMI, body fat %</li>
+                    <li>• Lean body mass, waist circumference</li>
+                    
+                    <li><strong>Sleep & Recovery:</strong></li>
+                    <li>• Sleep duration, stages (REM, deep, core)</li>
+                    <li>• Time in bed vs asleep</li>
+                    
+                    <li><strong>Nutrition:</strong></li>
+                    <li>• Calories, macros (carbs, fat, protein)</li>
+                    <li>• Vitamins, minerals, water, caffeine</li>
+                    
+                    <li><strong>Mindfulness & Mental Health:</strong></li>
+                    <li>• Mindful minutes, mood tracking</li>
+                    
+                    <li><strong>Clinical Records (if available):</strong></li>
+                    <li>• Lab results, medications, allergies</li>
+                    <li>• Medical conditions, procedures</li>
+                  </ul>
+                </div>
+                <p className="text-xs text-blue-600 mt-2">
+                  All data is anonymized and encrypted for privacy protection
+                </p>
               </div>
               
               <Button 

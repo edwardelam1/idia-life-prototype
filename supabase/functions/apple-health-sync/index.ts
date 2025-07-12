@@ -63,85 +63,161 @@ serve(async (req) => {
         last_sync_at: new Date().toISOString()
       });
 
-    // Process different types of health data
+    // Process comprehensive Apple HealthKit data
     const processedData = [];
 
-    // Process steps data
-    if (apple_health_data.steps) {
-      const stepsData = {
-        user_id: user_id,
-        data_source: 'apple_health',
-        data_type: 'steps',
-        raw_data: {
-          steps: apple_health_data.steps,
-          recorded_at: apple_health_data.date || new Date().toISOString(),
-          device: 'iPhone',
-          source: 'Apple Health'
-        },
-        recorded_at: apple_health_data.date || new Date().toISOString()
-      };
+    // Define all supported HealthKit data types
+    const healthDataTypes = [
+      // Basic Activity Data
+      'steps', 'distanceWalkingRunning', 'distanceCycling', 'flightsClimbed',
+      'activeEnergyBurned', 'restingEnergyBurned', 'exerciseTime',
+      
+      // Heart & Vitals
+      'heartRate', 'heartRateVariability', 'bloodOxygenSaturation', 
+      'bloodPressureSystolic', 'bloodPressureDiastolic', 'respiratoryRate',
+      'bodyTemperature', 'electrocardiogram', 'vo2Max',
+      
+      // Body Measurements
+      'height', 'weight', 'bodyMassIndex', 'bodyFatPercentage', 
+      'leanBodyMass', 'waistCircumference',
+      
+      // Nutrition
+      'dietaryEnergyConsumed', 'totalFat', 'saturatedFat', 'polyunsaturatedFat',
+      'monounsaturatedFat', 'carbohydrates', 'fiber', 'sugar', 'protein',
+      'water', 'caffeine', 'sodium', 'potassium', 'vitaminC', 'vitaminD',
+      'calcium', 'iron',
+      
+      // Sleep Data
+      'sleep', 'timeInBed', 'timeAsleep', 'sleepAnalysis',
+      
+      // Activity & Mobility
+      'walkingSpeed', 'stepLength', 'walkingAsymmetryPercentage',
+      'doubleSupportTime',
+      
+      // Reproductive Health
+      'menstrualFlow', 'cervicalMucusQuality', 'ovulationTestResult',
+      'sexualActivity', 'basalBodyTemperature',
+      
+      // Mindfulness & Mental Health
+      'mindfulSession', 'moodScore', 'stateOfMind',
+      
+      // Symptoms
+      'symptoms',
+      
+      // Clinical Records
+      'clinicalRecords', 'allergies', 'conditions', 'immunizations',
+      'labResults', 'medications', 'procedures',
+      
+      // Medication Tracking
+      'medicationDoseEvents'
+    ];
 
-      const { data: rawData, error: rawError } = await supabase
-        .from('raw_health_data')
-        .insert(stepsData)
-        .select('id')
-        .single();
+    console.log('Processing comprehensive Apple HealthKit data...');
+    
+    // Process each data type
+    for (const dataType of healthDataTypes) {
+      if (apple_health_data[dataType]) {
+        try {
+          console.log(`Processing ${dataType} data`);
+          
+          // Handle both single objects and arrays
+          const dataArray = Array.isArray(apple_health_data[dataType]) 
+            ? apple_health_data[dataType] 
+            : [apple_health_data[dataType]];
+          
+          for (const record of dataArray) {
+            const healthRecord = {
+              user_id: user_id,
+              device_type: 'Apple Health',
+              raw_payload: {
+                dataType: dataType,
+                value: record.value || record,
+                unit: record.unit || null,
+                startDate: record.startDate || record.date,
+                endDate: record.endDate || record.date,
+                sourceBundle: record.sourceBundle || 'com.apple.health',
+                sourceName: record.sourceName || 'Apple Health',
+                metadata: record.metadata || {},
+                // Include original record for full data preservation
+                originalRecord: record
+              },
+              recorded_at: record.startDate || record.date || new Date().toISOString(),
+              processed: false
+            };
 
-      if (!rawError) {
-        processedData.push({ type: 'steps', id: rawData.id });
+            // Add step count for steps data type
+            if (dataType === 'steps' && record.value) {
+              healthRecord.step_count = parseInt(record.value);
+            }
+
+            const { data: rawData, error: rawError } = await supabase
+              .from('raw_health_data')
+              .insert(healthRecord)
+              .select('id')
+              .single();
+
+            if (!rawError && rawData) {
+              processedData.push({ 
+                type: dataType, 
+                id: rawData.id,
+                value: record.value,
+                recordedAt: record.startDate || record.date 
+              });
+            } else {
+              console.error(`Error inserting ${dataType} data:`, rawError);
+            }
+          }
+        } catch (error) {
+          console.error(`Error processing ${dataType}:`, error);
+          // Continue processing other data types
+        }
       }
     }
 
-    // Process heart rate data
-    if (apple_health_data.heartRate) {
-      const heartRateData = {
-        user_id: user_id,
-        data_source: 'apple_health',
-        data_type: 'heart_rate',
-        raw_data: {
-          heart_rate: apple_health_data.heartRate,
-          recorded_at: apple_health_data.date || new Date().toISOString(),
-          device: 'Apple Watch',
-          source: 'Apple Health'
-        },
-        recorded_at: apple_health_data.date || new Date().toISOString()
-      };
+    // Process workout data separately (complex structure)
+    if (apple_health_data.workouts && Array.isArray(apple_health_data.workouts)) {
+      console.log(`Processing ${apple_health_data.workouts.length} workout records`);
+      
+      for (const workout of apple_health_data.workouts) {
+        try {
+          const workoutRecord = {
+            user_id: user_id,
+            device_type: 'Apple Health',
+            raw_payload: {
+              dataType: 'workout',
+              workoutActivityType: workout.workoutActivityType,
+              duration: workout.duration,
+              totalEnergyBurned: workout.totalEnergyBurned,
+              totalDistance: workout.totalDistance,
+              startDate: workout.startDate,
+              endDate: workout.endDate,
+              sourceBundle: workout.sourceBundle || 'com.apple.health',
+              heartRateSamples: workout.heartRateSamples || [],
+              route: workout.route || null,
+              metadata: workout.metadata || {},
+              originalRecord: workout
+            },
+            recorded_at: workout.startDate,
+            processed: false
+          };
 
-      const { data: rawData, error: rawError } = await supabase
-        .from('raw_health_data')
-        .insert(heartRateData)
-        .select('id')
-        .single();
+          const { data: rawData, error: rawError } = await supabase
+            .from('raw_health_data')
+            .insert(workoutRecord)
+            .select('id')
+            .single();
 
-      if (!rawError) {
-        processedData.push({ type: 'heart_rate', id: rawData.id });
-      }
-    }
-
-    // Process sleep data
-    if (apple_health_data.sleep) {
-      const sleepData = {
-        user_id: user_id,
-        data_source: 'apple_health',
-        data_type: 'sleep',
-        raw_data: {
-          sleep_duration: apple_health_data.sleep.duration,
-          sleep_quality: apple_health_data.sleep.quality,
-          recorded_at: apple_health_data.date || new Date().toISOString(),
-          device: 'iPhone',
-          source: 'Apple Health'
-        },
-        recorded_at: apple_health_data.date || new Date().toISOString()
-      };
-
-      const { data: rawData, error: rawError } = await supabase
-        .from('raw_health_data')
-        .insert(sleepData)
-        .select('id')
-        .single();
-
-      if (!rawError) {
-        processedData.push({ type: 'sleep', id: rawData.id });
+          if (!rawError && rawData) {
+            processedData.push({ 
+              type: 'workout', 
+              id: rawData.id,
+              activityType: workout.workoutActivityType,
+              duration: workout.duration 
+            });
+          }
+        } catch (error) {
+          console.error('Error processing workout:', error);
+        }
       }
     }
 

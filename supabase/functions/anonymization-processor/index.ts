@@ -40,17 +40,94 @@ serve(async (req) => {
     console.log(`Anonymization-processor: Using pseudonym: ${pseudonym}`);
     console.log(`Anonymization-processor: Generated location zone: ${locationZone}`);
 
-    const { data: stagedHealthData, error: healthError } = await supabase
-      .from('staged_health_data')
-      .insert({
+    // Extract comprehensive health data from raw payload
+    const extractHealthData = (payload) => {
+      const data = {
         raw_data_id: raw_data_id,
         pseudo_user_id: pseudonym,
         activity_type: 'health_metrics',
-        steps_count: step_count,
         anonymized_location_zone: locationZone,
-        data_quality_score: step_count ? 0.8 : 0.5,
-        processed_at: new Date().toISOString()
-      })
+        processed_at: new Date().toISOString(),
+        data_quality_score: 0.5
+      };
+
+      // Handle comprehensive HealthKit data based on dataType
+      const originalRecord = payload.originalRecord || payload;
+      const dataType = payload.dataType;
+
+      if (dataType) {
+        // Map specific HealthKit data types
+        switch (dataType) {
+          case 'steps':
+            data.steps_count = parseInt(payload.value) || step_count;
+            data.activity_type = 'walking';
+            break;
+          case 'heartRate':
+            data.average_heartrate = parseInt(payload.value);
+            break;
+          case 'heartRateVariability':
+            data.heart_rate_variability_ms = parseFloat(payload.value);
+            break;
+          case 'bloodOxygenSaturation':
+            data.blood_oxygen_saturation = parseFloat(payload.value);
+            break;
+          case 'height':
+            data.height_cm = parseFloat(payload.value) * 100; // Convert to cm
+            break;
+          case 'weight':
+            data.weight_kg = parseFloat(payload.value);
+            break;
+          case 'bodyMassIndex':
+            data.body_mass_index = parseFloat(payload.value);
+            break;
+          case 'activeEnergyBurned':
+            data.calories_burned = parseFloat(payload.value);
+            break;
+          case 'distanceWalkingRunning':
+            data.distance_walking_running_meters = parseFloat(payload.value);
+            break;
+          case 'sleepAnalysis':
+            data.sleep_duration = parseInt(payload.value);
+            data.activity_type = 'sleep';
+            break;
+          case 'workout':
+            data.activity_type = payload.workoutActivityType || 'workout';
+            data.duration_seconds = parseInt(payload.duration);
+            data.distance_meters = parseFloat(payload.totalDistance);
+            data.calories_burned = parseFloat(payload.totalEnergyBurned);
+            if (payload.heartRateSamples?.length > 0) {
+              const heartRates = payload.heartRateSamples.map(s => s.value);
+              data.average_heartrate = Math.round(heartRates.reduce((a, b) => a + b, 0) / heartRates.length);
+            }
+            break;
+        }
+      } else {
+        // Handle legacy data format
+        data.steps_count = step_count;
+        data.average_heartrate = payload.heart_rate || payload.averageHeartRate;
+        data.duration_seconds = payload.duration || payload.duration_seconds;
+        data.distance_meters = payload.distance || payload.distance_meters;
+        data.calories_burned = payload.calories || payload.activeEnergyBurned;
+      }
+
+      // Calculate data quality score based on available metrics
+      let qualityScore = 0.3; // Base score
+      if (data.steps_count) qualityScore += 0.2;
+      if (data.average_heartrate) qualityScore += 0.2;
+      if (data.calories_burned) qualityScore += 0.1;
+      if (data.sleep_duration) qualityScore += 0.1;
+      if (data.height_cm && data.weight_kg) qualityScore += 0.1;
+      
+      data.data_quality_score = Math.min(1.0, qualityScore);
+
+      return data;
+    };
+
+    const healthData = extractHealthData(raw_payload);
+    
+    const { data: stagedHealthData, error: healthError } = await supabase
+      .from('staged_health_data')
+      .insert(healthData)
       .select()
       .single();
 
