@@ -12,6 +12,8 @@ serve(async (req) => {
   }
 
   try {
+    console.log('IDIA-Synapse: Request received, method:', req.method);
+    console.log('IDIA-Synapse: Request headers:', Object.fromEntries(req.headers.entries()));
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
@@ -26,7 +28,9 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const requestBody = await req.json();
     
-    console.log('IDIA-Synapse orchestrator received request:', requestBody);
+    console.log('IDIA-Synapse: Full request body received:', JSON.stringify(requestBody, null, 2));
+    console.log('IDIA-Synapse: Request body type:', typeof requestBody);
+    console.log('IDIA-Synapse: Request body keys:', Object.keys(requestBody));
     
     // Check if this is orchestration mode (from database trigger)
     if (requestBody.orchestration_mode && requestBody.raw_data_id) {
@@ -104,10 +108,15 @@ serve(async (req) => {
       });
     }
 
-    console.error('Invalid request format:', requestBody);
-    return new Response('Invalid request format - expected orchestration_mode with raw_data_id', { 
+    console.error('IDIA-Synapse: Invalid request format. Received:', JSON.stringify(requestBody, null, 2));
+    console.error('IDIA-Synapse: Expected format: {"raw_data_id": "uuid", "orchestration_mode": true}');
+    return new Response(JSON.stringify({
+      error: 'Invalid request format',
+      expected: 'orchestration_mode with raw_data_id',
+      received: requestBody
+    }), { 
       status: 400, 
-      headers: corsHeaders 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
 

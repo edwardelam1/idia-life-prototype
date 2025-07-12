@@ -12,52 +12,71 @@ serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
-
-    const { user_id, health_data } = await req.json();
-
-    if (!user_id || !health_data) {
-      return new Response('Missing user_id or health_data', { 
-        status: 400, 
+    console.log('Health-Data-Bridge: Request received');
+    
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('Health-Data-Bridge: Missing environment variables');
+      return new Response('Server configuration error', { 
+        status: 500, 
         headers: corsHeaders 
       });
     }
 
-    console.log(`Health-data-bridge: Ingesting raw health data for user: ${user_id}`);
-    console.log('Raw health data received:', health_data);
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const requestBody = await req.json();
+    
+    console.log('Health-Data-Bridge: Request body received:', JSON.stringify(requestBody, null, 2));
+    
+    const { user_id, health_data } = requestBody;
 
-    // Step 1: ONLY insert raw data into raw_health_data table
-    // This is the SINGLE point of entry for all health data
+    if (!user_id || !health_data) {
+      console.error('Health-Data-Bridge: Missing required fields. user_id:', !!user_id, 'health_data:', !!health_data);
+      return new Response(JSON.stringify({
+        error: 'Missing required fields: user_id and health_data'
+      }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    console.log(`Health-Data-Bridge: Ingesting raw health data for user: ${user_id}`);
+    console.log('Health-Data-Bridge: Raw health data received:', JSON.stringify(health_data, null, 2));
+
+    // Insert into raw_health_data table - this will trigger the database trigger
+    console.log('Health-Data-Bridge: Inserting into raw_health_data table...');
     const { data: rawHealthData, error: rawError } = await supabase
       .from('raw_health_data')
       .insert({
         user_id: user_id,
-        device_type: 'iPhone Health App',
         raw_payload: health_data,
-        step_count: health_data.steps || 0,
-        recorded_at: new Date().toISOString(),
+        step_count: health_data.step_count || health_data.steps || null,
+        device_type: health_data.device_type || 'iPhone Health App',
+        recorded_at: health_data.recorded_at || new Date().toISOString(),
         processed: false
       })
       .select()
       .single();
 
     if (rawError) {
-      console.error('Failed to insert raw health data:', rawError);
-      return new Response('Failed to insert raw health data', { 
+      console.error('Health-Data-Bridge: Insert failed:', rawError);
+      return new Response(JSON.stringify({
+        error: 'Failed to insert health data',
+        details: rawError
+      }), { 
         status: 500, 
-        headers: corsHeaders 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    console.log('Raw health data inserted successfully. Database trigger will handle processing.', rawHealthData);
+    console.log('Health-Data-Bridge: Successfully inserted raw data with ID:', rawHealthData.id);
+    console.log('Health-Data-Bridge: Database trigger should now fire automatically');
 
-    // Return immediately - the database trigger will handle all processing
     return new Response(JSON.stringify({
       success: true,
-      message: 'Health data ingested successfully. Processing will begin automatically.',
+      message: 'Health data ingested successfully',
       raw_data_id: rawHealthData.id
     }), { 
       status: 200, 
@@ -65,10 +84,13 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Error in health-data-bridge:', error);
-    return new Response('Internal server error', { 
+    console.error('Health-Data-Bridge: Error:', error);
+    return new Response(JSON.stringify({
+      error: 'Internal server error',
+      details: error.message
+    }), { 
       status: 500, 
-      headers: corsHeaders 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 })
