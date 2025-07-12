@@ -273,6 +273,45 @@ export type Database = {
         }
         Relationships: []
       }
+      raw_health_data: {
+        Row: {
+          created_at: string | null
+          device_type: string | null
+          id: string
+          processed: boolean | null
+          processing_completed_at: string | null
+          processing_started_at: string | null
+          raw_payload: Json
+          recorded_at: string | null
+          step_count: number | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          device_type?: string | null
+          id?: string
+          processed?: boolean | null
+          processing_completed_at?: string | null
+          processing_started_at?: string | null
+          raw_payload: Json
+          recorded_at?: string | null
+          step_count?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          device_type?: string | null
+          id?: string
+          processed?: boolean | null
+          processing_completed_at?: string | null
+          processing_started_at?: string | null
+          raw_payload?: Json
+          recorded_at?: string | null
+          step_count?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       raw_strava_data: {
         Row: {
           activity_id: number

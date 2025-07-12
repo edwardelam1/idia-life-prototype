@@ -17,107 +17,93 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { user_id, health_data } = await req.json();
+    const { raw_data_id, user_id, raw_payload, step_count, recorded_at } = await req.json();
 
-    if (!user_id || !health_data) {
-      return new Response('Missing user_id or health_data', { 
+    if (!raw_data_id) {
+      return new Response('Missing raw_data_id', { 
         status: 400, 
         headers: corsHeaders 
       });
     }
 
-    console.log(`Anonymization processor starting for user: ${user_id}`);
+    console.log(`Anonymization-processor: Processing raw_data_id: ${raw_data_id}`);
 
-    // Generate pseudonymized user ID for privacy
-    const pseudoUserId = await generatePseudonym(user_id);
+    // Generate pseudonym for anonymized data
+    const { data: pseudoResult, error: pseudoError } = await supabase
+      .rpc('generate_pseudonym', { input_text: user_id || 'anonymous' });
     
-    // Anonymize and structure health data
-    const anonymizedData = {
-      pseudo_user_id: pseudoUserId,
-      activity_type: 'Health Data',
-      steps_count: health_data.steps || 0,
-      average_heartrate: health_data.heartRate || null,
-      calories_burned: health_data.calories || null,
-      sleep_duration: health_data.sleepHours ? parseFloat(health_data.sleepHours) * 3600 : null,
-      workout_intensity: health_data.activeMinutes || null,
-      device_type: 'Apple Health',
-      data_quality_score: calculateDataQuality(health_data),
-      anonymized_location_zone: anonymizeLocation(health_data.latitude, health_data.longitude),
-      processed_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      raw_data_id: health_data.health_metric_id || null
-    };
+    const pseudo_id = pseudoResult || `anonymous_${Date.now()}`;
 
-    // Insert into staged_health_data table
-    const { data: stagedData, error: stagingError } = await supabase
+    // Step 1: Create anonymized entry in staged_health_data
+    const { data: stagedHealthData, error: healthError } = await supabase
       .from('staged_health_data')
-      .insert(anonymizedData)
+      .insert({
+        pseudo_user_id: pseudo_id,
+        activity_type: 'Daily Activity',
+        steps_count: step_count || 0,
+        processed_at: new Date().toISOString(),
+        created_at: recorded_at || new Date().toISOString(),
+        data_quality_score: step_count ? 0.8 : 0.5,
+        workout_intensity: step_count > 10000 ? 75 : step_count > 5000 ? 50 : 25,
+        device_type: 'Health App',
+        anonymized_location_zone: await generateLocationZone(supabase),
+        raw_data_id: raw_data_id
+      })
       .select()
       .single();
 
-    if (stagingError) {
-      console.error('Failed to stage anonymized data:', stagingError);
-      return new Response('Failed to stage data', { 
+    if (healthError) {
+      console.error('Failed to create staged_health_data:', healthError);
+      return new Response('Failed to create anonymized health data', { 
         status: 500, 
         headers: corsHeaders 
       });
     }
 
-    // Generate a proper UUID for staged_data table
-    // health_metrics.id is a bigint, not a UUID, so we always generate a new UUID
-    const rewardRawDataId = crypto.randomUUID();
-    
-    console.log(`Generated new UUID ${rewardRawDataId} for health_metric_id: ${health_data.health_metric_id}`);
+    console.log('Staged health data created:', stagedHealthData.id);
 
-    // Create corresponding entry in staged_data for reward processing
-    const rewardStagedData = {
-      user_id: user_id,
-      raw_data_id: rewardRawDataId, // Use the validated/generated UUID
-      activity_type: 'Health Data',
-      duration_seconds: health_data.activeMinutes ? health_data.activeMinutes * 60 : null,
-      average_heartrate: health_data.heartRate || null,
-      effort_score: calculateEffortScore(health_data),
-      device_type: 'Apple Health',
-      processed_at: new Date().toISOString()
-    };
+    // Step 2: Create entry in staged_data for reward processing (only for authenticated users)
+    let stagedDataResult = null;
+    if (user_id) {
+      const { data: stagedData, error: stagedError } = await supabase
+        .from('staged_data')
+        .insert({
+          user_id: user_id,
+          raw_data_id: raw_data_id,
+          activity_type: 'Health Data',
+          duration_seconds: step_count > 10000 ? 3600 : step_count > 5000 ? 1800 : 900,
+          average_heartrate: step_count > 8000 ? 75 : step_count > 4000 ? 65 : 55,
+          effort_score: step_count > 10000 ? 85 : step_count > 5000 ? 65 : 45,
+          device_type: 'Apple Health',
+          processed_at: new Date().toISOString(),
+          reward_calculated: false
+        })
+        .select()
+        .single();
 
-    const { data: rewardStaged, error: rewardError } = await supabase
-      .from('staged_data')
-      .insert(rewardStagedData)
-      .select()
-      .maybeSingle();
-
-    if (rewardError) {
-      console.error('Failed to create reward staging:', rewardError);
-      // Continue processing even if reward staging fails
-    } else {
-      // Trigger the reward processing chain
-      const { error: processError } = await supabase.functions.invoke(
-        'process-staged-data',
-        {
-          body: { staged_data_id: rewardStaged.id }
-        }
-      );
-
-      if (processError) {
-        console.error('Failed to trigger reward processing:', processError);
+      if (stagedError) {
+        console.error('Failed to create staged_data:', stagedError);
+        // Don't fail the whole process, just log the error
+        console.log('Continuing without reward data creation...');
+      } else {
+        stagedDataResult = stagedData;
+        console.log('Staged data for rewards created:', stagedData.id);
       }
     }
 
-    console.log('Anonymization processor completed successfully');
-    
     return new Response(JSON.stringify({
       success: true,
-      staged_health_data_id: stagedData.id,
-      staged_reward_data_id: rewardStaged?.id || null,
-      anonymized_user_id: pseudoUserId
+      message: 'Data anonymized and staged successfully',
+      staged_health_data_id: stagedHealthData.id,
+      staged_data_id: stagedDataResult?.id || null,
+      pseudo_user_id: pseudo_id
     }), { 
       status: 200, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    console.error('Error in anonymization processor:', error);
+    console.error('Error in anonymization-processor:', error);
     return new Response('Internal server error', { 
       status: 500, 
       headers: corsHeaders 
@@ -125,51 +111,18 @@ serve(async (req) => {
   }
 })
 
-// Helper function to validate if a string is a valid UUID
-function isValidUUID(uuidString: string): boolean {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(uuidString);
-}
-
-// Helper functions
-async function generatePseudonym(userId: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(userId + 'IDIA_SALT_2024');
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  return hashHex;
-}
-
-function anonymizeLocation(lat?: number, lng?: number): string {
-  // Use proper location anonymization if coordinates provided
-  if (lat && lng) {
-    // Round to ~1km precision for privacy while maintaining geographic utility
-    const roundedLat = Math.round(lat * 100) / 100;
-    const roundedLng = Math.round(lng * 100) / 100;
-    return `ZONE_${Math.abs(roundedLat).toString().replace('.', '')}_${Math.abs(roundedLng).toString().replace('.', '')}`;
+async function generateLocationZone(supabase: any) {
+  try {
+    // Generate a randomized location zone using the anonymize_location function
+    const lat = 40.7128 + (Math.random() - 0.5) * 0.1;
+    const lng = -74.0060 + (Math.random() - 0.5) * 0.1;
+    
+    const { data: locationResult, error } = await supabase
+      .rpc('anonymize_location', { lat, lng });
+    
+    return locationResult || 'ZONE_DEFAULT';
+  } catch (error) {
+    console.error('Error generating location zone:', error);
+    return 'ZONE_DEFAULT';
   }
-  // If no location data provided, return null to indicate no location
-  return null;
-}
-
-function calculateDataQuality(healthData: any): number {
-  let score = 0.5; // Base score
-  
-  if (healthData.steps) score += 0.2;
-  if (healthData.heartRate) score += 0.2;
-  if (healthData.calories) score += 0.1;
-  if (healthData.sleepHours) score += 0.1;
-  if (healthData.activeMinutes) score += 0.1;
-  
-  return Math.min(score, 1.0);
-}
-
-function calculateEffortScore(healthData: any): number | null {
-  if (!healthData.steps && !healthData.activeMinutes) return null;
-  
-  const stepsFactor = (healthData.steps || 0) / 10000; // Normalize to 10k steps
-  const activityFactor = (healthData.activeMinutes || 0) / 60; // Normalize to 60 minutes
-  
-  return Math.round((stepsFactor * 50) + (activityFactor * 50));
 }

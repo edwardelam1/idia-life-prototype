@@ -26,57 +26,46 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Processing health data from iPhone for user: ${user_id}`);
-    console.log('Health data received:', health_data);
+    console.log(`Health-data-bridge: Ingesting raw health data for user: ${user_id}`);
+    console.log('Raw health data received:', health_data);
 
-    // Insert health metrics directly into the database
-    const { data: healthMetric, error: healthError } = await supabase
-      .from('health_metrics')
+    // Step 1: ONLY insert raw data into raw_health_data table
+    // This is the SINGLE point of entry for all health data
+    const { data: rawHealthData, error: rawError } = await supabase
+      .from('raw_health_data')
       .insert({
         user_id: user_id,
+        device_type: 'iPhone Health App',
+        raw_payload: health_data,
         step_count: health_data.steps || 0,
-        recorded_at: new Date().toISOString()
+        recorded_at: new Date().toISOString(),
+        processed: false
       })
       .select()
       .single();
 
-    if (healthError) {
-      console.error('Failed to insert health metric:', healthError);
-      return new Response('Failed to insert health metric', { 
+    if (rawError) {
+      console.error('Failed to insert raw health data:', rawError);
+      return new Response('Failed to insert raw health data', { 
         status: 500, 
         headers: corsHeaders 
       });
     }
 
-    console.log('Health metric inserted successfully:', healthMetric);
+    console.log('Raw health data inserted successfully. Database trigger will handle processing.', rawHealthData);
 
-    // Also call data_ingestor for device events tracking
-    const { error: ingestorError } = await supabase.functions.invoke('data_ingestor', {
-      body: {
-        event_type: 'health_sync',
-        payload: health_data,
-        timestamp: new Date().toISOString()
-      },
-      headers: {
-        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-      }
-    });
-
-    if (ingestorError) {
-      console.error('Data ingestor error:', ingestorError);
-    }
-
+    // Return immediately - the database trigger will handle all processing
     return new Response(JSON.stringify({
       success: true,
-      message: 'Health data processed successfully',
-      health_metric_id: healthMetric.id
+      message: 'Health data ingested successfully. Processing will begin automatically.',
+      raw_data_id: rawHealthData.id
     }), { 
       status: 200, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    console.error('Error processing health data:', error);
+    console.error('Error in health-data-bridge:', error);
     return new Response('Internal server error', { 
       status: 500, 
       headers: corsHeaders 

@@ -24,109 +24,116 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-
     const requestBody = await req.json();
-    console.log('IDIA-Synapse received request body:', requestBody);
     
-    // Handle two different input formats:
-    // 1. Manual UI calls: { user_id, health_data: { steps, heartRate, ... } }
-    // 2. Database trigger calls: { recorded_at, step_count, user_id }
+    console.log('IDIA-Synapse orchestrator received request:', requestBody);
     
-    let user_id, health_data;
-    
-    if (requestBody.user_id && requestBody.health_data) {
-      // Format 1: Manual UI call
-      user_id = requestBody.user_id;
-      health_data = requestBody.health_data;
-      console.log('Processing manual UI call format');
-    } else if (requestBody.step_count !== undefined) {
-      // Format 2: Database trigger call - the health_metrics table already has triggers
-      // that handle anonymization and reward processing, so we just acknowledge receipt
-      console.log('Database trigger call detected, health_metrics triggers will handle processing');
+    // Check if this is orchestration mode (from database trigger)
+    if (requestBody.orchestration_mode && requestBody.raw_data_id) {
+      console.log('ORCHESTRATION MODE: Processing raw_data_id:', requestBody.raw_data_id);
+      
+      // Fetch the raw health data
+      const { data: rawData, error: fetchError } = await supabase
+        .from('raw_health_data')
+        .select('*')
+        .eq('id', requestBody.raw_data_id)
+        .single();
+
+      if (fetchError || !rawData) {
+        console.error('Failed to fetch raw health data:', fetchError);
+        return new Response('Raw data not found', { 
+          status: 404, 
+          headers: corsHeaders 
+        });
+      }
+
+      // Step 1: Call anonymization-processor with raw data
+      console.log('Orchestrating: Calling anonymization-processor...');
+      const { data: anonResult, error: anonError } = await supabase.functions.invoke(
+        'anonymization-processor',
+        {
+          body: {
+            raw_data_id: rawData.id,
+            user_id: rawData.user_id,
+            raw_payload: rawData.raw_payload,
+            step_count: rawData.step_count,
+            recorded_at: rawData.recorded_at
+          }
+        }
+      );
+
+      if (anonError) {
+        console.error('Anonymization processor failed:', anonError);
+        return new Response('Anonymization failed', { 
+          status: 500, 
+          headers: corsHeaders 
+        });
+      }
+
+      // Step 2: Mark raw data as processed
+      await supabase
+        .from('raw_health_data')
+        .update({ 
+          processed: true, 
+          processing_completed_at: new Date().toISOString() 
+        })
+        .eq('id', rawData.id);
+
+      console.log('IDIA-Synapse orchestration completed successfully');
       
       return new Response(JSON.stringify({
         success: true,
-        message: 'Database trigger call acknowledged - processing handled by health_metrics triggers',
-        trigger_data: requestBody
+        message: 'Data processing orchestrated successfully',
+        raw_data_id: rawData.id,
+        anonymization_result: anonResult
       }), { 
         status: 200, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
-    } else {
-      console.error('Invalid request format:', requestBody);
-      return new Response('Invalid request format - expected either {user_id, health_data} or {step_count, user_id}', { 
-        status: 400, 
-        headers: corsHeaders 
-      });
     }
 
-    if (!user_id || !health_data) {
-      console.error('Missing required data after processing:', { 
-        user_id: !!user_id, 
-        health_data: !!health_data,
-        received_user_id: user_id,
-        received_health_data: health_data,
-        full_body: requestBody
-      });
-      return new Response('Missing user_id or health_data', { 
-        status: 400, 
-        headers: corsHeaders 
-      });
-    }
+    // Legacy support for direct UI calls (will be deprecated)
+    if (requestBody.user_id && requestBody.health_data) {
+      console.log('LEGACY MODE: Direct UI call detected, redirecting to health-data-bridge pattern...');
+      
+      // Insert into raw_health_data table, trigger will handle the rest
+      const { data: rawHealthData, error: rawError } = await supabase
+        .from('raw_health_data')
+        .insert({
+          user_id: requestBody.user_id,
+          device_type: 'Legacy UI Call',
+          raw_payload: requestBody.health_data,
+          step_count: requestBody.health_data.steps || 0,
+          recorded_at: new Date().toISOString(),
+          processed: false
+        })
+        .select()
+        .single();
 
-    console.log(`IDIA-Synapse processing health data for user: ${user_id}`, health_data);
-
-    // Insert raw health data into health_metrics table
-    const { data: healthMetric, error: healthError } = await supabase
-      .from('health_metrics')
-      .insert({
-        user_id: user_id,
-        step_count: health_data.steps || 0,
-        recorded_at: new Date().toISOString()
-      })
-      .select()
-      .maybeSingle();
-
-    if (healthError) {
-      console.error('Failed to insert health metrics:', healthError);
-      return new Response('Failed to insert health metrics', { 
-        status: 500, 
-        headers: corsHeaders 
-      });
-    }
-
-    // Trigger anonymization processor for the health data
-    const { data: anonResult, error: anonError } = await supabase.functions.invoke(
-      'anonymization-processor',
-      {
-        body: {
-          user_id: user_id,
-          health_data: {
-            ...health_data,
-            health_metric_id: healthMetric.id
-          }
-        }
+      if (rawError) {
+        console.error('Failed to insert raw health data:', rawError);
+        return new Response('Failed to process legacy call', { 
+          status: 500, 
+          headers: corsHeaders 
+        });
       }
-    );
 
-    if (anonError) {
-      console.error('Anonymization processor failed:', anonError);
-      return new Response('Anonymization failed', { 
-        status: 500, 
-        headers: corsHeaders 
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Legacy call processed. Data will be handled by the new pipeline.',
+        raw_data_id: rawHealthData.id
+      }), { 
+        status: 200, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    console.log('IDIA-Synapse successfully processed health data');
-    
-    return new Response(JSON.stringify({
-      success: true,
-      health_metric_id: healthMetric.id,
-      anonymization_result: anonResult
-    }), { 
-      status: 200, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    console.error('Invalid request format:', requestBody);
+    return new Response('Invalid request format - expected orchestration_mode with raw_data_id', { 
+      status: 400, 
+      headers: corsHeaders 
     });
+
 
   } catch (error) {
     console.error('Error in IDIA-Synapse:', error);
