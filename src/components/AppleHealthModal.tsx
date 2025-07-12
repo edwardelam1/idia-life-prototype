@@ -38,12 +38,12 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
       
       console.log("Sending 'syncHealthData' message to the native iOS app.");
       
-      // Send configuration to native iOS app for data ingestion
-      const ingestorConfig = {
-        endpoint: 'https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/data_ingestor',
-        user_id: currentUserId,
-        auth_token: localStorage.getItem('supabase.auth.token') // Get current auth token
-      };
+        // Send configuration to native iOS app for health data ingestion
+        const ingestorConfig = {
+          endpoint: 'https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/health-data-bridge',
+          user_id: currentUserId,
+          auth_token: localStorage.getItem('supabase.auth.token') // Get current auth token
+        };
       
       webkit.messageHandlers.syncHealthData.postMessage({
         action: "start_sync",
@@ -214,33 +214,20 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
     try {
       console.log('Triggering IDIA data flow with health data:', healthData);
       
-      // Call test-reward-pipeline to ensure everything works end-to-end
-      const { data: testResult, error: testError } = await supabase.functions.invoke('test-reward-pipeline', {
-        body: {
-          user_id: currentUserId
-        }
-      });
-
-      if (testError) {
-        console.error('Test reward pipeline error:', testError);
-      } else {
-        console.log('Reward pipeline test completed:', testResult);
-      }
-      
-      // Also call IDIA-Synapse for the traditional flow
-      const { data: idiaResult, error } = await supabase.functions.invoke('idia-synapse', {
+      // Call health-data-bridge as the single entry point
+      const { data: bridgeResult, error } = await supabase.functions.invoke('health-data-bridge', {
         body: {
           user_id: currentUserId,
           health_data: validatedHealthData
         }
       });
 
-      console.log('IDIA-Synapse response:', { data: idiaResult, error });
+      console.log('Health data bridge response:', { data: bridgeResult, error });
 
       if (error) {
-        console.error('IDIA-Synapse error:', error);
+        console.error('Health data bridge error:', error);
       } else {
-        console.log('IDIA data flow triggered successfully');
+        console.log('Health data flow triggered successfully');
       }
     } catch (error) {
       console.error('Error triggering IDIA data flow:', error);

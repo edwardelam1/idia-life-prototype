@@ -92,38 +92,14 @@ serve(async (req) => {
       });
     }
 
-    // Legacy support for direct UI calls (will be deprecated)
+    // All direct calls should now go through health-data-bridge
     if (requestBody.user_id && requestBody.health_data) {
-      console.log('LEGACY MODE: Direct UI call detected, redirecting to health-data-bridge pattern...');
-      
-      // Insert into raw_health_data table, trigger will handle the rest
-      const { data: rawHealthData, error: rawError } = await supabase
-        .from('raw_health_data')
-        .insert({
-          user_id: requestBody.user_id,
-          device_type: 'Legacy UI Call',
-          raw_payload: requestBody.health_data,
-          step_count: requestBody.health_data.steps || 0,
-          recorded_at: new Date().toISOString(),
-          processed: false
-        })
-        .select()
-        .single();
-
-      if (rawError) {
-        console.error('Failed to insert raw health data:', rawError);
-        return new Response('Failed to process legacy call', { 
-          status: 500, 
-          headers: corsHeaders 
-        });
-      }
-
+      console.log('DEPRECATED: Direct UI calls should use health-data-bridge');
       return new Response(JSON.stringify({
-        success: true,
-        message: 'Legacy call processed. Data will be handled by the new pipeline.',
-        raw_data_id: rawHealthData.id
+        error: 'Direct calls deprecated. Use health-data-bridge endpoint instead.',
+        recommended_endpoint: '/functions/v1/health-data-bridge'
       }), { 
-        status: 200, 
+        status: 400, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
