@@ -1,1 +1,71 @@
-project_id = "zxyngqciipcvveigrzqt"
+project_id = "qltkclkghtziwipwxxxm"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+smtp_port = 54325
+pop3_port = 54326
+
+[storage]
+enabled = true
+port = 54327
+
+[auth]
+enabled = true
+port = 54328
+
+[edge_functions]
+enabled = true
+port = 54329
+
+[functions.health-data-bridge]
+verify_jwt = false
+
+[functions.anonymization-processor]
+verify_jwt = false
+
+[functions.idia-synapse]
+verify_jwt = false
+
+[functions.calculate-enhanced-rewards]
+verify_jwt = false
+
+[functions.credit-user-wallet]
+verify_jwt = false
+
+[functions.process-staged-data]
+verify_jwt = false
+
+[functions.generate-virtuous-cycle-impacts]
+verify_jwt = false
+
+[functions.text-to-speech]
+verify_jwt = false
+
+[functions.ai-chat]
+verify_jwt = true
+
+[functions.gemini-chat]
+verify_jwt = true
+
+[functions.apple-health-sync]
+verify_jwt = true
+
+[functions.google-fit-sync]
+verify_jwt = true
+
+[auth.email]

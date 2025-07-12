@@ -68,12 +68,12 @@ serve(async (req) => {
     console.log(`Health-Data-Bridge: Processing health data for user: ${user_id}`);
     console.log('Health-Data-Bridge: Raw health data received:', JSON.stringify(health_data, null, 2));
 
-    // Prepare the insert data
+    // Prepare the insert data for new schema
     const insertData = {
       user_id: user_id,
-      raw_payload: health_data,
-      step_count: health_data.step_count || health_data.steps || null,
-      device_type: health_data.device_type || 'iPhone Health App',
+      data_source: health_data.source || 'unknown',
+      data_type: health_data.type || 'mixed',
+      raw_data: health_data,
       recorded_at: health_data.recorded_at || new Date().toISOString(),
       processed: false
     };

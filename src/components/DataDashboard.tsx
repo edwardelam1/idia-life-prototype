@@ -49,10 +49,10 @@ const DataDashboard = () => {
     try {
       // Fetch real connections from database
       const { data: connectionsData, error: connectionsError } = await supabase
-        .from('data_connections')
+        .from('user_connections')
         .select('*')
         .eq('user_id', currentUserId)
-        .eq('is_active', true);
+        .eq('connection_status', 'connected');
 
       if (connectionsError) {
         console.error('Error fetching connections:', connectionsError);
@@ -170,13 +170,13 @@ const DataDashboard = () => {
     // Create Apple Health connection
     try {
       const { data: newConnection, error: connectionError } = await supabase
-        .from('data_connections')
+        .from('user_connections')
         .insert({
           user_id: currentUserId,
-          connection_name: 'Apple Health',
-          connection_type: 'apple_health',
-          access_token: 'apple_health_token_' + Date.now(),
-          is_active: true
+          provider: 'apple_health',
+          connection_status: 'connected',
+          connection_data: { connected_at: new Date().toISOString() },
+          last_sync_at: new Date().toISOString()
         })
         .select()
         .single();
@@ -197,8 +197,8 @@ const DataDashboard = () => {
     
     try {
       const { error } = await supabase
-        .from('data_connections')
-        .update({ is_active: false })
+        .from('user_connections')
+        .update({ connection_status: 'disconnected' })
         .eq('id', connectionId)
         .eq('user_id', currentUserId);
 
@@ -287,17 +287,17 @@ const DataDashboard = () => {
             {connections.map((connection) => (
               <Card key={connection.id} className="border-l-4 border-l-green-500">
                 <CardContent className="p-4">
-                  <div className="flex items-start space-x-3">
-                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-white">
-                      <img 
-                        src={connection.connection_type === 'apple_health' ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"} 
-                        alt={connection.connection_name} 
-                        className="w-full h-full object-contain p-1"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-semibold text-gray-900">{connection.connection_name}</h3>
+                      <div className="flex items-start space-x-3">
+                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-white">
+                          <img 
+                            src={connection.provider === 'apple_health' ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"} 
+                            alt={connection.provider} 
+                            className="w-full h-full object-contain p-1"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-semibold text-gray-900">{connection.provider === 'apple_health' ? 'Apple Health' : connection.provider}</h3>
                         <div className="flex items-center space-x-2">
                           <div className="text-right">
                             <p className="text-sm font-medium text-green-600">
@@ -318,7 +318,7 @@ const DataDashboard = () => {
                         </div>
                       </div>
                       <p className="text-sm text-gray-600 mb-2">
-                        {connection.connection_type === 'apple_health' ? 'Health data from Apple Health' : 'Connected data source'}
+                        {connection.provider === 'apple_health' ? 'Health data from Apple Health' : 'Connected data source'}
                       </p>
                       <div className="flex items-center space-x-4 text-xs text-gray-500">
                         <span className="flex items-center space-x-1">

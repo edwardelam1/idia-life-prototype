@@ -30,52 +30,29 @@ serve(async (req) => {
     console.log(`Processing wallet credit: ${reward_amount} IDIA-USD for user ${user_id}`);
 
     // Begin transaction-like operations
-    // First, check if user wallet exists, create if not
-    const { data: existingWallet, error: walletFetchError } = await supabase
+    // Get existing wallet (should exist due to trigger on user creation)
+    const { data: wallet, error: walletFetchError } = await supabase
       .from('user_wallets')
       .select('*')
       .eq('user_id', user_id)
-      .maybeSingle();
+      .single();
 
-    let wallet;
-    if (walletFetchError && walletFetchError.code === 'PGRST116') {
-      // Wallet doesn't exist, create it
-      const { data: newWallet, error: createError } = await supabase
-        .from('user_wallets')
-        .insert({
-          user_id: user_id,
-          idia_usd_balance: 0,
-          total_earned: 0
-        })
-        .select()
-        .maybeSingle();
-
-      if (createError) {
-        console.error('Failed to create wallet:', createError);
-        return new Response('Failed to create wallet', { 
-          status: 500, 
-          headers: corsHeaders 
-        });
-      }
-      wallet = newWallet;
-    } else if (walletFetchError) {
+    if (walletFetchError) {
       console.error('Error fetching wallet:', walletFetchError);
-      return new Response('Database error', { 
-        status: 500, 
+      return new Response('Wallet not found', { 
+        status: 404, 
         headers: corsHeaders 
       });
-    } else {
-      wallet = existingWallet;
     }
 
     // Update wallet balance
-    const newBalance = parseFloat(wallet.idia_usd_balance) + parseFloat(reward_amount);
+    const newBalance = parseFloat(wallet.balance) + parseFloat(reward_amount);
     const newTotalEarned = parseFloat(wallet.total_earned) + parseFloat(reward_amount);
 
     const { error: updateError } = await supabase
       .from('user_wallets')
       .update({
-        idia_usd_balance: newBalance,
+        balance: newBalance,
         total_earned: newTotalEarned,
         updated_at: new Date().toISOString()
       })
@@ -90,16 +67,19 @@ serve(async (req) => {
     }
 
     // Create transaction record
-    const { error: transactionError } = await supabase
+    const { data: transaction, error: transactionError } = await supabase
       .from('transactions')
       .insert({
         user_id: user_id,
-        transaction_type: 'data_earnings',
+        transaction_type: 'earn',
         amount: parseFloat(reward_amount),
-        description: 'Data contribution reward',
-        source: 'Strava Activity Analysis',
-        status: 'completed'
-      });
+        description: 'Health data contribution reward',
+        reference_type: 'reward',
+        reference_id: staged_data_id,
+        balance_after: newBalance
+      })
+      .select('id')
+      .single();
 
     if (transactionError) {
       console.error('Failed to create transaction record:', transactionError);
@@ -113,7 +93,8 @@ serve(async (req) => {
       success: true,
       new_balance: newBalance,
       reward_amount: reward_amount,
-      total_earned: newTotalEarned
+      total_earned: newTotalEarned,
+      transaction_id: transaction?.id
     }), { 
       status: 200, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

@@ -28,26 +28,31 @@ serve(async (req) => {
 
     console.log(`Anonymization-processor: Processing raw_data_id: ${raw_data_id}`);
 
-    // Generate pseudonym for anonymized data
+    // Generate pseudonym for anonymized data using new function
     const { data: pseudoResult, error: pseudoError } = await supabase
-      .rpc('generate_pseudonym', { input_text: user_id || 'anonymous' });
+      .rpc('generate_pseudonym');
     
-    const pseudo_id = pseudoResult || `anonymous_${Date.now()}`;
+    const pseudonym = pseudoResult || `ANON_${Date.now()}`;
 
     // Step 1: Create anonymized entry in staged_health_data
+    const locationZone = await generateLocationZone(supabase);
+    const anonymizedData = {
+      pseudonym: pseudonym,
+      step_count: step_count,
+      recorded_at: recorded_at,
+      location_zone: locationZone,
+      data_quality_score: step_count ? 0.8 : 0.5,
+      anonymized_at: new Date().toISOString()
+    };
+
     const { data: stagedHealthData, error: healthError } = await supabase
       .from('staged_health_data')
       .insert({
-        pseudo_user_id: pseudo_id,
-        activity_type: 'Daily Activity',
-        steps_count: step_count || 0,
-        processed_at: new Date().toISOString(),
-        created_at: recorded_at || new Date().toISOString(),
-        data_quality_score: step_count ? 0.8 : 0.5,
-        workout_intensity: step_count > 10000 ? 75 : step_count > 5000 ? 50 : 25,
-        device_type: 'Health App',
-        anonymized_location_zone: await generateLocationZone(supabase),
-        raw_data_id: raw_data_id
+        raw_data_id: raw_data_id,
+        pseudonym: pseudonym,
+        anonymized_data: anonymizedData,
+        location_zone: locationZone,
+        recorded_at: recorded_at || new Date().toISOString()
       })
       .select()
       .single();
@@ -70,13 +75,10 @@ serve(async (req) => {
         .insert({
           user_id: user_id,
           raw_data_id: raw_data_id,
-          activity_type: 'Health Data',
-          duration_seconds: step_count > 10000 ? 3600 : step_count > 5000 ? 1800 : 900,
-          average_heartrate: step_count > 8000 ? 75 : step_count > 4000 ? 65 : 55,
-          effort_score: step_count > 10000 ? 85 : step_count > 5000 ? 65 : 45,
-          device_type: 'Apple Health',
-          processed_at: new Date().toISOString(),
-          reward_calculated: false
+          data_type: 'steps',
+          step_count: step_count || 0,
+          recorded_at: recorded_at || new Date().toISOString(),
+          processed: false
         })
         .select()
         .single();
@@ -96,7 +98,7 @@ serve(async (req) => {
       message: 'Data anonymized and staged successfully',
       staged_health_data_id: stagedHealthData.id,
       staged_data_id: stagedDataResult?.id || null,
-      pseudo_user_id: pseudo_id
+      pseudonym: pseudonym
     }), { 
       status: 200, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -113,12 +115,8 @@ serve(async (req) => {
 
 async function generateLocationZone(supabase: any) {
   try {
-    // Generate a randomized location zone using the anonymize_location function
-    const lat = 40.7128 + (Math.random() - 0.5) * 0.1;
-    const lng = -74.0060 + (Math.random() - 0.5) * 0.1;
-    
     const { data: locationResult, error } = await supabase
-      .rpc('anonymize_location', { lat, lng });
+      .rpc('anonymize_location');
     
     return locationResult || 'ZONE_DEFAULT';
   } catch (error) {

@@ -93,7 +93,8 @@ serve(async (req) => {
       .from('staged_data')
       .update({
         reward_amount: finalReward,
-        reward_calculated: true
+        processed: true,
+        processed_at: new Date().toISOString()
       })
       .eq('id', staged_data_id);
 
@@ -135,51 +136,31 @@ serve(async (req) => {
 })
 
 function calculateRewardFactors(stagedData: any): RewardFactors {
-  let base_reward = 0.083; // Base daily reward (~$2.50/month ÷ 30 days)
+  let base_reward = 1.0; // Base token reward
   let quality_multiplier = 1.0;
   let uniqueness_bonus = 0.0;
   let frequency_bonus = 0.0;
   let data_completeness_score = 0.5; // Start at 50%
   
-  // Data completeness scoring (major factor)
-  let completeness_factors = 0;
+  // Data completeness scoring based on step count and data quality
+  const stepCount = stagedData.step_count || 0;
   
-  if (stagedData.duration_seconds) completeness_factors++;
-  if (stagedData.distance_meters) completeness_factors++;
-  if (stagedData.average_heartrate) completeness_factors++;
-  if (stagedData.elevation_gain_meters) completeness_factors++;
-  if (stagedData.weather_conditions) completeness_factors++;
-  if (stagedData.average_speed_mps) completeness_factors++;
-  if (stagedData.max_heartrate) completeness_factors++;
+  if (stepCount > 0) data_completeness_score = 0.7;
+  if (stepCount > 5000) data_completeness_score = 0.85;
+  if (stepCount > 10000) data_completeness_score = 1.0;
   
-  // Scale completeness score from 0.5 to 1.5 based on data richness
-  data_completeness_score = 0.5 + (completeness_factors / 7.0);
+  // Activity type and step-based bonuses
+  const dataType = stagedData.data_type?.toLowerCase() || '';
   
-  // Activity type uniqueness bonuses
-  const activityType = stagedData.activity_type?.toLowerCase() || '';
-  
-  if (['trailrun', 'hike', 'rockclimbing', 'skiing', 'snowboarding'].includes(activityType)) {
-    uniqueness_bonus = 0.15; // High-value activities
-    quality_multiplier = 1.4;
-  } else if (['swim', 'bike', 'crosscountryskiing', 'rowing'].includes(activityType)) {
-    uniqueness_bonus = 0.08; // Medium-value activities
+  if (stepCount >= 10000) {
+    uniqueness_bonus = 5.0; // High activity bonus
+    quality_multiplier = 2.0;
+  } else if (stepCount >= 7500) {
+    uniqueness_bonus = 2.5; // Good activity bonus
+    quality_multiplier = 1.5;
+  } else if (stepCount >= 5000) {
+    uniqueness_bonus = 1.0; // Moderate activity bonus
     quality_multiplier = 1.2;
-  } else if (['run', 'walk', 'yoga'].includes(activityType)) {
-    uniqueness_bonus = 0.02; // Common activities
-    quality_multiplier = 1.0;
-  }
-  
-  // Effort and performance bonuses
-  if (stagedData.effort_score && stagedData.effort_score > 80) {
-    quality_multiplier += 0.3; // High effort bonus
-  }
-  
-  if (stagedData.duration_seconds > 3600) { // > 1 hour
-    quality_multiplier += 0.2; // Long activity bonus
-  }
-  
-  if (stagedData.elevation_gain_meters > 500) { // Significant elevation
-    quality_multiplier += 0.25; // Challenging terrain bonus
   }
   
   return {

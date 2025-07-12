@@ -14,540 +14,299 @@ export type Database = {
   }
   public: {
     Tables: {
-      bundle_generation_logs: {
+      governance_proposals: {
         Row: {
-          bundle_id: string | null
           created_at: string | null
-          data_source_count: number | null
-          generation_type: string
+          created_by: string
+          description: string
           id: string
-          processing_duration: unknown | null
-          quality_metrics: Json | null
+          metadata: Json | null
+          no_votes: number | null
+          proposal_type: string
+          status: string | null
+          title: string
+          total_tokens_voted: number | null
+          voting_ends_at: string
+          yes_votes: number | null
         }
         Insert: {
-          bundle_id?: string | null
           created_at?: string | null
-          data_source_count?: number | null
-          generation_type: string
+          created_by: string
+          description: string
           id?: string
-          processing_duration?: unknown | null
-          quality_metrics?: Json | null
+          metadata?: Json | null
+          no_votes?: number | null
+          proposal_type: string
+          status?: string | null
+          title: string
+          total_tokens_voted?: number | null
+          voting_ends_at: string
+          yes_votes?: number | null
         }
         Update: {
-          bundle_id?: string | null
           created_at?: string | null
-          data_source_count?: number | null
-          generation_type?: string
+          created_by?: string
+          description?: string
           id?: string
-          processing_duration?: unknown | null
-          quality_metrics?: Json | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bundle_generation_logs_bundle_id_fkey"
-            columns: ["bundle_id"]
-            isOneToOne: false
-            referencedRelation: "marketplace_bundles"
-            referencedColumns: ["bundle_id"]
-          },
-        ]
-      }
-      data_connections: {
-        Row: {
-          access_token: string | null
-          connection_name: string
-          connection_type: string
-          created_at: string
-          id: string
-          is_active: boolean | null
-          last_sync_at: string | null
-          refresh_token: string | null
-          token_expires_at: string | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          access_token?: string | null
-          connection_name: string
-          connection_type: string
-          created_at?: string
-          id?: string
-          is_active?: boolean | null
-          last_sync_at?: string | null
-          refresh_token?: string | null
-          token_expires_at?: string | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          access_token?: string | null
-          connection_name?: string
-          connection_type?: string
-          created_at?: string
-          id?: string
-          is_active?: boolean | null
-          last_sync_at?: string | null
-          refresh_token?: string | null
-          token_expires_at?: string | null
-          updated_at?: string
-          user_id?: string
+          metadata?: Json | null
+          no_votes?: number | null
+          proposal_type?: string
+          status?: string | null
+          title?: string
+          total_tokens_voted?: number | null
+          voting_ends_at?: string
+          yes_votes?: number | null
         }
         Relationships: []
       }
-      data_processing_queue: {
+      governance_votes: {
         Row: {
-          created_at: string | null
-          error_details: Json | null
           id: string
-          processing_stage: string | null
-          processing_status: string | null
-          raw_data_id: string | null
-          retry_count: number | null
-          updated_at: string | null
+          proposal_id: string
+          tokens_weight: number
+          user_id: string
+          vote: string
+          voted_at: string | null
         }
         Insert: {
-          created_at?: string | null
-          error_details?: Json | null
           id?: string
-          processing_stage?: string | null
-          processing_status?: string | null
-          raw_data_id?: string | null
-          retry_count?: number | null
-          updated_at?: string | null
+          proposal_id: string
+          tokens_weight: number
+          user_id: string
+          vote: string
+          voted_at?: string | null
         }
         Update: {
-          created_at?: string | null
-          error_details?: Json | null
           id?: string
-          processing_stage?: string | null
-          processing_status?: string | null
-          raw_data_id?: string | null
-          retry_count?: number | null
-          updated_at?: string | null
+          proposal_id?: string
+          tokens_weight?: number
+          user_id?: string
+          vote?: string
+          voted_at?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "data_processing_queue_raw_data_id_fkey"
-            columns: ["raw_data_id"]
+            foreignKeyName: "governance_votes_proposal_id_fkey"
+            columns: ["proposal_id"]
             isOneToOne: false
-            referencedRelation: "raw_strava_data"
+            referencedRelation: "governance_proposals"
             referencedColumns: ["id"]
           },
         ]
       }
-      device_events: {
-        Row: {
-          event_timestamp: string
-          event_type: string
-          id: number
-          json_payload: Json
-          processed_at: string | null
-          user_id: string
-        }
-        Insert: {
-          event_timestamp?: string
-          event_type: string
-          id?: number
-          json_payload: Json
-          processed_at?: string | null
-          user_id: string
-        }
-        Update: {
-          event_timestamp?: string
-          event_type?: string
-          id?: number
-          json_payload?: Json
-          processed_at?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
       health_metrics: {
         Row: {
           created_at: string | null
-          id: number
-          recorded_at: string | null
-          step_count: number | null
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          id?: never
-          recorded_at?: string | null
-          step_count?: number | null
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: never
-          recorded_at?: string | null
-          step_count?: number | null
-          user_id?: string | null
-        }
-        Relationships: []
-      }
-      marketplace_bundles: {
-        Row: {
-          bundle_id: string
-          bundle_version: number | null
-          category: string
-          contacts_count: number | null
-          created_at: string | null
-          data_json: Json
-          data_points: string[] | null
-          description: string
-          features: string[] | null
-          is_active: boolean | null
-          key_insights: string[] | null
-          match_percentage: number | null
-          price: number
-          suggested_filters: string[] | null
-          tier: string
-          title: string
-          updated_at: string | null
-        }
-        Insert: {
-          bundle_id?: string
-          bundle_version?: number | null
-          category: string
-          contacts_count?: number | null
-          created_at?: string | null
-          data_json: Json
-          data_points?: string[] | null
-          description: string
-          features?: string[] | null
-          is_active?: boolean | null
-          key_insights?: string[] | null
-          match_percentage?: number | null
-          price: number
-          suggested_filters?: string[] | null
-          tier: string
-          title: string
-          updated_at?: string | null
-        }
-        Update: {
-          bundle_id?: string
-          bundle_version?: number | null
-          category?: string
-          contacts_count?: number | null
-          created_at?: string | null
-          data_json?: Json
-          data_points?: string[] | null
-          description?: string
-          features?: string[] | null
-          is_active?: boolean | null
-          key_insights?: string[] | null
-          match_percentage?: number | null
-          price?: number
-          suggested_filters?: string[] | null
-          tier?: string
-          title?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      password_reset_tokens: {
-        Row: {
-          created_at: string
-          expires_at: string
           id: string
-          token: string
-          used: boolean
+          metric_type: string
+          metric_value: number
+          recorded_date: string
+          source_data_ids: string[] | null
+          unit: string
           user_id: string
         }
         Insert: {
-          created_at?: string
-          expires_at: string
+          created_at?: string | null
           id?: string
-          token: string
-          used?: boolean
+          metric_type: string
+          metric_value: number
+          recorded_date: string
+          source_data_ids?: string[] | null
+          unit: string
           user_id: string
         }
         Update: {
-          created_at?: string
-          expires_at?: string
+          created_at?: string | null
           id?: string
-          token?: string
-          used?: boolean
+          metric_type?: string
+          metric_value?: number
+          recorded_date?: string
+          source_data_ids?: string[] | null
+          unit?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string | null
+          display_name: string | null
+          id: string
+          updated_at: string | null
+          username: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          id: string
+          updated_at?: string | null
+          username?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          id?: string
+          updated_at?: string | null
+          username?: string | null
         }
         Relationships: []
       }
       raw_health_data: {
         Row: {
           created_at: string | null
-          device_type: string | null
+          data_source: string
+          data_type: string
           id: string
           processed: boolean | null
-          processing_completed_at: string | null
-          processing_started_at: string | null
-          raw_payload: Json
-          recorded_at: string | null
-          step_count: number | null
-          user_id: string | null
+          processed_at: string | null
+          raw_data: Json
+          recorded_at: string
+          user_id: string
         }
         Insert: {
           created_at?: string | null
-          device_type?: string | null
+          data_source: string
+          data_type: string
           id?: string
           processed?: boolean | null
-          processing_completed_at?: string | null
-          processing_started_at?: string | null
-          raw_payload: Json
-          recorded_at?: string | null
-          step_count?: number | null
-          user_id?: string | null
+          processed_at?: string | null
+          raw_data: Json
+          recorded_at: string
+          user_id: string
         }
         Update: {
           created_at?: string | null
-          device_type?: string | null
+          data_source?: string
+          data_type?: string
           id?: string
           processed?: boolean | null
-          processing_completed_at?: string | null
-          processing_started_at?: string | null
-          raw_payload?: Json
-          recorded_at?: string | null
-          step_count?: number | null
-          user_id?: string | null
+          processed_at?: string | null
+          raw_data?: Json
+          recorded_at?: string
+          user_id?: string
         }
         Relationships: []
       }
-      raw_strava_data: {
+      rewards: {
         Row: {
-          activity_id: number
-          connection_id: string
+          amount: number
+          data_source: string
+          description: string | null
+          earned_at: string | null
           id: string
-          processed: boolean | null
-          raw_data: Json
-          received_at: string
+          reference_id: string | null
+          reward_type: string
           user_id: string
         }
         Insert: {
-          activity_id: number
-          connection_id: string
+          amount: number
+          data_source: string
+          description?: string | null
+          earned_at?: string | null
           id?: string
-          processed?: boolean | null
-          raw_data: Json
-          received_at?: string
+          reference_id?: string | null
+          reward_type: string
           user_id: string
         }
         Update: {
-          activity_id?: number
-          connection_id?: string
+          amount?: number
+          data_source?: string
+          description?: string | null
+          earned_at?: string | null
           id?: string
-          processed?: boolean | null
-          raw_data?: Json
-          received_at?: string
+          reference_id?: string | null
+          reward_type?: string
           user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "raw_strava_data_connection_id_fkey"
-            columns: ["connection_id"]
-            isOneToOne: false
-            referencedRelation: "data_connections"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      security_events: {
-        Row: {
-          action_type: string
-          agent_name: string
-          created_at: string | null
-          id: string
-          resolved: boolean | null
-          result_data: Json
-          severity: string
-          timestamp: string
-        }
-        Insert: {
-          action_type: string
-          agent_name: string
-          created_at?: string | null
-          id?: string
-          resolved?: boolean | null
-          result_data: Json
-          severity?: string
-          timestamp?: string
-        }
-        Update: {
-          action_type?: string
-          agent_name?: string
-          created_at?: string | null
-          id?: string
-          resolved?: boolean | null
-          result_data?: Json
-          severity?: string
-          timestamp?: string
         }
         Relationships: []
       }
       staged_data: {
         Row: {
-          activity_type: string
-          anonymized_location_zone: string | null
-          average_heartrate: number | null
-          average_speed_mps: number | null
-          device_type: string | null
-          distance_meters: number | null
-          duration_seconds: number | null
-          effort_score: number | null
-          elevation_gain_meters: number | null
+          created_at: string | null
+          data_type: string
           id: string
-          max_heartrate: number | null
-          max_speed_mps: number | null
-          processed_at: string
+          processed: boolean | null
+          processed_at: string | null
           raw_data_id: string
+          recorded_at: string
           reward_amount: number | null
-          reward_calculated: boolean | null
+          step_count: number | null
           user_id: string
-          weather_conditions: Json | null
         }
         Insert: {
-          activity_type: string
-          anonymized_location_zone?: string | null
-          average_heartrate?: number | null
-          average_speed_mps?: number | null
-          device_type?: string | null
-          distance_meters?: number | null
-          duration_seconds?: number | null
-          effort_score?: number | null
-          elevation_gain_meters?: number | null
+          created_at?: string | null
+          data_type: string
           id?: string
-          max_heartrate?: number | null
-          max_speed_mps?: number | null
-          processed_at?: string
+          processed?: boolean | null
+          processed_at?: string | null
           raw_data_id: string
+          recorded_at: string
           reward_amount?: number | null
-          reward_calculated?: boolean | null
+          step_count?: number | null
           user_id: string
-          weather_conditions?: Json | null
         }
         Update: {
-          activity_type?: string
-          anonymized_location_zone?: string | null
-          average_heartrate?: number | null
-          average_speed_mps?: number | null
-          device_type?: string | null
-          distance_meters?: number | null
-          duration_seconds?: number | null
-          effort_score?: number | null
-          elevation_gain_meters?: number | null
+          created_at?: string | null
+          data_type?: string
           id?: string
-          max_heartrate?: number | null
-          max_speed_mps?: number | null
-          processed_at?: string
+          processed?: boolean | null
+          processed_at?: string | null
           raw_data_id?: string
+          recorded_at?: string
           reward_amount?: number | null
-          reward_calculated?: boolean | null
+          step_count?: number | null
           user_id?: string
-          weather_conditions?: Json | null
         }
         Relationships: [
           {
             foreignKeyName: "staged_data_raw_data_id_fkey"
             columns: ["raw_data_id"]
             isOneToOne: false
-            referencedRelation: "raw_strava_data"
+            referencedRelation: "raw_health_data"
             referencedColumns: ["id"]
           },
         ]
       }
       staged_health_data: {
         Row: {
-          activity_type: string
-          anonymized_location_hash: string | null
-          anonymized_location_zone: string | null
-          average_heartrate: number | null
-          average_speed_mps: number | null
-          calories_burned: number | null
-          created_at: string
-          data_quality_score: number | null
-          device_type: string | null
-          distance_meters: number | null
-          duration_seconds: number | null
-          effort_score: number | null
-          elevation_gain_meters: number | null
+          anonymized_data: Json
+          created_at: string | null
           id: string
-          max_heartrate: number | null
-          max_speed_mps: number | null
-          processed_at: string
-          pseudo_user_id: string
-          raw_data_id: string | null
-          recovery_score: number | null
-          resting_heart_rate: number | null
-          sleep_duration: number | null
-          sleep_quality_score: number | null
-          steps_count: number | null
-          stress_level: number | null
-          weather_conditions: Json | null
-          workout_intensity: number | null
+          location_zone: string | null
+          pseudonym: string
+          raw_data_id: string
+          recorded_at: string
         }
         Insert: {
-          activity_type: string
-          anonymized_location_hash?: string | null
-          anonymized_location_zone?: string | null
-          average_heartrate?: number | null
-          average_speed_mps?: number | null
-          calories_burned?: number | null
-          created_at?: string
-          data_quality_score?: number | null
-          device_type?: string | null
-          distance_meters?: number | null
-          duration_seconds?: number | null
-          effort_score?: number | null
-          elevation_gain_meters?: number | null
+          anonymized_data: Json
+          created_at?: string | null
           id?: string
-          max_heartrate?: number | null
-          max_speed_mps?: number | null
-          processed_at?: string
-          pseudo_user_id: string
-          raw_data_id?: string | null
-          recovery_score?: number | null
-          resting_heart_rate?: number | null
-          sleep_duration?: number | null
-          sleep_quality_score?: number | null
-          steps_count?: number | null
-          stress_level?: number | null
-          weather_conditions?: Json | null
-          workout_intensity?: number | null
+          location_zone?: string | null
+          pseudonym: string
+          raw_data_id: string
+          recorded_at: string
         }
         Update: {
-          activity_type?: string
-          anonymized_location_hash?: string | null
-          anonymized_location_zone?: string | null
-          average_heartrate?: number | null
-          average_speed_mps?: number | null
-          calories_burned?: number | null
-          created_at?: string
-          data_quality_score?: number | null
-          device_type?: string | null
-          distance_meters?: number | null
-          duration_seconds?: number | null
-          effort_score?: number | null
-          elevation_gain_meters?: number | null
+          anonymized_data?: Json
+          created_at?: string | null
           id?: string
-          max_heartrate?: number | null
-          max_speed_mps?: number | null
-          processed_at?: string
-          pseudo_user_id?: string
-          raw_data_id?: string | null
-          recovery_score?: number | null
-          resting_heart_rate?: number | null
-          sleep_duration?: number | null
-          sleep_quality_score?: number | null
-          steps_count?: number | null
-          stress_level?: number | null
-          weather_conditions?: Json | null
-          workout_intensity?: number | null
+          location_zone?: string | null
+          pseudonym?: string
+          raw_data_id?: string
+          recorded_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "staged_health_data_raw_data_id_fkey"
             columns: ["raw_data_id"]
             isOneToOne: false
-            referencedRelation: "raw_strava_data"
+            referencedRelation: "raw_health_data"
             referencedColumns: ["id"]
           },
         ]
@@ -555,104 +314,145 @@ export type Database = {
       transactions: {
         Row: {
           amount: number
-          created_at: string
+          balance_after: number
+          created_at: string | null
           description: string
           id: string
-          source: string | null
-          status: string | null
+          reference_id: string | null
+          reference_type: string | null
           transaction_type: string
           user_id: string
         }
         Insert: {
           amount: number
-          created_at?: string
+          balance_after: number
+          created_at?: string | null
           description: string
           id?: string
-          source?: string | null
-          status?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
           transaction_type: string
           user_id: string
         }
         Update: {
           amount?: number
-          created_at?: string
+          balance_after?: number
+          created_at?: string | null
           description?: string
           id?: string
-          source?: string | null
-          status?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
           transaction_type?: string
           user_id?: string
         }
         Relationships: []
       }
-      user_proposals: {
+      user_connections: {
         Row: {
-          ai_validation_feedback: string | null
-          ai_validation_score: number | null
-          category: string
-          created_at: string
-          description: string
+          connection_data: Json | null
+          connection_status: string | null
+          created_at: string | null
           id: string
-          status: string
-          suggested_impact: string
-          title: string
-          updated_at: string
+          last_sync_at: string | null
+          provider: string
+          updated_at: string | null
           user_id: string
         }
         Insert: {
-          ai_validation_feedback?: string | null
-          ai_validation_score?: number | null
-          category: string
-          created_at?: string
-          description: string
+          connection_data?: Json | null
+          connection_status?: string | null
+          created_at?: string | null
           id?: string
-          status?: string
-          suggested_impact?: string
-          title: string
-          updated_at?: string
+          last_sync_at?: string | null
+          provider: string
+          updated_at?: string | null
           user_id: string
         }
         Update: {
-          ai_validation_feedback?: string | null
-          ai_validation_score?: number | null
-          category?: string
-          created_at?: string
-          description?: string
+          connection_data?: Json | null
+          connection_status?: string | null
+          created_at?: string | null
           id?: string
-          status?: string
-          suggested_impact?: string
-          title?: string
-          updated_at?: string
+          last_sync_at?: string | null
+          provider?: string
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
       }
       user_wallets: {
         Row: {
-          created_at: string
+          balance: number | null
+          created_at: string | null
           id: string
-          idia_usd_balance: number | null
           total_earned: number | null
-          updated_at: string
+          total_spent: number | null
+          updated_at: string | null
           user_id: string
         }
         Insert: {
-          created_at?: string
+          balance?: number | null
+          created_at?: string | null
           id?: string
-          idia_usd_balance?: number | null
           total_earned?: number | null
-          updated_at?: string
+          total_spent?: number | null
+          updated_at?: string | null
           user_id: string
         }
         Update: {
-          created_at?: string
+          balance?: number | null
+          created_at?: string | null
           id?: string
-          idia_usd_balance?: number | null
           total_earned?: number | null
-          updated_at?: string
+          total_spent?: number | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
+      }
+      virtuous_cycle_impacts: {
+        Row: {
+          cost_in_tokens: number
+          id: string
+          impact_date: string | null
+          impact_type: string
+          impact_unit: string
+          impact_value: number
+          metadata: Json | null
+          transaction_id: string | null
+          user_id: string
+        }
+        Insert: {
+          cost_in_tokens: number
+          id?: string
+          impact_date?: string | null
+          impact_type: string
+          impact_unit: string
+          impact_value: number
+          metadata?: Json | null
+          transaction_id?: string | null
+          user_id: string
+        }
+        Update: {
+          cost_in_tokens?: number
+          id?: string
+          impact_date?: string | null
+          impact_type?: string
+          impact_unit?: string
+          impact_value?: number
+          metadata?: Json | null
+          transaction_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "virtuous_cycle_impacts_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -660,20 +460,11 @@ export type Database = {
     }
     Functions: {
       anonymize_location: {
-        Args: { lat: number; lng: number }
+        Args: Record<PropertyKey, never>
         Returns: string
       }
-      calculate_data_quality_score: {
-        Args: {
-          p_heartrate: number
-          p_elevation: number
-          p_duration: number
-          p_distance: number
-        }
-        Returns: number
-      }
       generate_pseudonym: {
-        Args: { input_text: string }
+        Args: Record<PropertyKey, never>
         Returns: string
       }
     }
