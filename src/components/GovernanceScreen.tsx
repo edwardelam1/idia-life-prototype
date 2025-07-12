@@ -28,12 +28,25 @@ const GovernanceScreen = () => {
   const fetchProposals = async () => {
     try {
       const { data, error } = await supabase
-        .from('user_proposals')
+        .from('governance_proposals')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setProposals(data || []);
+      if (data) {
+        setProposals(data.map(proposal => ({
+          id: proposal.id,
+          title: proposal.title,
+          description: proposal.description,
+          category: proposal.proposal_type,
+          status: proposal.status || 'active',
+          votes: proposal.yes_votes || 0,
+          totalVotes: (proposal.yes_votes || 0) + (proposal.no_votes || 0),
+          ai_validation_score: null,
+          ai_validation_feedback: null,
+          created_at: proposal.created_at || new Date().toISOString()
+        })));
+      }
     } catch (error: any) {
       console.error('Error fetching proposals:', error);
       toast({

@@ -49,7 +49,7 @@ const WalletDashboard = () => {
 
       setBalances({
         cash: 0, // Still not implemented
-        idiaUsd: walletData?.idia_usd_balance || 0,
+        idiaUsd: walletData?.balance || 0,
         idiaToken: 0 // Still not implemented
       });
     } catch (error) {
@@ -75,7 +75,10 @@ const WalletDashboard = () => {
         console.log('Error fetching transactions:', error);
         setTransactions([]);
       } else {
-        setTransactions(data || []);
+        setTransactions((data || []).map(transaction => ({
+          ...transaction,
+          source: transaction.reference_type || 'System'
+        })));
       }
       setLoading(false);
     } catch (error) {

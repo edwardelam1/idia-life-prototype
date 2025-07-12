@@ -75,11 +75,11 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
           console.log('Health data fetched:', { healthMetrics, stagedHealth });
 
           const realHealthData = {
-            steps: healthMetrics?.step_count || stagedHealth?.steps_count || 8245,
-            heartRate: stagedHealth?.average_heartrate || healthMetrics?.step_count ? 78 : 0,
-            activeMinutes: stagedHealth?.workout_intensity || (healthMetrics?.step_count ? Math.round(healthMetrics.step_count / 120) : 0),
-            sleepHours: stagedHealth?.sleep_duration ? (stagedHealth.sleep_duration / 3600).toFixed(1) : (healthMetrics?.step_count ? '7.2' : '0'),
-            calories: stagedHealth?.calories_burned || (healthMetrics?.step_count ? Math.round(healthMetrics.step_count * 0.04) : 0)
+            steps: healthMetrics?.metric_value || 8245,
+            heartRate: 78,
+            activeMinutes: healthMetrics?.metric_value ? Math.round(healthMetrics.metric_value / 120) : 0,
+            sleepHours: '7.2',
+            calories: healthMetrics?.metric_value ? Math.round(healthMetrics.metric_value * 0.04) : 0
           };
           
            setHealthData(realHealthData);
@@ -145,11 +145,11 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
           console.log('Health data fetched (web):', { healthMetrics, stagedHealth });
 
           const realHealthData = {
-            steps: healthMetrics?.step_count || stagedHealth?.steps_count || 8245,
-            heartRate: stagedHealth?.average_heartrate || healthMetrics?.step_count ? 78 : 0,
-            activeMinutes: stagedHealth?.workout_intensity || (healthMetrics?.step_count ? Math.round(healthMetrics.step_count / 120) : 0),
-            sleepHours: stagedHealth?.sleep_duration ? (stagedHealth.sleep_duration / 3600).toFixed(1) : (healthMetrics?.step_count ? '7.2' : '0'),
-            calories: stagedHealth?.calories_burned || (healthMetrics?.step_count ? Math.round(healthMetrics.step_count * 0.04) : 0)
+            steps: healthMetrics?.metric_value || 8245,
+            heartRate: 78,
+            activeMinutes: healthMetrics?.metric_value ? Math.round(healthMetrics.metric_value / 120) : 0,
+            sleepHours: '7.2',
+            calories: healthMetrics?.metric_value ? Math.round(healthMetrics.metric_value * 0.04) : 0
           };
           
           setHealthData(realHealthData);

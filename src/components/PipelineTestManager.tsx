@@ -124,7 +124,7 @@ const PipelineTestManager = () => {
           .from('user_wallets')
           .insert({
             user_id: userId,
-            idia_usd_balance: 100.00,
+            balance: 100.00,
             total_earned: 0
           })
           .select()
@@ -150,7 +150,7 @@ const PipelineTestManager = () => {
 
       updateLastResult({
         status: 'success',
-        message: `Wallet ready. Balance: $${wallet.idia_usd_balance}`,
+        message: `Wallet ready. Balance: $${wallet.balance}`,
         duration: Date.now() - startTime1,
         data: wallet
       });
@@ -166,13 +166,12 @@ const PipelineTestManager = () => {
       const startTime2 = Date.now();
       
       const { data: connection, error: connectionError } = await supabase
-        .from('data_connections')
+        .from('user_connections')
         .upsert({
           user_id: userId,
-          connection_type: 'strava',
-          connection_name: 'Test Strava Connection',
-          access_token: 'test_access_token',
-          is_active: true,
+          provider: 'strava',
+          connection_status: 'connected',
+          connection_data: { access_token: 'test_access_token' },
           last_sync_at: new Date().toISOString()
         })
         .select()
