@@ -143,22 +143,9 @@ const DataDashboard = () => {
     }
   };
 
-  const handleDisconnect = async (connectionId: string) => {
-    if (!currentUserId) return;
-    
-    try {
-    const { error } = await supabase
-      .from('data_connections')
-        .update({ is_active: false })
-        .eq('id', connectionId)
-        .eq('user_id', currentUserId);
-
-      if (!error) {
-        await fetchConnections();
-      }
-    } catch (error) {
-      console.error('Error disconnecting data source:', error);
-    }
+  // Get connection status for a specific type
+  const getConnectionStatus = (connectionType: string) => {
+    return connections.find(conn => conn.connection_type === connectionType);
   };
 
   if (loading) {
@@ -230,114 +217,102 @@ const DataDashboard = () => {
         </Card>
       )}
 
-      {/* Connected Data Sources */}
-      {connections.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold text-gray-900">Connected Data Sources</h2>
-          <div className="space-y-3">
+      {/* Available Data Sources - Always Visible */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-bold text-gray-900">Available Data Sources</h2>
+        <div className="flex justify-center space-x-8">
+          <div 
+            className="relative cursor-pointer group"
+            onClick={() => setShowAppleHealthModal(true)}
+          >
+            <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
+              <img 
+                src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" 
+                alt="Apple Health" 
+                className="w-full h-full object-contain p-2"
+              />
+            </div>
+            {getConnectionStatus('apple_health') && (
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white">
+                <CheckCircle className="w-3 h-3 text-white" />
+              </div>
+            )}
+          </div>
+          
+          <div 
+            className="relative cursor-pointer group"
+            onClick={() => setShowStravaModal(true)}
+          >
+            <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
+              <img 
+                src="/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png" 
+                alt="Strava" 
+                className="w-full h-full object-contain p-2"
+              />
+            </div>
+            {getConnectionStatus('strava') && (
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white">
+                <CheckCircle className="w-3 h-3 text-white" />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Connected Data Sources - Always Visible */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-bold text-gray-900">Connected Data Sources</h2>
+        {connections.length > 0 ? (
+          <div className="flex justify-center space-x-8">
             {connections.map((connection) => (
-              <Card key={connection.id} className="border-l-4 border-l-green-500">
-                <CardContent className="p-4">
-                      <div className="flex items-start space-x-3">
-                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-white">
-                          <img 
-                            src={connection.connection_type === 'apple_health' ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"} 
-                            alt={connection.connection_type} 
-                            className="w-full h-full object-contain p-1"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-semibold text-gray-900">{connection.connection_type === 'apple_health' ? 'Apple Health' : connection.connection_type === 'strava' ? 'Strava' : connection.connection_name}</h3>
-                        <div className="flex items-center space-x-2">
-                          <div className="text-right">
-                            <p className="text-sm font-medium text-green-600">
-                              Active Pipeline
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              Processing data automatically
-                            </p>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDisconnect(connection.id)}
-                            className="text-xs h-8"
-                          >
-                            Disconnect
-                          </Button>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-2">
-                        {connection.connection_type === 'apple_health' ? 'Health data from Apple Health' : connection.connection_type === 'strava' ? 'Activity data from Strava' : 'Connected data source'}
-                      </p>
-                      <div className="flex items-center space-x-4 text-xs text-gray-500">
-                        <span className="flex items-center space-x-1">
-                          <Shield className="w-3 h-3 text-green-600" />
-                          <span>Privacy Protected</span>
-                        </span>
-                        <span className="flex items-center space-x-1">
-                          <CheckCircle className="w-3 h-3 text-green-500" />
-                          <span>Active</span>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <div 
+                key={connection.id}
+                className="relative cursor-pointer group"
+                onClick={() => {
+                  if (connection.connection_type === 'apple_health') {
+                    setShowAppleHealthModal(true);
+                  } else if (connection.connection_type === 'strava') {
+                    setShowStravaModal(true);
+                  }
+                }}
+              >
+                <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border-2 border-green-500 transition-all group-hover:shadow-md group-hover:scale-105">
+                  <img 
+                    src={connection.connection_type === 'apple_health' ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"} 
+                    alt={connection.connection_type} 
+                    className="w-full h-full object-contain p-2"
+                  />
+                </div>
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white">
+                  <CheckCircle className="w-3 h-3 text-white" />
+                </div>
+              </div>
             ))}
           </div>
-        </div>
-      )}
-
-
-      {/* Available Data Sources */}
-      {connections.length === 0 && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold text-gray-900">Available Data Sources</h2>
-          <div className="flex justify-center space-x-8">
-            <div 
-              className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => setShowAppleHealthModal(true)}
-            >
-              <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border">
-                <img 
-                  src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" 
-                  alt="Apple Health" 
-                  className="w-full h-full object-contain p-2"
-                />
-              </div>
-              <span className="text-sm font-medium text-gray-700 mt-2">Apple Health</span>
-            </div>
-            
-            <div 
-              className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => setShowStravaModal(true)}
-            >
-              <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border">
-                <img 
-                  src="/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png" 
-                  alt="Strava" 
-                  className="w-full h-full object-contain p-2"
-                />
-              </div>
-              <span className="text-sm font-medium text-gray-700 mt-2">Strava</span>
-            </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <Activity className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">No data sources connected yet</p>
+            <p className="text-xs">Click on an available source above to connect</p>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
 
       <AppleHealthModal 
         isOpen={showAppleHealthModal}
         onClose={() => setShowAppleHealthModal(false)}
         onComplete={handleAppleHealthComplete}
+        existingConnection={getConnectionStatus('apple_health')}
+        onDisconnect={fetchConnections}
       />
 
       <StravaConnectionModal 
         isOpen={showStravaModal}
         onClose={() => setShowStravaModal(false)}
         onComplete={handleStravaComplete}
+        existingConnection={getConnectionStatus('strava')}
+        onDisconnect={fetchConnections}
       />
     </div>
   );

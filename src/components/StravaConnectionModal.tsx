@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,19 +8,53 @@ import {
   CheckCircle, 
   ExternalLink,
   Key,
-  AlertCircle
+  AlertCircle,
+  Zap
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface StravaConnectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onComplete: () => void;
+  existingConnection?: any;
+  onDisconnect?: () => void;
 }
 
-const StravaConnectionModal = ({ isOpen, onClose, onComplete }: StravaConnectionModalProps) => {
+const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, onDisconnect }: StravaConnectionModalProps) => {
   const [apiKey, setApiKey] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+      }
+    };
+    getUser();
+  }, []);
+
+  const handleDisconnect = async () => {
+    if (!currentUserId || !existingConnection) return;
+    
+    try {
+      const { error } = await supabase
+        .from('data_connections')
+        .update({ is_active: false })
+        .eq('id', existingConnection.id)
+        .eq('user_id', currentUserId);
+
+      if (!error) {
+        onDisconnect?.();
+        onClose();
+      }
+    } catch (error) {
+      console.error('Error disconnecting Strava:', error);
+    }
+  };
 
   const handleConnect = async () => {
     if (!apiKey.trim()) return;
@@ -68,86 +102,127 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete }: StravaConnection
             <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
               <Key className="w-5 h-5 text-white" />
             </div>
-            <span>Connect Strava API</span>
+            <span>{existingConnection ? 'Strava' : 'Connect Strava API'}</span>
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
-          <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
-            <div className="flex items-start space-x-2">
-              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
-              <div>
-                <p className="font-medium text-amber-900 mb-1">Enhanced Data Collection</p>
-                <p className="text-sm text-amber-800">
-                  Connecting Strava will provide additional activity data that complements 
-                  your Nike Run Club connection, increasing your earning potential.
-                </p>
+          {existingConnection ? (
+            <div className="space-y-4">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <Zap className="w-6 h-6 text-orange-600" />
+                </div>
+                <h3 className="font-medium text-orange-800">Strava Connected</h3>
+                <p className="text-sm text-gray-600">Your activity data is actively earning rewards</p>
+              </div>
+              
+              <div className="bg-orange-50 p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-orange-800">Active Pipeline</p>
+                    <p className="text-xs text-orange-600">Processing data automatically</p>
+                  </div>
+                  <div className="w-3 h-3 bg-orange-500 rounded-full animate-pulse"></div>
+                </div>
+              </div>
+              
+              <div className="flex space-x-3">
+                <Button 
+                  variant="outline" 
+                  className="flex-1" 
+                  onClick={onClose}
+                >
+                  Close
+                </Button>
+                <Button 
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={handleDisconnect}
+                >
+                  Disconnect
+                </Button>
               </div>
             </div>
-          </div>
-
-          <div>
-            <h4 className="font-medium text-gray-900 mb-2">Get your Strava API Key</h4>
-            <div className="space-y-2 text-sm text-gray-600">
-              <p>1. Go to Strava API settings</p>
-              <p>2. Create a new application</p>
-              <p>3. Copy your API key</p>
-              <p>4. Paste it below</p>
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="mt-2"
-              onClick={() => window.open('https://www.strava.com/settings/api', '_blank')}
-            >
-              <ExternalLink className="w-4 h-4 mr-2" />
-              Open Strava API
-            </Button>
-          </div>
-
-          <div>
-            <Label htmlFor="apiKey">Strava API Key</Label>
-            <Input
-              id="apiKey"
-              placeholder="Enter your Strava API key"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <h5 className="font-medium text-blue-900 mb-2">Data Usage</h5>
-            <p className="text-sm text-blue-700">
-              Your Strava data will be combined with Nike Run Club data to provide 
-              more comprehensive fitness insights while maintaining complete anonymity.
-            </p>
-          </div>
-
-          <div className="flex space-x-3">
-            <Button 
-              variant="outline" 
-              className="flex-1" 
-              onClick={onClose}
-              disabled={isConnecting}
-            >
-              Cancel
-            </Button>
-            <Button 
-              className="flex-1 bg-orange-500 hover:bg-orange-600" 
-              onClick={handleConnect}
-              disabled={!apiKey.trim() || isConnecting}
-            >
-              {isConnecting ? (
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Connecting...</span>
+          ) : (
+            <>
+              <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
+                <div className="flex items-start space-x-2">
+                  <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-amber-900 mb-1">Enhanced Data Collection</p>
+                    <p className="text-sm text-amber-800">
+                      Connecting Strava will provide additional activity data that complements 
+                      your Apple Health connection, increasing your earning potential.
+                    </p>
+                  </div>
                 </div>
-              ) : (
-                'Connect Strava'
-              )}
-            </Button>
-          </div>
+              </div>
+
+              <div>
+                <h4 className="font-medium text-gray-900 mb-2">Get your Strava API Key</h4>
+                <div className="space-y-2 text-sm text-gray-600">
+                  <p>1. Go to Strava API settings</p>
+                  <p>2. Create a new application</p>
+                  <p>3. Copy your API key</p>
+                  <p>4. Paste it below</p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-2"
+                  onClick={() => window.open('https://www.strava.com/settings/api', '_blank')}
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Open Strava API
+                </Button>
+              </div>
+
+              <div>
+                <Label htmlFor="apiKey">Strava API Key</Label>
+                <Input
+                  id="apiKey"
+                  placeholder="Enter your Strava API key"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h5 className="font-medium text-blue-900 mb-2">Data Usage</h5>
+                <p className="text-sm text-blue-700">
+                  Your Strava data will be combined with Apple Health data to provide 
+                  more comprehensive fitness insights while maintaining complete anonymity.
+                </p>
+              </div>
+
+              <div className="flex space-x-3">
+                <Button 
+                  variant="outline" 
+                  className="flex-1" 
+                  onClick={onClose}
+                  disabled={isConnecting}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  className="flex-1 bg-orange-500 hover:bg-orange-600" 
+                  onClick={handleConnect}
+                  disabled={!apiKey.trim() || isConnecting}
+                >
+                  {isConnecting ? (
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Connecting...</span>
+                    </div>
+                  ) : (
+                    'Connect Strava'
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>

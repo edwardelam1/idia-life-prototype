@@ -9,9 +9,11 @@ interface AppleHealthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onComplete: () => void;
+  existingConnection?: any;
+  onDisconnect?: () => void;
 }
 
-const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps) => {
+const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onDisconnect }: AppleHealthModalProps) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [healthData, setHealthData] = useState<any>(null);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
@@ -287,6 +289,25 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
     console.log('=== APPLE HEALTH MODAL: Data flow initiation complete ===');
   };
 
+  const handleDisconnect = async () => {
+    if (!currentUserId || !existingConnection) return;
+    
+    try {
+      const { error } = await supabase
+        .from('data_connections')
+        .update({ is_active: false })
+        .eq('id', existingConnection.id)
+        .eq('user_id', currentUserId);
+
+      if (!error) {
+        onDisconnect?.();
+        onClose();
+      }
+    } catch (error) {
+      console.error('Error disconnecting Apple Health:', error);
+    }
+  };
+
   const handleConnect = async () => {
     console.log('=== HANDLECONNECT START ===');
     console.log('handleConnect called, currentUserId:', currentUserId);
@@ -392,7 +413,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
               alt="Apple Health" 
               className="w-6 h-6"
             />
-            <span>Connect Apple Health</span>
+            <span>{existingConnection ? 'Apple Health' : 'Connect Apple Health'}</span>
           </DialogTitle>
         </DialogHeader>
         
@@ -403,7 +424,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
             </div>
           )}
           
-          {connectionStatus === 'idle' && (
+          {connectionStatus === 'idle' && !existingConnection && (
             <>
               <p className="text-sm text-gray-600">
                 Connect your Apple Health data to earn rewards for your fitness activities and health metrics.
@@ -428,6 +449,45 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete }: AppleHealthModalProps
                 {isConnecting ? 'Connecting...' : 'Connect Apple Health'}
               </Button>
             </>
+          )}
+
+          {existingConnection && connectionStatus === 'idle' && (
+            <div className="space-y-4">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <Zap className="w-6 h-6 text-green-600" />
+                </div>
+                <h3 className="font-medium text-green-800">Apple Health Connected</h3>
+                <p className="text-sm text-gray-600">Your health data is actively earning rewards</p>
+              </div>
+              
+              <div className="bg-green-50 p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-green-800">Active Pipeline</p>
+                    <p className="text-xs text-green-600">Processing data automatically</p>
+                  </div>
+                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                </div>
+              </div>
+              
+              <div className="flex space-x-3">
+                <Button 
+                  variant="outline" 
+                  className="flex-1" 
+                  onClick={onClose}
+                >
+                  Close
+                </Button>
+                <Button 
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={handleDisconnect}
+                >
+                  Disconnect
+                </Button>
+              </div>
+            </div>
           )}
           
           {connectionStatus === 'error' && (
