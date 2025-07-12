@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import youthImage from '@/assets/youth-enjoying-tech.jpg';
 
 interface SplashScreenProps {
   onSignUp: () => void;
@@ -70,7 +71,13 @@ const SplashScreen = ({ onSignUp, onLogin }: SplashScreenProps) => {
                 <div className="absolute top-1/2 left-1/4 w-16 h-16 rounded-full bg-white/15 blur-md"></div>
               </div>
 
-              <div className="relative z-10 max-w-sm mx-auto mt-20">
+              {/* Youth Image Background */}
+              <div 
+                className="absolute bottom-0 left-0 right-0 h-1/2 bg-cover bg-center opacity-30"
+                style={{ backgroundImage: `url(${youthImage})` }}
+              />
+              
+              <div className="relative z-10 max-w-sm mx-auto mt-32">
                 <h1 className="text-4xl font-bold mb-6 leading-tight">
                   {slide.title}
                 </h1>
