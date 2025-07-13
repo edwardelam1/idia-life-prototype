@@ -345,6 +345,53 @@ export type Database = {
           },
         ]
       }
+      remediation_plans: {
+        Row: {
+          actions: Json
+          agent_name: string
+          created_at: string
+          explanation: string
+          id: string
+          security_event_id: string | null
+          severity: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          actions?: Json
+          agent_name: string
+          created_at?: string
+          explanation: string
+          id?: string
+          security_event_id?: string | null
+          severity?: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          actions?: Json
+          agent_name?: string
+          created_at?: string
+          explanation?: string
+          id?: string
+          security_event_id?: string | null
+          severity?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remediation_plans_security_event_id_fkey"
+            columns: ["security_event_id"]
+            isOneToOne: false
+            referencedRelation: "security_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       security_events: {
         Row: {
           action_type: string
@@ -854,9 +901,28 @@ export type Database = {
         }
         Returns: number
       }
+      check_pipeline_health: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          total_raw_data: number
+          unprocessed_raw_data: number
+          processing_raw_data: number
+          processed_raw_data: number
+          total_staged_data: number
+          unrewarded_staged_data: number
+          total_transactions: number
+        }[]
+      }
       generate_pseudonym: {
         Args: { input_text: string }
         Returns: string
+      }
+      process_backlog_data: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          processed_count: number
+          error_count: number
+        }[]
       }
     }
     Enums: {

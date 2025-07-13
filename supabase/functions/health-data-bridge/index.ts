@@ -109,26 +109,43 @@ serve(async (req) => {
     console.log('Health-Data-Bridge: Inserted record ID:', rawHealthData.id);
     console.log('Health-Data-Bridge: Inserted record data:', JSON.stringify(rawHealthData, null, 2));
     
-    // Process the data immediately instead of relying on database triggers
+    // Add fallback processing to ensure data gets processed even if triggers fail
     try {
-      console.log('Health-Data-Bridge: Processing health data directly...');
+      console.log('Health-Data-Bridge: Initiating fallback processing...');
       
-      // Call IDIA-Synapse orchestrator directly
-      const { data: processResult, error: processError } = await supabase.functions.invoke('idia-synapse', {
-        body: {
-          raw_data_id: rawHealthData.id,
-          orchestration_mode: true
+      // Small delay to let any triggers fire first
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Check if data is already being processed by trigger
+      const { data: currentData, error: checkError } = await supabase
+        .from('raw_health_data')
+        .select('processed, processing_started_at')
+        .eq('id', rawHealthData.id)
+        .single();
+      
+      if (checkError) {
+        console.error('Health-Data-Bridge: Error checking processing status:', checkError);
+      } else if (!currentData.processed && !currentData.processing_started_at) {
+        console.log('Health-Data-Bridge: Data not yet processed by trigger, calling IDIA-Synapse directly...');
+        
+        // Call IDIA-Synapse orchestrator directly as fallback
+        const { data: processResult, error: processError } = await supabase.functions.invoke('idia-synapse', {
+          body: {
+            raw_data_id: rawHealthData.id,
+            orchestration_mode: true
+          }
+        });
+        
+        if (processError) {
+          console.error('Health-Data-Bridge: Error in fallback processing:', processError);
+        } else {
+          console.log('Health-Data-Bridge: Fallback processing initiated successfully');
         }
-      });
-      
-      if (processError) {
-        console.error('Health-Data-Bridge: Error processing health data:', processError);
-        // Don't fail the main request if processing fails
       } else {
-        console.log('Health-Data-Bridge: Health data processing initiated successfully');
+        console.log('Health-Data-Bridge: Data already being processed by trigger, skipping fallback');
       }
     } catch (processingError) {
-      console.error('Health-Data-Bridge: Exception during health data processing:', processingError);
+      console.error('Health-Data-Bridge: Exception during fallback processing:', processingError);
       // Continue even if processing fails - data is still ingested
     }
 
