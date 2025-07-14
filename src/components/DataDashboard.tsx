@@ -126,6 +126,23 @@ const DataDashboard = () => {
     }));
   };
 
+  const processStuckData = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('pipeline-recovery', {
+        body: { force_reset: true }
+      });
+      
+      if (error) {
+        console.error('Recovery failed:', error);
+      } else {
+        console.log('Recovery completed:', data);
+        await fetchConnections(); // Refresh the dashboard
+      }
+    } catch (error) {
+      console.error('Recovery error:', error);
+    }
+  };
+
 
 
   const handleAppleHealthComplete = async () => {
@@ -272,7 +289,20 @@ const DataDashboard = () => {
 
       {/* Connected Data Sources - Always Visible */}
       <div className="space-y-4">
-        <h2 className="text-xl font-bold text-gray-900">Connected Data Sources</h2>
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl font-bold text-gray-900">Connected Data Sources</h2>
+          {connections.length > 0 && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={processStuckData}
+              className="text-xs"
+            >
+              <Shield className="w-3 h-3 mr-1" />
+              Recovery
+            </Button>
+          )}
+        </div>
         {connections.length > 0 ? (
           <div className="flex justify-center space-x-8">
             {connections.map((connection) => (

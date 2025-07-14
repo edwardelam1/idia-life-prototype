@@ -908,6 +908,13 @@ export type Database = {
           error_count: number
         }[]
       }
+      process_stuck_raw_data: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          processed_count: number
+          error_count: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
