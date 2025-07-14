@@ -157,30 +157,6 @@ export type Database = {
         }
         Relationships: []
       }
-      health_metrics: {
-        Row: {
-          created_at: string | null
-          id: number
-          recorded_at: string | null
-          step_count: number | null
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          id?: never
-          recorded_at?: string | null
-          step_count?: number | null
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: never
-          recorded_at?: string | null
-          step_count?: number | null
-          user_id?: string | null
-        }
-        Relationships: []
-      }
       marketplace_bundles: {
         Row: {
           bundle_id: string
@@ -912,6 +888,14 @@ export type Database = {
           unrewarded_staged_data: number
           total_transactions: number
         }[]
+      }
+      check_raw_health_data_duplicate: {
+        Args: { p_step_count: number; p_recorded_at: string; p_user_id: string }
+        Returns: boolean
+      }
+      cleanup_orphaned_queue_items: {
+        Args: Record<PropertyKey, never>
+        Returns: number
       }
       generate_pseudonym: {
         Args: { input_text: string }
