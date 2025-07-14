@@ -49,6 +49,15 @@ const DataDashboard = () => {
     if (!currentUserId) return;
     
     try {
+      // Check pipeline health first
+      const { data: pipelineHealth, error: healthError } = await supabase.functions.invoke(
+        'pipeline-diagnostics'
+      );
+
+      if (healthError) {
+        console.error('Pipeline health check failed:', healthError);
+      }
+      
       // Fetch real connections from database
       const { data: connectionsData, error: connectionsError } = await supabase
         .from('data_connections')

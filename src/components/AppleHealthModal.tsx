@@ -67,9 +67,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         if (!currentUserId) return;
         
         try {
-          // Get latest health metrics
+          // Get latest raw health data
           const { data: healthMetrics, error: healthError } = await supabase
-            .from('health_metrics')
+            .from('raw_health_data')
             .select('*')
             .eq('user_id', currentUserId)
             .order('recorded_at', { ascending: false })
@@ -151,9 +151,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           return;
         }
         try {
-          // Get latest health metrics
+          // Get latest raw health data
           const { data: healthMetrics, error: healthError } = await supabase
-            .from('health_metrics')
+            .from('raw_health_data')
             .select('*')
             .eq('user_id', currentUserId)
             .order('recorded_at', { ascending: false })
