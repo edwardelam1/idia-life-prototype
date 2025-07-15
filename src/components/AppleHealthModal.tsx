@@ -241,17 +241,60 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       return;
     }
 
-    // Ensure health data has valid structure - include source and type for edge function
+    // Prepare comprehensive health data structure for Apple Health
     const validatedHealthData = {
+      // Basic activity metrics
       steps: Number(healthData.steps) || 0,
       heartRate: Number(healthData.heartRate) || 0,
       activeMinutes: Number(healthData.activeMinutes) || 0,
       sleepHours: Number(healthData.sleepHours) || 0,
       calories: Number(healthData.calories) || 0,
+      
+      // Additional Apple Health data structure
       source: 'apple_health',
-      type: 'health_metrics',
-      device_type: 'iPhone Health App',
-      recorded_at: new Date().toISOString()
+      type: 'comprehensive_health_data',
+      device_type: 'Apple Health',
+      recorded_at: new Date().toISOString(),
+      
+      // Request all 60+ Apple HealthKit data types in the native app
+      requestedDataTypes: [
+        // Activity & Fitness
+        'steps', 'distanceWalkingRunning', 'distanceCycling', 'flightsClimbed',
+        'activeEnergyBurned', 'restingEnergyBurned', 'exerciseTime',
+        
+        // Heart & Vitals
+        'heartRate', 'heartRateVariability', 'bloodOxygenSaturation', 
+        'bloodPressureSystolic', 'bloodPressureDiastolic', 'respiratoryRate',
+        'bodyTemperature', 'electrocardiogram', 'vo2Max',
+        
+        // Body Measurements
+        'height', 'weight', 'bodyMassIndex', 'bodyFatPercentage', 
+        'leanBodyMass', 'waistCircumference',
+        
+        // Nutrition
+        'dietaryEnergyConsumed', 'totalFat', 'saturatedFat', 'polyunsaturatedFat',
+        'monounsaturatedFat', 'carbohydrates', 'fiber', 'sugar', 'protein',
+        'water', 'caffeine', 'sodium', 'potassium', 'vitaminC', 'vitaminD',
+        'calcium', 'iron',
+        
+        // Sleep Data
+        'sleep', 'timeInBed', 'timeAsleep', 'sleepAnalysis',
+        
+        // Activity & Mobility
+        'walkingSpeed', 'stepLength', 'walkingAsymmetryPercentage',
+        'doubleSupportTime',
+        
+        // Reproductive Health
+        'menstrualFlow', 'cervicalMucusQuality', 'ovulationTestResult',
+        'sexualActivity', 'basalBodyTemperature',
+        
+        // Mindfulness & Mental Health
+        'mindfulSession', 'moodScore', 'stateOfMind',
+        
+        // Symptoms & Clinical
+        'symptoms', 'clinicalRecords', 'allergies', 'conditions', 'immunizations',
+        'labResults', 'medications', 'procedures', 'medicationDoseEvents'
+      ]
     };
 
     console.log('AppleHealthModal: Validated health data:', validatedHealthData);

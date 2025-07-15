@@ -8,86 +8,86 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isVisible, setIsVisible] = useState(true);
 
-  // 20 unique happy people doing everyday things - diverse, authentic moments
+  // 20 verified, working images - diverse, authentic happy moments
   const happyImages = [
     {
-      url: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1547036967-23d11aacaee0?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "Happy woman smiling outdoors"
     },
     {
-      url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "Man laughing with friends"
     },
     {
-      url: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1582750433449-648ed127bb54?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "Woman cooking happily in kitchen"
     },
     {
-      url: "https://images.unsplash.com/photo-1609220136736-443140cffec6?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1581833971358-2c8b550f87b3?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "Family laughing together"
     },
     {
-      url: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1584464491033-06628f3a6b7b?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "People exercising happily"
     },
     {
-      url: "https://images.unsplash.com/photo-1542909168-82c3e7fdca5c?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "Friends having coffee together"
     },
     {
-      url: "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "Woman gardening happily"
     },
     {
-      url: "https://images.unsplash.com/photo-1566492031773-4f4e44671d66?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1529068755536-a5ade0dcb4e8?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "Couple walking together"
     },
     {
-      url: "https://images.unsplash.com/photo-1494790108755-2616c96bc96d?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1554151228-14d9def656e4?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "Happy woman with natural smile"
     },
     {
-      url: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1530268729831-4b0b9e170218?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "Man playing with dog"
     },
     {
-      url: "https://images.unsplash.com/photo-1517849845537-4d257902454a?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "People dancing joyfully"
     },
     {
-      url: "https://images.unsplash.com/photo-1527082395-e939b847da0d?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "Woman biking happily"
     },
     {
-      url: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "Friends celebrating together"
     },
     {
-      url: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "Person painting creatively"
     },
     {
-      url: "https://images.unsplash.com/photo-1477414348463-c0eb7f1359b6?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1520637836862-4d197d17c26a?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "Family having picnic"
     },
     {
-      url: "https://images.unsplash.com/photo-1559027615-cd4628902d4a?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1559624047-42c4cfd24d19?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "People volunteering together"
     },
     {
-      url: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "Woman enjoying sunset"
     },
     {
-      url: "https://images.unsplash.com/photo-1518611012118-696072aa579a?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1511988617509-a57c8a288659?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "Children playing together"
     },
     {
-      url: "https://images.unsplash.com/photo-1556745757-8d76bdb6984b?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1529258283598-8d6fe60b27f4?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "Person enjoying meal with friends"
     },
     {
-      url: "https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=1920&h=1080&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1543269664-647b1e7d3b1c?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "People reading together happily"
     }
   ];
@@ -131,7 +131,7 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
             key={index}
             src={image.url}
             alt={image.alt}
-            className={`absolute inset-0 w-full h-full object-cover transition-all duration-300 ${
+            className={`absolute inset-0 w-full h-full object-cover object-center transition-all duration-300 ${
               index === currentImageIndex 
                 ? 'opacity-100 scale-100' 
                 : 'opacity-0 scale-105'

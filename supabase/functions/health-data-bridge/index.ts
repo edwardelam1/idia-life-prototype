@@ -128,13 +128,39 @@ serve(async (req) => {
       } else if (!currentData.processed && !currentData.processing_started_at) {
         console.log('Health-Data-Bridge: Data not yet processed by trigger, calling IDIA-Synapse directly...');
         
-        // Call IDIA-Synapse orchestrator directly as fallback
-        const { data: processResult, error: processError } = await supabase.functions.invoke('idia-synapse', {
-          body: {
-            raw_data_id: rawHealthData.id,
-            orchestration_mode: true
+        // Check if this is Apple Health data and use specialized processor
+        const isAppleHealthData = insertData.device_type === 'apple_health' || 
+                                 insertData.device_type === 'Apple Health' ||
+                                 (health_data.source && health_data.source === 'apple_health');
+        
+        if (isAppleHealthData) {
+          console.log('Health-Data-Bridge: Detected Apple Health data, using comprehensive processor...');
+          const { data: processResult, error: processError } = await supabase.functions.invoke('comprehensive-apple-health-processor', {
+            body: {
+              raw_data_id: rawHealthData.id
+            }
+          });
+          
+          if (processError) {
+            console.error('Health-Data-Bridge: Error in Apple Health processing:', processError);
+          } else {
+            console.log('Health-Data-Bridge: Apple Health processing initiated successfully');
           }
-        });
+        } else {
+          // Call IDIA-Synapse orchestrator for other data types
+          const { data: processResult, error: processError } = await supabase.functions.invoke('idia-synapse', {
+            body: {
+              raw_data_id: rawHealthData.id,
+              orchestration_mode: true
+            }
+          });
+          
+          if (processError) {
+            console.error('Health-Data-Bridge: Error in fallback processing:', processError);
+          } else {
+            console.log('Health-Data-Bridge: Fallback processing initiated successfully');
+          }
+        }
         
         if (processError) {
           console.error('Health-Data-Bridge: Error in fallback processing:', processError);
