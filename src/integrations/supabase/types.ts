@@ -295,13 +295,16 @@ export type Database = {
           age: number | null
           bio: string | null
           created_at: string | null
-          full_name: string | null
+          first_name: string | null
           gender: string | null
           health_goals: string[] | null
           id: string
           interests: string[] | null
+          last_name: string | null
           location: string | null
+          middle_name: string | null
           occupation: string | null
+          suffix: string | null
           updated_at: string | null
           user_id: string
         }
@@ -310,13 +313,16 @@ export type Database = {
           age?: number | null
           bio?: string | null
           created_at?: string | null
-          full_name?: string | null
+          first_name?: string | null
           gender?: string | null
           health_goals?: string[] | null
           id?: string
           interests?: string[] | null
+          last_name?: string | null
           location?: string | null
+          middle_name?: string | null
           occupation?: string | null
+          suffix?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -325,13 +331,16 @@ export type Database = {
           age?: number | null
           bio?: string | null
           created_at?: string | null
-          full_name?: string | null
+          first_name?: string | null
           gender?: string | null
           health_goals?: string[] | null
           id?: string
           interests?: string[] | null
+          last_name?: string | null
           location?: string | null
+          middle_name?: string | null
           occupation?: string | null
+          suffix?: string | null
           updated_at?: string | null
           user_id?: string
         }

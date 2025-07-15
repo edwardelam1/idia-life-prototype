@@ -33,7 +33,7 @@ export const useTheme = () => {
 
       const { data: preferences } = await supabase
         .from('user_preferences')
-        .select('theme_preference, colorblind_mode')
+        .select('theme_preference, colorblind_mode, high_contrast, font_size')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -47,6 +47,9 @@ export const useTheme = () => {
           applyAccessibilityMode(newAccessibilityMode);
           localStorage.setItem('accessibility-mode', newAccessibilityMode);
         }
+        // Apply high contrast and font size
+        applyHighContrast(preferences.high_contrast || false);
+        applyFontSize((preferences.font_size as 'small' | 'medium' | 'large') || 'medium');
       }
     };
 
@@ -59,6 +62,21 @@ export const useTheme = () => {
     if (mode === 'colorblind') {
       root.classList.add('colorblind');
     }
+  };
+
+  const applyHighContrast = (enabled: boolean) => {
+    const root = document.documentElement;
+    if (enabled) {
+      root.classList.add('high-contrast');
+    } else {
+      root.classList.remove('high-contrast');
+    }
+  };
+
+  const applyFontSize = (size: 'small' | 'medium' | 'large') => {
+    const root = document.documentElement;
+    root.classList.remove('font-size-small', 'font-size-medium', 'font-size-large');
+    root.classList.add(`font-size-${size}`);
   };
 
   const updateTheme = async (newTheme: Theme) => {

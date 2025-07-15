@@ -180,4 +180,29 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Font size variants */
+  .font-size-small {
+    font-size: 0.875rem;
+  }
+
+  .font-size-medium {
+    font-size: 1rem;
+  }
+
+  .font-size-large {
+    font-size: 1.125rem;
+  }
+
+  /* High contrast mode */
+  .high-contrast {
+    --border: 0 0% 50%;
+    --input: 0 0% 90%;
+    filter: contrast(1.5);
+  }
+
+  .high-contrast.dark {
+    --border: 0 0% 70%;
+    --input: 0 0% 20%;
+  }
 }

@@ -25,14 +25,32 @@ export default function Settings() {
     }
   }, [searchParams]);
 
-  // Get current user
+  // Get current user and handle authentication
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
+      
+      // Redirect if not authenticated
+      if (!user) {
+        navigate('/auth');
+        return;
+      }
     };
     getUser();
-  }, []);
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUser(session?.user || null);
+        if (!session?.user) {
+          navigate('/auth');
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-background">

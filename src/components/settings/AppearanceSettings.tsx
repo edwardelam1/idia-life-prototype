@@ -34,29 +34,39 @@ export function AppearanceSettings() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-4">
-            <Button
-              variant={theme === 'light' ? 'default' : 'outline'}
+            <div 
               onClick={() => theme !== 'light' && toggleTheme()}
-              className="flex items-center gap-2 h-auto py-4"
+              className={`cursor-pointer p-4 rounded-lg border-2 transition-all ${
+                theme === 'light' 
+                  ? 'border-primary bg-primary/5' 
+                  : 'border-border hover:border-primary/50'
+              }`}
             >
-              <Sun className="w-5 h-5" />
-              <div className="text-left">
-                <div className="font-medium">Light</div>
-                <div className="text-sm text-muted-foreground">Bright and clean</div>
+              <div className="flex items-center gap-3">
+                <Sun className="w-5 h-5" />
+                <div>
+                  <div className="font-medium">Light</div>
+                  <div className="text-sm text-muted-foreground">Bright and clean</div>
+                </div>
               </div>
-            </Button>
+            </div>
             
-            <Button
-              variant={theme === 'dark' ? 'default' : 'outline'}
+            <div 
               onClick={() => theme !== 'dark' && toggleTheme()}
-              className="flex items-center gap-2 h-auto py-4"
+              className={`cursor-pointer p-4 rounded-lg border-2 transition-all ${
+                theme === 'dark' 
+                  ? 'border-primary bg-primary/5' 
+                  : 'border-border hover:border-primary/50'
+              }`}
             >
-              <Moon className="w-5 h-5" />
-              <div className="text-left">
-                <div className="font-medium">Dark</div>
-                <div className="text-sm text-muted-foreground">Easy on the eyes</div>
+              <div className="flex items-center gap-3">
+                <Moon className="w-5 h-5" />
+                <div>
+                  <div className="font-medium">Dark</div>
+                  <div className="text-sm text-muted-foreground">Easy on the eyes</div>
+                </div>
               </div>
-            </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -117,7 +127,7 @@ export function AppearanceSettings() {
             </div>
             <Select
               value={preferences?.font_size || 'medium'}
-              onValueChange={handleFontSizeChange}
+              onValueChange={(value: 'small' | 'medium' | 'large') => handleFontSizeChange(value)}
             >
               <SelectTrigger className="w-48">
                 <SelectValue />

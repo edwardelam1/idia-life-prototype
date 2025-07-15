@@ -12,7 +12,10 @@ import { X, Plus } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
 
 const profileSchema = z.object({
-  full_name: z.string().min(2, 'Name must be at least 2 characters'),
+  first_name: z.string().min(2, 'First name must be at least 2 characters'),
+  last_name: z.string().min(2, 'Last name must be at least 2 characters'),
+  middle_name: z.string().optional(),
+  suffix: z.string().optional(),
   age: z.number().min(13, 'Must be at least 13 years old').max(120, 'Invalid age').optional(),
   gender: z.string().optional(),
   location: z.string().optional(),
@@ -64,7 +67,10 @@ export function ProfileSettings() {
 
   useEffect(() => {
     if (profile) {
-      setValue('full_name', profile.full_name || '');
+      setValue('first_name', profile.first_name || '');
+      setValue('last_name', profile.last_name || '');
+      setValue('middle_name', profile.middle_name || '');
+      setValue('suffix', profile.suffix || '');
       setValue('age', profile.age || undefined);
       setValue('gender', profile.gender || '');
       setValue('location', profile.location || '');
@@ -109,15 +115,47 @@ export function ProfileSettings() {
       {/* Basic Information */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="full_name">Full Name</Label>
+          <Label htmlFor="first_name">First Name</Label>
           <Input
-            id="full_name"
-            {...register('full_name')}
+            id="first_name"
+            {...register('first_name')}
             className="w-full"
           />
-          {errors.full_name && (
-            <p className="text-sm text-destructive">{errors.full_name.message}</p>
+          {errors.first_name && (
+            <p className="text-sm text-destructive">{errors.first_name.message}</p>
           )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="last_name">Last Name</Label>
+          <Input
+            id="last_name"
+            {...register('last_name')}
+            className="w-full"
+          />
+          {errors.last_name && (
+            <p className="text-sm text-destructive">{errors.last_name.message}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="middle_name">Middle Name</Label>
+          <Input
+            id="middle_name"
+            {...register('middle_name')}
+            className="w-full"
+            placeholder="Optional"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="suffix">Suffix</Label>
+          <Input
+            id="suffix"
+            {...register('suffix')}
+            className="w-full"
+            placeholder="Jr., Sr., III, etc."
+          />
         </div>
 
         <div className="space-y-2">

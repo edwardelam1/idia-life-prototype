@@ -5,7 +5,10 @@ import { useToast } from '@/hooks/use-toast';
 export interface Profile {
   id: string;
   user_id: string;
-  full_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  middle_name: string | null;
+  suffix: string | null;
   age: number | null;
   gender: string | null;
   location: string | null;
