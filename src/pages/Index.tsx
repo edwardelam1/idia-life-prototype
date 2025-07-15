@@ -2,12 +2,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import SplashScreen from '@/components/SplashScreen';
+import FlashingSplashScreen from '@/components/FlashingSplashScreen';
+import LandingScreen from '@/components/LandingScreen';
 import MainApp from '@/components/MainApp';
 
 const Index = () => {
   const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [showFlashingSplash, setShowFlashingSplash] = useState(true);
 
   useEffect(() => {
     // Check authentication status
@@ -30,8 +32,8 @@ const Index = () => {
     navigate('/auth');
   };
 
-  const handleLogin = () => {
-    navigate('/auth');
+  const handleFlashingSplashComplete = () => {
+    setShowFlashingSplash(false);
   };
 
   // Show loading state while checking authentication
@@ -47,7 +49,10 @@ const Index = () => {
   }
 
   if (!isAuthenticated) {
-    return <SplashScreen onSignUp={handleSignUp} onLogin={handleLogin} />;
+    if (showFlashingSplash) {
+      return <FlashingSplashScreen onComplete={handleFlashingSplashComplete} />;
+    }
+    return <LandingScreen onSignUp={handleSignUp} />;
   }
 
   return <MainApp />;

@@ -3,12 +3,11 @@ import { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-interface SplashScreenProps {
+interface LandingScreenProps {
   onSignUp: () => void;
-  onLogin: () => void;
 }
 
-const SplashScreen = ({ onSignUp, onLogin }: SplashScreenProps) => {
+const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const slides = [
@@ -113,23 +112,16 @@ const SplashScreen = ({ onSignUp, onLogin }: SplashScreenProps) => {
       </div>
 
       {/* Action Buttons */}
-      <div className="px-8 pb-8 space-y-4 z-20">
+      <div className="px-8 pb-8 z-20">
         <Button 
           onClick={onSignUp}
           className="w-full py-4 text-lg font-semibold bg-white text-teal-700 hover:bg-gray-100 rounded-xl shadow-lg"
         >
           Get Started
         </Button>
-        <Button 
-          onClick={onLogin}
-          variant="outline"
-          className="w-full py-4 text-lg font-semibold border-2 border-white/30 text-white hover:bg-white/10 rounded-xl"
-        >
-          Sign In
-        </Button>
       </div>
     </div>
   );
 };
 
-export default SplashScreen;
+export default LandingScreen;
