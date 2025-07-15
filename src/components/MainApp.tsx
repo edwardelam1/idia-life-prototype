@@ -77,15 +77,19 @@ const MainApp = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
-      <Header />
+    <div className="h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex flex-col">
+      {/* Fixed Header */}
+      <div className="sticky top-0 z-40 bg-white shadow-sm">
+        <Header />
+      </div>
       
-      <main className="pb-20">
+      {/* Scrollable Main Content */}
+      <main className="flex-1 overflow-y-auto">
         <ActiveComponent />
       </main>
 
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg">
+      {/* Fixed Bottom Navigation */}
+      <div className="sticky bottom-0 z-40 bg-white border-t border-gray-200 shadow-lg">
         <div className="flex justify-around py-2">
           {tabs.map((tab) => {
             const Icon = tab.icon;
