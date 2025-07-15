@@ -48,19 +48,119 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     const webkit = (window as any).webkit;
     if (webkit && webkit.messageHandlers && webkit.messageHandlers.syncHealthData) {
       
-      console.log("Sending 'syncHealthData' message to the native iOS app.");
+      console.log("Sending comprehensive HealthKit data sync request to native iOS app...");
       
-        // Send configuration to native iOS app for health data ingestion
-        const ingestorConfig = {
+      // Send comprehensive HealthKit data request to native iOS app
+      const comprehensiveHealthRequest = {
+        action: "comprehensive_health_sync",
+        config: {
           endpoint: 'https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/health-data-bridge',
           user_id: currentUserId,
-          auth_token: authSession?.access_token // Get proper auth token from session
-        };
+          auth_token: authSession?.access_token
+        },
+        // Request ALL HealthKit data categories
+        requestedDataTypes: {
+          // HKQuantityType - Activity & Fitness
+          activity: [
+            'HKQuantityTypeIdentifierStepCount',
+            'HKQuantityTypeIdentifierDistanceWalkingRunning',
+            'HKQuantityTypeIdentifierDistanceCycling',
+            'HKQuantityTypeIdentifierFlightsClimbed',
+            'HKQuantityTypeIdentifierActiveEnergyBurned',
+            'HKQuantityTypeIdentifierBasalEnergyBurned',
+            'HKQuantityTypeIdentifierAppleExerciseTime',
+            'HKQuantityTypeIdentifierWalkingSpeed',
+            'HKQuantityTypeIdentifierStepLength',
+            'HKQuantityTypeIdentifierWalkingAsymmetryPercentage',
+            'HKQuantityTypeIdentifierDoubleSupportPercentage'
+          ],
+          
+          // HKQuantityType - Heart & Vitals
+          vitals: [
+            'HKQuantityTypeIdentifierHeartRate',
+            'HKQuantityTypeIdentifierRestingHeartRate',
+            'HKQuantityTypeIdentifierHeartRateVariabilitySDNN',
+            'HKQuantityTypeIdentifierOxygenSaturation',
+            'HKQuantityTypeIdentifierBloodPressureSystolic',
+            'HKQuantityTypeIdentifierBloodPressureDiastolic',
+            'HKQuantityTypeIdentifierRespiratoryRate',
+            'HKQuantityTypeIdentifierBodyTemperature',
+            'HKQuantityTypeIdentifierVO2Max'
+          ],
+          
+          // HKQuantityType - Body Measurements
+          body: [
+            'HKQuantityTypeIdentifierHeight',
+            'HKQuantityTypeIdentifierBodyMass',
+            'HKQuantityTypeIdentifierBodyMassIndex',
+            'HKQuantityTypeIdentifierBodyFatPercentage',
+            'HKQuantityTypeIdentifierLeanBodyMass',
+            'HKQuantityTypeIdentifierWaistCircumference'
+          ],
+          
+          // HKQuantityType - Nutrition
+          nutrition: [
+            'HKQuantityTypeIdentifierDietaryEnergyConsumed',
+            'HKQuantityTypeIdentifierDietaryFatTotal',
+            'HKQuantityTypeIdentifierDietaryFatSaturated',
+            'HKQuantityTypeIdentifierDietaryFatPolyunsaturated',
+            'HKQuantityTypeIdentifierDietaryFatMonounsaturated',
+            'HKQuantityTypeIdentifierDietaryCarbohydrates',
+            'HKQuantityTypeIdentifierDietaryFiber',
+            'HKQuantityTypeIdentifierDietarySugar',
+            'HKQuantityTypeIdentifierDietaryProtein',
+            'HKQuantityTypeIdentifierDietaryWater',
+            'HKQuantityTypeIdentifierDietaryCaffeine',
+            'HKQuantityTypeIdentifierDietarySodium',
+            'HKQuantityTypeIdentifierDietaryPotassium',
+            'HKQuantityTypeIdentifierDietaryVitaminC',
+            'HKQuantityTypeIdentifierDietaryVitaminD',
+            'HKQuantityTypeIdentifierDietaryCalcium',
+            'HKQuantityTypeIdentifierDietaryIron'
+          ],
+          
+          // HKCategoryType - Sleep
+          sleep: [
+            'HKCategoryTypeIdentifierSleepAnalysis'
+          ],
+          
+          // HKCategoryType - Reproductive Health
+          reproductive: [
+            'HKCategoryTypeIdentifierMenstrualFlow',
+            'HKCategoryTypeIdentifierCervicalMucusQuality',
+            'HKCategoryTypeIdentifierOvulationTestResult',
+            'HKCategoryTypeIdentifierSexualActivity'
+          ],
+          
+          // HKQuantityType - Reproductive Health Vitals
+          reproductiveVitals: [
+            'HKQuantityTypeIdentifierBasalBodyTemperature'
+          ],
+          
+          // HKCategoryType - Mindfulness
+          mindfulness: [
+            'HKCategoryTypeIdentifierMindfulSession'
+          ],
+          
+          // HKWorkoutType - Workouts
+          workouts: [
+            'HKWorkoutTypeIdentifier'
+          ],
+          
+          // HKClinicalType - Clinical Records
+          clinical: [
+            'HKClinicalTypeIdentifierAllergyRecord',
+            'HKClinicalTypeIdentifierConditionRecord',
+            'HKClinicalTypeIdentifierImmunizationRecord',
+            'HKClinicalTypeIdentifierLabResultRecord',
+            'HKClinicalTypeIdentifierMedicationRecord',
+            'HKClinicalTypeIdentifierProcedureRecord',
+            'HKClinicalTypeIdentifierVitalSignRecord'
+          ]
+        }
+      };
       
-      webkit.messageHandlers.syncHealthData.postMessage({
-        action: "start_sync",
-        config: ingestorConfig
-      });
+      webkit.messageHandlers.syncHealthData.postMessage(comprehensiveHealthRequest);
       
       // Fetch real health data from Supabase
       setTimeout(async () => {
@@ -86,15 +186,55 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
           console.log('Health data fetched:', { healthMetrics, stagedHealth });
 
-          const realHealthData = {
-            steps: healthMetrics?.step_count || 0,
-            heartRate: 0,
-            activeMinutes: 0,
-            sleepHours: '0',
-            calories: 0
+          // Extract comprehensive health data from staged_health_data if available
+          const comprehensiveHealthData = {
+            // Basic activity metrics
+            steps: healthMetrics?.step_count || stagedHealth?.steps_count || 0,
+            heartRate: stagedHealth?.average_heartrate || 0,
+            activeMinutes: Math.floor((stagedHealth?.duration_seconds || 0) / 60),
+            sleepHours: stagedHealth?.time_asleep_minutes ? (stagedHealth.time_asleep_minutes / 60).toFixed(1) : '0',
+            calories: stagedHealth?.calories_burned || 0,
+            
+            // Advanced vitals
+            heartRateVariability: stagedHealth?.heart_rate_variability_ms || null,
+            bloodOxygen: stagedHealth?.blood_oxygen_saturation || null,
+            bloodPressure: {
+              systolic: stagedHealth?.systolic_blood_pressure || null,
+              diastolic: stagedHealth?.diastolic_blood_pressure || null
+            },
+            respiratoryRate: stagedHealth?.respiratory_rate_per_min || null,
+            vo2Max: stagedHealth?.vo2_max || null,
+            
+            // Body measurements
+            height: stagedHealth?.height_cm || null,
+            weight: stagedHealth?.weight_kg || null,
+            bodyMassIndex: stagedHealth?.body_mass_index || null,
+            bodyFatPercentage: stagedHealth?.body_fat_percentage || null,
+            
+            // Nutrition data
+            dietaryEnergy: stagedHealth?.dietary_energy_kcal || null,
+            protein: stagedHealth?.protein_g || null,
+            carbohydrates: stagedHealth?.carbohydrates_g || null,
+            water: stagedHealth?.water_ml || null,
+            
+            // Sleep analysis
+            timeInBed: stagedHealth?.time_in_bed_minutes || null,
+            timeAsleep: stagedHealth?.time_asleep_minutes || null,
+            remSleep: stagedHealth?.rem_duration_minutes || null,
+            deepSleep: stagedHealth?.deep_sleep_duration_minutes || null,
+            
+            // Clinical data indicators
+            hasClinicalData: !!(stagedHealth?.clinical_medications || stagedHealth?.clinical_conditions),
+            hasNutritionData: !!(stagedHealth?.dietary_energy_kcal || stagedHealth?.protein_g),
+            hasSleepData: !!(stagedHealth?.sleep_duration || stagedHealth?.time_asleep_minutes),
+            hasVitalsData: !!(stagedHealth?.heart_rate_variability_ms || stagedHealth?.blood_oxygen_saturation),
+            
+            // Data completeness score
+            dataCompleteness: stagedHealth?.data_completeness_score || 0,
+            dataQuality: stagedHealth?.data_quality_score || 0.5
           };
           
-           setHealthData(realHealthData);
+           setHealthData(comprehensiveHealthData);
            setConnectionStatus('connected');
            setIsConnecting(false);
            
@@ -108,9 +248,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
              .eq('user_id', currentUserId)
              .eq('connection_type', 'apple_health');
            
-           // Trigger the IDIA data flow for iOS
-           try {
-             await triggerIdiaDataFlow(realHealthData);
+            // Trigger the IDIA data flow for iOS
+            try {
+              await triggerIdiaDataFlow(comprehensiveHealthData);
              // Complete the connection immediately
              onComplete();
            } catch (dataFlowError) {
@@ -170,15 +310,55 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
           console.log('Health data fetched (web):', { healthMetrics, stagedHealth });
 
-          const realHealthData = {
-            steps: healthMetrics?.step_count || 0,
-            heartRate: 0,
-            activeMinutes: 0,
-            sleepHours: '0',
-            calories: 0
+          // Extract comprehensive health data from staged_health_data if available (web version)
+          const comprehensiveHealthData = {
+            // Basic activity metrics
+            steps: healthMetrics?.step_count || stagedHealth?.steps_count || 0,
+            heartRate: stagedHealth?.average_heartrate || 0,
+            activeMinutes: Math.floor((stagedHealth?.duration_seconds || 0) / 60),
+            sleepHours: stagedHealth?.time_asleep_minutes ? (stagedHealth.time_asleep_minutes / 60).toFixed(1) : '0',
+            calories: stagedHealth?.calories_burned || 0,
+            
+            // Advanced vitals
+            heartRateVariability: stagedHealth?.heart_rate_variability_ms || null,
+            bloodOxygen: stagedHealth?.blood_oxygen_saturation || null,
+            bloodPressure: {
+              systolic: stagedHealth?.systolic_blood_pressure || null,
+              diastolic: stagedHealth?.diastolic_blood_pressure || null
+            },
+            respiratoryRate: stagedHealth?.respiratory_rate_per_min || null,
+            vo2Max: stagedHealth?.vo2_max || null,
+            
+            // Body measurements
+            height: stagedHealth?.height_cm || null,
+            weight: stagedHealth?.weight_kg || null,
+            bodyMassIndex: stagedHealth?.body_mass_index || null,
+            bodyFatPercentage: stagedHealth?.body_fat_percentage || null,
+            
+            // Nutrition data
+            dietaryEnergy: stagedHealth?.dietary_energy_kcal || null,
+            protein: stagedHealth?.protein_g || null,
+            carbohydrates: stagedHealth?.carbohydrates_g || null,
+            water: stagedHealth?.water_ml || null,
+            
+            // Sleep analysis
+            timeInBed: stagedHealth?.time_in_bed_minutes || null,
+            timeAsleep: stagedHealth?.time_asleep_minutes || null,
+            remSleep: stagedHealth?.rem_duration_minutes || null,
+            deepSleep: stagedHealth?.deep_sleep_duration_minutes || null,
+            
+            // Clinical data indicators
+            hasClinicalData: !!(stagedHealth?.clinical_medications || stagedHealth?.clinical_conditions),
+            hasNutritionData: !!(stagedHealth?.dietary_energy_kcal || stagedHealth?.protein_g),
+            hasSleepData: !!(stagedHealth?.sleep_duration || stagedHealth?.time_asleep_minutes),
+            hasVitalsData: !!(stagedHealth?.heart_rate_variability_ms || stagedHealth?.blood_oxygen_saturation),
+            
+            // Data completeness score
+            dataCompleteness: stagedHealth?.data_completeness_score || 0,
+            dataQuality: stagedHealth?.data_quality_score || 0.5
           };
           
-          setHealthData(realHealthData);
+          setHealthData(comprehensiveHealthData);
           setConnectionStatus('connected');
           setIsConnecting(false);
           
@@ -194,7 +374,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           
           // Trigger the IDIA data flow
           try {
-            await triggerIdiaDataFlow(realHealthData);
+            await triggerIdiaDataFlow(comprehensiveHealthData);
             // Complete the connection immediately
             onComplete();
           } catch (dataFlowError) {
@@ -241,7 +421,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       return;
     }
 
-    // Prepare comprehensive health data structure for Apple Health
+    // Prepare comprehensive Apple HealthKit data structure
     const validatedHealthData = {
       // Basic activity metrics
       steps: Number(healthData.steps) || 0,
@@ -250,51 +430,69 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       sleepHours: Number(healthData.sleepHours) || 0,
       calories: Number(healthData.calories) || 0,
       
-      // Additional Apple Health data structure
+      // Advanced vitals data
+      heartRateVariability: healthData.heartRateVariability,
+      bloodOxygenSaturation: healthData.bloodOxygen,
+      bloodPressureSystolic: healthData.bloodPressure?.systolic,
+      bloodPressureDiastolic: healthData.bloodPressure?.diastolic,
+      respiratoryRate: healthData.respiratoryRate,
+      vo2Max: healthData.vo2Max,
+      
+      // Body measurements
+      height: healthData.height,
+      weight: healthData.weight,
+      bodyMassIndex: healthData.bodyMassIndex,
+      bodyFatPercentage: healthData.bodyFatPercentage,
+      
+      // Nutrition data
+      dietaryEnergyConsumed: healthData.dietaryEnergy,
+      protein: healthData.protein,
+      carbohydrates: healthData.carbohydrates,
+      water: healthData.water,
+      
+      // Sleep data
+      timeInBed: healthData.timeInBed,
+      timeAsleep: healthData.timeAsleep,
+      remSleep: healthData.remSleep,
+      deepSleep: healthData.deepSleep,
+      
+      // Data quality indicators
+      dataCompleteness: healthData.dataCompleteness || 0,
+      dataQuality: healthData.dataQuality || 0.5,
+      hasClinicalData: healthData.hasClinicalData || false,
+      hasNutritionData: healthData.hasNutritionData || false,
+      hasSleepData: healthData.hasSleepData || false,
+      hasVitalsData: healthData.hasVitalsData || false,
+      
+      // Metadata
       source: 'apple_health',
       type: 'comprehensive_health_data',
       device_type: 'Apple Health',
       recorded_at: new Date().toISOString(),
       
-      // Request all 60+ Apple HealthKit data types in the native app
-      requestedDataTypes: [
-        // Activity & Fitness
-        'steps', 'distanceWalkingRunning', 'distanceCycling', 'flightsClimbed',
-        'activeEnergyBurned', 'restingEnergyBurned', 'exerciseTime',
+      // Comprehensive HealthKit data collection request for native app
+      comprehensiveDataRequest: {
+        collectAllAvailableTypes: true,
+        includeWorkouts: true,
+        includeClinicalRecords: true,
+        includeReproductiveHealth: true,
+        includeMindfulness: true,
         
-        // Heart & Vitals
-        'heartRate', 'heartRateVariability', 'bloodOxygenSaturation', 
-        'bloodPressureSystolic', 'bloodPressureDiastolic', 'respiratoryRate',
-        'bodyTemperature', 'electrocardiogram', 'vo2Max',
+        // All 60+ HealthKit data type categories
+        requestedCategories: [
+          'HKQuantityTypeIdentifier', // All quantity types
+          'HKCategoryTypeIdentifier', // All category types  
+          'HKWorkoutTypeIdentifier',  // All workout types
+          'HKClinicalTypeIdentifier'  // All clinical types
+        ],
         
-        // Body Measurements
-        'height', 'weight', 'bodyMassIndex', 'bodyFatPercentage', 
-        'leanBodyMass', 'waistCircumference',
-        
-        // Nutrition
-        'dietaryEnergyConsumed', 'totalFat', 'saturatedFat', 'polyunsaturatedFat',
-        'monounsaturatedFat', 'carbohydrates', 'fiber', 'sugar', 'protein',
-        'water', 'caffeine', 'sodium', 'potassium', 'vitaminC', 'vitaminD',
-        'calcium', 'iron',
-        
-        // Sleep Data
-        'sleep', 'timeInBed', 'timeAsleep', 'sleepAnalysis',
-        
-        // Activity & Mobility
-        'walkingSpeed', 'stepLength', 'walkingAsymmetryPercentage',
-        'doubleSupportTime',
-        
-        // Reproductive Health
-        'menstrualFlow', 'cervicalMucusQuality', 'ovulationTestResult',
-        'sexualActivity', 'basalBodyTemperature',
-        
-        // Mindfulness & Mental Health
-        'mindfulSession', 'moodScore', 'stateOfMind',
-        
-        // Symptoms & Clinical
-        'symptoms', 'clinicalRecords', 'allergies', 'conditions', 'immunizations',
-        'labResults', 'medications', 'procedures', 'medicationDoseEvents'
-      ]
+        // Specific high-value data types to prioritize
+        priorityDataTypes: [
+          'heartRate', 'heartRateVariability', 'bloodOxygenSaturation',
+          'bloodPressure', 'sleepAnalysis', 'workouts', 'nutrition',
+          'bodyMeasurements', 'clinicalRecords', 'reproductiveHealth'
+        ]
+      }
     };
 
     console.log('AppleHealthModal: Validated health data:', validatedHealthData);
@@ -451,15 +649,33 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               
               <div className="space-y-2">
                 <h4 className="font-medium text-sm">Comprehensive HealthKit Data we'll access:</h4>
-                <div className="max-h-32 overflow-y-auto">
+                <div className="max-h-40 overflow-y-auto">
                   <ul className="text-xs text-gray-500 space-y-1">
-                    <li><strong>Activity & Fitness:</strong></li>
-                    <li>• Steps, distance walking/running/cycling</li>
-                    <li>• Active & resting energy burned, exercise time</li>
-                    <li>• Flights climbed, walking speed & metrics</li>
+                    <li><strong>Activity & Fitness (15+ types):</strong></li>
+                    <li>• Steps, distance walking/running/cycling, flights climbed</li>
+                    <li>• Active & resting energy, exercise time, walking metrics</li>
                     
-                    <li><strong>Heart & Vitals:</strong></li>
-                    <li>• Heart rate, HRV, blood oxygen (SpO2)</li>
+                    <li><strong>Heart & Vitals (10+ types):</strong></li>
+                    <li>• Heart rate, HRV, blood oxygen, blood pressure</li>
+                    <li>• Respiratory rate, body temperature, VO2 Max</li>
+                    
+                    <li><strong>Body Measurements (6+ types):</strong></li>
+                    <li>• Height, weight, BMI, body fat %, lean mass</li>
+                    
+                    <li><strong>Nutrition (17+ types):</strong></li>
+                    <li>• Calories, macros, vitamins, minerals, water</li>
+                    
+                    <li><strong>Sleep Analysis (5+ types):</strong></li>
+                    <li>• Sleep stages, REM, deep sleep, time in bed</li>
+                    
+                    <li><strong>Reproductive Health (5+ types):</strong></li>
+                    <li>• Menstrual tracking, ovulation, temperature</li>
+                    
+                    <li><strong>Clinical Records (7+ types):</strong></li>
+                    <li>• Lab results, medications, allergies, conditions</li>
+                    
+                    <li><strong>Mental Health & Mindfulness:</strong></li>
+                    <li>• Mood tracking, mindful sessions, state of mind</li>
                     <li>• Blood pressure, respiratory rate, ECG</li>
                     <li>• Body temperature, VO2 Max</li>
                     
