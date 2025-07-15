@@ -39,20 +39,16 @@ All colors MUST be HSL.
     --radius: 0.5rem;
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Font sizes */
+    --font-size: 1rem;
   }
 
   .dark {
@@ -83,6 +79,7 @@ All colors MUST be HSL.
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
+    
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -93,35 +90,27 @@ All colors MUST be HSL.
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
+  /* Colorblind mode - works with both light and dark themes */
   .colorblind {
     --background: 0 0% 100%;
     --foreground: 0 0% 0%;
-
     --card: 0 0% 100%;
     --card-foreground: 0 0% 0%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 0%;
-
     --primary: 0 0% 0%;
     --primary-foreground: 0 0% 100%;
-
     --secondary: 0 0% 90%;
     --secondary-foreground: 0 0% 0%;
-
     --muted: 0 0% 90%;
     --muted-foreground: 0 0% 40%;
-
     --accent: 0 0% 80%;
     --accent-foreground: 0 0% 0%;
-
     --destructive: 0 0% 20%;
     --destructive-foreground: 0 0% 100%;
-
     --border: 0 0% 80%;
     --input: 0 0% 80%;
     --ring: 0 0% 0%;
-
     --sidebar-background: 0 0% 95%;
     --sidebar-foreground: 0 0% 20%;
     --sidebar-primary: 0 0% 0%;
@@ -135,32 +124,23 @@ All colors MUST be HSL.
   .colorblind.dark {
     --background: 0 0% 0%;
     --foreground: 0 0% 100%;
-
     --card: 0 0% 0%;
     --card-foreground: 0 0% 100%;
-
     --popover: 0 0% 0%;
     --popover-foreground: 0 0% 100%;
-
     --primary: 0 0% 100%;
     --primary-foreground: 0 0% 0%;
-
     --secondary: 0 0% 20%;
     --secondary-foreground: 0 0% 100%;
-
     --muted: 0 0% 20%;
     --muted-foreground: 0 0% 70%;
-
     --accent: 0 0% 30%;
     --accent-foreground: 0 0% 100%;
-
     --destructive: 0 0% 80%;
     --destructive-foreground: 0 0% 0%;
-
     --border: 0 0% 30%;
     --input: 0 0% 30%;
     --ring: 0 0% 100%;
-
     --sidebar-background: 0 0% 10%;
     --sidebar-foreground: 0 0% 90%;
     --sidebar-primary: 0 0% 100%;
@@ -170,28 +150,18 @@ All colors MUST be HSL.
     --sidebar-border: 0 0% 40%;
     --sidebar-ring: 0 0% 100%;
   }
-}
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-
-  body {
-    @apply bg-background text-foreground;
-  }
-
-  /* Font size variants */
+  /* Font size variations */
   .font-size-small {
-    font-size: 0.875rem;
+    --font-size: 0.875rem;
   }
 
   .font-size-medium {
-    font-size: 1rem;
+    --font-size: 1rem;
   }
 
   .font-size-large {
-    font-size: 1.125rem;
+    --font-size: 1.125rem;
   }
 
   /* High contrast mode */
@@ -204,5 +174,22 @@ All colors MUST be HSL.
   .high-contrast.dark {
     --border: 0 0% 70%;
     --input: 0 0% 20%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-size: var(--font-size);
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  /* Ensure all text elements inherit the font size */
+  html, body, div, span, p, h1, h2, h3, h4, h5, h6 {
+    font-size: inherit;
   }
 }

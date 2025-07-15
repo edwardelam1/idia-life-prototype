@@ -8,15 +8,22 @@ import { useTheme } from '@/hooks/useTheme';
 import { useProfile } from '@/hooks/useProfile';
 
 export function AppearanceSettings() {
-  const { theme, accessibilityMode, toggleTheme, toggleAccessibilityMode } = useTheme();
-  const { preferences, updatePreferences } = useProfile();
+  const { 
+    theme, 
+    accessibilityMode, 
+    toggleTheme, 
+    toggleAccessibilityMode,
+    updateHighContrast,
+    updateFontSize
+  } = useTheme();
+  const { preferences } = useProfile();
 
   const handleFontSizeChange = (fontSize: 'small' | 'medium' | 'large') => {
-    updatePreferences({ font_size: fontSize });
+    updateFontSize(fontSize);
   };
 
   const handleHighContrastChange = (enabled: boolean) => {
-    updatePreferences({ high_contrast: enabled });
+    updateHighContrast(enabled);
   };
 
   return (

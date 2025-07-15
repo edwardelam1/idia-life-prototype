@@ -18,7 +18,7 @@ const App = () => (
       attribute="class"
       defaultTheme="light"
       enableSystem={false}
-      themes={['light', 'dark', 'colorblind']}
+      themes={['light', 'dark']}
       disableTransitionOnChange
     >
       <TooltipProvider>

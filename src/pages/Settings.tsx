@@ -89,20 +89,20 @@ export default function Settings() {
 
         {/* Settings Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="profile" className="flex items-center gap-2">
+          <TabsList className="grid w-full grid-cols-4 bg-muted">
+            <TabsTrigger value="profile" className="flex items-center gap-2 data-[state=active]:bg-background">
               <User className="w-4 h-4" />
               <span className="hidden sm:inline">Profile</span>
             </TabsTrigger>
-            <TabsTrigger value="appearance" className="flex items-center gap-2">
+            <TabsTrigger value="appearance" className="flex items-center gap-2 data-[state=active]:bg-background">
               <Palette className="w-4 h-4" />
               <span className="hidden sm:inline">Appearance</span>
             </TabsTrigger>
-            <TabsTrigger value="privacy" className="flex items-center gap-2">
+            <TabsTrigger value="privacy" className="flex items-center gap-2 data-[state=active]:bg-background">
               <Shield className="w-4 h-4" />
               <span className="hidden sm:inline">Privacy</span>
             </TabsTrigger>
-            <TabsTrigger value="notifications" className="flex items-center gap-2">
+            <TabsTrigger value="notifications" className="flex items-center gap-2 data-[state=active]:bg-background">
               <Bell className="w-4 h-4" />
               <span className="hidden sm:inline">Notifications</span>
             </TabsTrigger>
@@ -123,17 +123,7 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="appearance">
-            <Card>
-              <CardHeader>
-                <CardTitle>Appearance Settings</CardTitle>
-                <CardDescription>
-                  Customize the theme and accessibility settings
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <AppearanceSettings />
-              </CardContent>
-            </Card>
+            <AppearanceSettings />
           </TabsContent>
 
           <TabsContent value="privacy">

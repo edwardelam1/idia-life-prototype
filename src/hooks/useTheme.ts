@@ -77,6 +77,10 @@ export const useTheme = () => {
     const root = document.documentElement;
     root.classList.remove('font-size-small', 'font-size-medium', 'font-size-large');
     root.classList.add(`font-size-${size}`);
+    
+    // Also apply to body for immediate effect
+    const sizeMap = { small: '0.875rem', medium: '1rem', large: '1.125rem' };
+    document.body.style.fontSize = sizeMap[size];
   };
 
   const updateTheme = async (newTheme: Theme) => {
@@ -135,12 +139,58 @@ export const useTheme = () => {
     updateAccessibilityMode(accessibilityMode === 'normal' ? 'colorblind' : 'normal');
   };
 
+  const updateHighContrast = async (enabled: boolean) => {
+    applyHighContrast(enabled);
+    
+    // Save to database if user is authenticated
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from('user_preferences')
+          .update({ high_contrast: enabled })
+          .eq('user_id', user.id);
+      }
+    } catch (error) {
+      console.error('Error updating high contrast preference:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save high contrast preference",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const updateFontSize = async (size: 'small' | 'medium' | 'large') => {
+    applyFontSize(size);
+    
+    // Save to database if user is authenticated
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from('user_preferences')
+          .update({ font_size: size })
+          .eq('user_id', user.id);
+      }
+    } catch (error) {
+      console.error('Error updating font size preference:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save font size preference",
+        variant: "destructive"
+      });
+    }
+  };
+
   return {
     theme: nextTheme as Theme,
     accessibilityMode,
     loading,
     updateTheme,
     updateAccessibilityMode,
+    updateHighContrast,
+    updateFontSize,
     toggleTheme,
     toggleAccessibilityMode
   };
