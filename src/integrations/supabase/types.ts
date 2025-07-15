@@ -157,6 +157,51 @@ export type Database = {
         }
         Relationships: []
       }
+      health_metrics: {
+        Row: {
+          activity_type: string
+          calories_burned: number | null
+          created_at: string | null
+          device_type: string | null
+          distance_meters: number | null
+          duration_seconds: number | null
+          heart_rate: number | null
+          id: string
+          raw_data: Json | null
+          recorded_at: string | null
+          step_count: number | null
+          user_id: string | null
+        }
+        Insert: {
+          activity_type?: string
+          calories_burned?: number | null
+          created_at?: string | null
+          device_type?: string | null
+          distance_meters?: number | null
+          duration_seconds?: number | null
+          heart_rate?: number | null
+          id?: string
+          raw_data?: Json | null
+          recorded_at?: string | null
+          step_count?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          activity_type?: string
+          calories_burned?: number | null
+          created_at?: string | null
+          device_type?: string | null
+          distance_meters?: number | null
+          duration_seconds?: number | null
+          heart_rate?: number | null
+          id?: string
+          raw_data?: Json | null
+          recorded_at?: string | null
+          step_count?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       marketplace_bundles: {
         Row: {
           bundle_id: string
@@ -901,6 +946,26 @@ export type Database = {
         Args: { input_text: string }
         Returns: string
       }
+      get_all_user_health_data: {
+        Args: { p_user_id: string }
+        Returns: {
+          source_table: string
+          record_id: string
+          user_id: string
+          activity_type: string
+          recorded_at: string
+          processed_at: string
+          step_count: number
+          heart_rate: number
+          distance_meters: number
+          duration_seconds: number
+          calories_burned: number
+          device_type: string
+          raw_data: Json
+          reward_amount: number
+          processing_status: string
+        }[]
+      }
       process_backlog_data: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -912,6 +977,13 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: {
           processed_count: number
+          error_count: number
+        }[]
+      }
+      recover_stuck_health_data: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          recovered_count: number
           error_count: number
         }[]
       }
