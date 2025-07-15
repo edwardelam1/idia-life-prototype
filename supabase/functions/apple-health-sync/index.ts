@@ -51,6 +51,23 @@ serve(async (req) => {
     }
 
     console.log('Processing Apple Health data for user:', user_id);
+    console.log('Apple Health data structure received:', Object.keys(apple_health_data));
+    console.log('Detailed data types with counts:');
+    
+    // Log detailed information about what data was received
+    Object.keys(apple_health_data).forEach(key => {
+      const data = apple_health_data[key];
+      if (Array.isArray(data)) {
+        console.log(`  ${key}: ${data.length} records`);
+        if (data.length > 0) {
+          console.log(`    Sample record structure: ${Object.keys(data[0]).join(', ')}`);
+        }
+      } else if (data && typeof data === 'object') {
+        console.log(`  ${key}: Single object with keys: ${Object.keys(data).join(', ')}`);
+      } else {
+        console.log(`  ${key}: ${typeof data} - ${data}`);
+      }
+    });
 
     // Update user connection status in data_connections table
     await supabase
