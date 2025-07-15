@@ -40,9 +40,9 @@ const Index = () => {
   // Show loading state while checking authentication
   if (isAuthenticated === null) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
-        <div className="text-white text-center">
-          <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-foreground text-center">
+          <div className="w-8 h-8 border-2 border-foreground border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p>Loading...</p>
         </div>
       </div>

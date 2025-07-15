@@ -22,7 +22,9 @@ export const useTheme = () => {
     const savedAccessibility = localStorage.getItem('accessibility-mode') as AccessibilityMode || 'normal';
     setAccessibilityMode(savedAccessibility);
     applyAccessibilityMode(savedAccessibility);
-    setLoading(false);
+    
+    // Set loading to false after a brief delay to prevent flash
+    setTimeout(() => setLoading(false), 100);
   }, []);
 
   // Load preferences from database for authenticated users
@@ -84,24 +86,20 @@ export const useTheme = () => {
   };
 
   const updateTheme = async (newTheme: Theme) => {
+    // Apply theme immediately for instant feedback
     setNextTheme(newTheme);
     
-    // Save to database if user is authenticated
+    // Save to database in background without blocking UI
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        await supabase
+        supabase
           .from('user_preferences')
           .update({ theme_preference: newTheme })
           .eq('user_id', user.id);
       }
     } catch (error) {
       console.error('Error updating theme preference:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save theme preference",
-        variant: "destructive"
-      });
     }
   };
 

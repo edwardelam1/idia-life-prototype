@@ -56,35 +56,35 @@ export default function Settings() {
     <div className="min-h-screen bg-background">
       <div className="container max-w-4xl mx-auto py-6 px-4">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
           <Button 
             variant="ghost" 
             size="sm" 
             onClick={() => navigate('/')}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
             Back
           </Button>
-          <div className="flex items-center gap-4 flex-1">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-              <p className="text-muted-foreground">Manage your account and preferences</p>
-            </div>
-            {user && (
-              <div className="flex items-center gap-3 ml-auto">
-                <Avatar className="w-10 h-10">
-                  <AvatarFallback className="text-sm">
-                    {user.email?.charAt(0).toUpperCase() || 'U'}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="text-right">
-                  <p className="text-sm font-medium">{user.user_metadata?.full_name || 'User'}</p>
-                  <p className="text-xs text-muted-foreground">{user.email}</p>
-                </div>
-              </div>
-            )}
+          
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+            <p className="text-muted-foreground">Manage your account and preferences</p>
           </div>
+          
+          {user && (
+            <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
+              <Avatar className="w-10 h-10">
+                <AvatarFallback className="text-sm">
+                  {user.email?.charAt(0).toUpperCase() || 'U'}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1 sm:flex-none">
+                <p className="text-sm font-medium truncate">{user.user_metadata?.full_name || 'User'}</p>
+                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Settings Tabs */}

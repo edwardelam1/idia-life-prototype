@@ -180,12 +180,16 @@ All colors MUST be HSL.
 @layer base {
   * {
     @apply border-border;
+    touch-action: manipulation;
   }
 
   body {
     @apply bg-background text-foreground;
     font-size: var(--font-size);
     transition: background-color 0.3s ease, color 0.3s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
   }
 
   /* Ensure all text elements inherit the font size */
