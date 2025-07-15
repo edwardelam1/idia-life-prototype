@@ -289,6 +289,54 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          activity_preferences: string[] | null
+          age: number | null
+          bio: string | null
+          created_at: string | null
+          full_name: string | null
+          gender: string | null
+          health_goals: string[] | null
+          id: string
+          interests: string[] | null
+          location: string | null
+          occupation: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          activity_preferences?: string[] | null
+          age?: number | null
+          bio?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          gender?: string | null
+          health_goals?: string[] | null
+          id?: string
+          interests?: string[] | null
+          location?: string | null
+          occupation?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          activity_preferences?: string[] | null
+          age?: number | null
+          bio?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          gender?: string | null
+          health_goals?: string[] | null
+          id?: string
+          interests?: string[] | null
+          location?: string | null
+          occupation?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       raw_health_data: {
         Row: {
           created_at: string | null
@@ -832,6 +880,48 @@ export type Database = {
           source?: string | null
           status?: string | null
           transaction_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_preferences: {
+        Row: {
+          colorblind_mode: boolean | null
+          created_at: string | null
+          data_sharing_consent: boolean | null
+          font_size: string | null
+          high_contrast: boolean | null
+          id: string
+          marketing_emails: boolean | null
+          push_notifications: boolean | null
+          theme_preference: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          colorblind_mode?: boolean | null
+          created_at?: string | null
+          data_sharing_consent?: boolean | null
+          font_size?: string | null
+          high_contrast?: boolean | null
+          id?: string
+          marketing_emails?: boolean | null
+          push_notifications?: boolean | null
+          theme_preference?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          colorblind_mode?: boolean | null
+          created_at?: string | null
+          data_sharing_consent?: boolean | null
+          font_size?: string | null
+          high_contrast?: boolean | null
+          id?: string
+          marketing_emails?: boolean | null
+          push_notifications?: boolean | null
+          theme_preference?: string | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []

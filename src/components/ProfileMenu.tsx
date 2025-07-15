@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, LogOut, ChevronDown } from 'lucide-react';
+import { User, LogOut, ChevronDown, Settings, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -64,6 +64,21 @@ const ProfileMenu = () => {
             <p className="text-xs text-muted-foreground">{user.email}</p>
           </div>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem 
+          onClick={() => navigate('/settings')} 
+          className="cursor-pointer"
+        >
+          <Settings className="w-4 h-4 mr-2" />
+          Settings
+        </DropdownMenuItem>
+        <DropdownMenuItem 
+          onClick={() => navigate('/settings?tab=profile')} 
+          className="cursor-pointer"
+        >
+          <Edit className="w-4 h-4 mr-2" />
+          Edit Profile
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
           <LogOut className="w-4 h-4 mr-2" />
