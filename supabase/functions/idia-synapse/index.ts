@@ -90,7 +90,8 @@ serve(async (req) => {
         .update({ 
           processed: true, 
           processing_started_at: new Date().toISOString(),
-          processing_completed_at: new Date().toISOString() 
+          processing_completed_at: new Date().toISOString(),
+          processing_status: 'completed'
         })
         .eq('id', rawData.id);
 
