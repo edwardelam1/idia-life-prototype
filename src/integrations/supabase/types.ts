@@ -360,6 +360,7 @@ export type Database = {
           raw_payload: Json
           recorded_at: string | null
           retry_count: number | null
+          source: string | null
           step_count: number | null
           user_id: string | null
         }
@@ -376,6 +377,7 @@ export type Database = {
           raw_payload: Json
           recorded_at?: string | null
           retry_count?: number | null
+          source?: string | null
           step_count?: number | null
           user_id?: string | null
         }
@@ -392,6 +394,7 @@ export type Database = {
           raw_payload?: Json
           recorded_at?: string | null
           retry_count?: number | null
+          source?: string | null
           step_count?: number | null
           user_id?: string | null
         }

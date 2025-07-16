@@ -72,8 +72,9 @@ serve(async (req) => {
     const insertData = {
       user_id: user_id,
       device_type: health_data.device_type || 'apple_health',
+      source: health_data.source || 'apple_health',
       raw_payload: health_data,
-      step_count: health_data.steps || health_data.step_count || null,
+      step_count: health_data.steps || health_data.stepCount || health_data.step_count || null,
       recorded_at: health_data.recorded_at || new Date().toISOString(),
       processed: false
     };
@@ -133,39 +134,44 @@ serve(async (req) => {
                                  insertData.device_type === 'Apple Health' ||
                                  (health_data.source && health_data.source === 'apple_health');
         
+        let processingError = null;
+        
         if (isAppleHealthData) {
           console.log('Health-Data-Bridge: Detected Apple Health data, using comprehensive processor...');
-          const { data: processResult, error: processError } = await supabase.functions.invoke('comprehensive-apple-health-processor', {
+          const { data: processResult, error: appleProcessError } = await supabase.functions.invoke('comprehensive-apple-health-processor', {
             body: {
               raw_data_id: rawHealthData.id
             }
           });
           
-          if (processError) {
-            console.error('Health-Data-Bridge: Error in Apple Health processing:', processError);
+          if (appleProcessError) {
+            processingError = appleProcessError;
+            console.error('Health-Data-Bridge: Error in Apple Health processing:', appleProcessError);
           } else {
             console.log('Health-Data-Bridge: Apple Health processing initiated successfully');
           }
         } else {
           // Call IDIA-Synapse orchestrator for other data types
-          const { data: processResult, error: processError } = await supabase.functions.invoke('idia-synapse', {
+          console.log('Health-Data-Bridge: Using IDIA-Synapse for general health data processing...');
+          const { data: processResult, error: synapseProcError } = await supabase.functions.invoke('idia-synapse', {
             body: {
               raw_data_id: rawHealthData.id,
               orchestration_mode: true
             }
           });
           
-          if (processError) {
-            console.error('Health-Data-Bridge: Error in fallback processing:', processError);
+          if (synapseProcError) {
+            processingError = synapseProcError;
+            console.error('Health-Data-Bridge: Error in IDIA-Synapse processing:', synapseProcError);
           } else {
-            console.log('Health-Data-Bridge: Fallback processing initiated successfully');
+            console.log('Health-Data-Bridge: IDIA-Synapse processing initiated successfully');
           }
         }
         
-        if (processError) {
-          console.error('Health-Data-Bridge: Error in fallback processing:', processError);
+        if (processingError) {
+          console.error('Health-Data-Bridge: Processing error occurred:', processingError);
         } else {
-          console.log('Health-Data-Bridge: Fallback processing initiated successfully');
+          console.log('Health-Data-Bridge: Fallback processing completed successfully');
         }
       } else {
         console.log('Health-Data-Bridge: Data already being processed by trigger, skipping fallback');
