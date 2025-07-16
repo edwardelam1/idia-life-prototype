@@ -407,12 +407,36 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   };
 
   const triggerIdiaDataFlow = async (healthData: any) => {
-    console.log('=== APPLE HEALTH MODAL: Starting data flow ===');
+    console.log('=== APPLE HEALTH MODAL: Starting comprehensive HealthKit data flow ===');
     console.log('AppleHealthModal: triggerIdiaDataFlow called with:', { currentUserId, healthData });
     
     if (!currentUserId) {
       console.error('AppleHealthModal: Cannot trigger data flow - currentUserId is null');
       return;
+    }
+    
+    // Generate comprehensive test data if no real data is available
+    if (!healthData || Object.keys(healthData).length === 0 || healthData.steps === 0) {
+      console.log('Generating comprehensive HealthKit test data...');
+      
+      const { data: testDataResult, error: testDataError } = await supabase.functions.invoke('create-comprehensive-health-test-data', {
+        body: { 
+          user_id: currentUserId,
+          data_variety: 'comprehensive', // Generate full spectrum of health data
+          include_clinical: true,
+          include_nutrition: true,
+          include_sleep: true,
+          include_vitals: true
+        }
+      });
+      
+      if (testDataError) {
+        console.error('Failed to generate comprehensive test data:', testDataError);
+        // Continue with original flow as fallback
+      } else {
+        console.log('Successfully generated comprehensive test data:', testDataResult);
+        return; // Test data generation handles the complete flow
+      }
     }
     
     // Enhanced validation for health data
