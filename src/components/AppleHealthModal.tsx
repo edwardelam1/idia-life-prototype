@@ -39,12 +39,36 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     getSession();
   }, []);
 
+  useEffect(() => {
+    // This function will be called by the native app upon successful sync
+    (window as any).onHealthDataSyncComplete = (healthDataJson: string) => {
+      console.log("Web view received sync completion callback from native app.");
+      try {
+        const healthData = JSON.parse(healthDataJson);
+        // Update your state with the real data
+        setHealthData(healthData.health_data);
+        setConnectionStatus('connected');
+        setIsConnecting(false);
+        onComplete();
+      } catch (error) {
+        console.error("Failed to parse health data JSON from native callback:", error);
+        setErrorMessage("Failed to process health data.");
+        setConnectionStatus('error');
+        setIsConnecting(false);
+      }
+    };
+
+    // Clean up the function when the component unmounts
+    return () => {
+      (window as any).onHealthDataSyncComplete = undefined;
+    };
+  }, [onComplete]);
+
   const syncHealthDataWithNativeApp = () => {
     setIsConnecting(true);
     setConnectionStatus('connecting');
     
     // First, check if the app is running inside the iOS wrapper.
-    // The 'webkit.messageHandlers' object only exists in a WKWebView.
     const webkit = (window as any).webkit;
     if (webkit && webkit.messageHandlers && webkit.messageHandlers.syncHealthData) {
       
@@ -162,396 +186,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       
       webkit.messageHandlers.syncHealthData.postMessage(comprehensiveHealthRequest);
       
-      // Fetch real health data from Supabase
-      setTimeout(async () => {
-        if (!currentUserId) return;
-        
-        try {
-          // Get latest raw health data
-          const { data: healthMetrics, error: healthError } = await supabase
-            .from('raw_health_data')
-            .select('*')
-            .eq('user_id', currentUserId)
-            .order('recorded_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          // Get staged health data for more detailed metrics
-          const { data: stagedHealth, error: stagedError } = await supabase
-            .from('staged_health_data')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          console.log('Health data fetched:', { healthMetrics, stagedHealth });
-
-          // Extract comprehensive health data from staged_health_data if available
-          const comprehensiveHealthData = {
-            // Basic activity metrics
-            steps: healthMetrics?.step_count || stagedHealth?.steps_count || 0,
-            heartRate: stagedHealth?.average_heartrate || 0,
-            activeMinutes: Math.floor((stagedHealth?.duration_seconds || 0) / 60),
-            sleepHours: stagedHealth?.time_asleep_minutes ? (stagedHealth.time_asleep_minutes / 60).toFixed(1) : '0',
-            calories: stagedHealth?.calories_burned || 0,
-            
-            // Advanced vitals
-            heartRateVariability: stagedHealth?.heart_rate_variability_ms || null,
-            bloodOxygen: stagedHealth?.blood_oxygen_saturation || null,
-            bloodPressure: {
-              systolic: stagedHealth?.systolic_blood_pressure || null,
-              diastolic: stagedHealth?.diastolic_blood_pressure || null
-            },
-            respiratoryRate: stagedHealth?.respiratory_rate_per_min || null,
-            vo2Max: stagedHealth?.vo2_max || null,
-            
-            // Body measurements
-            height: stagedHealth?.height_cm || null,
-            weight: stagedHealth?.weight_kg || null,
-            bodyMassIndex: stagedHealth?.body_mass_index || null,
-            bodyFatPercentage: stagedHealth?.body_fat_percentage || null,
-            
-            // Nutrition data
-            dietaryEnergy: stagedHealth?.dietary_energy_kcal || null,
-            protein: stagedHealth?.protein_g || null,
-            carbohydrates: stagedHealth?.carbohydrates_g || null,
-            water: stagedHealth?.water_ml || null,
-            
-            // Sleep analysis
-            timeInBed: stagedHealth?.time_in_bed_minutes || null,
-            timeAsleep: stagedHealth?.time_asleep_minutes || null,
-            remSleep: stagedHealth?.rem_duration_minutes || null,
-            deepSleep: stagedHealth?.deep_sleep_duration_minutes || null,
-            
-            // Clinical data indicators
-            hasClinicalData: !!(stagedHealth?.clinical_medications || stagedHealth?.clinical_conditions),
-            hasNutritionData: !!(stagedHealth?.dietary_energy_kcal || stagedHealth?.protein_g),
-            hasSleepData: !!(stagedHealth?.sleep_duration || stagedHealth?.time_asleep_minutes),
-            hasVitalsData: !!(stagedHealth?.heart_rate_variability_ms || stagedHealth?.blood_oxygen_saturation),
-            
-            // Data completeness score
-            dataCompleteness: stagedHealth?.data_completeness_score || 0,
-            dataQuality: stagedHealth?.data_quality_score || 0.5
-          };
-          
-           setHealthData(comprehensiveHealthData);
-           setConnectionStatus('connected');
-           setIsConnecting(false);
-           
-           // Update connection status to connected
-           await supabase
-             .from('data_connections')
-             .update({ 
-               is_active: true,
-               last_sync_at: new Date().toISOString() 
-             })
-             .eq('user_id', currentUserId)
-             .eq('connection_type', 'apple_health');
-           
-            // Trigger the IDIA data flow for iOS
-            try {
-              await triggerIdiaDataFlow(comprehensiveHealthData);
-             // Complete the connection immediately
-             onComplete();
-           } catch (dataFlowError) {
-             console.error('Data flow failed:', dataFlowError);
-             setErrorMessage('Health data sync failed. Please try again.');
-             setConnectionStatus('error');
-             setIsConnecting(false);
-           }
-        } catch (error) {
-          console.error('Error fetching health data:', error);
-          // Fallback to demo data if no real data available
-          const fallbackData = {
-            steps: 0,
-            heartRate: 0,
-            activeMinutes: 0,
-            sleepHours: '0',
-            calories: 0
-          };
-           setHealthData(fallbackData);
-           setConnectionStatus('connected');
-           setIsConnecting(false);
-           
-           // Trigger the IDIA data flow even with fallback data for iOS
-           await triggerIdiaDataFlow(fallbackData);
-           
-           onComplete();
-        }
-      }, 2000);
-
     } else {
       // This message will appear if you test in a regular web browser.
       console.log("Not running in the native app wrapper. HealthKit sync is unavailable.");
-      
-      // For demo purposes, we'll fetch real data from Supabase
-      setTimeout(async () => {
-        if (!currentUserId) {
-          console.error('Cannot proceed: currentUserId is null after 2 second timeout');
-          return;
-        }
-        try {
-          // Get latest raw health data
-          const { data: healthMetrics, error: healthError } = await supabase
-            .from('raw_health_data')
-            .select('*')
-            .eq('user_id', currentUserId)
-            .order('recorded_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          // Get staged health data for more detailed metrics
-          const { data: stagedHealth, error: stagedError } = await supabase
-            .from('staged_health_data')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          console.log('Health data fetched (web):', { healthMetrics, stagedHealth });
-
-          // Extract comprehensive health data from staged_health_data if available (web version)
-          const comprehensiveHealthData = {
-            // Basic activity metrics
-            steps: healthMetrics?.step_count || stagedHealth?.steps_count || 0,
-            heartRate: stagedHealth?.average_heartrate || 0,
-            activeMinutes: Math.floor((stagedHealth?.duration_seconds || 0) / 60),
-            sleepHours: stagedHealth?.time_asleep_minutes ? (stagedHealth.time_asleep_minutes / 60).toFixed(1) : '0',
-            calories: stagedHealth?.calories_burned || 0,
-            
-            // Advanced vitals
-            heartRateVariability: stagedHealth?.heart_rate_variability_ms || null,
-            bloodOxygen: stagedHealth?.blood_oxygen_saturation || null,
-            bloodPressure: {
-              systolic: stagedHealth?.systolic_blood_pressure || null,
-              diastolic: stagedHealth?.diastolic_blood_pressure || null
-            },
-            respiratoryRate: stagedHealth?.respiratory_rate_per_min || null,
-            vo2Max: stagedHealth?.vo2_max || null,
-            
-            // Body measurements
-            height: stagedHealth?.height_cm || null,
-            weight: stagedHealth?.weight_kg || null,
-            bodyMassIndex: stagedHealth?.body_mass_index || null,
-            bodyFatPercentage: stagedHealth?.body_fat_percentage || null,
-            
-            // Nutrition data
-            dietaryEnergy: stagedHealth?.dietary_energy_kcal || null,
-            protein: stagedHealth?.protein_g || null,
-            carbohydrates: stagedHealth?.carbohydrates_g || null,
-            water: stagedHealth?.water_ml || null,
-            
-            // Sleep analysis
-            timeInBed: stagedHealth?.time_in_bed_minutes || null,
-            timeAsleep: stagedHealth?.time_asleep_minutes || null,
-            remSleep: stagedHealth?.rem_duration_minutes || null,
-            deepSleep: stagedHealth?.deep_sleep_duration_minutes || null,
-            
-            // Clinical data indicators
-            hasClinicalData: !!(stagedHealth?.clinical_medications || stagedHealth?.clinical_conditions),
-            hasNutritionData: !!(stagedHealth?.dietary_energy_kcal || stagedHealth?.protein_g),
-            hasSleepData: !!(stagedHealth?.sleep_duration || stagedHealth?.time_asleep_minutes),
-            hasVitalsData: !!(stagedHealth?.heart_rate_variability_ms || stagedHealth?.blood_oxygen_saturation),
-            
-            // Data completeness score
-            dataCompleteness: stagedHealth?.data_completeness_score || 0,
-            dataQuality: stagedHealth?.data_quality_score || 0.5
-          };
-          
-          setHealthData(comprehensiveHealthData);
-          setConnectionStatus('connected');
-          setIsConnecting(false);
-          
-          // Update connection status to connected
-          await supabase
-            .from('data_connections')
-            .update({ 
-              is_active: true,
-              last_sync_at: new Date().toISOString() 
-            })
-            .eq('user_id', currentUserId)
-            .eq('connection_type', 'apple_health');
-          
-          // Trigger the IDIA data flow
-          try {
-            await triggerIdiaDataFlow(comprehensiveHealthData);
-            // Complete the connection immediately
-            onComplete();
-          } catch (dataFlowError) {
-            console.error('Data flow failed:', dataFlowError);
-            setErrorMessage('Health data sync failed. Please try again.');
-            setConnectionStatus('error');
-            setIsConnecting(false);
-          }
-        } catch (error) {
-          console.error('Error fetching health data:', error);
-          // Fallback to demo data if no real data available
-          const fallbackData = {
-            steps: 0,
-            heartRate: 0,
-            activeMinutes: 0,
-            sleepHours: '0',
-            calories: 0
-          };
-          setHealthData(fallbackData);
-          setConnectionStatus('connected');
-          setIsConnecting(false);
-          
-          // Trigger the IDIA data flow even with fallback data
-          await triggerIdiaDataFlow(fallbackData);
-          
-          onComplete();
-        }
-      }, 2000);
+      setErrorMessage("HealthKit sync is only available on the IDIA Life iOS app.");
+      setConnectionStatus('error');
+      setIsConnecting(false);
     }
-  };
-
-  const triggerIdiaDataFlow = async (healthData: any) => {
-    console.log('=== APPLE HEALTH MODAL: Starting comprehensive HealthKit data flow ===');
-    console.log('AppleHealthModal: triggerIdiaDataFlow called with:', { currentUserId, healthData });
-    
-    if (!currentUserId) {
-      console.error('AppleHealthModal: Cannot trigger data flow - currentUserId is null');
-      return;
-    }
-    
-    // Generate comprehensive test data if no real data is available
-    if (!healthData || Object.keys(healthData).length === 0 || healthData.steps === 0) {
-      console.log('Generating comprehensive HealthKit test data...');
-      
-      const { data: testDataResult, error: testDataError } = await supabase.functions.invoke('create-comprehensive-health-test-data', {
-        body: { 
-          user_id: currentUserId,
-          data_variety: 'comprehensive', // Generate full spectrum of health data
-          include_clinical: true,
-          include_nutrition: true,
-          include_sleep: true,
-          include_vitals: true
-        }
-      });
-      
-      if (testDataError) {
-        console.error('Failed to generate comprehensive test data:', testDataError);
-        // Continue with original flow as fallback
-      } else {
-        console.log('Successfully generated comprehensive test data:', testDataResult);
-        return; // Test data generation handles the complete flow
-      }
-    }
-    
-    // Enhanced validation for health data
-    if (!healthData || Object.keys(healthData).length === 0) {
-      console.error('AppleHealthModal: Cannot trigger data flow - healthData is empty');
-      return;
-    }
-
-    // Prepare comprehensive Apple HealthKit data structure
-    const validatedHealthData = {
-      // Basic activity metrics
-      steps: Number(healthData.steps) || 0,
-      heartRate: Number(healthData.heartRate) || 0,
-      activeMinutes: Number(healthData.activeMinutes) || 0,
-      sleepHours: Number(healthData.sleepHours) || 0,
-      calories: Number(healthData.calories) || 0,
-      
-      // Advanced vitals data
-      heartRateVariability: healthData.heartRateVariability,
-      bloodOxygenSaturation: healthData.bloodOxygen,
-      bloodPressureSystolic: healthData.bloodPressure?.systolic,
-      bloodPressureDiastolic: healthData.bloodPressure?.diastolic,
-      respiratoryRate: healthData.respiratoryRate,
-      vo2Max: healthData.vo2Max,
-      
-      // Body measurements
-      height: healthData.height,
-      weight: healthData.weight,
-      bodyMassIndex: healthData.bodyMassIndex,
-      bodyFatPercentage: healthData.bodyFatPercentage,
-      
-      // Nutrition data
-      dietaryEnergyConsumed: healthData.dietaryEnergy,
-      protein: healthData.protein,
-      carbohydrates: healthData.carbohydrates,
-      water: healthData.water,
-      
-      // Sleep data
-      timeInBed: healthData.timeInBed,
-      timeAsleep: healthData.timeAsleep,
-      remSleep: healthData.remSleep,
-      deepSleep: healthData.deepSleep,
-      
-      // Data quality indicators
-      dataCompleteness: healthData.dataCompleteness || 0,
-      dataQuality: healthData.dataQuality || 0.5,
-      hasClinicalData: healthData.hasClinicalData || false,
-      hasNutritionData: healthData.hasNutritionData || false,
-      hasSleepData: healthData.hasSleepData || false,
-      hasVitalsData: healthData.hasVitalsData || false,
-      
-      // Metadata
-      source: 'apple_health',
-      type: 'comprehensive_health_data',
-      device_type: 'Apple Health',
-      recorded_at: new Date().toISOString(),
-      
-      // Comprehensive HealthKit data collection request for native app
-      comprehensiveDataRequest: {
-        collectAllAvailableTypes: true,
-        includeWorkouts: true,
-        includeClinicalRecords: true,
-        includeReproductiveHealth: true,
-        includeMindfulness: true,
-        
-        // All 60+ HealthKit data type categories
-        requestedCategories: [
-          'HKQuantityTypeIdentifier', // All quantity types
-          'HKCategoryTypeIdentifier', // All category types  
-          'HKWorkoutTypeIdentifier',  // All workout types
-          'HKClinicalTypeIdentifier'  // All clinical types
-        ],
-        
-        // Specific high-value data types to prioritize
-        priorityDataTypes: [
-          'heartRate', 'heartRateVariability', 'bloodOxygenSaturation',
-          'bloodPressure', 'sleepAnalysis', 'workouts', 'nutrition',
-          'bodyMeasurements', 'clinicalRecords', 'reproductiveHealth'
-        ]
-      }
-    };
-
-    console.log('AppleHealthModal: Validated health data:', validatedHealthData);
-    
-    try {
-      console.log('AppleHealthModal: Calling health-data-bridge (single entry point)...');
-      console.log('AppleHealthModal: Expected flow: health-data-bridge → raw_health_data → trigger → IDIA-Synapse → anonymization');
-      
-      // Call health-data-bridge as the ONLY entry point
-      const { data: bridgeResult, error } = await supabase.functions.invoke('health-data-bridge', {
-        body: {
-          user_id: currentUserId,
-          health_data: validatedHealthData
-        }
-      });
-
-      console.log('AppleHealthModal: Health data bridge response:', { data: bridgeResult, error });
-
-      if (error) {
-        console.error('AppleHealthModal: Health data bridge error:', error);
-        console.error('AppleHealthModal: Error details:', JSON.stringify(error, null, 2));
-        throw new Error(`Health data bridge failed: ${error.message || 'Unknown error'}`);
-      } else {
-        console.log('AppleHealthModal: Health data flow initiated successfully!');
-        console.log('AppleHealthModal: Pipeline should now execute automatically via database triggers');
-        console.log('AppleHealthModal: Bridge result:', JSON.stringify(bridgeResult, null, 2));
-      }
-    } catch (error) {
-      console.error('AppleHealthModal: Unexpected error triggering data flow:', error);
-      console.error('AppleHealthModal: Error name:', error.name);
-      console.error('AppleHealthModal: Error message:', error.message);
-      throw error; // Re-throw to handle in calling function
-    }
-    
-    console.log('=== APPLE HEALTH MODAL: Data flow initiation complete ===');
   };
 
   const handleDisconnect = async () => {
@@ -589,14 +230,11 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       return;
     }
     
-    // Wait a moment to ensure authentication is fully loaded
     await new Promise(resolve => setTimeout(resolve, 500));
     
     console.log('Creating/updating user_connections record...');
     
-      // Create user_connections record before starting sync
       try {
-        // Use upsert to handle connection creation/update atomically
         console.log('Creating/updating connection record with upsert');
         const { data: connectionResult, error: connectionError } = await supabase
           .from('data_connections')
@@ -612,34 +250,34 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           .select()
           .single();
       
-      console.log('Connection operation result:', { connectionResult, connectionError });
+        console.log('Connection operation result:', { connectionResult, connectionError });
       
-      if (connectionError) {
-        console.error('Database connection error details:', {
-          code: connectionError.code,
-          message: connectionError.message,
-          details: connectionError.details,
-          hint: connectionError.hint
+        if (connectionError) {
+          console.error('Database connection error details:', {
+            code: connectionError.code,
+            message: connectionError.message,
+            details: connectionError.details,
+            hint: connectionError.hint
+          });
+          setErrorMessage(`Failed to initialize connection: ${connectionError.message}`);
+          setConnectionStatus('error');
+          return;
+        }
+      
+        console.log('Connection record created/updated successfully:', connectionResult);
+        console.log('Starting health data sync...');
+      
+        syncHealthDataWithNativeApp();
+      } catch (error) {
+        console.error('Unexpected error in handleConnect:', error);
+        console.error('Error details:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
         });
-        setErrorMessage(`Failed to initialize connection: ${connectionError.message}`);
+        setErrorMessage(`Connection failed: ${error.message}`);
         setConnectionStatus('error');
-        return;
       }
-      
-      console.log('Connection record created/updated successfully:', connectionResult);
-      console.log('Starting health data sync...');
-      
-      syncHealthDataWithNativeApp();
-    } catch (error) {
-      console.error('Unexpected error in handleConnect:', error);
-      console.error('Error details:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
-      setErrorMessage(`Connection failed: ${error.message}`);
-      setConnectionStatus('error');
-    }
     
     console.log('=== HANDLECONNECT END ===');
   };
@@ -814,7 +452,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                 <Card>
                   <CardContent className="p-3 text-center">
                     <Footprints className="w-5 h-5 text-blue-500 mx-auto mb-1" />
-                    <div className="text-lg font-bold">{healthData.steps.toLocaleString()}</div>
+                    <div className="text-lg font-bold">{healthData.steps?.toLocaleString()}</div>
                     <div className="text-xs text-gray-500">Steps</div>
                   </CardContent>
                 </Card>
