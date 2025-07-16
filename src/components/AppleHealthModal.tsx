@@ -39,9 +39,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     getSession();
   }, []);
 
-  // Removed native callback listener as we are temporarily bypassing native app
-  // useEffect(() => { ... }, []);
-
   const syncHealthDataDirectlyToSupabase = async () => {
     setIsConnecting(true);
     setConnectionStatus('connecting');
@@ -62,24 +59,24 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       steps: Math.floor(Math.random() * 10000) + 5000, // 5000-15000 steps
       heartRate: Math.floor(Math.random() * 30) + 70, // 70-100 bpm
       activeMinutes: Math.floor(Math.random() * 60) + 30, // 30-90 min
-      sleepHours: (Math.random() * 3 + 6).toFixed(1), // 6-9 hours
+      sleepHours: parseFloat((Math.random() * 3 + 6).toFixed(1)), // 6-9 hours
       calories: Math.floor(Math.random() * 500) + 2000, // 2000-2500 kcal
 
       // Advanced vitals
-      heartRateVariabilitySDNN: (Math.random() * 30 + 20).toFixed(1), // 20-50ms
-      bloodOxygenSaturation: (Math.random() * 5 + 95).toFixed(1), // 95-100%
+      heartRateVariabilitySDNN: parseFloat((Math.random() * 30 + 20).toFixed(1)), // 20-50ms
+      bloodOxygenSaturation: parseFloat((Math.random() * 5 + 95).toFixed(1)), // 95-100%
       bloodPressureSystolic: Math.floor(Math.random() * 20) + 110, // 110-130 mmHg
       bloodPressureDiastolic: Math.floor(Math.random() * 15) + 70, // 70-85 mmHg
-      respiratoryRate: Math.floor(Math.random() * 5) + 12, // 12-17 breaths/min
-      vo2Max: (Math.random() * 10 + 30).toFixed(1), // 30-40 ml/kg/min
+      respiratoryRate: parseFloat((Math.random() * 5 + 12).toFixed(1)), // 12-17 breaths/min
+      vo2Max: parseFloat((Math.random() * 10 + 30).toFixed(1)), // 30-40 ml/kg/min
 
       // Body measurements
-      height: (Math.random() * 10 + 170).toFixed(1), // 170-180 cm
-      weight: (Math.random() * 20 + 60).toFixed(1), // 60-80 kg
-      bodyMassIndex: (Math.random() * 5 + 20).toFixed(1), // 20-25 BMI
-      bodyFatPercentage: (Math.random() * 10 + 15).toFixed(1), // 15-25%
-      leanBodyMass: (Math.random() * 10 + 50).toFixed(1), // 50-60 kg
-      waistCircumference: (Math.random() * 10 + 80).toFixed(1), // 80-90 cm
+      height: parseFloat((Math.random() * 10 + 170).toFixed(1)), // 170-180 cm
+      weight: parseFloat((Math.random() * 20 + 60).toFixed(1)), // 60-80 kg
+      bodyMassIndex: parseFloat((Math.random() * 5 + 20).toFixed(1)), // 20-25 BMI
+      bodyFatPercentage: parseFloat((Math.random() * 10 + 15).toFixed(1)), // 15-25%
+      leanBodyMass: parseFloat((Math.random() * 10 + 50).toFixed(1)), // 50-60 kg
+      waistCircumference: parseFloat((Math.random() * 10 + 80).toFixed(1)), // 80-90 cm
 
       // Nutrition data
       dietaryEnergyConsumed: Math.floor(Math.random() * 500) + 1800, // 1800-2300 kcal
@@ -91,15 +88,31 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       dietarySodium: Math.floor(Math.random() * 1000) + 1500, // 1500-2500mg
       dietaryPotassium: Math.floor(Math.random() * 1000) + 3000, // 3000-4000mg
       dietaryVitaminC: Math.floor(Math.random() * 50) + 75, // 75-125mg
-      dietaryVitaminD: Math.floor(Math.random() * 10) + 15, // 15-25mcg
+      dietaryVitaminD: parseFloat((Math.random() * 10 + 15).toFixed(1)), // 15-25mcg
       dietaryCalcium: Math.floor(Math.random() * 200) + 800, // 800-1000mg
-      dietaryIron: (Math.random() * 5 + 10).toFixed(1), // 10-15mg
+      dietaryIron: parseFloat((Math.random() * 5 + 10).toFixed(1)), // 10-15mg
+      dietaryFatSaturated: parseFloat((Math.random() * 10 + 15).toFixed(1)), // 15-25g
+      dietaryFatPolyunsaturated: parseFloat((Math.random() * 10 + 15).toFixed(1)), // 15-25g
+      dietaryFatMonounsaturated: parseFloat((Math.random() * 10 + 15).toFixed(1)), // 15-25g
+      dietaryFiber: parseFloat((Math.random() * 5 + 20).toFixed(1)), // 20-25g
+      dietarySugar: parseFloat((Math.random() * 20 + 20).toFixed(1)), // 20-40g
 
       // Sleep analysis
-      timeInBedMinutes: (Math.random() * 60 + 420).toFixed(1), // 7-8 hours
-      timeAsleepMinutes: (Math.random() * 60 + 360).toFixed(1), // 6-7 hours
-      remSleepMinutes: (Math.random() * 30 + 90).toFixed(1), // 90-120 min
-      deepSleepMinutes: (Math.random() * 30 + 60).toFixed(1), // 60-90 min
+      timeInBedMinutes: parseFloat((Math.random() * 60 + 420).toFixed(1)), // 7-8 hours
+      timeAsleepMinutes: parseFloat((Math.random() * 60 + 360).toFixed(1)), // 6-7 hours
+      remSleepMinutes: parseFloat((Math.random() * 30 + 90).toFixed(1)), // 90-120 min
+      deepSleepMinutes: parseFloat((Math.random() * 30 + 60).toFixed(1)), // 60-90 min
+
+      // Other category types (simulated)
+      cervicalMucusQuality: Math.floor(Math.random() * 5) + 1, // 1-5
+      sexualActivity: Math.floor(Math.random() * 2), // 0 or 1
+      menstrualFlow: Math.floor(Math.random() * 4) + 1, // 1-4
+      ovulationTestResult: Math.floor(Math.random() * 2), // 0 or 1 (negative/positive)
+      basalBodyTemperature: parseFloat((Math.random() * 0.5 + 97.5).toFixed(2)), // 97.5-98.0 F
+      
+      // Environmental (simulated)
+      environmentalAudioExposure: parseFloat((Math.random() * 20 + 70).toFixed(1)), // 70-90 dBA
+      headphoneAudioExposure: parseFloat((Math.random() * 10 + 80).toFixed(1)), // 80-90 dBA
 
       // Clinical data indicators (simulated)
       hasClinicalData: Math.random() > 0.5,
@@ -391,7 +404,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               </div>
               
               <p className="text-sm text-center text-gray-600">
-                Simulated data initiated the pipeline.
+                Earning rewards for your health data...
               </p>
             </div>
           )}
