@@ -40,9 +40,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, []);
 
   useEffect(() => {
+    let connectionTimeout: NodeJS.Timeout;
+    
     // This function will be called by the native app upon successful sync
     (window as any).onHealthDataSyncComplete = (healthDataJson: string) => {
       console.log("Web view received sync completion callback from native app.");
+      clearTimeout(connectionTimeout);
+      
       try {
         const healthData = JSON.parse(healthDataJson);
         // Update your state with the real data
@@ -50,8 +54,12 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setConnectionStatus('connected');
         setIsConnecting(false);
         onComplete();
-        // Close modal after successful connection
-        setTimeout(() => onClose(), 2000);
+        
+        // Auto-close modal after successful connection with user feedback
+        setTimeout(() => {
+          console.log("Auto-closing Apple Health modal after successful connection");
+          onClose();
+        }, 1500);
       } catch (error) {
         console.error("Failed to parse health data JSON from native callback:", error);
         setErrorMessage("Failed to process health data.");
