@@ -50,6 +50,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setConnectionStatus('connected');
         setIsConnecting(false);
         onComplete();
+        // Close modal after successful connection
+        setTimeout(() => onClose(), 2000);
       } catch (error) {
         console.error("Failed to parse health data JSON from native callback:", error);
         setErrorMessage("Failed to process health data.");

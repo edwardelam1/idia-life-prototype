@@ -81,8 +81,8 @@ const MainApp = () => {
       {/* Fixed Header */}
       <Header />
       
-      {/* Scrollable Main Content */}
-      <main className="flex-1 overflow-y-auto">
+      {/* Scrollable Main Content with top padding to account for fixed header */}
+      <main className="flex-1 overflow-y-auto pt-16">
         <ActiveComponent />
       </main>
 
