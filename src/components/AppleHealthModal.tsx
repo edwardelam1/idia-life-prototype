@@ -40,26 +40,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, []);
 
   useEffect(() => {
-    let connectionTimeout: NodeJS.Timeout;
-    
-    // This function will be called by the native app upon successful sync
     (window as any).onHealthDataSyncComplete = (healthDataJson: string) => {
       console.log("Web view received sync completion callback from native app.");
-      clearTimeout(connectionTimeout);
-      
       try {
         const healthData = JSON.parse(healthDataJson);
-        // Update your state with the real data
         setHealthData(healthData.health_data);
         setConnectionStatus('connected');
         setIsConnecting(false);
         onComplete();
-        
-        // Auto-close modal after successful connection with user feedback
-        setTimeout(() => {
-          console.log("Auto-closing Apple Health modal after successful connection");
-          onClose();
-        }, 1500);
       } catch (error) {
         console.error("Failed to parse health data JSON from native callback:", error);
         setErrorMessage("Failed to process health data.");
@@ -68,7 +56,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       }
     };
 
-    // Clean up the function when the component unmounts
     return () => {
       (window as any).onHealthDataSyncComplete = undefined;
     };
@@ -78,13 +65,11 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setIsConnecting(true);
     setConnectionStatus('connecting');
     
-    // First, check if the app is running inside the iOS wrapper.
     const webkit = (window as any).webkit;
     if (webkit && webkit.messageHandlers && webkit.messageHandlers.syncHealthData) {
       
       console.log("Sending comprehensive HealthKit data sync request to native iOS app...");
       
-      // Send comprehensive HealthKit data request to native iOS app
       const comprehensiveHealthRequest = {
         action: "comprehensive_health_sync",
         config: {
@@ -92,9 +77,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           user_id: currentUserId,
           auth_token: authSession?.access_token
         },
-        // Request ALL HealthKit data categories
         requestedDataTypes: {
-          // HKQuantityType - Activity & Fitness
           activity: [
             'HKQuantityTypeIdentifierStepCount',
             'HKQuantityTypeIdentifierDistanceWalkingRunning',
@@ -104,12 +87,11 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             'HKQuantityTypeIdentifierBasalEnergyBurned',
             'HKQuantityTypeIdentifierAppleExerciseTime',
             'HKQuantityTypeIdentifierWalkingSpeed',
-            'HKQuantityTypeIdentifierStepLength',
+            'HKQuantityTypeIdentifierWalkingStepLength',
             'HKQuantityTypeIdentifierWalkingAsymmetryPercentage',
-            'HKQuantityTypeIdentifierDoubleSupportPercentage'
+            'HKQuantityTypeIdentifierWalkingDoubleSupportPercentage'
           ],
           
-          // HKQuantityType - Heart & Vitals
           vitals: [
             'HKQuantityTypeIdentifierHeartRate',
             'HKQuantityTypeIdentifierRestingHeartRate',
@@ -122,7 +104,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             'HKQuantityTypeIdentifierVO2Max'
           ],
           
-          // HKQuantityType - Body Measurements
           body: [
             'HKQuantityTypeIdentifierHeight',
             'HKQuantityTypeIdentifierBodyMass',
@@ -132,7 +113,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             'HKQuantityTypeIdentifierWaistCircumference'
           ],
           
-          // HKQuantityType - Nutrition
           nutrition: [
             'HKQuantityTypeIdentifierDietaryEnergyConsumed',
             'HKQuantityTypeIdentifierDietaryFatTotal',
@@ -153,12 +133,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             'HKQuantityTypeIdentifierDietaryIron'
           ],
           
-          // HKCategoryType - Sleep
           sleep: [
             'HKCategoryTypeIdentifierSleepAnalysis'
           ],
           
-          // HKCategoryType - Reproductive Health
           reproductive: [
             'HKCategoryTypeIdentifierMenstrualFlow',
             'HKCategoryTypeIdentifierCervicalMucusQuality',
@@ -166,22 +144,18 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             'HKCategoryTypeIdentifierSexualActivity'
           ],
           
-          // HKQuantityType - Reproductive Health Vitals
           reproductiveVitals: [
             'HKQuantityTypeIdentifierBasalBodyTemperature'
           ],
           
-          // HKCategoryType - Mindfulness
           mindfulness: [
             'HKCategoryTypeIdentifierMindfulSession'
           ],
           
-          // HKWorkoutType - Workouts
           workouts: [
             'HKWorkoutTypeIdentifier'
           ],
           
-          // HKClinicalType - Clinical Records
           clinical: [
             'HKClinicalTypeIdentifierAllergyRecord',
             'HKClinicalTypeIdentifierConditionRecord',
@@ -197,8 +171,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       webkit.messageHandlers.syncHealthData.postMessage(comprehensiveHealthRequest);
       
     } else {
-      // This message will appear if you test in a regular web browser.
       console.log("Not running in the native app wrapper. HealthKit sync is unavailable.");
+      
+      // Removed all fallback/mock data logic to ensure integrity of data flow
       setErrorMessage("HealthKit sync is only available on the IDIA Life iOS app.");
       setConnectionStatus('error');
       setIsConnecting(false);
@@ -426,81 +401,4 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           )}
           
           {connectionStatus === 'error' && (
-            <div className="text-center py-6">
-              <p className="text-sm text-red-600 mb-4">Connection failed. Please try again.</p>
-              <Button 
-                onClick={() => {
-                  setConnectionStatus('idle');
-                  setErrorMessage(null);
-                }}
-                variant="outline"
-                className="w-full"
-              >
-                Try Again
-              </Button>
-            </div>
-          )}
-          
-          {connectionStatus === 'connecting' && (
-            <div className="text-center py-6">
-              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-sm text-gray-600">Syncing your health data...</p>
-            </div>
-          )}
-          
-          {connectionStatus === 'connected' && healthData && (
-            <div className="space-y-4">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <Zap className="w-6 h-6 text-green-600" />
-                </div>
-                <h3 className="font-medium text-green-800">Successfully Connected!</h3>
-                <p className="text-sm text-gray-600">Here's your latest health data:</p>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <Card>
-                  <CardContent className="p-3 text-center">
-                    <Footprints className="w-5 h-5 text-blue-500 mx-auto mb-1" />
-                    <div className="text-lg font-bold">{healthData.steps?.toLocaleString()}</div>
-                    <div className="text-xs text-gray-500">Steps</div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardContent className="p-3 text-center">
-                    <Heart className="w-5 h-5 text-red-500 mx-auto mb-1" />
-                    <div className="text-lg font-bold">{healthData.heartRate}</div>
-                    <div className="text-xs text-gray-500">Avg HR</div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardContent className="p-3 text-center">
-                    <Activity className="w-5 h-5 text-green-500 mx-auto mb-1" />
-                    <div className="text-lg font-bold">{healthData.activeMinutes}</div>
-                    <div className="text-xs text-gray-500">Active Min</div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardContent className="p-3 text-center">
-                    <Moon className="w-5 h-5 text-purple-500 mx-auto mb-1" />
-                    <div className="text-lg font-bold">{healthData.sleepHours}h</div>
-                    <div className="text-xs text-gray-500">Sleep</div>
-                  </CardContent>
-                </Card>
-              </div>
-              
-              <p className="text-sm text-center text-gray-600">
-                Earning rewards for your health data...
-              </p>
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-};
-
-export default AppleHealthModal;
+            <div
