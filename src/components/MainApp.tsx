@@ -79,9 +79,7 @@ const MainApp = () => {
   return (
     <div className="h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex flex-col">
       {/* Fixed Header */}
-      <div className="sticky top-0 z-40 bg-white shadow-sm">
-        <Header />
-      </div>
+      <Header />
       
       {/* Scrollable Main Content */}
       <main className="flex-1 overflow-y-auto">
