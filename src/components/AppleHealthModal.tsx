@@ -39,142 +39,108 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     getSession();
   }, []);
 
-  useEffect(() => {
-    (window as any).onHealthDataSyncComplete = (healthDataJson: string) => {
-      console.log("Web view received sync completion callback from native app.");
-      try {
-        const healthData = JSON.parse(healthDataJson);
-        setHealthData(healthData.health_data);
-        setConnectionStatus('connected');
-        setIsConnecting(false);
-        onComplete();
-      } catch (error) {
-        console.error("Failed to parse health data JSON from native callback:", error);
-        setErrorMessage("Failed to process health data.");
-        setConnectionStatus('error');
-        setIsConnecting(false);
-      }
-    };
+  // Removed native callback listener as we are temporarily bypassing native app
+  // useEffect(() => { ... }, []);
 
-    return () => {
-      (window as any).onHealthDataSyncComplete = undefined;
-    };
-  }, [onComplete]);
-
-  const syncHealthDataWithNativeApp = () => {
+  const syncHealthDataDirectlyToSupabase = async () => {
     setIsConnecting(true);
     setConnectionStatus('connecting');
-    
-    const webkit = (window as any).webkit;
-    if (webkit && webkit.messageHandlers && webkit.messageHandlers.syncHealthData) {
-      
-      console.log("Sending comprehensive HealthKit data sync request to native iOS app...");
-      
-      const comprehensiveHealthRequest = {
-        action: "comprehensive_health_sync",
-        config: {
-          endpoint: 'https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/health-data-bridge',
-          user_id: currentUserId,
-          auth_token: authSession?.access_token
-        },
-        requestedDataTypes: {
-          activity: [
-            'HKQuantityTypeIdentifierStepCount',
-            'HKQuantityTypeIdentifierDistanceWalkingRunning',
-            'HKQuantityTypeIdentifierDistanceCycling',
-            'HKQuantityTypeIdentifierFlightsClimbed',
-            'HKQuantityTypeIdentifierActiveEnergyBurned',
-            'HKQuantityTypeIdentifierBasalEnergyBurned',
-            'HKQuantityTypeIdentifierAppleExerciseTime',
-            'HKQuantityTypeIdentifierWalkingSpeed',
-            'HKQuantityTypeIdentifierWalkingStepLength',
-            'HKQuantityTypeIdentifierWalkingAsymmetryPercentage',
-            'HKQuantityTypeIdentifierWalkingDoubleSupportPercentage'
-          ],
-          
-          vitals: [
-            'HKQuantityTypeIdentifierHeartRate',
-            'HKQuantityTypeIdentifierRestingHeartRate',
-            'HKQuantityTypeIdentifierHeartRateVariabilitySDNN',
-            'HKQuantityTypeIdentifierOxygenSaturation',
-            'HKQuantityTypeIdentifierBloodPressureSystolic',
-            'HKQuantityTypeIdentifierBloodPressureDiastolic',
-            'HKQuantityTypeIdentifierRespiratoryRate',
-            'HKQuantityTypeIdentifierBodyTemperature',
-            'HKQuantityTypeIdentifierVO2Max'
-          ],
-          
-          body: [
-            'HKQuantityTypeIdentifierHeight',
-            'HKQuantityTypeIdentifierBodyMass',
-            'HKQuantityTypeIdentifierBodyMassIndex',
-            'HKQuantityTypeIdentifierBodyFatPercentage',
-            'HKQuantityTypeIdentifierLeanBodyMass',
-            'HKQuantityTypeIdentifierWaistCircumference'
-          ],
-          
-          nutrition: [
-            'HKQuantityTypeIdentifierDietaryEnergyConsumed',
-            'HKQuantityTypeIdentifierDietaryFatTotal',
-            'HKQuantityTypeIdentifierDietaryFatSaturated',
-            'HKQuantityTypeIdentifierDietaryFatPolyunsaturated',
-            'HKQuantityTypeIdentifierDietaryFatMonounsaturated',
-            'HKQuantityTypeIdentifierDietaryCarbohydrates',
-            'HKQuantityTypeIdentifierDietaryFiber',
-            'HKQuantityTypeIdentifierDietarySugar',
-            'HKQuantityTypeIdentifierDietaryProtein',
-            'HKQuantityTypeIdentifierDietaryWater',
-            'HKQuantityTypeIdentifierDietaryCaffeine',
-            'HKQuantityTypeIdentifierDietarySodium',
-            'HKQuantityTypeIdentifierDietaryPotassium',
-            'HKQuantityTypeIdentifierDietaryVitaminC',
-            'HKQuantityTypeIdentifierDietaryVitaminD',
-            'HKQuantityTypeIdentifierDietaryCalcium',
-            'HKQuantityTypeIdentifierDietaryIron'
-          ],
-          
-          sleep: [
-            'HKCategoryTypeIdentifierSleepAnalysis'
-          ],
-          
-          reproductive: [
-            'HKCategoryTypeIdentifierMenstrualFlow',
-            'HKCategoryTypeIdentifierCervicalMucusQuality',
-            'HKCategoryTypeIdentifierOvulationTestResult',
-            'HKCategoryTypeIdentifierSexualActivity'
-          ],
-          
-          reproductiveVitals: [
-            'HKQuantityTypeIdentifierBasalBodyTemperature'
-          ],
-          
-          mindfulness: [
-            'HKCategoryTypeIdentifierMindfulSession'
-          ],
-          
-          workouts: [
-            'HKWorkoutTypeIdentifier'
-          ],
-          
-          clinical: [
-            'HKClinicalTypeIdentifierAllergyRecord',
-            'HKClinicalTypeIdentifierConditionRecord',
-            'HKClinicalTypeIdentifierImmunizationRecord',
-            'HKClinicalTypeIdentifierLabResultRecord',
-            'HKClinicalTypeIdentifierMedicationRecord',
-            'HKClinicalTypeIdentifierProcedureRecord',
-            'HKClinicalTypeIdentifierVitalSignRecord'
-          ]
-        }
-      };
-      
-      webkit.messageHandlers.syncHealthData.postMessage(comprehensiveHealthRequest);
-      
-    } else {
-      console.log("Not running in the native app wrapper. HealthKit sync is unavailable.");
-      
-      setErrorMessage("HealthKit sync is only available on the IDIA Life iOS app.");
+    setErrorMessage(null);
+
+    if (!currentUserId || !authSession) {
+      setErrorMessage('Please log in to connect Apple Health data.');
       setConnectionStatus('error');
+      setIsConnecting(false);
+      return;
+    }
+
+    console.log("Generating comprehensive HealthKit test data directly from web app...");
+
+    // Generate realistic-looking comprehensive health data for diagnostic purposes
+    const comprehensiveHealthData = {
+      // Basic activity metrics
+      steps: Math.floor(Math.random() * 10000) + 5000, // 5000-15000 steps
+      heartRate: Math.floor(Math.random() * 30) + 70, // 70-100 bpm
+      activeMinutes: Math.floor(Math.random() * 60) + 30, // 30-90 min
+      sleepHours: (Math.random() * 3 + 6).toFixed(1), // 6-9 hours
+      calories: Math.floor(Math.random() * 500) + 2000, // 2000-2500 kcal
+
+      // Advanced vitals
+      heartRateVariabilitySDNN: (Math.random() * 30 + 20).toFixed(1), // 20-50ms
+      bloodOxygenSaturation: (Math.random() * 5 + 95).toFixed(1), // 95-100%
+      bloodPressureSystolic: Math.floor(Math.random() * 20) + 110, // 110-130 mmHg
+      bloodPressureDiastolic: Math.floor(Math.random() * 15) + 70, // 70-85 mmHg
+      respiratoryRate: Math.floor(Math.random() * 5) + 12, // 12-17 breaths/min
+      vo2Max: (Math.random() * 10 + 30).toFixed(1), // 30-40 ml/kg/min
+
+      // Body measurements
+      height: (Math.random() * 10 + 170).toFixed(1), // 170-180 cm
+      weight: (Math.random() * 20 + 60).toFixed(1), // 60-80 kg
+      bodyMassIndex: (Math.random() * 5 + 20).toFixed(1), // 20-25 BMI
+      bodyFatPercentage: (Math.random() * 10 + 15).toFixed(1), // 15-25%
+      leanBodyMass: (Math.random() * 10 + 50).toFixed(1), // 50-60 kg
+      waistCircumference: (Math.random() * 10 + 80).toFixed(1), // 80-90 cm
+
+      // Nutrition data
+      dietaryEnergyConsumed: Math.floor(Math.random() * 500) + 1800, // 1800-2300 kcal
+      dietaryFatTotal: Math.floor(Math.random() * 30) + 50, // 50-80g
+      dietaryCarbohydrates: Math.floor(Math.random() * 100) + 200, // 200-300g
+      dietaryProtein: Math.floor(Math.random() * 30) + 50, // 50-80g
+      dietaryWater: Math.floor(Math.random() * 1000) + 1500, // 1500-2500 ml
+      dietaryCaffeine: Math.floor(Math.random() * 100) + 50, // 50-150mg
+      dietarySodium: Math.floor(Math.random() * 1000) + 1500, // 1500-2500mg
+      dietaryPotassium: Math.floor(Math.random() * 1000) + 3000, // 3000-4000mg
+      dietaryVitaminC: Math.floor(Math.random() * 50) + 75, // 75-125mg
+      dietaryVitaminD: Math.floor(Math.random() * 10) + 15, // 15-25mcg
+      dietaryCalcium: Math.floor(Math.random() * 200) + 800, // 800-1000mg
+      dietaryIron: (Math.random() * 5 + 10).toFixed(1), // 10-15mg
+
+      // Sleep analysis
+      timeInBedMinutes: (Math.random() * 60 + 420).toFixed(1), // 7-8 hours
+      timeAsleepMinutes: (Math.random() * 60 + 360).toFixed(1), // 6-7 hours
+      remSleepMinutes: (Math.random() * 30 + 90).toFixed(1), // 90-120 min
+      deepSleepMinutes: (Math.random() * 30 + 60).toFixed(1), // 60-90 min
+
+      // Clinical data indicators (simulated)
+      hasClinicalData: Math.random() > 0.5,
+      hasNutritionData: true,
+      hasSleepData: true,
+      hasVitalsData: true,
+      
+      source: 'apple_health_web_simulated',
+      type: 'comprehensive_health_data_simulated',
+      device_type: 'Web Browser',
+      recorded_at: new Date().toISOString(),
+    };
+
+    try {
+      console.log('Web app: Calling health-data-bridge directly with simulated data...');
+      const { data: bridgeResult, error } = await supabase.functions.invoke('health-data-bridge', {
+        body: {
+          user_id: currentUserId,
+          health_data: comprehensiveHealthData
+        }
+      });
+
+      console.log('Web app: Health data bridge response (simulated):', { data: bridgeResult, error });
+
+      if (error) {
+        console.error('Web app: Health data bridge error (simulated):', error);
+        setErrorMessage(`Simulated health data sync failed: ${error.message || 'Unknown error'}`);
+        setConnectionStatus('error');
+        setHealthData(null);
+      } else {
+        console.log('Web app: Simulated health data flow initiated successfully!');
+        setHealthData(comprehensiveHealthData); // Display simulated data
+        setConnectionStatus('connected');
+        onComplete(); // Indicate completion to the parent component
+      }
+    } catch (error) {
+      console.error('Web app: Unexpected error during simulated data flow:', error);
+      setErrorMessage(`Connection failed: ${error.message}`);
+      setConnectionStatus('error');
+      setHealthData(null);
+    } finally {
       setIsConnecting(false);
     }
   };
@@ -199,10 +165,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   };
 
   const handleConnect = async () => {
-    console.log('=== HANDLECONNECT START ===');
+    console.log('=== HANDLECONNECT START (Web App Driven) ===');
     console.log('handleConnect called, currentUserId:', currentUserId);
     console.log('authSession present:', !!authSession);
-    console.log('authSession.access_token present:', !!authSession?.access_token);
     
     setErrorMessage(null);
     
@@ -249,9 +214,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         }
       
         console.log('Connection record created/updated successfully:', connectionResult);
-        console.log('Starting health data sync...');
+        console.log('Starting direct data sync to Supabase...');
       
-        syncHealthDataWithNativeApp();
+        syncHealthDataDirectlyToSupabase(); // Call the direct sync function
       } catch (error) {
         console.error('Unexpected error in handleConnect:', error);
         console.error('Error details:', {
@@ -276,7 +241,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               alt="Apple Health" 
               className="w-6 h-6"
             />
-            <span>{existingConnection ? 'Apple Health' : 'Connect Apple Health'}</span>
+            <span>{existingConnection ? 'Apple Health (Web Test)' : 'Connect Apple Health (Web Test)'}</span>
           </DialogTitle>
         </DialogHeader>
         
@@ -290,63 +255,22 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           {connectionStatus === 'idle' && !existingConnection && (
             <>
               <p className="text-sm text-gray-600">
-                Connect your Apple Health data to earn rewards for your fitness activities and health metrics.
+                This is a diagnostic mode to test data flow directly from the web app.
               </p>
               
               <div className="space-y-2">
-                <h4 className="font-medium text-sm">Comprehensive HealthKit Data we'll access:</h4>
+                <h4 className="font-medium text-sm">Simulated Comprehensive HealthKit Data:</h4>
                 <div className="max-h-40 overflow-y-auto">
                   <ul className="text-xs text-gray-500 space-y-1">
-                    <li><strong>Activity & Fitness (15+ types):</strong></li>
-                    <li>• Steps, distance walking/running/cycling, flights climbed</li>
-                    <li>• Active & resting energy, exercise time, walking metrics</li>
-                    
-                    <li><strong>Heart & Vitals (10+ types):</strong></li>
-                    <li>• Heart rate, HRV, blood oxygen, blood pressure</li>
-                    <li>• Respiratory rate, body temperature, VO2 Max</li>
-                    
-                    <li><strong>Body Measurements (6+ types):</strong></li>
-                    <li>• Height, weight, BMI, body fat %, lean mass</li>
-                    
-                    <li><strong>Nutrition (17+ types):</strong></li>
-                    <li>• Calories, macros, vitamins, minerals, water</li>
-                    
-                    <li><strong>Sleep Analysis (5+ types):</strong></li>
-                    <li>• Sleep stages, REM, deep sleep, time in bed</li>
-                    
-                    <li><strong>Reproductive Health (5+ types):</strong></li>
-                    <li>• Menstrual tracking, ovulation, temperature</li>
-                    
-                    <li><strong>Clinical Records (7+ types):</strong></li>
-                    <li>• Lab results, medications, allergies, conditions</li>
-                    
-                    <li><strong>Mental Health & Mindfulness:</strong></li>
-                    <li>• Mood tracking, mindful sessions, state of mind</li>
-                    <li>• Blood pressure, respiratory rate, ECG</li>
-                    <li>• Body temperature, VO2 Max</li>
-                    
-                    <li><strong>Body Measurements:</strong></li>
-                    <li>• Height, weight, BMI, body fat %</li>
-                    <li>• Lean body mass, waist circumference</li>
-                    
-                    <li><strong>Sleep & Recovery:</strong></li>
-                    <li>• Sleep duration, stages (REM, deep, core)</li>
-                    <li>• Time in bed vs asleep</li>
-                    
-                    <li><strong>Nutrition:</strong></li>
-                    <li>• Calories, macros (carbs, fat, protein)</li>
-                    <li>• Vitamins, minerals, water, caffeine</li>
-                    
-                    <li><strong>Mindfulness & Mental Health:</strong></li>
-                    <li>• Mindful minutes, mood tracking</li>
-                    
-                    <li><strong>Clinical Records (if available):</strong></li>
-                    <li>• Lab results, medications, allergies</li>
-                    <li>• Medical conditions, procedures</li>
+                    <li>• Steps, Heart Rate, Active Minutes, Sleep Hours</li>
+                    <li>• Advanced Vitals (HRV, Blood Oxygen, BP, Respiratory Rate, VO2 Max)</li>
+                    <li>• Body Measurements (Height, Weight, BMI, Body Fat %, Lean Mass, Waist Circumference)</li>
+                    <li>• Nutrition (Calories, Macros, Vitamins, Minerals, Water, Caffeine, Sodium, Potassium, Vit C/D, Calcium, Iron)</li>
+                    <li>• Simulated Clinical Data Indicators</li>
                   </ul>
                 </div>
                 <p className="text-xs text-blue-600 mt-2">
-                  All data is anonymized and encrypted for privacy protection
+                  Data generated in this mode is for pipeline testing only.
                 </p>
               </div>
               
@@ -355,7 +279,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                 className="w-full"
                 disabled={isConnecting || !currentUserId}
               >
-                {isConnecting ? 'Connecting...' : 'Connect Apple Health'}
+                {isConnecting ? 'Connecting...' : 'Connect Apple Health (Test)'}
               </Button>
             </>
           )}
@@ -363,20 +287,20 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           {existingConnection && connectionStatus === 'idle' && (
             <div className="space-y-4">
               <div className="text-center">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <Zap className="w-6 h-6 text-green-600" />
+                <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <Zap className="w-6 h-6 text-yellow-600" />
                 </div>
-                <h3 className="font-medium text-green-800">Apple Health Connected</h3>
-                <p className="text-sm text-gray-600">Your health data is actively earning rewards</p>
+                <h3 className="font-medium text-yellow-800">Web Test Connected</h3>
+                <p className="text-sm text-gray-600">Testing data flow directly from web app.</p>
               </div>
               
-              <div className="bg-green-50 p-4 rounded-lg">
+              <div className="bg-yellow-50 p-4 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-green-800">Active Pipeline</p>
-                    <p className="text-xs text-green-600">Processing data automatically</p>
+                    <p className="text-sm font-medium text-yellow-800">Direct Pipeline Active</p>
+                    <p className="text-xs text-yellow-600">Bypassing native app for testing</p>
                   </div>
-                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                  <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
                 </div>
               </div>
               
@@ -418,7 +342,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           {connectionStatus === 'connecting' && (
             <div className="text-center py-6">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-sm text-gray-600">Syncing your health data...</p>
+              <p className="text-sm text-gray-600">Sending simulated health data...</p>
             </div>
           )}
           
@@ -428,8 +352,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
                   <Zap className="w-6 h-6 text-green-600" />
                 </div>
-                <h3 className="font-medium text-green-800">Successfully Connected!</h3>
-                <p className="text-sm text-gray-600">Here's your latest health data:</p>
+                <h3 className="font-medium text-green-800">Simulated Data Sent!</h3>
+                <p className="text-sm text-gray-600">Check Supabase logs for pipeline activity.</p>
               </div>
               
               <div className="grid grid-cols-2 gap-3">
@@ -467,7 +391,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               </div>
               
               <p className="text-sm text-center text-gray-600">
-                Earning rewards for your health data...
+                Simulated data initiated the pipeline.
               </p>
             </div>
           )}
