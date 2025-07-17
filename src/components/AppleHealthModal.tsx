@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Activity, Heart, Footprints, Moon, Zap } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { Checkbox } from '@/components/ui/checkbox'; // Assuming you have a Checkbox component
 
 interface AppleHealthModalProps {
   isOpen: boolean;
@@ -14,74 +13,13 @@ interface AppleHealthModalProps {
   onDisconnect?: () => void;
 }
 
-// Define all 37 data types with their display names and categories
-const ALL_HEALTH_DATA_TYPES = [
-  // Activity & Movement
-  { id: 'HKQuantityTypeIdentifierStepCount', name: 'Steps', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierDistanceWalkingRunning', name: 'Distance (Walking/Running)', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierDistanceCycling', name: 'Distance (Cycling)', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierFlightsClimbed', name: 'Flights Climbed', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierActiveEnergyBurned', name: 'Active Energy Burned', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierBasalEnergyBurned', name: 'Basal Energy Burned', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierAppleExerciseTime', name: 'Exercise Time', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierWalkingSpeed', name: 'Walking Speed', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierWalkingStepLength', name: 'Walking Step Length', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierWalkingAsymmetryPercentage', name: 'Walking Asymmetry', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierWalkingDoubleSupportPercentage', name: 'Double Support Time', category: 'Activity' },
-  
-  // Heart & Vitals (Basic)
-  { id: 'HKQuantityTypeIdentifierHeartRate', name: 'Heart Rate', category: 'Vitals' },
-  { id: 'HKQuantityTypeIdentifierRestingHeartRate', name: 'Resting Heart Rate', category: 'Vitals' },
-  // OMITTED: HeartRateVariabilitySDNN
-  { id: 'HKQuantityTypeIdentifierOxygenSaturation', name: 'Blood Oxygen', category: 'Vitals' },
-  // OMITTED: BloodPressureSystolic, BloodPressureDiastolic
-  { id: 'HKQuantityTypeIdentifierRespiratoryRate', name: 'Respiratory Rate', category: 'Vitals' },
-  { id: 'HKQuantityTypeIdentifierBodyTemperature', name: 'Body Temperature', category: 'Vitals' },
-  { id: 'HKQuantityTypeIdentifierVO2Max', name: 'VO2 Max', category: 'Vitals' },
-
-  // Body Measurements
-  { id: 'HKQuantityTypeIdentifierHeight', name: 'Height', category: 'Body' },
-  { id: 'HKQuantityTypeIdentifierBodyMass', name: 'Weight', category: 'Body' },
-  { id: 'HKQuantityTypeIdentifierBodyMassIndex', name: 'BMI', category: 'Body' },
-  { id: 'HKQuantityTypeIdentifierBodyFatPercentage', name: 'Body Fat %', category: 'Body' },
-  { id: 'HKQuantityTypeIdentifierLeanBodyMass', name: 'Lean Body Mass', category: 'Body' },
-  { id: 'HKQuantityTypeIdentifierWaistCircumference', name: 'Waist Circumference', category: 'Body' },
-
-  // Nutrition (Basic)
-  { id: 'HKQuantityTypeIdentifierDietaryEnergyConsumed', name: 'Dietary Energy', category: 'Nutrition' },
-  { id: 'HKQuantityTypeIdentifierDietaryFatTotal', name: 'Total Fat', category: 'Nutrition' },
-  { id: 'HKQuantityTypeIdentifierDietaryProtein', name: 'Protein', category: 'Nutrition' },
-  { id: 'HKQuantityTypeIdentifierDietaryWater', name: 'Water Intake', category: 'Nutrition' },
-  // OMITTED: Specific dietary fats, fiber, sugar, caffeine, sodium, potassium, vitamins, calcium, iron
-
-  // Other Categories
-  // OMITTED: Sleep Analysis (from HealthKitManager)
-  { id: 'HKCategoryTypeIdentifierMindfulSession', name: 'Mindful Minutes', category: 'Mindfulness' },
-  { id: 'HKQuantityTypeIdentifierEnvironmentalAudioExposure', name: 'Environmental Audio Exposure', category: 'Environment' },
-  { id: 'HKQuantityTypeIdentifierHeadphoneAudioExposure', name: 'Headphone Audio Exposure', category: 'Environment' },
-  
-  // Reproductive Health
-  { id: 'HKCategoryTypeIdentifierMenstrualFlow', name: 'Menstrual Flow', category: 'Reproductive' },
-  { id: 'HKQuantityTypeIdentifierBasalBodyTemperature', name: 'Basal Body Temperature', category: 'Reproductive' },
-  { id: 'HKCategoryTypeIdentifierOvulationTestResult', name: 'Ovulation Test Result', category: 'Reproductive' },
-  { id: 'HKCategoryTypeIdentifierCervicalMucusQuality', name: 'Cervical Mucus Quality', category: 'Reproductive' },
-  { id: 'HKCategoryTypeIdentifierSexualActivity', name: 'Sexual Activity', category: 'Reproductive' },
-
-  { id: 'HKWorkoutTypeIdentifier', name: 'Workout Data', category: 'Activity' },
-  { id: 'HKClinicalTypeIdentifier', name: 'Clinical Data Indicator', category: 'Clinical' }, // Generic placeholder
-  // OMITTED: Emotional State
-];
-
 const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onDisconnect }: AppleHealthModalProps) => {
   const [isConnecting, setIsConnecting] = useState(false);
-  const [healthData, setHealthData] = useState<any>(null); 
+  const [healthData, setHealthData] = useState<any>(null); // To show what was sent by native app
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [authSession, setAuthSession] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  // State to manage selected data types
-  const [selectedDataTypes, setSelectedDataTypes] = useState<Set<string>>(new Set(ALL_HEALTH_DATA_TYPES.map(d => d.id)));
-  const [showAllTypes, setShowAllTypes] = useState(false); // To toggle visibility of all types
 
   useEffect(() => {
     const getSession = async () => {
@@ -102,23 +40,26 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, []);
 
   useEffect(() => {
+    // This callback is expected from the native app
     (window as any).onHealthDataSyncComplete = (responseBody: string) => {
       console.log("DEBUG_UI: Web view received sync completion callback from native app.");
-      console.log("DEBUG_UI: Raw Response Body from Native:", responseBody); 
+      console.log("DEBUG_UI: Raw Response Body from Native:", responseBody); // Log the raw response
 
       try {
         const responseData = JSON.parse(responseBody);
-        console.log("DEBUG_UI: Parsed Response Data from Native:", responseData); 
+        console.log("DEBUG_UI: Parsed Response Data from Native:", responseData); // Log parsed data
 
+        // Update UI with the data from the native app
         if (responseData && responseData.health_data) {
           setHealthData(responseData.health_data); 
         } else {
-          setHealthData({}); // Clear healthData on empty response
+          // Fallback if health_data is missing or empty
+          setHealthData({steps: '?', heartRate: '?', activeMinutes: '?', sleepHours: '?'});
         }
         
         setConnectionStatus('connected');
         setIsConnecting(false);
-        onComplete(); 
+        onComplete(); // Trigger modal close (via parent)
         console.log("DEBUG_UI: Connection status set to 'connected' and onComplete() called.");
 
       } catch (error) {
@@ -129,6 +70,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         console.log("DEBUG_UI: Connection status set to 'error' due to parsing failure.");
       }
     };
+    // Handle error callback from native app
     (window as any).onHealthDataSyncError = (errorMsg: string) => {
         console.error("DEBUG_UI: Web view received error callback from native app:", errorMsg);
         setErrorMessage(`HealthKit Sync Error: ${errorMsg}`);
@@ -143,6 +85,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     };
   }, [onComplete]);
 
+
   const handleCheckboxChange = (id: string, isChecked: boolean) => {
     setSelectedDataTypes(prev => {
       const newSet = new Set(prev);
@@ -155,7 +98,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     });
   };
 
-  const syncHealthDataViaNativeApp = () => {
+  const syncHealthDataViaNativeApp = () => { // Function name restored to be generic
     setIsConnecting(true);
     setConnectionStatus('connecting');
     setErrorMessage(null);
@@ -174,7 +117,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         }
       });
       
-      const comprehensiveHealthRequest = {
+      const comprehensiveHealthRequest = { // Requesting comprehensive types
         action: "comprehensive_health_sync",
         config: {
           endpoint: 'https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/health-data-bridge',
@@ -195,14 +138,33 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     }
   };
 
+  const handleDisconnect = async () => {
+    if (!currentUserId || !existingConnection) return;
+    
+    try {
+      const { error } = await supabase
+        .from('data_connections')
+        .update({ is_active: false })
+        .eq('id', existingConnection.id)
+        .eq('user_id', currentUserId);
+
+      if (!error) {
+        onDisconnect?.();
+        onClose();
+      }
+    } catch (error) {
+      console.error('Error disconnecting Apple Health:', error);
+    }
+  };
+
   const handleConnect = async () => {
     console.log('=== HANDLECONNECT START (Native App Driven) ===');
     console.log('handleConnect called, currentUserId:', currentUserId);
     console.log('authSession present:', !!authSession);
     
     setErrorMessage(null);
-    setConnectionStatus('connecting');
-    
+    setConnectionStatus('connecting'); // Set status to connecting immediately
+
     if (!currentUserId || !authSession) {
       const errorMsg = 'Please log in to connect Apple Health data.';
       console.error('Authentication check failed:', { currentUserId, authSession: !!authSession });
@@ -258,6 +220,65 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     
     console.log('=== HANDLECONNECT END (Native App Driven) ===');
   };
+
+  const ALL_HEALTH_DATA_TYPES = [
+    // Activity & Movement
+    { id: 'HKQuantityTypeIdentifierStepCount', name: 'Steps', category: 'Activity' },
+    { id: 'HKQuantityTypeIdentifierDistanceWalkingRunning', name: 'Distance (Walking/Running)', category: 'Activity' },
+    { id: 'HKQuantityTypeIdentifierDistanceCycling', name: 'Distance (Cycling)', category: 'Activity' },
+    { id: 'HKQuantityTypeIdentifierFlightsClimbed', name: 'Flights Climbed', category: 'Activity' },
+    { id: 'HKQuantityTypeIdentifierActiveEnergyBurned', name: 'Active Energy Burned', category: 'Activity' },
+    { id: 'HKQuantityTypeIdentifierBasalEnergyBurned', name: 'Basal Energy Burned', category: 'Activity' },
+    { id: 'HKQuantityTypeIdentifierAppleExerciseTime', name: 'Exercise Time', category: 'Activity' },
+    { id: 'HKQuantityTypeIdentifierWalkingSpeed', name: 'Walking Speed', category: 'Activity' },
+    { id: 'HKQuantityTypeIdentifierWalkingStepLength', name: 'Walking Step Length', category: 'Activity' },
+    { id: 'HKQuantityTypeIdentifierWalkingAsymmetryPercentage', name: 'Walking Asymmetry', category: 'Activity' },
+    { id: 'HKQuantityTypeIdentifierWalkingDoubleSupportPercentage', name: 'Double Support Time', category: 'Activity' },
+    
+    // Heart & Vitals (Basic)
+    { id: 'HKQuantityTypeIdentifierHeartRate', name: 'Heart Rate', category: 'Vitals' },
+    { id: 'HKQuantityTypeIdentifierRestingHeartRate', name: 'Resting Heart Rate', category: 'Vitals' },
+    // OMITTED: HeartRateVariabilitySDNN (from HealthKitManager)
+    { id: 'HKQuantityTypeIdentifierOxygenSaturation', name: 'Blood Oxygen', category: 'Vitals' },
+    // OMITTED: BloodPressureSystolic, BloodPressureDiastolic (from HealthKitManager)
+    { id: 'HKQuantityTypeIdentifierRespiratoryRate', name: 'Respiratory Rate', category: 'Vitals' },
+    { id: 'HKQuantityTypeIdentifierBodyTemperature', name: 'Body Temperature', category: 'Vitals' },
+    { id: 'HKQuantityTypeIdentifierVO2Max', name: 'VO2 Max', category: 'Vitals' },
+
+    // Body Measurements
+    { id: 'HKQuantityTypeIdentifierHeight', name: 'Height', category: 'Body' },
+    { id: 'HKQuantityTypeIdentifierBodyMass', name: 'Weight', category: 'Body' },
+    { id: 'HKQuantityTypeIdentifierBodyMassIndex', name: 'BMI', category: 'Body' },
+    { id: 'HKQuantityTypeIdentifierBodyFatPercentage', name: 'Body Fat %', category: 'Body' },
+    { id: 'HKQuantityTypeIdentifierLeanBodyMass', name: 'Lean Body Mass', category: 'Body' },
+    { id: 'HKQuantityTypeIdentifierWaistCircumference', name: 'Waist Circumference', category: 'Body' },
+
+    // Nutrition (Basic)
+    { id: 'HKQuantityTypeIdentifierDietaryEnergyConsumed', name: 'Dietary Energy', category: 'Nutrition' },
+    { id: 'HKQuantityTypeIdentifierDietaryFatTotal', name: 'Total Fat', category: 'Nutrition' },
+    { id: 'HKQuantityTypeIdentifierDietaryProtein', name: 'Protein', category: 'Nutrition' },
+    { id: 'HKQuantityTypeIdentifierDietaryWater', name: 'Water Intake', category: 'Nutrition' },
+    // OMITTED: Specific dietary fats, fiber, sugar, caffeine, sodium, potassium, vitamins, calcium, iron (from HealthKitManager)
+    
+    // OMITTED: Sleep Analysis (from HealthKitManager)
+
+    // Other Categories
+    { id: 'HKCategoryTypeIdentifierMindfulSession', name: 'Mindful Minutes', category: 'Mindfulness' },
+    { id: 'HKQuantityTypeIdentifierEnvironmentalAudioExposure', name: 'Environmental Audio Exposure', category: 'Environment' },
+    { id: 'HKQuantityTypeIdentifierHeadphoneAudioExposure', name: 'Headphone Audio Exposure', category: 'Environment' },
+    
+    // Reproductive Health
+    { id: 'HKCategoryTypeIdentifierMenstrualFlow', name: 'Menstrual Flow', category: 'Reproductive' },
+    { id: 'HKQuantityTypeIdentifierBasalBodyTemperature', name: 'Basal Body Temperature', category: 'Reproductive' },
+    { id: 'HKCategoryTypeIdentifierOvulationTestResult', name: 'Ovulation Test Result', category: 'Reproductive' },
+    { id: 'HKCategoryTypeIdentifierCervicalMucusQuality', name: 'Cervical Mucus Quality', category: 'Reproductive' },
+    { id: 'HKCategoryTypeIdentifierSexualActivity', name: 'Sexual Activity', category: 'Reproductive' },
+
+    { id: 'HKWorkoutTypeIdentifier', name: 'Workout Data', category: 'Activity' },
+    { id: 'HKClinicalTypeIdentifier', name: 'Clinical Data Indicator', category: 'Clinical' }, // Generic placeholder
+    // OMITTED: Emotional State (from HealthKitManager)
+  ];
+
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
