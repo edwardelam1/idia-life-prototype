@@ -42,6 +42,9 @@ verify_jwt = false
 [functions.create-test-session]
 verify_jwt = false
 
+[functions.crazy-8-security]
+verify_jwt = false
+
 [functions.credit-user-wallet]
 verify_jwt = false
 
@@ -70,6 +73,9 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.reset-password]
+verify_jwt = false
+
+[functions.security-event-generator]
 verify_jwt = false
 
 [functions.text-to-speech]
