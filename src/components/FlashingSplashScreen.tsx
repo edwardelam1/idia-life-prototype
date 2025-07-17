@@ -75,7 +75,7 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
       alt: "People volunteering together"
     },
     {
-      url: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&h=1080&fit=crop&q=80&auto=format",
+      url: "https://images.unsplash.com/photo-1649972904349-6e44c42644a7?w=1920&h=1080&fit=crop&q=80&auto=format",
       alt: "Woman enjoying sunset"
     },
     {

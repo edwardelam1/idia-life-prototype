@@ -1,12 +1,10 @@
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Menu, X, Wallet } from 'lucide-react';
+import { Wallet } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ProfileMenu from './ProfileMenu';
 
 const Header = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const navigate = useNavigate();
 
   return (
@@ -26,16 +24,9 @@ const Header = () => {
             <ProfileMenu />
           </div>
 
-          {/* Mobile menu button */}
-          <div className="md:hidden flex items-center space-x-2">
+          {/* Mobile profile menu */}
+          <div className="md:hidden">
             <ProfileMenu />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-            >
-              {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </Button>
           </div>
         </div>
 
