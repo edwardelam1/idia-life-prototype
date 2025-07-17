@@ -54,10 +54,14 @@ const SECURITY_AGENTS = {
 };
 
 serve(async (req) => {
-  console.log('=== CRAZY 8 SECURITY FUNCTION ACTIVATED ===');
+  // Force redeploy v2 - testing direct function access
+  console.log('=== CRAZY 8 SECURITY FUNCTION ACTIVATED - v2.1 ===');
   console.log('Function startup at:', new Date().toISOString());
   console.log('Request URL:', req.url);
   console.log('Request method:', req.method);
+  console.log('GEMINI_API_KEY configured:', !!geminiApiKey);
+  console.log('Environment check - SUPABASE_URL:', !!Deno.env.get('SUPABASE_URL'));
+  console.log('Environment check - SERVICE_KEY:', !!Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'));
   
   if (req.method === 'OPTIONS') {
     console.log('CORS preflight request handled');
