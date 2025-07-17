@@ -12,7 +12,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import AppleHealthModal from './AppleHealthModal';
 import StravaConnectionModal from './StravaConnectionModal';
-import SecurityTestButton from './SecurityTestButton';
+
 
 const DataDashboard = () => {
   const [connections, setConnections] = useState<any[]>([]);
@@ -369,10 +369,6 @@ const DataDashboard = () => {
         onDisconnect={fetchConnections}
       />
       
-      {/* Security Test Component */}
-      <div className="mt-6">
-        <SecurityTestButton />
-      </div>
     </div>
   );
 };
