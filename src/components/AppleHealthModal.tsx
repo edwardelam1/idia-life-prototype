@@ -40,33 +40,42 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, []);
 
   useEffect(() => {
-    // This callback is expected from the native app for the simplified version
+    // This callback is expected from the native app
     (window as any).onHealthDataSyncComplete = (responseBody: string) => {
-      console.log("Web view received sync completion callback from native app (simplified).");
+      console.log("DEBUG: Web view received sync completion callback from native app.");
+      console.log("DEBUG: Response Body from Native:", responseBody); // Log the raw response
+
       try {
         const responseData = JSON.parse(responseBody);
-        // Display the data that the native app reported sending
+        console.log("DEBUG: Parsed Response Data from Native:", responseData); // Log parsed data
+
+        // Update UI with the data from the native app
         if (responseData && responseData.health_data) {
           setHealthData(responseData.health_data); 
         } else {
-          setHealthData({steps: '?', heartRate: '?', activeMinutes: '?', sleepHours: '?'});
+          setHealthData({steps: '?', heartRate: '?', activeMinutes: '?', sleepHours: '?'}); // Fallback for display
         }
+        
         setConnectionStatus('connected');
         setIsConnecting(false);
-        onComplete();
+        onComplete(); // Trigger modal close (via parent)
+        console.log("DEBUG: Connection status set to 'connected' and onComplete() called.");
+
       } catch (error) {
-        console.error("Failed to parse native callback response (simplified):", error);
-        setErrorMessage("HealthKit sync failed.");
+        console.error("DEBUG: Failed to parse native callback response:", error);
+        setErrorMessage(`HealthKit sync failed: ${error.message || 'Unknown error'}`);
         setConnectionStatus('error');
         setIsConnecting(false);
+        console.log("DEBUG: Connection status set to 'error' due to parsing failure.");
       }
     };
     // Handle error callback from native app
-    (window as any).onHealthDataSyncError = (errorMessage: string) => {
-        console.error("Web view received error callback from native app (simplified):", errorMessage);
-        setErrorMessage(`HealthKit Sync Error: ${errorMessage}`);
+    (window as any).onHealthDataSyncError = (errorMsg: string) => {
+        console.error("DEBUG: Web view received error callback from native app:", errorMsg);
+        setErrorMessage(`HealthKit Sync Error: ${errorMsg}`);
         setConnectionStatus('error');
         setIsConnecting(false);
+        console.log("DEBUG: Connection status set to 'error' by native error callback.");
     };
 
     return () => {
@@ -76,23 +85,23 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, [onComplete]);
 
 
-  const syncHealthDataViaNativeApp = () => { // Function name restored to be generic
+  const syncHealthDataViaNativeApp = () => {
     setIsConnecting(true);
     setConnectionStatus('connecting');
     setErrorMessage(null);
     
     const webkit = (window as any).webkit;
     if (webkit && webkit.messageHandlers && webkit.messageHandlers.syncHealthData) {
-      console.log("Sending basic HealthKit data sync request to native iOS app (simplified HealthKitManager)...");
+      console.log("DEBUG: Sending basic HealthKit data sync request to native iOS app...");
       
-      const basicHealthRequest = { // Requesting only basic types for simplified native
+      const basicHealthRequest = {
         action: "basic_health_sync",
         config: {
           endpoint: 'https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/health-data-bridge',
           user_id: currentUserId,
           auth_token: authSession?.access_token
         },
-        requestedDataTypes: { // Only basic types in request, native collects specific ones
+        requestedDataTypes: { 
           activity: [
             'HKQuantityTypeIdentifierStepCount',
             'HKQuantityTypeIdentifierActiveEnergyBurned'
@@ -109,7 +118,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       webkit.messageHandlers.syncHealthData.postMessage(basicHealthRequest);
       
     } else {
-      console.log("Not running in the native app wrapper. HealthKit sync unavailable (Launch via Xcode).");
+      console.log("DEBUG: Not running in the native app wrapper. HealthKit sync unavailable (Launch via Xcode).");
       setErrorMessage("HealthKit sync is unavailable outside the native iOS app wrapper. Please launch from Xcode.");
       setConnectionStatus('error');
       setIsConnecting(false);
@@ -136,13 +145,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   };
 
   const handleConnect = async () => {
-    console.log('=== HANDLECONNECT START (Simplified Native) ===');
+    console.log('=== HANDLECONNECT START (Native App Driven) ===');
     console.log('handleConnect called, currentUserId:', currentUserId);
     console.log('authSession present:', !!authSession);
     
     setErrorMessage(null);
-    setConnectionStatus('connecting');
-    
+    setConnectionStatus('connecting'); // Set status to connecting immediately
+
     if (!currentUserId || !authSession) {
       const errorMsg = 'Please log in to connect Apple Health data.';
       console.error('Authentication check failed:', { currentUserId, authSession: !!authSession });
@@ -152,7 +161,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     }
     
     try {
-      console.log('Creating/updating connection record with upsert');
+      console.log('DEBUG: Creating/updating connection record with upsert');
       const { data: connectionResult, error: connectionError } = await supabase
         .from('data_connections')
         .upsert({
@@ -167,10 +176,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         .select()
         .single();
     
-      console.log('Connection operation result:', { connectionResult, connectionError });
+      console.log('DEBUG: Connection operation result:', { connectionResult, connectionError });
     
       if (connectionError) {
-        console.error('Database connection error details:', {
+        console.error('DEBUG: Database connection error details:', {
           code: connectionError.code,
           message: connectionError.message,
           details: connectionError.details,
@@ -181,13 +190,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         return;
       }
     
-      console.log('Connection record created/updated successfully:', connectionResult);
-      console.log('Starting simplified HealthKit data sync via native app...');
+      console.log('DEBUG: Connection record created/updated successfully:', connectionResult);
+      console.log('DEBUG: Starting simplified HealthKit data sync via native app...');
     
       syncHealthDataViaNativeApp(); // Call the simplified native sync function
     } catch (error) {
-      console.error('Unexpected error in handleConnect:', error);
-      console.error('Error details:', {
+      console.error('DEBUG: Unexpected error in handleConnect:', error);
+      console.error('DEBUG: Error details:', {
         name: error.name,
         message: error.message,
         stack: error.stack
@@ -196,7 +205,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       setConnectionStatus('error');
     }
     
-    console.log('=== HANDLECONNECT END (Simplified Native) ===');
+    console.log('=== HANDLECONNECT END (Native App Driven) ===');
   };
 
   return (
@@ -230,7 +239,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                 <h4 className="font-medium text-sm">HealthKit Data Collected (Simplified Set):</h4>
                 <div className="max-h-40 overflow-y-auto">
                   <ul className="text-xs text-gray-500 space-y-1">
-                    <li>• Steps, Heart Rate, Active Energy, Sleep Hours</li>
+                    <li>• Steps, Active Energy, Heart Rate, Sleep Hours</li>
                   </ul>
                 </div>
                 <p className="text-xs text-blue-600 mt-2">
