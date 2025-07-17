@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react'; // Added useCallback
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Activity, Heart, Footprints, Moon, Zap } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Checkbox } from '@/components/ui/checkbox'; // Assuming you have a Checkbox component
+import React from 'react'; // Added React import
 
 interface AppleHealthModalProps {
   isOpen: boolean;
@@ -148,7 +149,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     };
   }, [onComplete]);
 
-  const handleCheckboxChange = (id: string, isChecked: boolean) => {
+  const handleCheckboxChange = useCallback((id: string, isChecked: boolean) => { // Used useCallback
     setSelectedDataTypes(prev => {
       const newSet = new Set(prev);
       if (isChecked) {
@@ -158,9 +159,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       }
       return newSet;
     });
-  };
+  }, []); // Empty dependency array as setSelectedDataTypes is stable
 
-  const syncHealthDataViaNativeApp = () => { 
+  const syncHealthDataViaNativeApp = useCallback(() => { // Used useCallback
     setIsConnecting(true);
     setConnectionStatus('connecting');
     setErrorMessage(null);
@@ -198,9 +199,28 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       setConnectionStatus('error');
       setIsConnecting(false);
     }
-  };
+  }, [selectedDataTypes, currentUserId, authSession, onComplete]); // Added dependencies
 
-  const handleConnect = async () => {
+  const handleDisconnect = useCallback(async () => { // Used useCallback
+    if (!currentUserId || !existingConnection) return;
+    
+    try {
+      const { error } = await supabase
+        .from('data_connections')
+        .update({ is_active: false })
+        .eq('id', existingConnection.id)
+        .eq('user_id', currentUserId);
+
+      if (!error) {
+        onDisconnect?.();
+        onClose();
+      }
+    } catch (error) {
+      console.error('Error disconnecting Apple Health:', error);
+    }
+  }, [currentUserId, existingConnection, onDisconnect, onClose]); // Added dependencies
+
+  const handleConnect = useCallback(async () => { // Used useCallback
     console.log('=== HANDLECONNECT START (Native App Driven) ===');
     console.log('handleConnect called, currentUserId:', currentUserId);
     console.log('authSession present:', !!authSession);
@@ -262,7 +282,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     }
     
     console.log('=== HANDLECONNECT END (Native App Driven) ===');
-  };
+  }, [currentUserId, authSession, syncHealthDataViaNativeApp]); // Added dependencies
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
