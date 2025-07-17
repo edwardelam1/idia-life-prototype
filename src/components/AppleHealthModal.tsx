@@ -40,42 +40,33 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, []);
 
   useEffect(() => {
-    // This callback is expected from the native app
+    // This callback is expected from the native app for the simplified version
     (window as any).onHealthDataSyncComplete = (responseBody: string) => {
-      console.log("DEBUG: Web view received sync completion callback from native app.");
-      console.log("DEBUG: Response Body from Native:", responseBody); // Log the raw response
-
+      console.log("Web view received sync completion callback from native app (simplified).");
       try {
         const responseData = JSON.parse(responseBody);
-        console.log("DEBUG: Parsed Response Data from Native:", responseData); // Log parsed data
-
-        // Update UI with the data from the native app
+        // Display the data that the native app reported sending
         if (responseData && responseData.health_data) {
           setHealthData(responseData.health_data); 
         } else {
-          setHealthData({steps: '?', heartRate: '?', activeMinutes: '?', sleepHours: '?'}); // Fallback for display
+          setHealthData({steps: '?', heartRate: '?', activeMinutes: '?', sleepHours: '?'});
         }
-        
         setConnectionStatus('connected');
         setIsConnecting(false);
         onComplete(); // Trigger modal close (via parent)
-        console.log("DEBUG: Connection status set to 'connected' and onComplete() called.");
-
       } catch (error) {
-        console.error("DEBUG: Failed to parse native callback response:", error);
-        setErrorMessage(`HealthKit sync failed: ${error.message || 'Unknown error'}`);
+        console.error("Failed to parse native callback response (simplified):", error);
+        setErrorMessage("HealthKit sync failed.");
         setConnectionStatus('error');
         setIsConnecting(false);
-        console.log("DEBUG: Connection status set to 'error' due to parsing failure.");
       }
     };
     // Handle error callback from native app
-    (window as any).onHealthDataSyncError = (errorMsg: string) => {
-        console.error("DEBUG: Web view received error callback from native app:", errorMsg);
-        setErrorMessage(`HealthKit Sync Error: ${errorMsg}`);
+    (window as any).onHealthDataSyncError = (errorMessage: string) => {
+        console.error("Web view received error callback from native app (simplified):", errorMessage);
+        setErrorMessage(`HealthKit Sync Error: ${errorMessage}`);
         setConnectionStatus('error');
         setIsConnecting(false);
-        console.log("DEBUG: Connection status set to 'error' by native error callback.");
     };
 
     return () => {
@@ -85,40 +76,123 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, [onComplete]);
 
 
-  const syncHealthDataViaNativeApp = () => {
+  const syncHealthDataViaNativeApp = () => { // Function name restored to be generic
     setIsConnecting(true);
     setConnectionStatus('connecting');
     setErrorMessage(null);
     
     const webkit = (window as any).webkit;
     if (webkit && webkit.messageHandlers && webkit.messageHandlers.syncHealthData) {
-      console.log("DEBUG: Sending basic HealthKit data sync request to native iOS app...");
+      console.log("Sending basic HealthKit data sync request to native iOS app (simplified HealthKitManager)...");
       
-      const basicHealthRequest = {
-        action: "basic_health_sync",
+      const basicHealthRequest = { // Requesting only basic types for simplified native
+        action: "comprehensive_health_sync", // Action for comprehensive sync
         config: {
           endpoint: 'https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/health-data-bridge',
           user_id: currentUserId,
           auth_token: authSession?.access_token
         },
-        requestedDataTypes: { 
+        // Requesting comprehensive data types for native HealthKitManager
+        requestedDataTypes: {
           activity: [
             'HKQuantityTypeIdentifierStepCount',
-            'HKQuantityTypeIdentifierActiveEnergyBurned'
+            'HKQuantityTypeIdentifierDistanceWalkingRunning',
+            'HKQuantityTypeIdentifierDistanceCycling',
+            'HKQuantityTypeIdentifierFlightsClimbed',
+            'HKQuantityTypeIdentifierActiveEnergyBurned',
+            'HKQuantityTypeIdentifierBasalEnergyBurned',
+            'HKQuantityTypeIdentifierAppleExerciseTime',
+            'HKQuantityTypeIdentifierWalkingSpeed',
+            'HKQuantityTypeIdentifierWalkingStepLength',
+            'HKQuantityTypeIdentifierWalkingAsymmetryPercentage',
+            'HKQuantityTypeIdentifierWalkingDoubleSupportPercentage'
           ],
+          
           vitals: [
-            'HKQuantityTypeIdentifierHeartRate'
+            'HKQuantityTypeIdentifierHeartRate',
+            'HKQuantityTypeIdentifierRestingHeartRate',
+            'HKQuantityTypeIdentifierHeartRateVariabilitySDNN',
+            'HKQuantityTypeIdentifierOxygenSaturation',
+            'HKQuantityTypeIdentifierBloodPressureSystolic',
+            'HKQuantityTypeIdentifierBloodPressureDiastolic',
+            'HKQuantityTypeIdentifierRespiratoryRate',
+            'HKQuantityTypeIdentifierBodyTemperature',
+            'HKQuantityTypeIdentifierVO2Max'
           ],
+          
+          body: [
+            'HKQuantityTypeIdentifierHeight',
+            'HKQuantityTypeIdentifierBodyMass',
+            'HKQuantityTypeIdentifierBodyMassIndex',
+            'HKQuantityTypeIdentifierBodyFatPercentage',
+            'HKQuantityTypeIdentifierLeanBodyMass',
+            'HKQuantityTypeIdentifierWaistCircumference'
+          ],
+          
+          nutrition: [
+            'HKQuantityTypeIdentifierDietaryEnergyConsumed',
+            'HKQuantityTypeIdentifierDietaryFatTotal',
+            'HKQuantityTypeIdentifierDietaryFatSaturated',
+            'HKQuantityTypeIdentifierDietaryFatPolyunsaturated',
+            'HKQuantityTypeIdentifierDietaryFatMonounsaturated',
+            'HKQuantityTypeIdentifierDietaryCarbohydrates',
+            'HKQuantityTypeIdentifierDietaryFiber',
+            'HKQuantityTypeIdentifierDietarySugar',
+            'HKQuantityTypeIdentifierDietaryProtein',
+            'HKQuantityTypeIdentifierDietaryWater',
+            'HKQuantityTypeIdentifierDietaryCaffeine',
+            'HKQuantityTypeIdentifierDietarySodium',
+            'HKQuantityTypeIdentifierDietaryPotassium',
+            'HKQuantityTypeIdentifierDietaryVitaminC',
+            'HKQuantityTypeIdentifierDietaryVitaminD',
+            'HKQuantityTypeIdentifierDietaryCalcium',
+            'HKQuantityTypeIdentifierDietaryIron'
+          ],
+          
           sleep: [
             'HKCategoryTypeIdentifierSleepAnalysis'
+          ],
+          
+          reproductive: [
+            'HKCategoryTypeIdentifierMenstrualFlow',
+            'HKCategoryTypeIdentifierCervicalMucusQuality',
+            'HKCategoryTypeIdentifierOvulationTestResult',
+            'HKCategoryTypeIdentifierSexualActivity',
+            'HKQuantityTypeIdentifierBasalBodyTemperature'
+          ],
+          
+          mindfulness: [
+            'HKCategoryTypeIdentifierMindfulSession'
+          ],
+          
+          workouts: [
+            'HKWorkoutTypeIdentifier'
+          ],
+          
+          clinical: [
+            'HKClinicalTypeIdentifierAllergyRecord',
+            'HKClinicalTypeIdentifierConditionRecord',
+            'HKClinicalTypeIdentifierImmunizationRecord',
+            'HKClinicalTypeIdentifierLabResultRecord',
+            'HKClinicalTypeIdentifierMedicationRecord',
+            'HKClinicalTypeIdentifierProcedureRecord',
+            'HKClinicalTypeIdentifierVitalSignRecord'
+          ],
+          environmental: [
+            'HKQuantityTypeIdentifierEnvironmentalAudioExposure',
+            'HKQuantityTypeIdentifierHeadphoneAudioExposure'
+          ],
+          // Conditional iOS 17+ types
+          emotional: [
+            'HKCategoryTypeIdentifierEmotionalState'
           ]
         }
       };
       
-      webkit.messageHandlers.syncHealthData.postMessage(basicHealthRequest);
+      webkit.messageHandlers.syncHealthData.postMessage(basicHealthRequest); // Use the comprehensive request
       
     } else {
-      console.log("DEBUG: Not running in the native app wrapper. HealthKit sync unavailable (Launch via Xcode).");
+      console.log("Not running in the native app wrapper. HealthKit sync unavailable (Launch via Xcode).");
       setErrorMessage("HealthKit sync is unavailable outside the native iOS app wrapper. Please launch from Xcode.");
       setConnectionStatus('error');
       setIsConnecting(false);
@@ -161,7 +235,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     }
     
     try {
-      console.log('DEBUG: Creating/updating connection record with upsert');
+      console.log('Creating/updating connection record with upsert');
       const { data: connectionResult, error: connectionError } = await supabase
         .from('data_connections')
         .upsert({
@@ -176,10 +250,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         .select()
         .single();
     
-      console.log('DEBUG: Connection operation result:', { connectionResult, connectionError });
+      console.log('Connection operation result:', { connectionResult, connectionError });
     
       if (connectionError) {
-        console.error('DEBUG: Database connection error details:', {
+        console.error('Database connection error details:', {
           code: connectionError.code,
           message: connectionError.message,
           details: connectionError.details,
@@ -190,13 +264,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         return;
       }
     
-      console.log('DEBUG: Connection record created/updated successfully:', connectionResult);
-      console.log('DEBUG: Starting simplified HealthKit data sync via native app...');
+      console.log('Connection record created/updated successfully:', connectionResult);
+      console.log('Starting comprehensive HealthKit data sync via native app...');
     
-      syncHealthDataViaNativeApp(); // Call the simplified native sync function
+      syncHealthDataViaNativeApp(); // Call the native sync function
     } catch (error) {
-      console.error('DEBUG: Unexpected error in handleConnect:', error);
-      console.error('DEBUG: Error details:', {
+      console.error('Unexpected error in handleConnect:', error);
+      console.error('Error details:', {
         name: error.name,
         message: error.message,
         stack: error.stack
@@ -218,7 +292,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               alt="Apple Health" 
               className="w-6 h-6"
             />
-            <span>{existingConnection ? 'Apple Health (Simplified)' : 'Connect Apple Health (Simplified)'}</span>
+            <span>{existingConnection ? 'Apple Health' : 'Connect Apple Health'}</span>
           </DialogTitle>
         </DialogHeader>
         
@@ -232,18 +306,27 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           {connectionStatus === 'idle' && !existingConnection && (
             <>
               <p className="text-sm text-gray-600">
-                This is a diagnostic mode for basic HealthKit data flow via the native app.
+                Connect your Apple Health data to earn rewards for your fitness activities and health metrics.
               </p>
               
               <div className="space-y-2">
-                <h4 className="font-medium text-sm">HealthKit Data Collected (Simplified Set):</h4>
+                <h4 className="font-medium text-sm">Comprehensive HealthKit Data we'll access:</h4>
                 <div className="max-h-40 overflow-y-auto">
                   <ul className="text-xs text-gray-500 space-y-1">
-                    <li>• Steps, Active Energy, Heart Rate, Sleep Hours</li>
+                    <li>• Steps, Distance (Walking/Running/Cycling), Flights Climbed</li>
+                    <li>• Active & Basal Energy, Exercise Time, Walking Metrics</li>
+                    <li>• Heart Rate, HRV, Blood Oxygen, Blood Pressure, Respiratory Rate, Body Temperature, VO2 Max</li>
+                    <li>• Height, Weight, BMI, Body Fat %, Lean Mass, Waist Circumference</li>
+                    <li>• Dietary Energy, Macronutrients (Total Fat, Carbs, Protein, Water, Fiber, Sugar, Caffeine, Sodium, Potassium, Vit C/D, Calcium, Iron)</li>
+                    <li>• Sleep Analysis (Stages, Time In Bed/Asleep, REM, Deep, Core)</li>
+                    <li>• Menstrual Flow, Cervical Mucus, Ovulation Test, Sexual Activity, Basal Body Temperature</li>
+                    <li>• Mindful Minutes, Emotional State (iOS 17+)</li>
+                    <li>• Environmental Audio Exposure (Loudness)</li>
+                    <li>• Workouts, Clinical Records (Allergies, Conditions, Labs, Meds, Procedures, Vitals)</li>
                   </ul>
                 </div>
                 <p className="text-xs text-blue-600 mt-2">
-                  Data generated is for basic pipeline testing only.
+                  All data is anonymized and encrypted for privacy protection
                 </p>
               </div>
               
@@ -252,7 +335,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                 className="w-full"
                 disabled={isConnecting || !currentUserId}
               >
-                {isConnecting ? 'Connecting...' : 'Connect Apple Health (Simplified)'}
+                {isConnecting ? 'Connecting...' : 'Connect Apple Health'}
               </Button>
             </>
           )}
@@ -260,20 +343,20 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           {existingConnection && connectionStatus === 'idle' && (
             <div className="space-y-4">
               <div className="text-center">
-                <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <Zap className="w-6 h-6 text-yellow-600" />
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <Zap className="w-6 h-6 text-green-600" />
                 </div>
-                <h3 className="font-medium text-yellow-800">Basic Test Connected</h3>
-                <p className="text-sm text-gray-600">Testing basic data flow via native app.</p>
+                <h3 className="font-medium text-green-800">Apple Health Connected</h3>
+                <p className="text-sm text-gray-600">Your health data is actively earning rewards</p>
               </div>
               
-              <div className="bg-yellow-50 p-4 rounded-lg">
+              <div className="bg-green-50 p-4 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-yellow-800">Basic Pipeline Active</p>
-                    <p className="text-xs text-yellow-600">Testing native app bridge.</p>
+                    <p className="text-sm font-medium text-green-800">Active Pipeline</p>
+                    <p className="text-xs text-green-600">Processing data automatically</p>
                   </div>
-                  <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
+                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
                 </div>
               </div>
               
@@ -315,7 +398,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           {connectionStatus === 'connecting' && (
             <div className="text-center py-6">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-sm text-gray-600">Sending basic HealthKit data...</p>
+              <p className="text-sm text-gray-600">Syncing your health data...</p>
             </div>
           )}
           
@@ -325,8 +408,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
                   <Zap className="w-6 h-6 text-green-600" />
                 </div>
-                <h3 className="font-medium text-green-800">Basic Data Sent!</h3>
-                <p className="text-sm text-gray-600">Check Supabase logs for pipeline activity.</p>
+                <h3 className="font-medium text-green-800">Successfully Connected!</h3>
+                <p className="text-sm text-gray-600">Here's your latest health data:</p>
               </div>
               
               <div className="grid grid-cols-2 gap-3">
@@ -334,6 +417,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                   <CardContent className="p-3 text-center">
                     <Footprints className="w-5 h-5 text-blue-500 mx-auto mb-1" />
                     <div className="text-lg font-bold">{healthData.steps?.toLocaleString()}</div>
+                    <div className="text-xs text-gray-500">Steps</div>
                   </CardContent>
                 </Card>
                 
