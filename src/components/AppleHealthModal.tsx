@@ -200,25 +200,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     }
   };
 
-  const handleDisconnect = async () => {
-    if (!currentUserId || !existingConnection) return;
-    
-    try {
-      const { error } = await supabase
-        .from('data_connections')
-        .update({ is_active: false })
-        .eq('id', existingConnection.id)
-        .eq('user_id', currentUserId);
-
-      if (!error) {
-        onDisconnect?.();
-        onClose();
-      }
-    } catch (error) {
-      console.error('Error disconnecting Apple Health:', error);
-    }
-  };
-
   const handleConnect = async () => {
     console.log('=== HANDLECONNECT START (Native App Driven) ===');
     console.log('handleConnect called, currentUserId:', currentUserId);
