@@ -54,11 +54,28 @@ const SECURITY_AGENTS = {
 };
 
 serve(async (req) => {
-  console.log('Crazy 8 Security: Function started successfully');
+  console.log('=== CRAZY 8 SECURITY FUNCTION ACTIVATED ===');
+  console.log('Function startup at:', new Date().toISOString());
+  console.log('Request URL:', req.url);
+  console.log('Request method:', req.method);
   
   if (req.method === 'OPTIONS') {
+    console.log('CORS preflight request handled');
     return new Response(null, {
       headers: corsHeaders
+    });
+  }
+  
+  // Health check endpoint for verification
+  if (req.url.includes('/health')) {
+    console.log('Health check endpoint called');
+    return new Response(JSON.stringify({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      protocol: 'Crazy Friend Security Protocol',
+      agents_available: Object.keys(SECURITY_AGENTS).length
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 

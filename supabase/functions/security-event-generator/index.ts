@@ -211,7 +211,9 @@ async function generateGenericSecurityEvents(sourceData) {
 
 async function triggerSecurityAnalysis(event) {
   try {
-    console.log('Triggering crazy-8-security analysis for high-priority event:', event.action_type);
+    console.log('=== TRIGGERING CRAZY-8-SECURITY ANALYSIS ===');
+    console.log('High-priority event detected:', event.action_type);
+    console.log('Event severity:', event.severity);
     
     // Determine which agent should handle this event
     let agent = 'crazy_sentinel'; // default
@@ -224,31 +226,53 @@ async function triggerSecurityAnalysis(event) {
       agent = 'crazy_hunter';
     }
 
+    console.log('Selected agent for analysis:', agent);
+
+    const payload = {
+      agent,
+      action: 'analyze_security_event',
+      data: event.result_data,
+      context: {
+        event_type: event.action_type,
+        severity: event.severity,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    console.log('Sending request to crazy-8-security with payload:', payload);
+
     const response = await fetch(`https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/crazy-8-security`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
       },
-      body: JSON.stringify({
-        agent,
-        action: 'analyze_security_event',
-        data: event.result_data,
-        context: {
-          event_type: event.action_type,
-          severity: event.severity,
-          timestamp: new Date().toISOString()
-        }
-      })
+      body: JSON.stringify(payload)
     });
 
+    console.log('Response status from crazy-8-security:', response.status);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
     if (!response.ok) {
-      console.error('Failed to trigger security analysis:', response.status, response.statusText);
+      const errorText = await response.text();
+      console.error('Failed to trigger security analysis:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      });
+      throw new Error(`Security analysis failed: ${response.status} ${errorText}`);
     } else {
-      console.log('Security analysis triggered successfully for:', event.action_type);
+      const responseData = await response.json();
+      console.log('Security analysis triggered successfully:', responseData);
+      console.log('Analysis result for event:', event.action_type);
     }
 
   } catch (error) {
-    console.error('Error triggering security analysis:', error);
+    console.error('=== ERROR IN SECURITY ANALYSIS TRIGGER ===');
+    console.error('Error details:', error);
+    console.error('Event that failed:', event);
+    
+    // Don't throw - allow the function to continue processing other events
+    console.log('Continuing with other security events despite this failure');
   }
 }

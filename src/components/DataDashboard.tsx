@@ -49,45 +49,57 @@ const DataDashboard = () => {
     if (!currentUserId) return;
     
     try {
-      // Check pipeline health first
-      const { data: pipelineHealth, error: healthError } = await supabase.functions.invoke(
-        'pipeline-diagnostics'
-      );
+      // Parallelize all API calls for better performance
+      const [
+        pipelineHealthResult,
+        connectionsResult,
+        walletResult
+      ] = await Promise.allSettled([
+        supabase.functions.invoke('pipeline-diagnostics'),
+        supabase
+          .from('data_connections')
+          .select('*')
+          .eq('user_id', currentUserId)
+          .eq('is_active', true),
+        supabase
+          .from('user_wallets')
+          .select('*')
+          .eq('user_id', currentUserId)
+          .maybeSingle()
+      ]);
 
-      if (healthError) {
-        console.error('Pipeline health check failed:', healthError);
+      // Handle pipeline health check (non-critical)
+      if (pipelineHealthResult.status === 'rejected') {
+        console.warn('Pipeline health check failed:', pipelineHealthResult.reason);
       }
       
-      // Fetch real connections from database
-      const { data: connectionsData, error: connectionsError } = await supabase
-        .from('data_connections')
-        .select('*')
-        .eq('user_id', currentUserId)
-        .eq('is_active', true);
-
-      if (connectionsError) {
-        console.error('Error fetching connections:', connectionsError);
+      // Handle connections data (critical)
+      if (connectionsResult.status === 'rejected') {
+        console.error('Error fetching connections:', connectionsResult.reason);
         setConnections([]);
         setTotalEarnings(0);
         setLoading(false);
         return;
       }
 
-      // Fetch user wallet to get real earnings - REFRESH EVERY TIME
-      const { data: walletData, error: walletError } = await supabase
-        .from('user_wallets')
-        .select('*')
-        .eq('user_id', currentUserId)
-        .maybeSingle(); // Use maybeSingle to avoid errors
+      const connectionsData = connectionsResult.value.data || [];
+      
+      // Handle wallet data (critical for earnings display)
+      let totalEarned = 0;
+      if (walletResult.status === 'fulfilled') {
+        totalEarned = walletResult.value.data?.total_earned || 0;
+      } else {
+        console.error('Error fetching wallet:', walletResult.reason);
+      }
 
-      const totalEarned = walletData?.total_earned || 0;
-
-      setConnections(connectionsData || []);
+      setConnections(connectionsData);
       setTotalEarnings(totalEarned);
       
-      // Fetch live virtuous cycle impacts
-      if (connectionsData && connectionsData.length > 0) {
-        await fetchVirtuousImpacts();
+      // Fetch virtuous cycle impacts in background (non-blocking)
+      if (connectionsData.length > 0) {
+        fetchVirtuousImpacts().catch(error => {
+          console.error('Non-critical: Virtuous impacts fetch failed:', error);
+        });
       }
       
       setLoading(false);

@@ -120,11 +120,19 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
       // Navigate to the OAuth URL
       popup.location.href = urlData.oauthUrl;
       
-      // Monitor popup for closure
-      const checkClosed = setInterval(() => {
+      // Monitor popup for closure with cleanup
+      let checkClosed;
+      let timeoutId;
+      
+      const cleanup = () => {
+        if (checkClosed) clearInterval(checkClosed);
+        if (timeoutId) clearTimeout(timeoutId);
+      };
+      
+      checkClosed = setInterval(() => {
         try {
           if (popup.closed) {
-            clearInterval(checkClosed);
+            cleanup();
             setIsConnecting(false);
             console.log('Popup closed, checking connection status...');
             // Check if connection was successful
@@ -138,10 +146,10 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
         }
       }, 1000);
 
-      // Timeout after 5 minutes
-      setTimeout(() => {
+      // Timeout after 5 minutes with proper cleanup
+      timeoutId = setTimeout(() => {
         if (!popup.closed) {
-          clearInterval(checkClosed);
+          cleanup();
           popup.close();
           setIsConnecting(false);
           toast({

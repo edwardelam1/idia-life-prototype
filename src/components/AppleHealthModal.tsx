@@ -119,6 +119,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     console.log('authSession present:', !!authSession);
     
     setErrorMessage(null);
+    setConnectionStatus('connecting');
     
     if (!currentUserId || !authSession) {
       const errorMsg = 'Please log in to connect Apple Health data.';
@@ -128,54 +129,50 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       return;
     }
     
-    await new Promise(resolve => setTimeout(resolve, 500));
+    try {
+      console.log('Creating/updating connection record with upsert');
+      const { data: connectionResult, error: connectionError } = await supabase
+        .from('data_connections')
+        .upsert({
+          user_id: currentUserId,
+          connection_type: 'apple_health',
+          connection_name: 'Apple Health',
+          is_active: true,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id,connection_type'
+        })
+        .select()
+        .single();
     
-    console.log('Creating/updating user_connections record...');
+      console.log('Connection operation result:', { connectionResult, connectionError });
     
-      try {
-        console.log('Creating/updating connection record with upsert');
-        const { data: connectionResult, error: connectionError } = await supabase
-          .from('data_connections')
-          .upsert({
-            user_id: currentUserId,
-            connection_type: 'apple_health',
-            connection_name: 'Apple Health',
-            is_active: true,
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'user_id,connection_type'
-          })
-          .select()
-          .single();
-      
-        console.log('Connection operation result:', { connectionResult, connectionError });
-      
-        if (connectionError) {
-          console.error('Database connection error details:', {
-            code: connectionError.code,
-            message: connectionError.message,
-            details: connectionError.details,
-            hint: connectionError.hint
-          });
-          setErrorMessage(`Failed to initialize connection: ${connectionError.message}`);
-          setConnectionStatus('error');
-          return;
-        }
-      
-        console.log('Connection record created/updated successfully:', connectionResult);
-        console.log('Starting minimal HealthKit data sync via native app...');
-      
-        syncHealthDataViaNativeAppMinimal(); // Call the minimal native sync function
-      } catch (error) {
-        console.error('Unexpected error in handleConnect:', error);
-        console.error('Error details:', {
-          name: error.name,
-          message: error.message,
-          stack: error.stack
+      if (connectionError) {
+        console.error('Database connection error details:', {
+          code: connectionError.code,
+          message: connectionError.message,
+          details: connectionError.details,
+          hint: connectionError.hint
         });
-        setErrorMessage(`Connection failed: ${error.message}`);
+        setErrorMessage(`Failed to initialize connection: ${connectionError.message}`);
         setConnectionStatus('error');
+        return;
       }
+    
+      console.log('Connection record created/updated successfully:', connectionResult);
+      console.log('Starting minimal HealthKit data sync via native app...');
+    
+      syncHealthDataViaNativeAppMinimal(); // Call the minimal native sync function
+    } catch (error) {
+      console.error('Unexpected error in handleConnect:', error);
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+      setErrorMessage(`Connection failed: ${error.message}`);
+      setConnectionStatus('error');
+    }
     
     console.log('=== HANDLECONNECT END (Minimal Test) ===');
   };
