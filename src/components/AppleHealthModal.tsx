@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Activity, Heart, Footprints, Moon, Zap } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { Checkbox } from '@/components/ui/checkbox'; // Assuming you have a Checkbox component
 
 interface AppleHealthModalProps {
   isOpen: boolean;
@@ -13,13 +14,74 @@ interface AppleHealthModalProps {
   onDisconnect?: () => void;
 }
 
+// Define all 37 data types with their display names and categories
+const ALL_HEALTH_DATA_TYPES = [
+  // Activity & Movement
+  { id: 'HKQuantityTypeIdentifierStepCount', name: 'Steps', category: 'Activity' },
+  { id: 'HKQuantityTypeIdentifierDistanceWalkingRunning', name: 'Distance (Walking/Running)', category: 'Activity' },
+  { id: 'HKQuantityTypeIdentifierDistanceCycling', name: 'Distance (Cycling)', category: 'Activity' },
+  { id: 'HKQuantityTypeIdentifierFlightsClimbed', name: 'Flights Climbed', category: 'Activity' },
+  { id: 'HKQuantityTypeIdentifierActiveEnergyBurned', name: 'Active Energy Burned', category: 'Activity' },
+  { id: 'HKQuantityTypeIdentifierBasalEnergyBurned', name: 'Basal Energy Burned', category: 'Activity' },
+  { id: 'HKQuantityTypeIdentifierAppleExerciseTime', name: 'Exercise Time', category: 'Activity' },
+  { id: 'HKQuantityTypeIdentifierWalkingSpeed', name: 'Walking Speed', category: 'Activity' },
+  { id: 'HKQuantityTypeIdentifierWalkingStepLength', name: 'Walking Step Length', category: 'Activity' },
+  { id: 'HKQuantityTypeIdentifierWalkingAsymmetryPercentage', name: 'Walking Asymmetry', category: 'Activity' },
+  { id: 'HKQuantityTypeIdentifierWalkingDoubleSupportPercentage', name: 'Double Support Time', category: 'Activity' },
+  
+  // Heart & Vitals (Basic)
+  { id: 'HKQuantityTypeIdentifierHeartRate', name: 'Heart Rate', category: 'Vitals' },
+  { id: 'HKQuantityTypeIdentifierRestingHeartRate', name: 'Resting Heart Rate', category: 'Vitals' },
+  // OMITTED: HeartRateVariabilitySDNN
+  { id: 'HKQuantityTypeIdentifierOxygenSaturation', name: 'Blood Oxygen', category: 'Vitals' },
+  // OMITTED: BloodPressureSystolic, BloodPressureDiastolic
+  { id: 'HKQuantityTypeIdentifierRespiratoryRate', name: 'Respiratory Rate', category: 'Vitals' },
+  { id: 'HKQuantityTypeIdentifierBodyTemperature', name: 'Body Temperature', category: 'Vitals' },
+  { id: 'HKQuantityTypeIdentifierVO2Max', name: 'VO2 Max', category: 'Vitals' },
+
+  // Body Measurements
+  { id: 'HKQuantityTypeIdentifierHeight', name: 'Height', category: 'Body' },
+  { id: 'HKQuantityTypeIdentifierBodyMass', name: 'Weight', category: 'Body' },
+  { id: 'HKQuantityTypeIdentifierBodyMassIndex', name: 'BMI', category: 'Body' },
+  { id: 'HKQuantityTypeIdentifierBodyFatPercentage', name: 'Body Fat %', category: 'Body' },
+  { id: 'HKQuantityTypeIdentifierLeanBodyMass', name: 'Lean Body Mass', category: 'Body' },
+  { id: 'HKQuantityTypeIdentifierWaistCircumference', name: 'Waist Circumference', category: 'Body' },
+
+  // Nutrition (Basic)
+  { id: 'HKQuantityTypeIdentifierDietaryEnergyConsumed', name: 'Dietary Energy', category: 'Nutrition' },
+  { id: 'HKQuantityTypeIdentifierDietaryFatTotal', name: 'Total Fat', category: 'Nutrition' },
+  { id: 'HKQuantityTypeIdentifierDietaryProtein', name: 'Protein', category: 'Nutrition' },
+  { id: 'HKQuantityTypeIdentifierDietaryWater', name: 'Water Intake', category: 'Nutrition' },
+  // OMITTED: Specific dietary fats, fiber, sugar, caffeine, sodium, potassium, vitamins, calcium, iron
+
+  // Other Categories
+  // OMITTED: Sleep Analysis (from HealthKitManager)
+  { id: 'HKCategoryTypeIdentifierMindfulSession', name: 'Mindful Minutes', category: 'Mindfulness' },
+  { id: 'HKQuantityTypeIdentifierEnvironmentalAudioExposure', name: 'Environmental Audio Exposure', category: 'Environment' },
+  { id: 'HKQuantityTypeIdentifierHeadphoneAudioExposure', name: 'Headphone Audio Exposure', category: 'Environment' },
+  
+  // Reproductive Health
+  { id: 'HKCategoryTypeIdentifierMenstrualFlow', name: 'Menstrual Flow', category: 'Reproductive' },
+  { id: 'HKQuantityTypeIdentifierBasalBodyTemperature', name: 'Basal Body Temperature', category: 'Reproductive' },
+  { id: 'HKCategoryTypeIdentifierOvulationTestResult', name: 'Ovulation Test Result', category: 'Reproductive' },
+  { id: 'HKCategoryTypeIdentifierCervicalMucusQuality', name: 'Cervical Mucus Quality', category: 'Reproductive' },
+  { id: 'HKCategoryTypeIdentifierSexualActivity', name: 'Sexual Activity', category: 'Reproductive' },
+
+  { id: 'HKWorkoutTypeIdentifier', name: 'Workout Data', category: 'Activity' },
+  { id: 'HKClinicalTypeIdentifier', name: 'Clinical Data Indicator', category: 'Clinical' }, // Generic placeholder
+  // OMITTED: Emotional State
+];
+
 const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onDisconnect }: AppleHealthModalProps) => {
   const [isConnecting, setIsConnecting] = useState(false);
-  const [healthData, setHealthData] = useState<any>(null); // To show what was sent by native app
+  const [healthData, setHealthData] = useState<any>(null); 
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [authSession, setAuthSession] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // State to manage selected data types
+  const [selectedDataTypes, setSelectedDataTypes] = useState<Set<string>>(new Set(ALL_HEALTH_DATA_TYPES.map(d => d.id)));
+  const [showAllTypes, setShowAllTypes] = useState(false); // To toggle visibility of all types
 
   useEffect(() => {
     const getSession = async () => {
@@ -40,33 +102,39 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, []);
 
   useEffect(() => {
-    // This callback is expected from the native app for the simplified version
     (window as any).onHealthDataSyncComplete = (responseBody: string) => {
-      console.log("Web view received sync completion callback from native app (simplified).");
+      console.log("DEBUG_UI: Web view received sync completion callback from native app.");
+      console.log("DEBUG_UI: Raw Response Body from Native:", responseBody); 
+
       try {
         const responseData = JSON.parse(responseBody);
-        // Display the data that the native app reported sending
+        console.log("DEBUG_UI: Parsed Response Data from Native:", responseData); 
+
         if (responseData && responseData.health_data) {
           setHealthData(responseData.health_data); 
         } else {
-          setHealthData({steps: '?', heartRate: '?', activeMinutes: '?', sleepHours: '?'});
+          setHealthData({}); // Clear healthData on empty response
         }
+        
         setConnectionStatus('connected');
         setIsConnecting(false);
-        onComplete(); // Trigger modal close (via parent)
+        onComplete(); 
+        console.log("DEBUG_UI: Connection status set to 'connected' and onComplete() called.");
+
       } catch (error) {
-        console.error("Failed to parse native callback response (simplified):", error);
-        setErrorMessage("HealthKit sync failed.");
+        console.error("DEBUG_UI: Failed to parse native callback response:", error);
+        setErrorMessage(`HealthKit sync failed: ${error.message || 'Unknown error'}`);
         setConnectionStatus('error');
         setIsConnecting(false);
+        console.log("DEBUG_UI: Connection status set to 'error' due to parsing failure.");
       }
     };
-    // Handle error callback from native app
-    (window as any).onHealthDataSyncError = (errorMessage: string) => {
-        console.error("Web view received error callback from native app (simplified):", errorMessage);
-        setErrorMessage(`HealthKit Sync Error: ${errorMessage}`);
+    (window as any).onHealthDataSyncError = (errorMsg: string) => {
+        console.error("DEBUG_UI: Web view received error callback from native app:", errorMsg);
+        setErrorMessage(`HealthKit Sync Error: ${errorMsg}`);
         setConnectionStatus('error');
         setIsConnecting(false);
+        console.log("DEBUG_UI: Connection status set to 'error' by native error callback.");
     };
 
     return () => {
@@ -75,146 +143,55 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     };
   }, [onComplete]);
 
+  const handleCheckboxChange = (id: string, isChecked: boolean) => {
+    setSelectedDataTypes(prev => {
+      const newSet = new Set(prev);
+      if (isChecked) {
+        newSet.add(id);
+      } else {
+        newSet.delete(id);
+      }
+      return newSet;
+    });
+  };
 
-  const syncHealthDataViaNativeApp = () => { // Function name restored to be generic
+  const syncHealthDataViaNativeApp = () => {
     setIsConnecting(true);
     setConnectionStatus('connecting');
     setErrorMessage(null);
     
     const webkit = (window as any).webkit;
     if (webkit && webkit.messageHandlers && webkit.messageHandlers.syncHealthData) {
-      console.log("Sending basic HealthKit data sync request to native iOS app (simplified HealthKitManager)...");
+      console.log("DEBUG_UI: Preparing HealthKit data sync request for native iOS app...");
+
+      const requestedTypesByCategory: { [key: string]: string[] } = {};
+      ALL_HEALTH_DATA_TYPES.forEach(type => {
+        if (selectedDataTypes.has(type.id)) {
+          if (!requestedTypesByCategory[type.category.toLowerCase()]) {
+            requestedTypesByCategory[type.category.toLowerCase()] = [];
+          }
+          requestedTypesByCategory[type.category.toLowerCase()].push(type.id);
+        }
+      });
       
-      const basicHealthRequest = { // Requesting only basic types for simplified native
-        action: "comprehensive_health_sync", // Action for comprehensive sync
+      const comprehensiveHealthRequest = {
+        action: "comprehensive_health_sync",
         config: {
           endpoint: 'https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/health-data-bridge',
           user_id: currentUserId,
           auth_token: authSession?.access_token
         },
-        // Requesting comprehensive data types for native HealthKitManager
-        requestedDataTypes: {
-          activity: [
-            'HKQuantityTypeIdentifierStepCount',
-            'HKQuantityTypeIdentifierDistanceWalkingRunning',
-            'HKQuantityTypeIdentifierDistanceCycling',
-            'HKQuantityTypeIdentifierFlightsClimbed',
-            'HKQuantityTypeIdentifierActiveEnergyBurned',
-            'HKQuantityTypeIdentifierBasalEnergyBurned',
-            'HKQuantityTypeIdentifierAppleExerciseTime',
-            'HKQuantityTypeIdentifierWalkingSpeed',
-            'HKQuantityTypeIdentifierWalkingStepLength',
-            'HKQuantityTypeIdentifierWalkingAsymmetryPercentage',
-            'HKQuantityTypeIdentifierWalkingDoubleSupportPercentage'
-          ],
-          
-          vitals: [
-            'HKQuantityTypeIdentifierHeartRate',
-            'HKQuantityTypeIdentifierRestingHeartRate',
-            'HKQuantityTypeIdentifierHeartRateVariabilitySDNN',
-            'HKQuantityTypeIdentifierOxygenSaturation',
-            'HKQuantityTypeIdentifierBloodPressureSystolic',
-            'HKQuantityTypeIdentifierBloodPressureDiastolic',
-            'HKQuantityTypeIdentifierRespiratoryRate',
-            'HKQuantityTypeIdentifierBodyTemperature',
-            'HKQuantityTypeIdentifierVO2Max'
-          ],
-          
-          body: [
-            'HKQuantityTypeIdentifierHeight',
-            'HKQuantityTypeIdentifierBodyMass',
-            'HKQuantityTypeIdentifierBodyMassIndex',
-            'HKQuantityTypeIdentifierBodyFatPercentage',
-            'HKQuantityTypeIdentifierLeanBodyMass',
-            'HKQuantityTypeIdentifierWaistCircumference'
-          ],
-          
-          nutrition: [
-            'HKQuantityTypeIdentifierDietaryEnergyConsumed',
-            'HKQuantityTypeIdentifierDietaryFatTotal',
-            'HKQuantityTypeIdentifierDietaryFatSaturated',
-            'HKQuantityTypeIdentifierDietaryFatPolyunsaturated',
-            'HKQuantityTypeIdentifierDietaryFatMonounsaturated',
-            'HKQuantityTypeIdentifierDietaryCarbohydrates',
-            'HKQuantityTypeIdentifierDietaryFiber',
-            'HKQuantityTypeIdentifierDietarySugar',
-            'HKQuantityTypeIdentifierDietaryProtein',
-            'HKQuantityTypeIdentifierDietaryWater',
-            'HKQuantityTypeIdentifierDietaryCaffeine',
-            'HKQuantityTypeIdentifierDietarySodium',
-            'HKQuantityTypeIdentifierDietaryPotassium',
-            'HKQuantityTypeIdentifierDietaryVitaminC',
-            'HKQuantityTypeIdentifierDietaryVitaminD',
-            'HKQuantityTypeIdentifierDietaryCalcium',
-            'HKQuantityTypeIdentifierDietaryIron'
-          ],
-          
-          sleep: [
-            'HKCategoryTypeIdentifierSleepAnalysis'
-          ],
-          
-          reproductive: [
-            'HKCategoryTypeIdentifierMenstrualFlow',
-            'HKCategoryTypeIdentifierCervicalMucusQuality',
-            'HKCategoryTypeIdentifierOvulationTestResult',
-            'HKCategoryTypeIdentifierSexualActivity',
-            'HKQuantityTypeIdentifierBasalBodyTemperature'
-          ],
-          
-          mindfulness: [
-            'HKCategoryTypeIdentifierMindfulSession'
-          ],
-          
-          workouts: [
-            'HKWorkoutTypeIdentifier'
-          ],
-          
-          clinical: [
-            'HKClinicalTypeIdentifierAllergyRecord',
-            'HKClinicalTypeIdentifierConditionRecord',
-            'HKClinicalTypeIdentifierImmunizationRecord',
-            'HKClinicalTypeIdentifierLabResultRecord',
-            'HKClinicalTypeIdentifierMedicationRecord',
-            'HKClinicalTypeIdentifierProcedureRecord',
-            'HKClinicalTypeIdentifierVitalSignRecord'
-          ],
-          environmental: [
-            'HKQuantityTypeIdentifierEnvironmentalAudioExposure',
-            'HKQuantityTypeIdentifierHeadphoneAudioExposure'
-          ],
-          // Conditional iOS 17+ types
-          emotional: [
-            'HKCategoryTypeIdentifierEmotionalState'
-          ]
-        }
+        requestedDataTypes: requestedTypesByCategory // Send only selected types
       };
       
-      webkit.messageHandlers.syncHealthData.postMessage(basicHealthRequest); // Use the comprehensive request
+      webkit.messageHandlers.syncHealthData.postMessage(comprehensiveHealthRequest);
+      console.log("DEBUG_UI: Sent request to native app with selected types:", requestedTypesByCategory);
       
     } else {
-      console.log("Not running in the native app wrapper. HealthKit sync unavailable (Launch via Xcode).");
+      console.log("DEBUG_UI: Not running in the native app wrapper. HealthKit sync unavailable (Launch via Xcode).");
       setErrorMessage("HealthKit sync is unavailable outside the native iOS app wrapper. Please launch from Xcode.");
       setConnectionStatus('error');
       setIsConnecting(false);
-    }
-  };
-
-  const handleDisconnect = async () => {
-    if (!currentUserId || !existingConnection) return;
-    
-    try {
-      const { error } = await supabase
-        .from('data_connections')
-        .update({ is_active: false })
-        .eq('id', existingConnection.id)
-        .eq('user_id', currentUserId);
-
-      if (!error) {
-        onDisconnect?.();
-        onClose();
-      }
-    } catch (error) {
-      console.error('Error disconnecting Apple Health:', error);
     }
   };
 
@@ -224,8 +201,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     console.log('authSession present:', !!authSession);
     
     setErrorMessage(null);
-    setConnectionStatus('connecting'); // Set status to connecting immediately
-
+    setConnectionStatus('connecting');
+    
     if (!currentUserId || !authSession) {
       const errorMsg = 'Please log in to connect Apple Health data.';
       console.error('Authentication check failed:', { currentUserId, authSession: !!authSession });
@@ -235,7 +212,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     }
     
     try {
-      console.log('Creating/updating connection record with upsert');
+      console.log('DEBUG_UI: Creating/updating connection record with upsert');
       const { data: connectionResult, error: connectionError } = await supabase
         .from('data_connections')
         .upsert({
@@ -250,10 +227,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         .select()
         .single();
     
-      console.log('Connection operation result:', { connectionResult, connectionError });
+      console.log('DEBUG_UI: Connection operation result:', { connectionResult, connectionError });
     
       if (connectionError) {
-        console.error('Database connection error details:', {
+        console.error('DEBUG_UI: Database connection error details:', {
           code: connectionError.code,
           message: connectionError.message,
           details: connectionError.details,
@@ -264,13 +241,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         return;
       }
     
-      console.log('Connection record created/updated successfully:', connectionResult);
-      console.log('Starting comprehensive HealthKit data sync via native app...');
+      console.log('DEBUG_UI: Connection record created/updated successfully:', connectionResult);
+      console.log('DEBUG_UI: Starting comprehensive HealthKit data sync via native app...');
     
       syncHealthDataViaNativeApp(); // Call the native sync function
     } catch (error) {
-      console.error('Unexpected error in handleConnect:', error);
-      console.error('Error details:', {
+      console.error('DEBUG_UI: Unexpected error in handleConnect:', error);
+      console.error('DEBUG_UI: Error details:', {
         name: error.name,
         message: error.message,
         stack: error.stack
@@ -310,21 +287,32 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               </p>
               
               <div className="space-y-2">
-                <h4 className="font-medium text-sm">Comprehensive HealthKit Data we'll access:</h4>
-                <div className="max-h-40 overflow-y-auto">
-                  <ul className="text-xs text-gray-500 space-y-1">
-                    <li>• Steps, Distance (Walking/Running/Cycling), Flights Climbed</li>
-                    <li>• Active & Basal Energy, Exercise Time, Walking Metrics</li>
-                    <li>• Heart Rate, HRV, Blood Oxygen, Blood Pressure, Respiratory Rate, Body Temperature, VO2 Max</li>
-                    <li>• Height, Weight, BMI, Body Fat %, Lean Mass, Waist Circumference</li>
-                    <li>• Dietary Energy, Macronutrients (Total Fat, Carbs, Protein, Water, Fiber, Sugar, Caffeine, Sodium, Potassium, Vit C/D, Calcium, Iron)</li>
-                    <li>• Sleep Analysis (Stages, Time In Bed/Asleep, REM, Deep, Core)</li>
-                    <li>• Menstrual Flow, Cervical Mucus, Ovulation Test, Sexual Activity, Basal Body Temperature</li>
-                    <li>• Mindful Minutes, Emotional State (iOS 17+)</li>
-                    <li>• Environmental Audio Exposure (Loudness)</li>
-                    <li>• Workouts, Clinical Records (Allergies, Conditions, Labs, Meds, Procedures, Vitals)</li>
-                  </ul>
+                <h4 className="font-medium text-sm">Select HealthKit Data to Access:</h4>
+                <div className="max-h-40 overflow-y-auto border p-2 rounded-md">
+                  {/* Group data types by category for better UX */}
+                  {Array.from(new Set(ALL_HEALTH_DATA_TYPES.map(d => d.category))).map(category => (
+                    <div key={category} className="mb-2">
+                      <h5 className="font-semibold text-xs text-gray-700 mt-1">{category}</h5>
+                      {ALL_HEALTH_DATA_TYPES.filter(d => d.category === category).map(type => (
+                        <div key={type.id} className="flex items-center space-x-2 text-xs py-1">
+                          <Checkbox
+                            id={type.id}
+                            checked={selectedDataTypes.has(type.id)}
+                            onCheckedChange={(checked: boolean) => handleCheckboxChange(type.id, checked)}
+                          />
+                          <label htmlFor={type.id} className="text-gray-600 cursor-pointer">{type.name}</label>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
                 </div>
+                <Button 
+                  variant="link" 
+                  onClick={() => setShowAllTypes(!showAllTypes)} 
+                  className="px-0 py-0 h-auto text-xs"
+                >
+                  {showAllTypes ? 'Show fewer types' : 'Show all types'}
+                </Button>
                 <p className="text-xs text-blue-600 mt-2">
                   All data is anonymized and encrypted for privacy protection
                 </p>
@@ -417,7 +405,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                   <CardContent className="p-3 text-center">
                     <Footprints className="w-5 h-5 text-blue-500 mx-auto mb-1" />
                     <div className="text-lg font-bold">{healthData.steps?.toLocaleString()}</div>
-                    <div className="text-xs text-gray-500">Steps</div>
                   </CardContent>
                 </Card>
                 
