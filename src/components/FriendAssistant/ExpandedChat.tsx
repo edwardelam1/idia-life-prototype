@@ -13,6 +13,7 @@ interface ExpandedChatProps {
   friendState: FriendState;
   isListening: boolean;
   isSyllableBlinking?: boolean;
+  isVoiceMode: boolean;
   onInputChange: (value: string) => void;
   onSendMessage: () => void;
   onKeyPress: (e: React.KeyboardEvent) => void;
@@ -28,6 +29,7 @@ const ExpandedChat = ({
   friendState,
   isListening,
   isSyllableBlinking,
+  isVoiceMode,
   onInputChange,
   onSendMessage,
   onKeyPress,
@@ -113,26 +115,39 @@ const ExpandedChat = ({
         {/* Input area */}
         <div className="border-t p-4">
           <div className="flex space-x-2">
-            <Input
-              value={inputValue}
-              onChange={(e) => onInputChange(e.target.value)}
-              onKeyPress={onKeyPress}
-              placeholder="Ask me anything about IDIA..."
-              className="flex-1"
-              disabled={friendState === 'thinking'}
-            />
-            <Button
-              onClick={onSendMessage}
-              size="sm"
-              className="bg-teal-500 hover:bg-teal-600"
-              disabled={friendState === 'thinking'}
-            >
-              <Send className="w-4 h-4" />
-            </Button>
+            {!isVoiceMode && (
+              <>
+                <Input
+                  value={inputValue}
+                  onChange={(e) => onInputChange(e.target.value)}
+                  onKeyPress={onKeyPress}
+                  placeholder="Ask me anything about IDIA..."
+                  className="flex-1"
+                  disabled={friendState === 'thinking'}
+                />
+                <Button
+                  onClick={onSendMessage}
+                  size="sm"
+                  className="bg-teal-500 hover:bg-teal-600"
+                  disabled={friendState === 'thinking'}
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
+              </>
+            )}
+            
+            {isVoiceMode && (
+              <div className="flex-1 flex items-center justify-center py-2">
+                <span className="text-sm text-muted-foreground">
+                  {isListening ? '🎙️ Listening...' : friendState === 'thinking' ? '🤔 Processing...' : friendState === 'speaking' ? '🗣️ Speaking...' : '🎤 Voice mode active'}
+                </span>
+              </div>
+            )}
+            
             <Button
               onClick={onVoiceToggle}
               size="sm"
-              variant="outline"
+              variant={isVoiceMode ? "destructive" : "outline"}
               className={`${isListening ? 'bg-purple-100 border-purple-300' : ''}`}
             >
               <Mic className="w-4 h-4" />

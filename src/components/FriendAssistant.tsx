@@ -1,19 +1,27 @@
-
-import { useState, useEffect } from 'react';
-import { Message, FriendAssistantProps, FriendState } from './FriendAssistant/types';
-import { getContextualGreeting } from './FriendAssistant/orbUtils';
-import { useSyllableBlinking } from './FriendAssistant/useSyllableBlinking';
+import React, { useState, useEffect, useRef } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import CollapsedAvatar from './FriendAssistant/CollapsedAvatar';
 import ExpandedChat from './FriendAssistant/ExpandedChat';
-import { supabase } from '@/integrations/supabase/client';
+import { FriendState, Message } from './FriendAssistant/types';
+import { AudioRecorder } from '@/utils/AudioRecorder';
+import { getContextualGreeting } from './FriendAssistant/orbUtils';
+import { useSyllableBlinking } from './FriendAssistant/useSyllableBlinking';
 
-const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) => {
+interface FriendAssistantProps {
+  isVisible: boolean;
+  onClose: () => void;
+  trigger?: 'social' | 'wallet' | 'data' | 'achievement';
+}
+
+const FriendAssistant: React.FC<FriendAssistantProps> = ({ isVisible, onClose, trigger }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [friendState, setFriendState] = useState<FriendState>('idle');
   const [isListening, setIsListening] = useState(false);
-  const [currentSpeechText, setCurrentSpeechText] = useState<string>('');
+  const [currentSpeechText, setCurrentSpeechText] = useState('');
+  const [isVoiceMode, setIsVoiceMode] = useState(false);
+  const audioRecorderRef = useRef<AudioRecorder | null>(null);
 
   // Use syllable blinking hook
   const { currentSyllable } = useSyllableBlinking();
@@ -36,6 +44,8 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
   const speakText = async (text: string) => {
     try {
       console.log('Attempting to speak text:', text);
+      setFriendState('speaking');
+      setCurrentSpeechText(text);
       
       const { data, error } = await supabase.functions.invoke('text-to-speech', {
         body: { text, voice: '9BWtsMINqrJLrRacOk9x' } // Aria voice
@@ -53,7 +63,16 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
         // Add event listeners for debugging
         audio.oncanplaythrough = () => console.log('Audio can play through');
         audio.onplay = () => console.log('Audio started playing');
-        audio.onended = () => console.log('Audio finished playing');
+        audio.onended = () => {
+          console.log('Audio finished playing');
+          setCurrentSpeechText('');
+          // If in voice mode, automatically start listening again
+          if (isVoiceMode) {
+            setTimeout(() => startVoiceListening(), 500);
+          } else {
+            setFriendState('idle');
+          }
+        };
         audio.onerror = (e) => console.error('Audio playback error:', e);
         
         // Set volume to ensure it's audible
@@ -63,9 +82,11 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
         console.log('Audio play() called successfully');
       } else {
         console.error('No audio content received from text-to-speech function');
+        setFriendState('idle');
       }
     } catch (error) {
       console.error('Error playing speech:', error);
+      setFriendState('idle');
       
       // Add a visual indication when speech fails
       const errorMessage: Message = {
@@ -79,7 +100,134 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
     }
   };
 
-  const handleSendMessage = () => {
+  const processVoiceInput = async (audioData: string) => {
+    try {
+      console.log('Processing voice input...');
+      setFriendState('thinking');
+      setIsListening(false);
+      
+      const { data, error } = await supabase.functions.invoke('voice-to-text', {
+        body: { audio: audioData }
+      });
+
+      if (error) {
+        console.error('Voice-to-text error:', error);
+        throw error;
+      }
+
+      if (data?.text && data.text.trim()) {
+        console.log('Transcribed text:', data.text);
+        
+        // Add user message to chat
+        const userMessage: Message = {
+          id: Date.now().toString(),
+          text: data.text,
+          isUser: true,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, userMessage]);
+
+        // Generate AI response
+        await generateAIResponse(data.text);
+      } else {
+        console.log('No text transcribed, returning to listening mode');
+        if (isVoiceMode) {
+          setTimeout(() => startVoiceListening(), 500);
+        } else {
+          setFriendState('idle');
+        }
+      }
+    } catch (error) {
+      console.error('Error processing voice input:', error);
+      if (isVoiceMode) {
+        setTimeout(() => startVoiceListening(), 1000);
+      } else {
+        setFriendState('idle');
+      }
+    }
+  };
+
+  const generateAIResponse = async (userText: string) => {
+    try {
+      // Enhanced AI responses based on health and wellness context
+      const responses = [
+        "That's really interesting! Tell me more about how that affects your daily routine.",
+        "I understand. How has that been impacting your wellness journey?",
+        "Thanks for sharing that with me. What specific goals are you working towards?",
+        "I'm here to support your health and wellness journey. What would you like to explore together?",
+        "That sounds important to you. How can I help you make progress with that?",
+        "I appreciate you opening up about that. What steps have you already tried?",
+        "That's a great point! Have you noticed any patterns or trends with that?",
+        "I hear you. What does success look like to you in this area?"
+      ];
+      
+      const aiResponse: Message = {
+        id: Date.now().toString() + '_ai',
+        text: responses[Math.floor(Math.random() * responses.length)],
+        isUser: false,
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, aiResponse]);
+      await speakText(aiResponse.text);
+    } catch (error) {
+      console.error('Error generating AI response:', error);
+      setFriendState('idle');
+    }
+  };
+
+  const startVoiceListening = async () => {
+    try {
+      console.log('Starting voice listening...');
+      setIsListening(true);
+      setFriendState('listening');
+      
+      audioRecorderRef.current = new AudioRecorder(
+        processVoiceInput,
+        (isActive) => {
+          console.log('Voice activity:', isActive);
+        }
+      );
+      
+      await audioRecorderRef.current.start();
+    } catch (error) {
+      console.error('Error starting voice listening:', error);
+      setIsListening(false);
+      setFriendState('idle');
+      
+      const permissionMessage: Message = {
+        id: Date.now().toString(),
+        text: "I need microphone access to hear you! Please allow microphone permissions and try again.",
+        isUser: false,
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, permissionMessage]);
+    }
+  };
+
+  const stopVoiceListening = () => {
+    if (audioRecorderRef.current) {
+      audioRecorderRef.current.stop();
+      audioRecorderRef.current = null;
+    }
+    setIsListening(false);
+    setFriendState('idle');
+  };
+
+  const handleVoiceToggle = async () => {
+    if (isVoiceMode) {
+      // Exit voice mode
+      setIsVoiceMode(false);
+      stopVoiceListening();
+    } else {
+      // Enter voice mode
+      setIsVoiceMode(true);
+      await startVoiceListening();
+    }
+  };
+
+  const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
 
     const userMessage: Message = {
@@ -91,43 +239,8 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
 
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
-
-    // Set thinking state
-    setFriendState('thinking');
-
-    // Simulate AI response with state transitions
-    setTimeout(() => {
-      setFriendState('speaking');
-      
-      const responses = [
-        "That's a great question! Let me help you with that.",
-        "I understand what you're looking for. Here's what I know about that topic.",
-        "Thanks for asking! IDIA is designed to make data sharing beneficial for everyone.",
-        "Great observation! The trust system helps build stronger communities.",
-        "That's exactly the kind of thinking that makes IDIA special!"
-      ];
-      
-      const responseText = responses[Math.floor(Math.random() * responses.length)];
-      setCurrentSpeechText(responseText); // Set the text for syllable blinking
-      
-      const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        text: responseText,
-        isUser: false,
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, aiResponse]);
-
-      // Speak the response using ElevenLabs
-      speakText(responseText);
-
-      // Return to idle state after speaking
-      setTimeout(() => {
-        setFriendState('idle');
-        setCurrentSpeechText(''); // Clear speech text
-      }, 3000);
-    }, 1500);
+    
+    await generateAIResponse(userMessage.text);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -140,50 +253,14 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
     setIsExpanded(true);
   };
 
-  const handleVoiceToggle = async () => {
-    if (isListening) {
-      setIsListening(false);
-      setFriendState('thinking');
-      // Simulate processing voice input
-      setTimeout(() => {
-        setFriendState('idle');
-      }, 1000);
-    } else {
-      try {
-        // Request microphone permission
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        
-        // Stop the stream immediately since we're just checking permissions
-        stream.getTracks().forEach(track => track.stop());
-        
-        setIsListening(true);
-        setFriendState('listening');
-        
-        console.log('Microphone permission granted');
-      } catch (error) {
-        console.error('Microphone permission denied or not available:', error);
-        
-        // Show a friendly message instead of just failing silently
-        const permissionMessage: Message = {
-          id: Date.now().toString(),
-          text: "I need microphone access to hear you! Please allow microphone permissions and try again.",
-          isUser: false,
-          timestamp: new Date()
-        };
-        
-        setMessages(prev => [...prev, permissionMessage]);
-        setFriendState('idle');
-      }
-    }
-  };
-
   const handleCollapse = () => {
     setIsExpanded(false);
   };
 
   const handleClose = () => {
     setIsExpanded(false);
-    setIsListening(false);
+    setIsVoiceMode(false);
+    stopVoiceListening();
     setFriendState('idle');
     onClose();
   };
@@ -213,6 +290,7 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
           friendState={friendState}
           isListening={isListening}
           isSyllableBlinking={isSyllableBlinking}
+          isVoiceMode={isVoiceMode}
           onInputChange={setInputValue}
           onSendMessage={handleSendMessage}
           onKeyPress={handleKeyPress}
