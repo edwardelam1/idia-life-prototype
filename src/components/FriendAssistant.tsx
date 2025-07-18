@@ -35,18 +35,47 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
 
   const speakText = async (text: string) => {
     try {
+      console.log('Attempting to speak text:', text);
+      
       const { data, error } = await supabase.functions.invoke('text-to-speech', {
         body: { text, voice: '9BWtsMINqrJLrRacOk9x' } // Aria voice
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw error;
+      }
 
       if (data?.audioContent) {
+        console.log('Audio content received, creating audio element');
         const audio = new Audio(`data:audio/mpeg;base64,${data.audioContent}`);
-        audio.play();
+        
+        // Add event listeners for debugging
+        audio.oncanplaythrough = () => console.log('Audio can play through');
+        audio.onplay = () => console.log('Audio started playing');
+        audio.onended = () => console.log('Audio finished playing');
+        audio.onerror = (e) => console.error('Audio playback error:', e);
+        
+        // Set volume to ensure it's audible
+        audio.volume = 0.8;
+        
+        await audio.play();
+        console.log('Audio play() called successfully');
+      } else {
+        console.error('No audio content received from text-to-speech function');
       }
     } catch (error) {
       console.error('Error playing speech:', error);
+      
+      // Add a visual indication when speech fails
+      const errorMessage: Message = {
+        id: Date.now().toString() + '_error',
+        text: "Sorry, I'm having trouble with my voice right now. But I can still chat with you!",
+        isUser: false,
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
     }
   };
 
@@ -111,7 +140,7 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
     setIsExpanded(true);
   };
 
-  const handleVoiceToggle = () => {
+  const handleVoiceToggle = async () => {
     if (isListening) {
       setIsListening(false);
       setFriendState('thinking');
@@ -120,8 +149,31 @@ const FriendAssistant = ({ isVisible, onClose, trigger }: FriendAssistantProps) 
         setFriendState('idle');
       }, 1000);
     } else {
-      setIsListening(true);
-      setFriendState('listening');
+      try {
+        // Request microphone permission
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        // Stop the stream immediately since we're just checking permissions
+        stream.getTracks().forEach(track => track.stop());
+        
+        setIsListening(true);
+        setFriendState('listening');
+        
+        console.log('Microphone permission granted');
+      } catch (error) {
+        console.error('Microphone permission denied or not available:', error);
+        
+        // Show a friendly message instead of just failing silently
+        const permissionMessage: Message = {
+          id: Date.now().toString(),
+          text: "I need microphone access to hear you! Please allow microphone permissions and try again.",
+          isUser: false,
+          timestamp: new Date()
+        };
+        
+        setMessages(prev => [...prev, permissionMessage]);
+        setFriendState('idle');
+      }
     }
   };
 
