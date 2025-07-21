@@ -1,34 +1,195 @@
 
-import { useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MapPin, Star, Clock, ShoppingCart, Camera, Eye, Sparkles, Search, Tag, Heart, ShoppingBag, Utensils, Coffee, Fuel } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { 
-  MapPin, 
-  Search, 
-  Star, 
-  Clock,
-  Coffee,
-  ShoppingBag,
-  Utensils,
-  Fuel,
-  Heart,
-  Tag
-} from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+
+interface ARExperience {
+  id: string;
+  title: string;
+  description: string;
+  experience_type: string;
+  ar_content_assets: any[];
+}
+
+interface Merchant {
+  id: string;
+  name: string;
+  business_type: string;
+  address: string;
+  business_locations: any[];
+  ar_experiences: ARExperience[];
+  distance?: string;
+  rating?: number;
+  isOpen?: boolean;
+  loyaltyStatus?: string;
+  specialOffers?: string[];
+}
 
 const ShopScreen = () => {
+  const [merchants, setMerchants] = useState<Merchant[]>([]);
+  const [selectedMerchant, setSelectedMerchant] = useState<Merchant | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const { toast } = useToast();
 
-  const categories = [
-    { id: 'all', name: 'All', icon: ShoppingBag },
-    { id: 'food', name: 'Food', icon: Utensils },
-    { id: 'coffee', name: 'Coffee', icon: Coffee },
-    { id: 'gas', name: 'Gas', icon: Fuel },
-  ];
+  useEffect(() => {
+    getUserLocation();
+    fetchNearbyMerchants();
+  }, []);
 
-  const merchants = [
+  const getUserLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+          // Use default location or show error
+        }
+      );
+    }
+  };
+
+  const fetchNearbyMerchants = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('businesses')
+        .select(`
+          *,
+          business_locations(*),
+          ar_experiences(
+            *,
+            ar_content_assets(*)
+          )
+        `)
+        .not('ar_experiences', 'is', null)
+        .eq('ar_experiences.is_active', true);
+
+      if (error) throw error;
+
+      // Add mock data for demo purposes
+      const mockMerchants = [
+        {
+          id: 'mock-1',
+          name: "Joe's Coffee & More",
+          business_type: "Coffee Shop",
+          address: "123 Main St",
+          business_locations: [{ address: "123 Main St" }],
+          ar_experiences: [{
+            id: 'ar-1',
+            title: 'Interactive Coffee Menu',
+            description: 'View our coffee in 3D and see ingredients',
+            experience_type: 'menu_visualization',
+            ar_content_assets: []
+          }],
+          distance: "0.2 miles",
+          rating: 4.8,
+          isOpen: true,
+          loyaltyStatus: "Gold Member",
+          specialOffers: ["10% off coffee", "Free pastry with purchase"]
+        },
+        {
+          id: 'mock-2',
+          name: "Fresh Garden Bistro",
+          business_type: "Restaurant",
+          address: "456 Oak Ave",
+          business_locations: [{ address: "456 Oak Ave" }],
+          ar_experiences: [{
+            id: 'ar-2',
+            title: 'AR Garden Tour',
+            description: 'Explore our virtual herb garden',
+            experience_type: 'spatial_experience',
+            ar_content_assets: []
+          }],
+          distance: "0.4 miles",
+          rating: 4.6,
+          isOpen: true,
+          loyaltyStatus: "Silver Member",
+          specialOffers: ["Happy hour 3-6pm"]
+        }
+      ];
+
+      setMerchants([...mockMerchants, ...(data || [])]);
+    } catch (error) {
+      console.error('Error fetching merchants:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load nearby merchants",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const launchARExperience = async (experience: ARExperience, merchant: Merchant) => {
+    try {
+      // Track AR interaction
+      const { error } = await supabase.functions.invoke('ar-experience-manager', {
+        body: {
+          action: 'track_interaction',
+          user_id: (await supabase.auth.getUser()).data.user?.id,
+          experience_id: experience.id,
+          interaction_data: {
+            type: 'launch',
+            data: { merchant_id: merchant.id },
+            session_id: crypto.randomUUID(),
+            location: userLocation,
+            device_info: { type: 'mobile_web' }
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "AR Experience Launched",
+        description: `Launching ${experience.title}`,
+        variant: "default"
+      });
+
+      // In a real implementation, this would launch the AR camera/viewer
+      console.log('Launching AR experience:', experience);
+      
+    } catch (error) {
+      console.error('Error launching AR experience:', error);
+      toast({
+        title: "Error",
+        description: "Failed to launch AR experience",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const viewARMenu = (merchant: Merchant) => {
+    setSelectedMerchant(merchant);
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6 space-y-4">
+        <div className="animate-pulse space-y-4">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="h-32 bg-muted" />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  return (
     {
       id: 1,
       name: 'Green Bean Coffee',
@@ -88,148 +249,109 @@ const ShopScreen = () => {
       hours: 'Open 24 hours',
       specialOffer: 'IDIA members save extra 3¢/gal',
       image: '⛽'
-    }
-  ];
+    <div className="p-6 space-y-6">
+      <Tabs defaultValue="nearby" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="nearby">Nearby</TabsTrigger>
+          <TabsTrigger value="ar-experiences">AR Experiences</TabsTrigger>
+        </TabsList>
 
-  const filteredMerchants = merchants.filter(merchant => {
-    const matchesCategory = selectedCategory === 'all' || merchant.category === selectedCategory;
-    const matchesSearch = merchant.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
-
-  const getLoyaltyProgress = (current: number, needed: number) => {
-    const progress = (current / (current + needed)) * 100;
-    return Math.min(progress, 100);
-  };
-
-  return (
-    <div className="p-4 space-y-6">
-      {/* Header */}
-      <div className="space-y-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Nearby Merchants</h1>
-          <p className="text-gray-600">Discover local businesses and earn rewards</p>
-        </div>
-
-        {/* Search */}
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <Input
-            placeholder="Search merchants..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-
-        {/* Category Filters */}
-        <div className="flex space-x-2 overflow-x-auto pb-2">
-          {categories.map((category) => {
-            const Icon = category.icon;
-            const isActive = selectedCategory === category.id;
-            return (
-              <Button
-                key={category.id}
-                variant={isActive ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedCategory(category.id)}
-                className={`flex items-center space-x-2 whitespace-nowrap ${
-                  isActive ? 'bg-teal-500 hover:bg-teal-600' : ''
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{category.name}</span>
-              </Button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Merchants List */}
-      <div className="space-y-4">
-        {filteredMerchants.map((merchant) => (
-          <Card key={merchant.id} className="overflow-hidden">
-            <CardContent className="p-0">
-              <div className="p-4">
-                <div className="flex items-start space-x-3">
-                  <div className="text-3xl">{merchant.image}</div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-bold text-gray-900">{merchant.name}</h3>
-                      <div className="flex items-center space-x-1">
-                        <Star className="w-4 h-4 text-yellow-500" />
-                        <span className="text-sm font-medium">{merchant.rating}</span>
-                        <span className="text-sm text-gray-500">({merchant.reviews})</span>
-                      </div>
+        <TabsContent value="nearby" className="space-y-4">
+          <div className="grid gap-4">
+            {merchants.map((merchant) => (
+              <Card key={merchant.id} className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                      <CardTitle className="text-lg">{merchant.name}</CardTitle>
+                      <CardDescription className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        {merchant.business_locations?.[0]?.address || merchant.address} • {merchant.distance || 'Unknown distance'}
+                      </CardDescription>
                     </div>
-                    
-                    <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
-                      <span className="flex items-center space-x-1">
-                        <MapPin className="w-3 h-3" />
-                        <span>{merchant.distance}</span>
-                      </span>
-                      <span className="flex items-center space-x-1">
-                        <Clock className="w-3 h-3" />
-                        <span className={merchant.isOpen ? 'text-green-600' : 'text-orange-600'}>
-                          {merchant.hours}
-                        </span>
-                      </span>
-                    </div>
-
-                    {/* Loyalty Progress */}
-                    <div className="bg-gray-50 p-3 rounded-lg mb-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-900">Loyalty Progress</span>
-                        <span className="text-sm font-bold text-teal-600">{merchant.loyaltyPoints} pts</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-                        <div 
-                          className="bg-gradient-to-r from-teal-500 to-cyan-600 h-2 rounded-full transition-all duration-500"
-                          style={{ width: `${getLoyaltyProgress(merchant.loyaltyPoints, parseInt(merchant.nextReward.split(' ')[0]))}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-gray-600">
-                        {merchant.nextReward} to unlock: <span className="font-medium">{merchant.rewardType}</span>
-                      </p>
-                    </div>
-
-                    {/* Special Offer */}
-                    <div className="flex items-center justify-between">
-                      <Badge className="bg-green-100 text-green-800 flex items-center space-x-1">
-                        <Tag className="w-3 h-3" />
-                        <span>{merchant.specialOffer}</span>
-                      </Badge>
-                      <Button 
-                        size="sm" 
-                        className="bg-teal-500 hover:bg-teal-600"
-                        disabled={!merchant.isOpen}
-                      >
-                        {merchant.isOpen ? 'Shop Now' : 'Closed'}
-                      </Button>
+                    <div className="flex items-center gap-1">
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      <span className="text-sm font-medium">{merchant.rating || 4.5}</span>
                     </div>
                   </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                </CardHeader>
 
-      {/* Quick Stats */}
-      <Card className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-purple-100 mb-1">Total Loyalty Points</p>
-              <p className="text-2xl font-bold">513 pts</p>
-              <p className="text-sm text-purple-100">Across 12 merchants</p>
-            </div>
-            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-              <Heart className="w-6 h-6" />
-            </div>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant={merchant.isOpen !== false ? "default" : "secondary"}>
+                        <Clock className="h-3 w-3 mr-1" />
+                        {merchant.isOpen !== false ? "Open" : "Closed"}
+                      </Badge>
+                      {merchant.loyaltyStatus && (
+                        <Badge variant="outline">{merchant.loyaltyStatus}</Badge>
+                      )}
+                      {merchant.ar_experiences && merchant.ar_experiences.length > 0 && (
+                        <Badge variant="outline" className="bg-gradient-to-r from-primary/10 to-secondary/10">
+                          <Sparkles className="h-3 w-3 mr-1" />
+                          AR Available
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button 
+                      className="flex-1" 
+                      disabled={merchant.isOpen === false}
+                      onClick={() => viewARMenu(merchant)}
+                    >
+                      <ShoppingCart className="h-4 w-4 mr-2" />
+                      View Menu
+                    </Button>
+                    {merchant.ar_experiences && merchant.ar_experiences.length > 0 && (
+                      <Button 
+                        variant="outline" 
+                        disabled={merchant.isOpen === false}
+                        onClick={() => launchARExperience(merchant.ar_experiences[0], merchant)}
+                      >
+                        <Camera className="h-4 w-4 mr-2" />
+                        AR View
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-        </CardContent>
-      </Card>
+        </TabsContent>
+
+        <TabsContent value="ar-experiences" className="space-y-4">
+          <div className="grid gap-4">
+            {merchants
+              .filter(m => m.ar_experiences && m.ar_experiences.length > 0)
+              .map((merchant) => (
+                <Card key={merchant.id}>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-primary" />
+                      {merchant.name}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {merchant.ar_experiences.map((experience) => (
+                      <div key={experience.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <h4 className="font-medium">{experience.title}</h4>
+                          <p className="text-sm text-muted-foreground">{experience.description}</p>
+                        </div>
+                        <Button size="sm" onClick={() => launchARExperience(experience, merchant)}>
+                          <Eye className="h-4 w-4 mr-2" />
+                          Launch
+                        </Button>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              ))}
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

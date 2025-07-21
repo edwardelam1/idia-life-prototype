@@ -1,106 +1,172 @@
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+
+interface GeminiRequest {
+  function_name: string;
+  arguments: Record<string, any>;
+  user_data: Record<string, any>;
+}
+
+interface GeminiResponse {
+  analysis: Record<string, any>;
+  insights: string[];
+  recommendations: string[];
+}
 
 serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
   }
 
   try {
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
-    
-    if (!geminiApiKey) {
-      return new Response(JSON.stringify({
-        error: 'Gemini API key not configured. Please add GEMINI_API_KEY to your Supabase secrets.'
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    const { function_name, arguments: args, user_data }: GeminiRequest = await req.json();
 
-    const { prompt, user_context } = await req.json();
+    // Prepare comprehensive prompt for Gemini 2.5 Pro
+    const prompt = buildAnalysisPrompt(function_name, args, user_data);
 
-    if (!prompt) {
-      throw new Error('Prompt is required');
-    }
-
-    // Enhanced prompt with health and fitness context
-    const enhancedPrompt = `You are a health and fitness AI assistant. Help the user with wellness, motivation, and understanding their health data.
-
-User context: ${user_context || 'No specific context provided'}
-
-User message: ${prompt}
-
-Provide a helpful, encouraging response focused on health and wellness. If medical advice is requested, remind users to consult healthcare professionals.`;
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${geminiApiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: enhancedPrompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 1000,
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-        safetySettings: [
-          {
-            category: "HARM_CATEGORY_HARASSMENT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.3,
+            topK: 40,
+            topP: 0.8,
+            maxOutputTokens: 8192,
+            responseMimeType: "application/json"
           },
-          {
-            category: "HARM_CATEGORY_HATE_SPEECH",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          systemInstruction: {
+            parts: [{
+              text: `You are the analytical backend for "My Friend" AI, operating under strict ethical guidelines. 
+              Your role is to provide structured JSON analysis of user data patterns across financial, health, social, and AR interaction domains.
+              
+              CRITICAL RULES:
+              - Never provide clinical diagnoses or medical advice
+              - Focus on patterns and correlations, not causation
+              - Maintain user privacy and dignity in all analysis
+              - Output ONLY valid JSON in the specified schema
+              - Be sensitive to cultural and individual differences
+              
+              Your analysis should support user autonomy, competence, and relatedness according to Self-Determination Theory.`
+            }]
           }
-        ]
-      }),
-    });
+        }),
+      }
+    );
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to get Gemini response');
+      throw new Error(`Gemini API error: ${response.status}`);
     }
 
-    const data = await response.json();
-    const aiMessage = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
+    const geminiResult = await response.json();
+    const analysisText = geminiResult.candidates[0].content.parts[0].text;
+    
+    // Parse the JSON response from Gemini
+    const analysis: GeminiResponse = JSON.parse(analysisText);
 
-    return new Response(JSON.stringify({
-      success: true,
-      message: aiMessage,
-      model: 'gemini-pro'
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    return new Response(JSON.stringify(analysis), {
+      headers: { "Content-Type": "application/json" },
     });
 
   } catch (error) {
-    console.error('Gemini Chat Error:', error.message);
-    return new Response(JSON.stringify({
-      error: error.message,
-      success: false
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500
-    });
+    console.error("Gemini analysis error:", error);
+    return new Response(
+      JSON.stringify({ error: "Analysis failed", details: error.message }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
   }
 });
+
+function buildAnalysisPrompt(functionName: string, args: Record<string, any>, userData: Record<string, any>): string {
+  const basePrompt = `
+Analyze the following user data and provide insights in JSON format.
+
+Function: ${functionName}
+Arguments: ${JSON.stringify(args)}
+
+User Data:
+${JSON.stringify(userData, null, 2)}
+
+Required JSON Schema:
+{
+  "analysis": {
+    "patterns": [
+      {
+        "domain": "financial|health|social|ar_interaction",
+        "pattern_type": "string",
+        "description": "string",
+        "confidence": 0.0-1.0,
+        "supporting_data": ["string"]
+      }
+    ],
+    "correlations": [
+      {
+        "domain_1": "string",
+        "domain_2": "string", 
+        "correlation_strength": 0.0-1.0,
+        "description": "string"
+      }
+    ],
+    "trends": [
+      {
+        "metric": "string",
+        "direction": "increasing|decreasing|stable",
+        "timeframe": "string",
+        "significance": "low|medium|high"
+      }
+    ]
+  },
+  "insights": [
+    "Human-readable insight about patterns discovered"
+  ],
+  "recommendations": [
+    "Actionable recommendation based on analysis"
+  ],
+  "privacy_notes": [
+    "Any privacy considerations or data limitations"
+  ]
+}
+`;
+
+  // Add function-specific context
+  switch (functionName) {
+    case "analyzeAnxietyTriggers":
+      return basePrompt + `
+Focus on correlations between emotional states (from journal entries) and financial behaviors.
+Look for stress indicators in spending patterns and AR interaction engagement levels.
+Consider temporal patterns and provide gentle, supportive recommendations.`;
+
+    case "analyzeFinancialWellbeing":
+      return basePrompt + `
+Analyze spending patterns, earning consistency, and financial goal progress.
+Consider AR-driven purchases and their impact on overall financial health.
+Provide insights about financial autonomy and competence building.`;
+
+    case "analyzeSocialConnections":
+      return basePrompt + `
+Examine social graph interactions, trust circle activity, and community engagement.
+Include AR social experiences and collaborative activities.
+Focus on relatedness and social support patterns.`;
+
+    case "analyzeProductivityPatterns":
+      return basePrompt + `
+Look at work-life balance indicators across financial activity, health metrics, and social engagement.
+Consider how AR experiences might enhance or distract from productivity.
+Provide recommendations for optimizing daily routines.`;
+
+    default:
+      return basePrompt + `
+Provide a comprehensive analysis across all available data domains.
+Focus on holistic patterns that support user well-being and growth.`;
+  }
+}
