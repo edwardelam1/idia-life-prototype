@@ -190,65 +190,6 @@ const ShopScreen = () => {
   };
 
   return (
-    {
-      id: 1,
-      name: 'Green Bean Coffee',
-      category: 'coffee',
-      distance: '0.2 miles',
-      rating: 4.8,
-      reviews: 127,
-      loyaltyPoints: 145,
-      nextReward: '50 points',
-      rewardType: 'Free Medium Coffee',
-      isOpen: true,
-      hours: 'Open until 8 PM',
-      specialOffer: '20% off with IDIA Pay',
-      image: '☕'
-    },
-    {
-      id: 2,
-      name: 'Fresh Market Grocery',
-      category: 'food',
-      distance: '0.5 miles',
-      rating: 4.6,
-      reviews: 89,
-      loyaltyPoints: 289,
-      nextReward: '200 points',
-      rewardType: '$10 off groceries',
-      isOpen: true,
-      hours: 'Open until 10 PM',
-      specialOffer: 'Double loyalty points today',
-      image: '🛒'
-    },
-    {
-      id: 3,
-      name: 'Bella Vista Italian',
-      category: 'food',
-      distance: '0.8 miles',
-      rating: 4.9,
-      reviews: 203,
-      loyaltyPoints: 67,
-      nextReward: '25 points',
-      rewardType: 'Free Appetizer',
-      isOpen: false,
-      hours: 'Opens at 5 PM',
-      specialOffer: 'Happy hour 5-7 PM',
-      image: '🍝'
-    },
-    {
-      id: 4,
-      name: 'Quick Stop Gas',
-      category: 'gas',
-      distance: '1.2 miles',
-      rating: 4.3,
-      reviews: 45,
-      loyaltyPoints: 12,
-      nextReward: '15 points',
-      rewardType: '5¢ off per gallon',
-      isOpen: true,
-      hours: 'Open 24 hours',
-      specialOffer: 'IDIA members save extra 3¢/gal',
-      image: '⛽'
     <div className="p-6 space-y-6">
       <Tabs defaultValue="nearby" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
