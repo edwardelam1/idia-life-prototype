@@ -1,6 +1,5 @@
 
 import { useState } from 'react';
-import { Wallet } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ProfileMenu from './ProfileMenu';
 
@@ -14,7 +13,7 @@ const Header = () => {
           {/* Logo */}
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-lg flex items-center justify-center">
-              <Wallet className="w-5 h-5 text-white" />
+              <span className="text-white font-bold text-sm">I</span>
             </div>
             <h1 className="text-xl font-bold text-gray-900">IDIA Life</h1>
           </div>

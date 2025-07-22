@@ -7,12 +7,13 @@ import {
   CheckCircle,
   DollarSign,
   Shield,
-  Zap
+  Zap,
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import AppleHealthModal from './AppleHealthModal';
 import StravaConnectionModal from './StravaConnectionModal';
-
 
 const DataDashboard = () => {
   const [connections, setConnections] = useState<any[]>([]);
@@ -21,13 +22,11 @@ const DataDashboard = () => {
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
   const [showStravaModal, setShowStravaModal] = useState(false);
   const [virtuousImpacts, setVirtuousImpacts] = useState<string[]>([]);
-
-  // Get real authenticated user ID
+  const [isRecovering, setIsRecovering] = useState(false);
+  const [lastSyncStatus, setLastSyncStatus] = useState<string>('unknown');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  
 
   useEffect(() => {
-    // Get authenticated user
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -39,7 +38,6 @@ const DataDashboard = () => {
     fetchConnections();
   }, []);
 
-  // Re-fetch connections when user ID changes
   useEffect(() => {
     if (currentUserId) {
       fetchConnections();
@@ -50,11 +48,11 @@ const DataDashboard = () => {
     if (!currentUserId) return;
     
     try {
-      // Parallelize all API calls for better performance
       const [
         pipelineHealthResult,
         connectionsResult,
-        walletResult
+        walletResult,
+        recentDataResult
       ] = await Promise.allSettled([
         supabase.functions.invoke('pipeline-diagnostics'),
         supabase
@@ -66,15 +64,19 @@ const DataDashboard = () => {
           .from('user_wallets')
           .select('*')
           .eq('user_id', currentUserId)
-          .maybeSingle()
+          .maybeSingle(),
+        supabase
+          .from('raw_health_data')
+          .select('created_at')
+          .eq('user_id', currentUserId)
+          .order('created_at', { ascending: false })
+          .limit(1)
       ]);
 
-      // Handle pipeline health check (non-critical)
       if (pipelineHealthResult.status === 'rejected') {
         console.warn('Pipeline health check failed:', pipelineHealthResult.reason);
       }
       
-      // Handle connections data (critical)
       if (connectionsResult.status === 'rejected') {
         console.error('Error fetching connections:', connectionsResult.reason);
         setConnections([]);
@@ -85,7 +87,6 @@ const DataDashboard = () => {
 
       const connectionsData = connectionsResult.value.data || [];
       
-      // Handle wallet data (critical for earnings display)
       let totalEarned = 0;
       if (walletResult.status === 'fulfilled') {
         totalEarned = walletResult.value.data?.total_earned || 0;
@@ -93,10 +94,25 @@ const DataDashboard = () => {
         console.error('Error fetching wallet:', walletResult.reason);
       }
 
+      // Check last sync status
+      if (recentDataResult.status === 'fulfilled' && recentDataResult.value.data?.length > 0) {
+        const lastDataTime = new Date(recentDataResult.value.data[0].created_at);
+        const hoursSinceLastData = (Date.now() - lastDataTime.getTime()) / (1000 * 60 * 60);
+        
+        if (hoursSinceLastData > 24) {
+          setLastSyncStatus('stale');
+        } else if (hoursSinceLastData > 6) {
+          setLastSyncStatus('delayed');
+        } else {
+          setLastSyncStatus('recent');
+        }
+      } else {
+        setLastSyncStatus('no_data');
+      }
+
       setConnections(connectionsData);
       setTotalEarnings(totalEarned);
       
-      // Fetch virtuous cycle impacts in background (non-blocking)
       if (connectionsData.length > 0) {
         fetchVirtuousImpacts().catch(error => {
           console.error('Non-critical: Virtuous impacts fetch failed:', error);
@@ -131,9 +147,7 @@ const DataDashboard = () => {
     }
   };
 
-  // Add function to trigger Friend Assistant for data connection events
   const triggerFriendForDataEvent = () => {
-    // Dispatch custom event that MainApp can listen for
     window.dispatchEvent(new CustomEvent('showFriend', { 
       detail: { trigger: 'data' } 
     }));
@@ -149,22 +163,55 @@ const DataDashboard = () => {
         console.error('Recovery failed:', error);
       } else {
         console.log('Recovery completed:', data);
-        await fetchConnections(); // Refresh the dashboard
+        await fetchConnections();
       }
     } catch (error) {
       console.error('Recovery error:', error);
     }
   };
 
+  const runComprehensiveRecovery = async () => {
+    if (!currentUserId) return;
+    
+    setIsRecovering(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('comprehensive-pipeline-recovery', {
+        body: { user_id: currentUserId }
+      });
+      
+      if (error) {
+        console.error('Comprehensive recovery failed:', error);
+      } else {
+        console.log('Comprehensive recovery completed:', data);
+        await fetchConnections();
+        triggerFriendForDataEvent();
+      }
+    } catch (error) {
+      console.error('Comprehensive recovery error:', error);
+    }
+    setIsRecovering(false);
+  };
 
+  const getSyncStatusBadge = () => {
+    switch (lastSyncStatus) {
+      case 'recent':
+        return <Badge variant="secondary" className="bg-green-100 text-green-800">Synced Recently</Badge>;
+      case 'delayed':
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Sync Delayed</Badge>;
+      case 'stale':
+        return <Badge variant="destructive">Sync Issues</Badge>;
+      case 'no_data':
+        return <Badge variant="outline">No Data Found</Badge>;
+      default:
+        return <Badge variant="outline">Checking...</Badge>;
+    }
+  };
 
   const handleAppleHealthComplete = async () => {
     setShowAppleHealthModal(false);
     
-    // Just refresh connections - the modal already created/updated the connection
     try {
       await fetchConnections();
-      // Trigger Friend Assistant to celebrate the connection
       triggerFriendForDataEvent();
     } catch (error) {
       console.error('Error refreshing connections:', error);
@@ -182,7 +229,6 @@ const DataDashboard = () => {
     }
   };
 
-  // Get connection status for a specific type
   const getConnectionStatus = (connectionType: string) => {
     return connections.find(conn => conn.connection_type === connectionType);
   };
@@ -203,23 +249,66 @@ const DataDashboard = () => {
 
   return (
     <div className="p-4 space-y-6">
-      {/* Data Earnings Summary */}
+      {/* Data Earnings Summary with Sync Status */}
       <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white">
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
-          <div>
-            <p className="text-teal-100 mb-1">Total Data Earnings</p>
-            <p className="text-3xl font-bold">${totalEarnings.toFixed(2)} IDIA-USD</p>
-            <p className="text-sm text-teal-100 mt-1">
-              {connections.length > 0 ? 'Earnings from connected data sources' : 'Start earning by connecting data sources'}
-            </p>
-          </div>
+            <div>
+              <div className="flex items-center space-x-2 mb-1">
+                <p className="text-teal-100">Total Data Earnings</p>
+                {getSyncStatusBadge()}
+              </div>
+              <p className="text-3xl font-bold">${totalEarnings.toFixed(2)} IDIA-USD</p>
+              <p className="text-sm text-teal-100 mt-1">
+                {connections.length > 0 ? 'Earnings from connected data sources' : 'Start earning by connecting data sources'}
+              </p>
+              {(lastSyncStatus === 'stale' || lastSyncStatus === 'no_data') && (
+                <div className="mt-2 flex items-center space-x-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span className="text-sm">Data sync issues detected</span>
+                </div>
+              )}
+            </div>
             <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
               <DollarSign className="w-8 h-8" />
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Pipeline Recovery Section */}
+      {(lastSyncStatus === 'stale' || lastSyncStatus === 'no_data' || lastSyncStatus === 'delayed') && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2 text-orange-800">
+              <AlertTriangle className="w-5 h-5" />
+              <span>Data Sync Issues Detected</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-orange-700 mb-4">
+              Your daily earnings may be affected due to data sync issues. Run a comprehensive recovery to restore functionality.
+            </p>
+            <Button 
+              onClick={runComprehensiveRecovery}
+              disabled={isRecovering}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {isRecovering ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Recovering...
+                </>
+              ) : (
+                <>
+                  <Shield className="w-4 h-4 mr-2" />
+                  Run Full Recovery
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Virtuous Cycle Report */}
       {connections.length > 0 && (
@@ -312,7 +401,7 @@ const DataDashboard = () => {
               className="text-xs"
             >
               <Shield className="w-3 h-3 mr-1" />
-              Recovery
+              Quick Recovery
             </Button>
           )}
         </div>
@@ -351,7 +440,6 @@ const DataDashboard = () => {
           </div>
         )}
       </div>
-
 
       <AppleHealthModal 
         isOpen={showAppleHealthModal}
