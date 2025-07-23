@@ -79,39 +79,36 @@ const MainApp = () => {
   };
 
   return (
-    <div className="h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex flex-col">
-      {/* Fixed Header */}
+    <div className="flex flex-col h-screen overflow-hidden">
       <Header />
-      
-      {/* Main Content with minimal top padding */}
-      <main className="flex-1 pt-12 relative z-0 px-2">
-        <ActiveComponent />
-      </main>
-
-      {/* Fixed Bottom Navigation */}
-      <div className="sticky bottom-0 z-40 bg-white border-t border-gray-200 shadow-lg">
-        <div className="flex justify-around py-1">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex flex-col items-center py-1 px-2 rounded-lg transition-colors ${
-                  isActive 
-                    ? 'text-teal-600 bg-teal-50' 
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'scale-110' : ''} transition-transform`} />
-                <span className="text-xs font-medium">{tab.label}</span>
-              </button>
-            );
-          })}
+      <main className="flex-1 overflow-hidden">
+        <div className="h-full max-w-4xl mx-auto">
+          <div className="h-[calc(100vh-8rem)] overflow-y-auto px-2 pb-2">
+            <ActiveComponent />
+          </div>
         </div>
-      </div>
+      </main>
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
+        <div className="max-w-4xl mx-auto px-2">
+          <div className="flex justify-around py-2">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex flex-col items-center space-y-0.5 ${
+                    activeTab === tab.id ? 'text-primary' : 'text-gray-600'
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span className="text-xs">{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </nav>
 
       {/* Friend Assistant Overlay */}
       <FriendAssistant 

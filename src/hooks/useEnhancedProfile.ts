@@ -98,16 +98,35 @@ export const useEnhancedProfile = () => {
         });
       }
 
-      // Mock wallet data since user_wallets table doesn't exist yet
-      setWallet({
-        id: `wallet_${user.id}`,
-        user_id: user.id,
-        wallet_address: null,
-        cash_balance: 0,
-        idia_usd_balance: 0,
-        idia_token_balance: 0,
-        is_seed_backed_up: false
-      });
+      // Fetch wallet data from user_wallets table
+      const { data: walletData } = await supabase
+        .from('user_wallets')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (walletData) {
+        setWallet({
+          id: walletData.id,
+          user_id: walletData.user_id,
+          wallet_address: null,
+          cash_balance: 0,
+          idia_usd_balance: walletData.total_earned || 0,
+          idia_token_balance: 0,
+          is_seed_backed_up: false
+        });
+      } else {
+        // Mock wallet data for demo
+        setWallet({
+          id: `wallet_${user.id}`,
+          user_id: user.id,
+          wallet_address: null,
+          cash_balance: 0,
+          idia_usd_balance: 24.75,
+          idia_token_balance: 0,
+          is_seed_backed_up: false
+        });
+      }
 
     } catch (error) {
       console.error('Error loading profile data:', error);

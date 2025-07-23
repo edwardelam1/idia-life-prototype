@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEnhancedProfile } from '@/hooks/useEnhancedProfile';
+import { useWalletBalance } from '@/hooks/useWalletBalance';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Wallet, 
@@ -34,7 +35,8 @@ interface CreditSimulation {
 }
 
 const EnhancedWalletDashboard: React.FC = () => {
-  const { profile, wallet, loading } = useEnhancedProfile();
+  const { profile, loading } = useEnhancedProfile();
+  const { balance: walletBalance, loading: balanceLoading } = useWalletBalance();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [creditSimulation, setCreditSimulation] = useState<CreditSimulation | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -137,7 +139,7 @@ const EnhancedWalletDashboard: React.FC = () => {
     return `${sign}$${Math.abs(amount).toFixed(2)}`;
   };
 
-  if (loading) {
+  if (loading || balanceLoading) {
     return (
       <div className="p-4">
         <div className="animate-pulse space-y-4">
@@ -178,22 +180,22 @@ const EnhancedWalletDashboard: React.FC = () => {
                 <Wallet className="w-6 h-6" />
               </div>
               
-              <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                 <div className="text-center">
                   <p className="text-teal-100 text-xs font-medium">Cash</p>
-                  <p className="text-xl font-bold">${wallet?.cash_balance.toFixed(2) || '0.00'}</p>
+                  <p className="text-xl font-bold">${walletBalance.cash_balance.toFixed(2)}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-teal-100 text-xs font-medium">IDIA-USD</p>
-                  <p className="text-xl font-bold">${wallet?.idia_usd_balance.toFixed(2) || '0.00'}</p>
+                  <p className="text-xl font-bold">${walletBalance.idia_usd_balance.toFixed(2)}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-teal-100 text-xs font-medium">IDIA Token</p>
-                  <p className="text-xl font-bold">{wallet?.idia_token_balance.toFixed(2) || '0.00'}</p>
+                  <p className="text-xl font-bold">{walletBalance.idia_token_balance.toFixed(2)}</p>
                 </div>
               </div>
 
-              {wallet && !wallet.is_seed_backed_up && (
+              {!walletBalance && (
                 <div className="mt-4 p-3 bg-yellow-500/20 rounded-lg">
                   <p className="text-sm font-medium">⚠️ Backup your wallet seed phrase for security</p>
                 </div>
@@ -362,8 +364,8 @@ const EnhancedWalletDashboard: React.FC = () => {
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span>Seed Phrase Backup</span>
-                  <Badge variant={wallet?.is_seed_backed_up ? "default" : "destructive"}>
-                    {wallet?.is_seed_backed_up ? "Backed up" : "Not backed up"}
+                  <Badge variant="destructive">
+                    Not backed up
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
@@ -374,11 +376,9 @@ const EnhancedWalletDashboard: React.FC = () => {
                   <span>Biometric Auth</span>
                   <Badge variant="secondary">Available</Badge>
                 </div>
-                {!wallet?.is_seed_backed_up && (
-                  <Button variant="outline" className="w-full">
-                    Backup Seed Phrase
-                  </Button>
-                )}
+                <Button variant="outline" className="w-full">
+                  Backup Seed Phrase
+                </Button>
               </CardContent>
             </Card>
 
