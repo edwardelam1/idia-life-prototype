@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { Wallet, Database, Users, ShoppingBag, Vote } from 'lucide-react';
-import WalletDashboard from './WalletDashboard';
+import { EnhancedWalletDashboard } from './enhanced/EnhancedWalletDashboard';
 import DataDashboard from './DataDashboard';
 import SocialScreen from './SocialScreen';
 import ShopScreen from './ShopScreen';
@@ -15,7 +15,7 @@ const MainApp = () => {
   const [friendTrigger, setFriendTrigger] = useState<'social' | 'wallet' | 'data' | 'achievement' | undefined>();
 
   const tabs = [
-    { id: 'wallet', label: 'Wallet', icon: Wallet, component: WalletDashboard },
+    { id: 'wallet', label: 'Wallet', icon: Wallet, component: EnhancedWalletDashboard },
     { id: 'data', label: 'My Data', icon: Database, component: DataDashboard },
     { id: 'social', label: 'Social', icon: Users, component: SocialScreen },
     { id: 'shop', label: 'Shop', icon: ShoppingBag, component: ShopScreen },
@@ -69,7 +69,7 @@ const MainApp = () => {
     return () => clearInterval(interval);
   }, [showFriend]);
 
-  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || WalletDashboard;
+  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || EnhancedWalletDashboard;
 
   const handleCloseFriend = () => {
     setShowFriend(false);
