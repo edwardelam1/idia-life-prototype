@@ -65,61 +65,16 @@ export const useSocialGraph = () => {
         return;
       }
 
-      // Load friends with profile data
-      const { data: friendsData, error: friendsError } = await supabase
-        .from('friends')
-        .select(`
-          *,
-          friend_profile:profiles!friends_user_id_2_fkey(id, first_name, last_name, display_name, avatar_url)
-        `)
-        .or(`user_id_1.eq.${user.id},user_id_2.eq.${user.id}`);
-
-      if (friendsError) {
-        console.error('Error loading friends:', friendsError);
-      } else {
-        setFriends(friendsData || []);
-      }
-
-      // Load trust circles
-      const { data: circlesData, error: circlesError } = await supabase
-        .from('trust_circles')
-        .select(`
-          *,
-          trust_circle_members(count)
-        `)
-        .eq('owner_id', user.id);
-
-      if (circlesError) {
-        console.error('Error loading trust circles:', circlesError);
-      } else {
-        setTrustCircles(circlesData || []);
-      }
-
-      // Load good deeds
-      const { data: deedsData, error: deedsError } = await supabase
-        .from('good_deeds')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (deedsError) {
-        console.error('Error loading good deeds:', deedsError);
-      } else {
-        setGoodDeeds(deedsData || []);
-      }
-
-      // Load social health metrics
-      const { data: metricsData, error: metricsError } = await supabase
-        .from('social_health_metrics')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (metricsError && metricsError.code !== 'PGRST116') {
-        console.error('Error loading social metrics:', metricsError);
-      } else if (metricsData) {
-        setSocialMetrics(metricsData);
-      }
+      // Mock data since social tables don't exist yet
+      setFriends([]);
+      setTrustCircles([]);
+      setGoodDeeds([]);
+      setSocialMetrics({
+        user_id: user.id,
+        reciprocity_score: 0.85,
+        network_vitality_score: 0.72,
+        last_calculated: new Date().toISOString()
+      });
 
     } catch (error) {
       console.error('Error loading social data:', error);
@@ -130,25 +85,11 @@ export const useSocialGraph = () => {
 
   const sendFriendRequest = async (targetUserId: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No user found');
-
-      const { error } = await supabase
-        .from('friends')
-        .insert({
-          user_id_1: user.id,
-          user_id_2: targetUserId,
-          status: 'pending'
-        });
-
-      if (error) throw error;
-
-      await loadSocialData();
+      // Mock implementation
       toast({
-        title: "Success",
-        description: "Friend request sent successfully"
+        title: "Coming Soon",
+        description: "Friend requests will be available when social features are fully implemented"
       });
-
     } catch (error) {
       console.error('Error sending friend request:', error);
       toast({
@@ -161,22 +102,11 @@ export const useSocialGraph = () => {
 
   const acceptFriendRequest = async (friendshipId: string) => {
     try {
-      const { error } = await supabase
-        .from('friends')
-        .update({
-          status: 'accepted',
-          accepted_at: new Date().toISOString()
-        })
-        .eq('id', friendshipId);
-
-      if (error) throw error;
-
-      await loadSocialData();
+      // Mock implementation
       toast({
-        title: "Success",
-        description: "Friend request accepted"
+        title: "Coming Soon",
+        description: "Friend request management will be available when social features are fully implemented"
       });
-
     } catch (error) {
       console.error('Error accepting friend request:', error);
       toast({
@@ -189,48 +119,11 @@ export const useSocialGraph = () => {
 
   const submitGoodDeed = async (title: string, description: string, evidenceFile?: File) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No user found');
-
-      let evidenceUrl = null;
-
-      // Upload evidence if provided
-      if (evidenceFile) {
-        const fileExt = evidenceFile.name.split('.').pop();
-        const fileName = `${user.id}_${Date.now()}.${fileExt}`;
-        const filePath = `good-deeds/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('good-deeds')
-          .upload(filePath, evidenceFile);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('good-deeds')
-          .getPublicUrl(filePath);
-
-        evidenceUrl = publicUrl;
-      }
-
-      const { error } = await supabase
-        .from('good_deeds')
-        .insert({
-          user_id: user.id,
-          title,
-          description,
-          evidence_url: evidenceUrl,
-          verification_status: 'pending'
-        });
-
-      if (error) throw error;
-
-      await loadSocialData();
+      // Mock implementation
       toast({
-        title: "Success",
-        description: "Good deed submitted for verification"
+        title: "Coming Soon",
+        description: "Good deed submissions will be available when social features are fully implemented"
       });
-
     } catch (error) {
       console.error('Error submitting good deed:', error);
       toast({
@@ -243,40 +136,11 @@ export const useSocialGraph = () => {
 
   const createTrustCircle = async (name: string, memberIds: string[] = []) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No user found');
-
-      const { data: circleData, error: circleError } = await supabase
-        .from('trust_circles')
-        .insert({
-          name,
-          owner_id: user.id
-        })
-        .select()
-        .single();
-
-      if (circleError) throw circleError;
-
-      // Add members if provided
-      if (memberIds.length > 0) {
-        const memberInserts = memberIds.map(memberId => ({
-          circle_id: circleData.id,
-          user_id: memberId
-        }));
-
-        const { error: memberError } = await supabase
-          .from('trust_circle_members')
-          .insert(memberInserts);
-
-        if (memberError) throw memberError;
-      }
-
-      await loadSocialData();
+      // Mock implementation
       toast({
-        title: "Success",
-        description: "Trust circle created successfully"
+        title: "Coming Soon",
+        description: "Trust circles will be available when social features are fully implemented"
       });
-
     } catch (error) {
       console.error('Error creating trust circle:', error);
       toast({

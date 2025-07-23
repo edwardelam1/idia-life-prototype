@@ -21,6 +21,9 @@ export interface EnhancedProfile {
   ai_assistant_name: string;
   created_at: string;
   updated_at: string;
+  // Optional KYC fields for future enhancement
+  kyc_status?: string;
+  ssn_last4?: string;
 }
 
 export interface WalletData {
@@ -72,7 +75,10 @@ export const useEnhancedProfile = () => {
         console.error('Error loading profile:', profileError);
       } else if (profileData) {
         setProfile({
-          ...profileData,
+          id: profileData.id,
+          user_id: profileData.user_id,
+          first_name: profileData.first_name,
+          last_name: profileData.last_name,
           email: user.email,
           ai_assistant_name: 'Friend',
           account_type: 'personal',
@@ -84,28 +90,24 @@ export const useEnhancedProfile = () => {
           available_credit_line: 0,
           quiet_time_enabled: false,
           quiet_time_start: null,
-          quiet_time_end: null
+          quiet_time_end: null,
+          created_at: profileData.created_at,
+          updated_at: profileData.updated_at,
+          kyc_status: 'pending',
+          ssn_last4: null
         });
       }
 
-      // Load wallet data
-      const { data: walletData, error: walletError } = await supabase
-        .from('user_wallets')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (walletError && walletError.code !== 'PGRST116') {
-        console.error('Error loading wallet:', walletError);
-      } else if (walletData) {
-        setWallet({
-          ...walletData,
-          wallet_address: null,
-          cash_balance: 0,
-          idia_token_balance: 0,
-          is_seed_backed_up: false
-        });
-      }
+      // Mock wallet data since user_wallets table doesn't exist yet
+      setWallet({
+        id: `wallet_${user.id}`,
+        user_id: user.id,
+        wallet_address: null,
+        cash_balance: 0,
+        idia_usd_balance: 0,
+        idia_token_balance: 0,
+        is_seed_backed_up: false
+      });
 
     } catch (error) {
       console.error('Error loading profile data:', error);
@@ -139,7 +141,16 @@ export const useEnhancedProfile = () => {
 
       if (error) throw error;
 
-      setProfile(data);
+      if (profile && data) {
+        setProfile({
+          ...profile,
+          ...updates,
+          ...data,
+          email: profile.email,
+          ai_assistant_name: profile.ai_assistant_name,
+          account_type: profile.account_type
+        });
+      }
       toast({
         title: "Success",
         description: "Profile updated successfully"
