@@ -55,9 +55,9 @@ export default function Settings() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container max-w-4xl mx-auto py-6 px-4">
+      <div className="container max-w-4xl mx-auto py-2 px-2">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mb-4">
           <Button 
             variant="ghost" 
             size="sm" 
@@ -89,7 +89,7 @@ export default function Settings() {
         </div>
 
         {/* Settings Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-2">
           <TabsList className="grid w-full grid-cols-5 bg-muted">
             <TabsTrigger value="idia-profile" className="flex items-center gap-2 data-[state=active]:bg-background">
               <User className="w-4 h-4" />

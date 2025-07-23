@@ -82,9 +82,9 @@ const EnhancedSocialScreen: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Social Network</h1>
+        <h1 className="text-xl font-bold">Social Network</h1>
         <Dialog>
           <DialogTrigger asChild>
             <Button size="sm">

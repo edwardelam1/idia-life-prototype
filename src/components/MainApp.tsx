@@ -83,14 +83,14 @@ const MainApp = () => {
       {/* Fixed Header */}
       <Header />
       
-      {/* Scrollable Main Content with top padding to account for fixed header */}
-      <main className="flex-1 overflow-y-auto pt-20 relative z-0">
+      {/* Main Content with minimal top padding */}
+      <main className="flex-1 pt-12 relative z-0 px-2">
         <ActiveComponent />
       </main>
 
       {/* Fixed Bottom Navigation */}
       <div className="sticky bottom-0 z-40 bg-white border-t border-gray-200 shadow-lg">
-        <div className="flex justify-around py-2">
+        <div className="flex justify-around py-1">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -99,13 +99,13 @@ const MainApp = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex flex-col items-center py-2 px-3 rounded-lg transition-colors ${
+                className={`flex flex-col items-center py-1 px-2 rounded-lg transition-colors ${
                   isActive 
                     ? 'text-teal-600 bg-teal-50' 
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
-                <Icon className={`w-6 h-6 mb-1 ${isActive ? 'scale-110' : ''} transition-transform`} />
+                <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'scale-110' : ''} transition-transform`} />
                 <span className="text-xs font-medium">{tab.label}</span>
               </button>
             );

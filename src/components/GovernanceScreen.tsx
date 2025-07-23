@@ -84,7 +84,7 @@ const GovernanceScreen = () => {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -98,9 +98,9 @@ const GovernanceScreen = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
-          <CardContent className="flex items-center p-6">
+          <CardContent className="flex items-center p-4">
             <Vote className="h-12 w-12 text-blue-600" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Active Proposals</p>
@@ -112,7 +112,7 @@ const GovernanceScreen = () => {
         </Card>
 
         <Card>
-          <CardContent className="flex items-center p-6">
+          <CardContent className="flex items-center p-4">
             <Users className="h-12 w-12 text-green-600" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Participants</p>
@@ -122,7 +122,7 @@ const GovernanceScreen = () => {
         </Card>
 
         <Card>
-          <CardContent className="flex items-center p-6">
+          <CardContent className="flex items-center p-4">
             <TrendingUp className="h-12 w-12 text-purple-600" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Avg. Participation</p>

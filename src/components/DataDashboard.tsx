@@ -248,10 +248,10 @@ const DataDashboard = () => {
   }
 
   return (
-    <div className="space-y-6">
+      <div className="space-y-4">
       {/* Data Earnings Summary with Sync Status */}
       <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white">
-        <CardContent className="p-6">
+        <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center space-x-2 mb-1">

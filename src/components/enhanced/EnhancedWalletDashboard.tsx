@@ -150,9 +150,9 @@ const EnhancedWalletDashboard: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">IDIA Wallet</h1>
+        <h1 className="text-xl font-bold">IDIA Wallet</h1>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={exportTaxableEvents}>
             <Download className="w-4 h-4 mr-2" />
@@ -169,16 +169,16 @@ const EnhancedWalletDashboard: React.FC = () => {
           <TabsTrigger value="security">Security</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="space-y-4">
           {/* Enhanced Balance Card */}
           <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-6">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold">Total Balance</h2>
                 <Wallet className="w-6 h-6" />
               </div>
               
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-3 gap-2">
                 <div className="text-center">
                   <p className="text-teal-100 text-xs font-medium">Cash</p>
                   <p className="text-xl font-bold">${wallet?.cash_balance.toFixed(2) || '0.00'}</p>

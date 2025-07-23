@@ -190,7 +190,7 @@ const ShopScreen = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Tabs defaultValue="nearby" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="nearby">Nearby</TabsTrigger>
