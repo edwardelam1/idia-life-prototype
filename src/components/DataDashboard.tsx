@@ -235,7 +235,7 @@ const DataDashboard = () => {
 
   if (loading) {
     return (
-      <div className="p-4 space-y-6">
+      <div className="space-y-6">
         <div className="animate-pulse">
           <div className="h-32 bg-gray-200 rounded-lg mb-6"></div>
           <div className="space-y-3">
@@ -248,7 +248,7 @@ const DataDashboard = () => {
   }
 
   return (
-    <div className="p-4 space-y-6">
+    <div className="space-y-6">
       {/* Data Earnings Summary with Sync Status */}
       <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white">
         <CardContent className="p-6">

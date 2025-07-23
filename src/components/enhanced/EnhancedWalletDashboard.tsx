@@ -150,7 +150,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   }
 
   return (
-    <div className="p-4 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">IDIA Wallet</h1>
         <div className="flex gap-2">
@@ -171,7 +171,7 @@ const EnhancedWalletDashboard: React.FC = () => {
 
         <TabsContent value="overview" className="space-y-6">
           {/* Enhanced Balance Card */}
-          <Card className="bg-gradient-to-r from-primary to-primary-foreground text-primary-foreground">
+          <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-lg font-bold">Total Balance</h2>
@@ -180,15 +180,15 @@ const EnhancedWalletDashboard: React.FC = () => {
               
               <div className="grid grid-cols-3 gap-4">
                 <div className="text-center">
-                  <p className="text-primary-foreground/70 text-xs font-medium">Cash</p>
+                  <p className="text-teal-100 text-xs font-medium">Cash</p>
                   <p className="text-xl font-bold">${wallet?.cash_balance.toFixed(2) || '0.00'}</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-primary-foreground/70 text-xs font-medium">IDIA-USD</p>
+                  <p className="text-teal-100 text-xs font-medium">IDIA-USD</p>
                   <p className="text-xl font-bold">${wallet?.idia_usd_balance.toFixed(2) || '0.00'}</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-primary-foreground/70 text-xs font-medium">IDIA Token</p>
+                  <p className="text-teal-100 text-xs font-medium">IDIA Token</p>
                   <p className="text-xl font-bold">{wallet?.idia_token_balance.toFixed(2) || '0.00'}</p>
                 </div>
               </div>

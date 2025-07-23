@@ -179,7 +179,7 @@ const ShopScreen = () => {
 
   if (loading) {
     return (
-      <div className="p-6 space-y-4">
+      <div className="space-y-4">
         <div className="animate-pulse space-y-4">
           {[1, 2, 3].map((i) => (
             <Card key={i} className="h-32 bg-muted" />
@@ -190,7 +190,7 @@ const ShopScreen = () => {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <Tabs defaultValue="nearby" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="nearby">Nearby</TabsTrigger>
