@@ -2,8 +2,10 @@
 import { useState, useEffect } from 'react';
 import { Wallet, Database, Users, ShoppingBag, Vote } from 'lucide-react';
 import WalletDashboard from './WalletDashboard';
+import EnhancedWalletDashboard from './enhanced/EnhancedWalletDashboard';
 import DataDashboard from './DataDashboard';
 import SocialScreen from './SocialScreen';
+import EnhancedSocialScreen from './enhanced/EnhancedSocialScreen';
 import ShopScreen from './ShopScreen';
 import GovernanceScreen from './GovernanceScreen';
 import Header from './Header';
@@ -15,9 +17,9 @@ const MainApp = () => {
   const [friendTrigger, setFriendTrigger] = useState<'social' | 'wallet' | 'data' | 'achievement' | undefined>();
 
   const tabs = [
-    { id: 'wallet', label: 'Wallet', icon: Wallet, component: WalletDashboard },
+    { id: 'wallet', label: 'Wallet', icon: Wallet, component: EnhancedWalletDashboard },
     { id: 'data', label: 'My Data', icon: Database, component: DataDashboard },
-    { id: 'social', label: 'Social', icon: Users, component: SocialScreen },
+    { id: 'social', label: 'Social', icon: Users, component: EnhancedSocialScreen },
     { id: 'shop', label: 'Shop', icon: ShoppingBag, component: ShopScreen },
     { id: 'vote', label: 'Vote', icon: Vote, component: GovernanceScreen },
   ];

@@ -1,0 +1,231 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+
+export interface EnhancedProfile {
+  id: string;
+  user_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  account_type: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  phone_number: string | null;
+  date_of_birth: string | null;
+  trust_score: number | null;
+  available_credit_line: number | null;
+  quiet_time_enabled: boolean;
+  quiet_time_start: string | null;
+  quiet_time_end: string | null;
+  ai_assistant_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WalletData {
+  id: string;
+  user_id: string;
+  wallet_address: string | null;
+  cash_balance: number;
+  idia_usd_balance: number;
+  idia_token_balance: number;
+  is_seed_backed_up: boolean;
+}
+
+export interface UserInterests {
+  id: string;
+  name: string;
+  category: string | null;
+}
+
+export const useEnhancedProfile = () => {
+  const [profile, setProfile] = useState<EnhancedProfile | null>(null);
+  const [wallet, setWallet] = useState<WalletData | null>(null);
+  const [interests, setInterests] = useState<UserInterests[]>([]);
+  const [availableInterests, setAvailableInterests] = useState<UserInterests[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    loadProfileData();
+    loadAvailableInterests();
+  }, []);
+
+  const loadProfileData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      // Load enhanced profile with basic fields that exist
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.error('Error loading profile:', profileError);
+      } else if (profileData) {
+        setProfile({
+          ...profileData,
+          email: user.email,
+          ai_assistant_name: 'Friend',
+          account_type: 'personal',
+          display_name: profileData.first_name,
+          avatar_url: null,
+          phone_number: null,
+          date_of_birth: null,
+          trust_score: 650,
+          available_credit_line: 0,
+          quiet_time_enabled: false,
+          quiet_time_start: null,
+          quiet_time_end: null
+        });
+      }
+
+      // Load wallet data
+      const { data: walletData, error: walletError } = await supabase
+        .from('user_wallets')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (walletError && walletError.code !== 'PGRST116') {
+        console.error('Error loading wallet:', walletError);
+      } else if (walletData) {
+        setWallet({
+          ...walletData,
+          wallet_address: null,
+          cash_balance: 0,
+          idia_token_balance: 0,
+          is_seed_backed_up: false
+        });
+      }
+
+    } catch (error) {
+      console.error('Error loading profile data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadAvailableInterests = async () => {
+    // Mock interests for now since the table doesn't exist yet
+    setAvailableInterests([
+      { id: '1', name: 'Health & Fitness', category: 'lifestyle' },
+      { id: '2', name: 'Technology', category: 'professional' },
+      { id: '3', name: 'Finance', category: 'professional' },
+      { id: '4', name: 'Travel', category: 'lifestyle' }
+    ]);
+  };
+
+  const updateProfile = async (updates: Partial<EnhancedProfile>) => {
+    setUpdating(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setProfile(data);
+      toast({
+        title: "Success",
+        description: "Profile updated successfully"
+      });
+
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update profile",
+        variant: "destructive"
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const updateInterests = async (selectedInterestIds: string[]) => {
+    setUpdating(true);
+    try {
+      // Mock implementation for now
+      setInterests(availableInterests.filter(interest => 
+        selectedInterestIds.includes(interest.id)
+      ));
+      
+      toast({
+        title: "Success",
+        description: "Interests updated successfully"
+      });
+
+    } catch (error) {
+      console.error('Error updating interests:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update interests",
+        variant: "destructive"
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const uploadAvatar = async (file: File) => {
+    setUpdating(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      await updateProfile({ avatar_url: publicUrl });
+
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      toast({
+        title: "Error",
+        description: "Failed to upload avatar",
+        variant: "destructive"
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  return {
+    profile,
+    wallet,
+    interests,
+    availableInterests,
+    loading,
+    updating,
+    updateProfile,
+    updateInterests,
+    uploadAvatar,
+    reload: loadProfileData
+  };
+};

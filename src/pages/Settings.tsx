@@ -10,6 +10,7 @@ import { ProfileSettings } from '@/components/settings/ProfileSettings';
 import { AppearanceSettings } from '@/components/settings/AppearanceSettings';
 import { PrivacySettings } from '@/components/settings/PrivacySettings';
 import { NotificationSettings } from '@/components/settings/NotificationSettings';
+import EnhancedProfileSettings from '@/components/enhanced/EnhancedProfileSettings';
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -89,7 +90,11 @@ export default function Settings() {
 
         {/* Settings Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-muted">
+          <TabsList className="grid w-full grid-cols-5 bg-muted">
+            <TabsTrigger value="idia-profile" className="flex items-center gap-2 data-[state=active]:bg-background">
+              <User className="w-4 h-4" />
+              <span className="hidden sm:inline">IDIA</span>
+            </TabsTrigger>
             <TabsTrigger value="profile" className="flex items-center gap-2 data-[state=active]:bg-background">
               <User className="w-4 h-4" />
               <span className="hidden sm:inline">Profile</span>
@@ -108,12 +113,16 @@ export default function Settings() {
             </TabsTrigger>
           </TabsList>
 
+          <TabsContent value="idia-profile">
+            <EnhancedProfileSettings />
+          </TabsContent>
+
           <TabsContent value="profile">
             <Card>
               <CardHeader>
-                <CardTitle>Profile Information</CardTitle>
+                <CardTitle>Basic Profile Information</CardTitle>
                 <CardDescription>
-                  Update your personal information and interests
+                  Update your basic personal information and interests
                 </CardDescription>
               </CardHeader>
               <CardContent>
