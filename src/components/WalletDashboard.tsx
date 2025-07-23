@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import AddFundsModal from './AddFundsModal';
+import { eventTracker } from '@/utils/EventTracker';
 
 interface Transaction {
   id: string;
@@ -27,6 +28,17 @@ const WalletDashboard = () => {
   useEffect(() => {
     fetchBalances();
     fetchTransactions();
+    
+    // Track wallet view
+    const startTime = Date.now();
+    return () => {
+      const duration = (Date.now() - startTime) / 1000;
+      eventTracker.trackWalletView({
+        view_duration: duration,
+        balance_checked: true,
+        transactions_viewed: transactions.length
+      });
+    };
   }, []);
 
   const fetchBalances = async () => {

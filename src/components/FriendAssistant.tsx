@@ -6,6 +6,7 @@ import { FriendState, Message } from './FriendAssistant/types';
 import { AudioRecorder } from '@/utils/AudioRecorder';
 import { getContextualGreeting } from './FriendAssistant/orbUtils';
 import { useSyllableBlinking } from './FriendAssistant/useSyllableBlinking';
+import { eventTracker } from '@/utils/EventTracker';
 
 interface FriendAssistantProps {
   isVisible: boolean;
@@ -169,10 +170,31 @@ const FriendAssistant: React.FC<FriendAssistantProps> = ({ isVisible, onClose, t
       };
 
       setMessages(prev => [...prev, aiResponse]);
+      
+      // Track AI interaction
+      eventTracker.trackAIInteraction({
+        interaction_type: isVoiceMode ? 'voice' : 'text',
+        conversation_length: messages.length + 1,
+        topics: [trigger || 'general'],
+        satisfaction: 0.8, // Default satisfaction
+        voice_duration: isVoiceMode ? 3 : 0,
+        feature: trigger,
+        errors: 0
+      });
+      
       await speakText(aiResponse.text);
     } catch (error) {
       console.error('Error generating AI response:', error);
       setFriendState('idle');
+      
+      // Track AI error
+      eventTracker.trackAIInteraction({
+        interaction_type: isVoiceMode ? 'voice' : 'text',
+        conversation_length: messages.length,
+        topics: [trigger || 'general'],
+        feature: trigger,
+        errors: 1
+      });
     }
   };
 

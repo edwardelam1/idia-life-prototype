@@ -1504,27 +1504,42 @@ export type Database = {
       }
       device_events: {
         Row: {
+          anonymized_at: string | null
+          bundled_at: string | null
+          data_category: string | null
           event_timestamp: string
           event_type: string
           id: number
           json_payload: Json
           processed_at: string | null
+          processing_status: string | null
+          session_id: string | null
           user_id: string
         }
         Insert: {
+          anonymized_at?: string | null
+          bundled_at?: string | null
+          data_category?: string | null
           event_timestamp?: string
           event_type: string
           id?: number
           json_payload: Json
           processed_at?: string | null
+          processing_status?: string | null
+          session_id?: string | null
           user_id: string
         }
         Update: {
+          anonymized_at?: string | null
+          bundled_at?: string | null
+          data_category?: string | null
           event_timestamp?: string
           event_type?: string
           id?: number
           json_payload?: Json
           processed_at?: string | null
+          processing_status?: string | null
+          session_id?: string | null
           user_id?: string
         }
         Relationships: []
@@ -4581,6 +4596,45 @@ export type Database = {
           },
         ]
       }
+      staged_app_data: {
+        Row: {
+          anonymized_payload: Json
+          created_at: string | null
+          data_category: string
+          data_quality_score: number | null
+          event_type: string
+          id: string
+          location_zone: string | null
+          processed_at: string
+          pseudo_user_id: string
+          session_context: Json | null
+        }
+        Insert: {
+          anonymized_payload: Json
+          created_at?: string | null
+          data_category: string
+          data_quality_score?: number | null
+          event_type: string
+          id?: string
+          location_zone?: string | null
+          processed_at?: string
+          pseudo_user_id: string
+          session_context?: Json | null
+        }
+        Update: {
+          anonymized_payload?: Json
+          created_at?: string | null
+          data_category?: string
+          data_quality_score?: number | null
+          event_type?: string
+          id?: string
+          location_zone?: string | null
+          processed_at?: string
+          pseudo_user_id?: string
+          session_context?: Json | null
+        }
+        Relationships: []
+      }
       staged_data: {
         Row: {
           activity_type: string
@@ -5154,6 +5208,45 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      universal_data_bundles: {
+        Row: {
+          bundle_category: string
+          bundle_metadata: Json
+          bundle_size_bytes: number | null
+          created_at: string | null
+          data_types: Json
+          expires_at: string | null
+          id: string
+          market_value: number | null
+          quality_score: number | null
+          unique_users_count: number | null
+        }
+        Insert: {
+          bundle_category: string
+          bundle_metadata: Json
+          bundle_size_bytes?: number | null
+          created_at?: string | null
+          data_types: Json
+          expires_at?: string | null
+          id?: string
+          market_value?: number | null
+          quality_score?: number | null
+          unique_users_count?: number | null
+        }
+        Update: {
+          bundle_category?: string
+          bundle_metadata?: Json
+          bundle_size_bytes?: number | null
+          created_at?: string | null
+          data_types?: Json
+          expires_at?: string | null
+          id?: string
+          market_value?: number | null
+          quality_score?: number | null
+          unique_users_count?: number | null
+        }
+        Relationships: []
       }
       urban_flow_events: {
         Row: {
