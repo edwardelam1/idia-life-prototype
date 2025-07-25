@@ -7,6 +7,7 @@ import { Vote, Users, TrendingUp, Plus, ThumbsUp, ThumbsDown } from 'lucide-reac
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import ProposalForm from './ProposalForm';
+import { eventTracker } from '@/utils/EventTracker';
 
 interface Proposal {
   id: string;
@@ -31,6 +32,11 @@ const GovernanceScreen = () => {
 
   const fetchProposals = async () => {
     try {
+      // Track proposals page view through synapse
+      eventTracker.trackPageView({
+        page: 'governance_screen'
+      });
+
       const { data, error } = await supabase
         .from('user_proposals')
         .select('*')
@@ -38,6 +44,17 @@ const GovernanceScreen = () => {
 
       if (error) throw error;
       if (data) {
+        // Track successful data load
+        eventTracker.trackFeatureUsage({
+          feature: 'governance_proposals',
+          action: 'data_loaded',
+          success: true,
+          context: {
+            proposal_count: data.length,
+            categories: [...new Set(data.map(p => p.category))]
+          }
+        });
+
         setProposals(data.map(proposal => ({
           id: proposal.id,
           title: proposal.title,
@@ -54,6 +71,17 @@ const GovernanceScreen = () => {
       }
     } catch (error: any) {
       console.error('Error fetching proposals:', error);
+      
+      // Track error through synapse
+      eventTracker.trackFeatureUsage({
+        feature: 'governance_proposals',
+        action: 'data_load_failed',
+        success: false,
+        context: {
+          error_type: error.message || 'unknown_error'
+        }
+      });
+      
       toast({
         title: "Error loading proposals",
         description: error.message,
@@ -83,7 +111,30 @@ const GovernanceScreen = () => {
     setVotingStates(prev => ({ ...prev, [proposalId]: true }));
     
     try {
-      // Update proposal vote counts
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      // Insert vote into database - this will automatically trigger synapse via database trigger
+      const { error: voteError } = await supabase
+        .from('user_votes')
+        .insert({
+          user_id: user.id,
+          proposal_id: proposalId,
+          vote_type: voteType
+        });
+
+      if (voteError) throw voteError;
+
+      // Track vote action through synapse
+      eventTracker.trackVotingAction({
+        vote_type: 'governance',
+        category: 'governance_screen',
+        engagement_seconds: 1,
+        research_actions: [voteType],
+        frequency_score: 1
+      });
+
+      // Update local state
       setProposals(prev => prev.map(p => {
         if (p.id === proposalId) {
           return {
@@ -101,8 +152,18 @@ const GovernanceScreen = () => {
         description: `Your vote ${voteType === 'for' ? 'in favor' : 'against'} has been recorded`,
         variant: "default"
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error voting:', error);
+      
+      // Track voting error through synapse
+      eventTracker.trackVotingAction({
+        vote_type: 'governance',
+        category: 'error_tracking',
+        engagement_seconds: 1,
+        research_actions: ['vote_failed'],
+        frequency_score: 0
+      });
+      
       toast({
         title: "Error",
         description: "Failed to record vote",

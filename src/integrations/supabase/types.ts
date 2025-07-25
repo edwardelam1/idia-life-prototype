@@ -768,6 +768,42 @@ export type Database = {
           },
         ]
       }
+      business_processing_queue: {
+        Row: {
+          business_id: string
+          created_at: string | null
+          data_category: string | null
+          error_details: Json | null
+          id: string
+          processing_stage: string | null
+          processing_status: string | null
+          retry_count: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string | null
+          data_category?: string | null
+          error_details?: Json | null
+          id?: string
+          processing_stage?: string | null
+          processing_status?: string | null
+          retry_count?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string | null
+          data_category?: string | null
+          error_details?: Json | null
+          id?: string
+          processing_stage?: string | null
+          processing_status?: string | null
+          retry_count?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       business_user_permissions: {
         Row: {
           business_user_id: string
@@ -1085,6 +1121,48 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
           verification_status?: string | null
+        }
+        Relationships: []
+      }
+      cross_platform_insights: {
+        Row: {
+          analysis_period: Json
+          business_health_impact: Json | null
+          confidence_score: number | null
+          created_at: string | null
+          economic_indicators: Json | null
+          geographic_region: string | null
+          health_lifestyle_correlation: Json | null
+          id: string
+          insight_type: string
+          sample_size: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          analysis_period: Json
+          business_health_impact?: Json | null
+          confidence_score?: number | null
+          created_at?: string | null
+          economic_indicators?: Json | null
+          geographic_region?: string | null
+          health_lifestyle_correlation?: Json | null
+          id?: string
+          insight_type: string
+          sample_size?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          analysis_period?: Json
+          business_health_impact?: Json | null
+          confidence_score?: number | null
+          created_at?: string | null
+          economic_indicators?: Json | null
+          geographic_region?: string | null
+          health_lifestyle_correlation?: Json | null
+          id?: string
+          insight_type?: string
+          sample_size?: number | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -2645,6 +2723,42 @@ export type Database = {
           },
         ]
       }
+      lifestyle_processing_queue: {
+        Row: {
+          created_at: string | null
+          data_category: string | null
+          device_event_id: number
+          error_details: Json | null
+          id: string
+          processing_stage: string | null
+          processing_status: string | null
+          retry_count: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          data_category?: string | null
+          device_event_id: number
+          error_details?: Json | null
+          id?: string
+          processing_stage?: string | null
+          processing_status?: string | null
+          retry_count?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          data_category?: string | null
+          device_event_id?: number
+          error_details?: Json | null
+          id?: string
+          processing_stage?: string | null
+          processing_status?: string | null
+          retry_count?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       location_inventory: {
         Row: {
           cost_per_unit: number | null
@@ -2932,11 +3046,14 @@ export type Database = {
       }
       marketplace_bundles: {
         Row: {
+          bundle_category: string | null
           bundle_id: string
           bundle_version: number | null
           category: string
           contacts_count: number | null
           created_at: string | null
+          cross_platform_insights: Json | null
+          data_fusion_level: string | null
           data_json: Json
           data_points: string[] | null
           description: string
@@ -2944,6 +3061,7 @@ export type Database = {
           is_active: boolean | null
           key_insights: string[] | null
           match_percentage: number | null
+          predictive_analytics: Json | null
           price: number
           suggested_filters: string[] | null
           tier: string
@@ -2951,11 +3069,14 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          bundle_category?: string | null
           bundle_id?: string
           bundle_version?: number | null
           category: string
           contacts_count?: number | null
           created_at?: string | null
+          cross_platform_insights?: Json | null
+          data_fusion_level?: string | null
           data_json: Json
           data_points?: string[] | null
           description: string
@@ -2963,6 +3084,7 @@ export type Database = {
           is_active?: boolean | null
           key_insights?: string[] | null
           match_percentage?: number | null
+          predictive_analytics?: Json | null
           price: number
           suggested_filters?: string[] | null
           tier: string
@@ -2970,11 +3092,14 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          bundle_category?: string | null
           bundle_id?: string
           bundle_version?: number | null
           category?: string
           contacts_count?: number | null
           created_at?: string | null
+          cross_platform_insights?: Json | null
+          data_fusion_level?: string | null
           data_json?: Json
           data_points?: string[] | null
           description?: string
@@ -2982,6 +3107,7 @@ export type Database = {
           is_active?: boolean | null
           key_insights?: string[] | null
           match_percentage?: number | null
+          predictive_analytics?: Json | null
           price?: number
           suggested_filters?: string[] | null
           tier?: string
@@ -4635,6 +4761,57 @@ export type Database = {
         }
         Relationships: []
       }
+      staged_business_data: {
+        Row: {
+          anonymized_from_business_id: string | null
+          ar_engagement_data: Json | null
+          business_category: string
+          created_at: string | null
+          data_completeness_score: number | null
+          data_quality_score: number | null
+          employee_analytics: Json | null
+          id: string
+          location_performance: Json | null
+          operational_metrics: Json | null
+          processed_at: string | null
+          pseudo_business_id: string
+          seasonal_trends: Json | null
+          transaction_patterns: Json | null
+        }
+        Insert: {
+          anonymized_from_business_id?: string | null
+          ar_engagement_data?: Json | null
+          business_category: string
+          created_at?: string | null
+          data_completeness_score?: number | null
+          data_quality_score?: number | null
+          employee_analytics?: Json | null
+          id?: string
+          location_performance?: Json | null
+          operational_metrics?: Json | null
+          processed_at?: string | null
+          pseudo_business_id: string
+          seasonal_trends?: Json | null
+          transaction_patterns?: Json | null
+        }
+        Update: {
+          anonymized_from_business_id?: string | null
+          ar_engagement_data?: Json | null
+          business_category?: string
+          created_at?: string | null
+          data_completeness_score?: number | null
+          data_quality_score?: number | null
+          employee_analytics?: Json | null
+          id?: string
+          location_performance?: Json | null
+          operational_metrics?: Json | null
+          processed_at?: string | null
+          pseudo_business_id?: string
+          seasonal_trends?: Json | null
+          transaction_patterns?: Json | null
+        }
+        Relationships: []
+      }
       staged_data: {
         Row: {
           activity_type: string
@@ -4977,6 +5154,60 @@ export type Database = {
           weather_conditions?: Json | null
           weight_kg?: number | null
           workout_intensity?: number | null
+        }
+        Relationships: []
+      }
+      staged_lifestyle_data: {
+        Row: {
+          activity_context: Json | null
+          anonymized_from_event_id: number | null
+          app_usage_patterns: Json | null
+          created_at: string | null
+          data_completeness_score: number | null
+          data_quality_score: number | null
+          device_usage_metrics: Json | null
+          event_category: string
+          event_type: string
+          id: string
+          location_zone: string | null
+          processed_at: string | null
+          pseudo_user_id: string
+          session_duration: number | null
+          social_interactions: Json | null
+        }
+        Insert: {
+          activity_context?: Json | null
+          anonymized_from_event_id?: number | null
+          app_usage_patterns?: Json | null
+          created_at?: string | null
+          data_completeness_score?: number | null
+          data_quality_score?: number | null
+          device_usage_metrics?: Json | null
+          event_category?: string
+          event_type: string
+          id?: string
+          location_zone?: string | null
+          processed_at?: string | null
+          pseudo_user_id: string
+          session_duration?: number | null
+          social_interactions?: Json | null
+        }
+        Update: {
+          activity_context?: Json | null
+          anonymized_from_event_id?: number | null
+          app_usage_patterns?: Json | null
+          created_at?: string | null
+          data_completeness_score?: number | null
+          data_quality_score?: number | null
+          device_usage_metrics?: Json | null
+          event_category?: string
+          event_type?: string
+          id?: string
+          location_zone?: string | null
+          processed_at?: string | null
+          pseudo_user_id?: string
+          session_duration?: number | null
+          social_interactions?: Json | null
         }
         Relationships: []
       }
@@ -5488,6 +5719,30 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      user_votes: {
+        Row: {
+          created_at: string | null
+          id: string
+          proposal_id: string
+          user_id: string
+          vote_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          proposal_id: string
+          user_id: string
+          vote_type: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          proposal_id?: string
+          user_id?: string
+          vote_type?: string
         }
         Relationships: []
       }

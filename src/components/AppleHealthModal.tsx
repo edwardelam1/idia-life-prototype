@@ -6,6 +6,7 @@ import { Activity, Heart, Footprints, Moon, Zap } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Checkbox } from '@/components/ui/checkbox'; // Assuming you have a Checkbox component
 import React from 'react'; // Added React import
+import { eventTracker } from '@/utils/EventTracker';
 
 interface AppleHealthModalProps {
   isOpen: boolean;
@@ -205,6 +206,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     if (!currentUserId || !existingConnection) return;
     
     try {
+      // Track disconnection through synapse
+      eventTracker.trackFeatureUsage({
+        feature: 'apple_health_connection',
+        action: 'disconnect_initiated',
+        success: false
+      });
+
       const { error } = await supabase
         .from('data_connections')
         .update({ is_active: false })
@@ -212,11 +220,25 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         .eq('user_id', currentUserId);
 
       if (!error) {
+        // Track successful disconnection
+        eventTracker.trackFeatureUsage({
+          feature: 'apple_health_connection',
+          action: 'disconnected',
+          success: true
+        });
+        
         onDisconnect?.();
         onClose();
       }
     } catch (error) {
       console.error('Error disconnecting Apple Health:', error);
+      
+      // Track disconnection error
+      eventTracker.trackFeatureUsage({
+        feature: 'apple_health_connection',
+        action: 'disconnect_failed',
+        success: false
+      });
     }
   }, [currentUserId, existingConnection, onDisconnect, onClose]); // Added dependencies
 
@@ -224,6 +246,17 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     console.log('=== HANDLECONNECT START (Native App Driven) ===');
     console.log('handleConnect called, currentUserId:', currentUserId);
     console.log('authSession present:', !!authSession);
+    
+    // Track connection attempt through synapse
+    eventTracker.trackFeatureUsage({
+      feature: 'apple_health_connection',
+      action: 'connect_initiated',
+      success: false,
+      context: {
+        selected_data_types: selectedDataTypes.size,
+        auth_session_present: !!authSession
+      }
+    });
     
     setErrorMessage(null);
     setConnectionStatus('connecting'); // Set status to connecting immediately
@@ -233,11 +266,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       console.error('Authentication check failed:', { currentUserId, authSession: !!authSession });
       setErrorMessage(errorMsg);
       setConnectionStatus('error');
+      
+      // Track authentication error
+      eventTracker.trackFeatureUsage({
+        feature: 'apple_health_connection',
+        action: 'auth_failed',
+        success: false
+      });
+      
       return;
     }
     
     try {
       console.log('DEBUG_UI: Creating/updating connection record with upsert');
+      
+      // The database insert will automatically trigger synapse via database trigger
       const { data: connectionResult, error: connectionError } = await supabase
         .from('data_connections')
         .upsert({
@@ -263,11 +306,33 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         });
         setErrorMessage(`Failed to initialize connection: ${connectionError.message}`);
         setConnectionStatus('error');
+        
+        // Track connection error
+        eventTracker.trackFeatureUsage({
+          feature: 'apple_health_connection',
+          action: 'connection_failed',
+          success: false,
+          context: {
+            error_code: connectionError.code,
+            error_message: connectionError.message
+          }
+        });
+        
         return;
       }
     
       console.log('DEBUG_UI: Connection record created/updated successfully:', connectionResult);
       console.log('DEBUG_UI: Starting comprehensive HealthKit data sync via native app...');
+    
+      // Track successful connection creation
+      eventTracker.trackFeatureUsage({
+        feature: 'apple_health_connection',
+        action: 'connection_created',
+        success: true,
+        context: {
+          connection_id: connectionResult.id
+        }
+      });
     
       syncHealthDataViaNativeApp(); // Call the native sync function
     } catch (error) {
@@ -279,10 +344,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       });
       setErrorMessage(`Connection failed: ${error.message}`);
       setConnectionStatus('error');
+      
+      // Track unexpected error
+      eventTracker.trackFeatureUsage({
+        feature: 'apple_health_connection',
+        action: 'unexpected_error',
+        success: false,
+        context: {
+          error_name: error.name,
+          error_message: error.message
+        }
+      });
     }
     
     console.log('=== HANDLECONNECT END (Native App Driven) ===');
-  }, [currentUserId, authSession, syncHealthDataViaNativeApp]); // Added dependencies
+  }, [currentUserId, authSession, syncHealthDataViaNativeApp, selectedDataTypes]); // Added dependencies
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

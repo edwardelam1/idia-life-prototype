@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Send } from 'lucide-react';
+import { eventTracker } from '@/utils/EventTracker';
 
 interface ProposalFormProps {
   onClose: () => void;
@@ -25,6 +26,15 @@ const ProposalForm = ({ onClose, onSuccess }: ProposalFormProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Track form interaction through synapse
+    eventTracker.trackVotingAction({
+      vote_type: 'proposal',
+      category: category || 'general',
+      engagement_seconds: 30,
+      research_actions: ['form_submission'],
+      frequency_score: 1
+    });
+    
     if (!title.trim() || !description.trim() || !category) {
       toast({
         title: "Missing information",
@@ -41,7 +51,7 @@ const ProposalForm = ({ onClose, onSuccess }: ProposalFormProps) => {
       
       if (!user) throw new Error('User not authenticated');
 
-      // Create the proposal
+      // Create the proposal - this will automatically trigger synapse via database trigger
       const { data: proposal, error: insertError } = await supabase
         .from('user_proposals')
         .insert({
@@ -55,6 +65,15 @@ const ProposalForm = ({ onClose, onSuccess }: ProposalFormProps) => {
         .single();
 
       if (insertError) throw insertError;
+
+      // Track successful proposal creation
+      eventTracker.trackVotingAction({
+        vote_type: 'proposal',
+        category: category,
+        engagement_seconds: 60,
+        research_actions: ['proposal_created'],
+        frequency_score: 2
+      });
 
       // Call AI validation function
       const response = await fetch(`https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/validate-proposal`, {
@@ -71,11 +90,29 @@ const ProposalForm = ({ onClose, onSuccess }: ProposalFormProps) => {
         })
       });
 
+      // Track AI validation attempt
+      eventTracker.trackAIInteraction({
+        interaction_type: 'text',
+        conversation_length: 1,
+        topics: ['governance', 'proposal_validation'],
+        satisfaction: 5,
+        feature: 'proposal_validation'
+      });
+
       if (!response.ok) {
         throw new Error('Failed to validate proposal');
       }
 
       const validationResult = await response.json();
+
+      // Track validation result
+      eventTracker.trackVotingAction({
+        vote_type: 'proposal',
+        category: 'validation_completed',
+        engagement_seconds: 120,
+        research_actions: ['ai_validation'],
+        frequency_score: 2
+      });
 
       toast({
         title: "Proposal submitted!",
@@ -86,6 +123,16 @@ const ProposalForm = ({ onClose, onSuccess }: ProposalFormProps) => {
       onClose();
     } catch (error: any) {
       console.error('Error submitting proposal:', error);
+      
+      // Track error through synapse
+      eventTracker.trackVotingAction({
+        vote_type: 'proposal',
+        category: 'error_tracking',
+        engagement_seconds: 10,
+        research_actions: ['submission_failed'],
+        frequency_score: 0
+      });
+      
       toast({
         title: "Submission failed",
         description: error.message || "Failed to submit proposal. Please try again.",

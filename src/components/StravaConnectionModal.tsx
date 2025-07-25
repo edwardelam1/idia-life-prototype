@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { eventTracker } from '@/utils/EventTracker';
 
 interface StravaConnectionModalProps {
   isOpen: boolean;
@@ -40,6 +41,14 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
     if (!currentUserId || !existingConnection) return;
     
     try {
+      // Track disconnection through synapse
+      eventTracker.trackFeatureUsage({
+        feature: 'strava_connection',
+        action: 'disconnect_initiated',
+        success: false
+      });
+
+      // This will automatically trigger synapse via database trigger
       const { error } = await supabase
         .from('data_connections')
         .update({ is_active: false })
@@ -47,11 +56,25 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
         .eq('user_id', currentUserId);
 
       if (!error) {
+        // Track successful disconnection
+        eventTracker.trackFeatureUsage({
+          feature: 'strava_connection',
+          action: 'disconnected',
+          success: true
+        });
+        
         onDisconnect?.();
         onClose();
       }
     } catch (error) {
       console.error('Error disconnecting Strava:', error);
+      
+      // Track disconnection error
+      eventTracker.trackFeatureUsage({
+        feature: 'strava_connection',
+        action: 'disconnect_failed',
+        success: false
+      });
     }
   };
 
@@ -64,6 +87,13 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
       });
       return;
     }
+
+    // Track connection attempt through synapse
+    eventTracker.trackFeatureUsage({
+      feature: 'strava_connection',
+      action: 'connect_initiated',
+      success: false
+    });
 
     setIsConnecting(true);
 
@@ -79,15 +109,41 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
 
       if (urlError) {
         console.error('Edge function error:', urlError);
+        
+        // Track edge function error
+        eventTracker.trackFeatureUsage({
+          feature: 'strava_connection',
+          action: 'oauth_url_failed',
+          success: false,
+          context: {
+            error_message: urlError.message || 'Unknown error'
+          }
+        });
+        
         throw new Error(`Edge function error: ${urlError.message || 'Unknown error'}`);
       }
 
       if (!urlData?.oauthUrl) {
         console.error('No OAuth URL returned:', urlData);
+        
+        // Track missing OAuth URL error
+        eventTracker.trackFeatureUsage({
+          feature: 'strava_connection',
+          action: 'oauth_url_missing',
+          success: false
+        });
+        
         throw new Error('No OAuth URL received from server');
       }
       
       console.log('Opening popup with URL:', urlData.oauthUrl);
+      
+      // Track OAuth URL retrieval success
+      eventTracker.trackFeatureUsage({
+        feature: 'strava_connection',
+        action: 'oauth_url_retrieved',
+        success: true
+      });
       
       // Check if popup will be blocked
       const popup = window.open('', 'strava-oauth', 'width=600,height=700,scrollbars=yes,resizable=yes');
@@ -95,6 +151,14 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
       if (!popup || popup.closed || typeof popup.closed == 'undefined') {
         // Popup was blocked - offer alternative
         setIsConnecting(false);
+        
+        // Track popup blocked
+        eventTracker.trackFeatureUsage({
+          feature: 'strava_connection',
+          action: 'popup_blocked',
+          success: false
+        });
+        
         toast({
           title: "Popup Blocked",
           description: "Please allow popups for this site and try again, or use the direct link below.",
@@ -109,6 +173,14 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
         
         if (useDirectLink) {
           window.open(urlData.oauthUrl, '_blank');
+          
+          // Track direct link usage
+          eventTracker.trackFeatureUsage({
+            feature: 'strava_connection',
+            action: 'direct_link_used',
+            success: true
+          });
+          
           toast({
             title: "Strava Opened",
             description: "Please complete the connection and return to this page.",
@@ -119,6 +191,13 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
       
       // Navigate to the OAuth URL
       popup.location.href = urlData.oauthUrl;
+      
+      // Track successful popup opening
+      eventTracker.trackFeatureUsage({
+        feature: 'strava_connection',
+        action: 'popup_opened',
+        success: true
+      });
       
       // Monitor popup for closure with cleanup
       let checkClosed;
@@ -135,6 +214,14 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
             cleanup();
             setIsConnecting(false);
             console.log('Popup closed, checking connection status...');
+            
+            // Track popup closure
+            eventTracker.trackFeatureUsage({
+              feature: 'strava_connection',
+              action: 'popup_closed',
+              success: true
+            });
+            
             // Check if connection was successful
             setTimeout(() => {
               checkConnection();
@@ -152,6 +239,14 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
           cleanup();
           popup.close();
           setIsConnecting(false);
+          
+          // Track timeout
+          eventTracker.trackFeatureUsage({
+            feature: 'strava_connection',
+            action: 'connection_timeout',
+            success: false
+          });
+          
           toast({
             title: "Connection Timeout",
             description: "The connection process took too long. Please try again.",
@@ -165,6 +260,16 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
       setIsConnecting(false);
       
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      
+      // Track general connection error
+      eventTracker.trackFeatureUsage({
+        feature: 'strava_connection',
+        action: 'connection_error',
+        success: false,
+        context: {
+          error_message: errorMessage
+        }
+      });
       
       toast({
         title: "Connection Failed",
