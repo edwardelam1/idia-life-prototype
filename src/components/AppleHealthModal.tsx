@@ -106,6 +106,18 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     getSession();
   }, []);
 
+  // Auto-close timer when connection is successful
+  useEffect(() => {
+    if (connectionStatus === 'connected') {
+      const timer = setTimeout(() => {
+        console.log("DEBUG_UI: Auto-closing modal after 2 second delay.");
+        onComplete();
+      }, 2000); // 2 second delay to show success state
+
+      return () => clearTimeout(timer);
+    }
+  }, [connectionStatus, onComplete]);
+
   useEffect(() => {
     // This callback is expected from the native app upon sync completion
     (window as any).onHealthDataSyncComplete = (responseBody: string) => {
@@ -124,8 +136,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
         setConnectionStatus('connected');
         setIsConnecting(false);
-        onComplete(); // Trigger modal close (via parent)
-        console.log("DEBUG_UI: Connection status set to 'connected' and onComplete() called.");
+        console.log("DEBUG_UI: Connection status set to 'connected', will auto-close in 2 seconds.");
 
       } catch (error: any) {
         console.error("DEBUG_UI: Failed to parse native callback response:", error);
