@@ -385,15 +385,32 @@ serve(async (req) => {
     // Step 2: Create entry in staged_data for reward processing (only for authenticated users)
     let stagedDataResult = null;
     if (user_id) {
+      // Map health data to staged_data for reward calculation
+      const rewardData = {
+        user_id: user_id,
+        raw_data_id: raw_data_id,
+        activity_type: healthData.activity_type || 'health_metrics',
+        anonymized_location_zone: locationZone,
+        processed_at: new Date().toISOString(),
+        // Critical fields for reward calculation
+        step_count: healthData.steps_count || step_count || 0,
+        average_heartrate: healthData.average_heartrate || null,
+        duration_seconds: healthData.duration_seconds || null,
+        distance_meters: healthData.distance_meters || healthData.distance_walking_running_meters || healthData.distance_cycling_meters || null,
+        calories_burned: healthData.calories_burned || null,
+        device_type: 'Apple Health',
+        data_quality_score: healthData.data_quality_score || 0.5,
+        data_completeness_score: healthData.data_completeness_score || 0.5,
+        // Additional health metrics for enhanced rewards
+        elevation_gain_meters: null, // Apple Health doesn't provide this directly
+        weather_conditions: null // Will be enriched later if needed
+      };
+
+      console.log(`Creating staged_data with: steps=${rewardData.step_count}, hr=${rewardData.average_heartrate}, duration=${rewardData.duration_seconds}, distance=${rewardData.distance_meters}, calories=${rewardData.calories_burned}`);
+
       const { data: stagedData, error: stagedError } = await supabase
         .from('staged_data')
-        .insert({
-          user_id: user_id,
-          raw_data_id: raw_data_id,
-          activity_type: 'health_metrics',
-          anonymized_location_zone: locationZone,
-          processed_at: new Date().toISOString()
-        })
+        .insert(rewardData)
         .select()
         .single();
 

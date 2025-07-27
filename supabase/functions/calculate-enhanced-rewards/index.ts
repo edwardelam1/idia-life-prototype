@@ -142,24 +142,33 @@ function calculateRewardFactors(stagedData: any): RewardFactors {
   let frequency_bonus = 0.0;
   let data_completeness_score = 0.5; // Start at 50%
   
-  // Data completeness scoring based on step count and data quality
-  const stepCount = stagedData.step_count || 0;
+  // Data completeness scoring based on effort_score and available metrics
+  const effortScore = stagedData.effort_score || 0;
+  const heartRate = stagedData.average_heartrate || 0;
+  const duration = stagedData.duration_seconds || 0;
+  const distance = stagedData.distance_meters || 0;
   
-  if (stepCount > 0) data_completeness_score = 0.7;
-  if (stepCount > 5000) data_completeness_score = 0.85;
-  if (stepCount > 10000) data_completeness_score = 1.0;
+  // Base completeness from effort score
+  if (effortScore > 0) data_completeness_score = 0.7;
+  if (effortScore > 70) data_completeness_score = 0.85;
+  if (effortScore > 85) data_completeness_score = 1.0;
   
-  // Activity type and step-based bonuses
-  const dataType = stagedData.data_type?.toLowerCase() || '';
+  // Bonus for additional metrics
+  if (heartRate > 0) data_completeness_score += 0.1;
+  if (duration > 0) data_completeness_score += 0.05;
+  if (distance > 0) data_completeness_score += 0.05;
   
-  if (stepCount >= 10000) {
-    uniqueness_bonus = 5.0; // High activity bonus
+  data_completeness_score = Math.min(1.0, data_completeness_score);
+  
+  // Activity type and effort-based bonuses  
+  if (effortScore >= 85) {
+    uniqueness_bonus = 0.20; // High activity bonus
     quality_multiplier = 2.0;
-  } else if (stepCount >= 7500) {
-    uniqueness_bonus = 2.5; // Good activity bonus
+  } else if (effortScore >= 70) {
+    uniqueness_bonus = 0.10; // Good activity bonus
     quality_multiplier = 1.5;
-  } else if (stepCount >= 5000) {
-    uniqueness_bonus = 1.0; // Moderate activity bonus
+  } else if (effortScore >= 50) {
+    uniqueness_bonus = 0.05; // Moderate activity bonus
     quality_multiplier = 1.2;
   }
   
