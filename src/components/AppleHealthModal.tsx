@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from 'react'; // Added useCallback
+import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Activity, Heart, Footprints, Moon, Zap } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { Checkbox } from '@/components/ui/checkbox'; // Assuming you have a Checkbox component
-import React from 'react'; // Added React import
+import { Checkbox } from '@/components/ui/checkbox';
+import React from 'react';
 import { eventTracker } from '@/utils/EventTracker';
 
 interface AppleHealthModalProps {
@@ -30,7 +30,7 @@ const ALL_HEALTH_DATA_TYPES = [
   { id: 'HKQuantityTypeIdentifierWalkingStepLength', name: 'Walking Step Length', category: 'Activity' },
   { id: 'HKQuantityTypeIdentifierWalkingAsymmetryPercentage', name: 'Walking Asymmetry', category: 'Activity' },
   { id: 'HKQuantityTypeIdentifierWalkingDoubleSupportPercentage', name: 'Double Support Time', category: 'Activity' },
-  
+
   // Heart & Vitals (Basic)
   { id: 'HKQuantityTypeIdentifierHeartRate', name: 'Heart Rate', category: 'Vitals' },
   { id: 'HKQuantityTypeIdentifierRestingHeartRate', name: 'Resting Heart Rate', category: 'Vitals' },
@@ -55,14 +55,14 @@ const ALL_HEALTH_DATA_TYPES = [
   { id: 'HKQuantityTypeIdentifierDietaryProtein', name: 'Protein', category: 'Nutrition' },
   { id: 'HKQuantityTypeIdentifierDietaryWater', name: 'Water Intake', category: 'Nutrition' },
   // OMITTED: Specific dietary fats, fiber, sugar, caffeine, sodium, potassium, vitamins, calcium, iron
-  
+
   // OMITTED: Sleep Analysis
 
   // Other Categories
   { id: 'HKCategoryTypeIdentifierMindfulSession', name: 'Mindful Minutes', category: 'Mindfulness' },
   { id: 'HKQuantityTypeIdentifierEnvironmentalAudioExposure', name: 'Environmental Audio Exposure', category: 'Environment' },
   { id: 'HKQuantityTypeIdentifierHeadphoneAudioExposure', name: 'Headphone Audio Exposure', category: 'Environment' },
-  
+
   // Reproductive Health
   { id: 'HKCategoryTypeIdentifierMenstrualFlow', name: 'Menstrual Flow', category: 'Reproductive' },
   { id: 'HKQuantityTypeIdentifierBasalBodyTemperature', name: 'Basal Body Temperature', category: 'Reproductive' },
@@ -110,24 +110,24 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     // This callback is expected from the native app upon sync completion
     (window as any).onHealthDataSyncComplete = (responseBody: string) => {
       console.log("DEBUG_UI: Web view received sync completion callback from native app.");
-      console.log("DEBUG_UI: Raw Response Body from Native:", responseBody); 
+      console.log("DEBUG_UI: Raw Response Body from Native:", responseBody);
 
       try {
         const responseData = JSON.parse(responseBody);
-        console.log("DEBUG_UI: Parsed Response Data from Native:", responseData); 
+        console.log("DEBUG_UI: Parsed Response Data from Native:", responseData);
 
         if (responseData && responseData.health_data) {
-          setHealthData(responseData.health_data); 
+          setHealthData(responseData.health_data);
         } else {
           setHealthData({}); // Clear healthData on empty response
         }
-        
+
         setConnectionStatus('connected');
         setIsConnecting(false);
         onComplete(); // Trigger modal close (via parent)
         console.log("DEBUG_UI: Connection status set to 'connected' and onComplete() called.");
 
-      } catch (error) {
+      } catch (error: any) {
         console.error("DEBUG_UI: Failed to parse native callback response:", error);
         setErrorMessage(`HealthKit sync failed: ${error.message || 'Unknown error'}`);
         setConnectionStatus('error');
@@ -150,7 +150,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     };
   }, [onComplete]);
 
-  const handleCheckboxChange = useCallback((id: string, isChecked: boolean) => { // Used useCallback
+  const handleCheckboxChange = useCallback((id: string, isChecked: boolean) => {
     setSelectedDataTypes(prev => {
       const newSet = new Set(prev);
       if (isChecked) {
@@ -160,13 +160,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       }
       return newSet;
     });
-  }, []); // Empty dependency array as setSelectedDataTypes is stable
+  }, []);
 
-  const syncHealthDataViaNativeApp = useCallback(() => { // Used useCallback
+  const syncHealthDataViaNativeApp = useCallback(() => {
     setIsConnecting(true);
     setConnectionStatus('connecting');
     setErrorMessage(null);
-    
+
     const webkit = (window as any).webkit;
     if (webkit && webkit.messageHandlers && webkit.messageHandlers.syncHealthData) {
       console.log("DEBUG_UI: Preparing HealthKit data sync request for native iOS app...");
@@ -180,8 +180,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           requestedTypesByCategory[type.category.toLowerCase()].push(type.id);
         }
       });
-      
-      const comprehensiveHealthRequest = { 
+
+      const comprehensiveHealthRequest = {
         action: "comprehensive_health_sync",
         config: {
           endpoint: 'https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/health-data-bridge',
@@ -190,21 +190,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         },
         requestedDataTypes: requestedTypesByCategory // Send only user-selected types
       };
-      
+
       webkit.messageHandlers.syncHealthData.postMessage(comprehensiveHealthRequest);
       console.log("DEBUG_UI: Sent request to native app with selected types:", requestedTypesByCategory);
-      
+
     } else {
       console.log("DEBUG_UI: Not running in the native app wrapper. HealthKit sync unavailable (Launch via Xcode).");
       setErrorMessage("HealthKit sync is unavailable outside the native iOS app wrapper. Please launch from Xcode.");
       setConnectionStatus('error');
       setIsConnecting(false);
     }
-  }, [selectedDataTypes, currentUserId, authSession, onComplete]); // Added dependencies
+  }, [selectedDataTypes, currentUserId, authSession]);
 
-  const handleDisconnect = useCallback(async () => { // Used useCallback
+  const handleDisconnect = useCallback(async () => {
     if (!currentUserId || !existingConnection) return;
-    
+
     try {
       // Track disconnection through synapse
       eventTracker.trackFeatureUsage({
@@ -226,13 +226,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           action: 'disconnected',
           success: true
         });
-        
+
         onDisconnect?.();
         onClose();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error disconnecting Apple Health:', error);
-      
+
       // Track disconnection error
       eventTracker.trackFeatureUsage({
         feature: 'apple_health_connection',
@@ -240,13 +240,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         success: false
       });
     }
-  }, [currentUserId, existingConnection, onDisconnect, onClose]); // Added dependencies
+  }, [currentUserId, existingConnection, onDisconnect, onClose]);
 
-  const handleConnect = useCallback(async () => { // Used useCallback
+  const handleConnect = useCallback(async () => {
     console.log('=== HANDLECONNECT START (Native App Driven) ===');
     console.log('handleConnect called, currentUserId:', currentUserId);
     console.log('authSession present:', !!authSession);
-    
+
     // Track connection attempt through synapse
     eventTracker.trackFeatureUsage({
       feature: 'apple_health_connection',
@@ -257,7 +257,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         auth_session_present: !!authSession
       }
     });
-    
+
     setErrorMessage(null);
     setConnectionStatus('connecting'); // Set status to connecting immediately
 
@@ -266,20 +266,20 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       console.error('Authentication check failed:', { currentUserId, authSession: !!authSession });
       setErrorMessage(errorMsg);
       setConnectionStatus('error');
-      
+
       // Track authentication error
       eventTracker.trackFeatureUsage({
         feature: 'apple_health_connection',
         action: 'auth_failed',
         success: false
       });
-      
+
       return;
     }
-    
+
     try {
       console.log('DEBUG_UI: Creating/updating connection record with upsert');
-      
+
       // The database insert will automatically trigger synapse via database trigger
       const { data: connectionResult, error: connectionError } = await supabase
         .from('data_connections')
@@ -294,9 +294,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         })
         .select()
         .single();
-    
+
       console.log('DEBUG_UI: Connection operation result:', { connectionResult, connectionError });
-    
+
       if (connectionError) {
         console.error('DEBUG_UI: Database connection error details:', {
           code: connectionError.code,
@@ -306,7 +306,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         });
         setErrorMessage(`Failed to initialize connection: ${connectionError.message}`);
         setConnectionStatus('error');
-        
+
         // Track connection error
         eventTracker.trackFeatureUsage({
           feature: 'apple_health_connection',
@@ -317,13 +317,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             error_message: connectionError.message
           }
         });
-        
+
         return;
       }
-    
+
       console.log('DEBUG_UI: Connection record created/updated successfully:', connectionResult);
       console.log('DEBUG_UI: Starting comprehensive HealthKit data sync via native app...');
-    
+
       // Track successful connection creation
       eventTracker.trackFeatureUsage({
         feature: 'apple_health_connection',
@@ -333,9 +333,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           connection_id: connectionResult.id
         }
       });
-    
+
       syncHealthDataViaNativeApp(); // Call the native sync function
-    } catch (error) {
+    } catch (error: any) {
       console.error('DEBUG_UI: Unexpected error in handleConnect:', error);
       console.error('DEBUG_UI: Error details:', {
         name: error.name,
@@ -344,7 +344,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       });
       setErrorMessage(`Connection failed: ${error.message}`);
       setConnectionStatus('error');
-      
+
       // Track unexpected error
       eventTracker.trackFeatureUsage({
         feature: 'apple_health_connection',
@@ -356,37 +356,37 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         }
       });
     }
-    
+
     console.log('=== HANDLECONNECT END (Native App Driven) ===');
-  }, [currentUserId, authSession, syncHealthDataViaNativeApp, selectedDataTypes]); // Added dependencies
+  }, [currentUserId, authSession, syncHealthDataViaNativeApp, selectedDataTypes]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
-            <img 
-              src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" 
-              alt="Apple Health" 
+            <img
+              src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
+              alt="Apple Health"
               className="w-6 h-6"
             />
             <span>{existingConnection ? 'Apple Health' : 'Connect Apple Health'}</span>
           </DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-4">
           {errorMessage && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-md">
               <p className="text-sm text-red-600">{errorMessage}</p>
             </div>
           )}
-          
+
           {connectionStatus === 'idle' && !existingConnection && (
             <>
               <p className="text-sm text-gray-600">
                 Connect your Apple Health data to earn rewards for your fitness activities and health metrics.
               </p>
-              
+
               <div className="space-y-2">
                 <h4 className="font-medium text-sm">Select HealthKit Data to Access:</h4>
                 <div className="max-h-60 overflow-y-auto border p-2 rounded-md"> {/* Increased max-height */}
@@ -412,8 +412,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                   All data is anonymized and encrypted for privacy protection
                 </p>
               </div>
-              
-              <Button 
+
+              <Button
                 onClick={handleConnect}
                 className="w-full"
                 disabled={isConnecting || !currentUserId}
@@ -432,7 +432,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                 <h3 className="font-medium text-green-800">Apple Health Connected</h3>
                 <p className="text-sm text-gray-600">Your health data is actively earning rewards</p>
               </div>
-              
+
               <div className="bg-green-50 p-4 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
@@ -442,16 +442,16 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                   <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
                 </div>
               </div>
-              
+
               <div className="flex space-x-3">
-                <Button 
-                  variant="outline" 
-                  className="flex-1" 
+                <Button
+                  variant="outline"
+                  className="flex-1"
                   onClick={onClose}
                 >
                   Close
                 </Button>
-                <Button 
+                <Button
                   variant="destructive"
                   className="flex-1"
                   onClick={handleDisconnect}
@@ -461,11 +461,11 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               </div>
             </div>
           )}
-          
+
           {connectionStatus === 'error' && (
             <div className="text-center py-6">
               <p className="text-sm text-red-600 mb-4">Connection failed. Please try again.</p>
-              <Button 
+              <Button
                 onClick={() => {
                   setConnectionStatus('idle');
                   setErrorMessage(null);
@@ -477,14 +477,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               </Button>
             </div>
           )}
-          
+
           {connectionStatus === 'connecting' && (
             <div className="text-center py-6">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
               <p className="text-sm text-gray-600">Syncing your health data...</p>
             </div>
           )}
-          
+
           {connectionStatus === 'connected' && healthData && (
             <div className="space-y-4">
               <div className="text-center">
@@ -494,7 +494,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                 <h3 className="font-medium text-green-800">Successfully Connected!</h3>
                 <p className="text-sm text-gray-600">Here's your latest health data:</p>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-3">
                 <Card>
                   <CardContent className="p-3 text-center">
@@ -502,21 +502,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                     <div className="text-lg font-bold">{healthData.steps?.toLocaleString()}</div>
                   </CardContent>
                 </Card>
-                
+
                 <Card>
                   <CardContent className="p-3 text-center">
                     <Heart className="w-5 h-5 text-red-500 mx-auto mb-1" />
                     <div className="text-lg font-bold">{healthData.heartRate}</div>
                   </CardContent>
                 </Card>
-                
+
                 <Card>
                   <CardContent className="p-3 text-center">
                     <Activity className="w-5 h-5 text-green-500 mx-auto mb-1" />
                     <div className="text-lg font-bold">{healthData.activeMinutes}</div>
                   </CardContent>
                 </Card>
-                
+
                 <Card>
                   <CardContent className="p-3 text-center">
                     <Moon className="w-5 h-5 text-purple-500 mx-auto mb-1" />
@@ -524,7 +524,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                   </CardContent>
                 </Card>
               </div>
-              
+
               <p className="text-sm text-center text-gray-600">
                 Earning rewards for your health data...
               </p>
