@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
+import {
   Activity,
   CheckCircle,
   DollarSign,
@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import AppleHealthModal from './AppleHealthModal';
-import StravaConnectionModal from './StravaConnectionModal';
+import StravaConnectionModal from './StravaConnectionModal'; // Assuming this exists
 
 const DataDashboard = () => {
   const [connections, setConnections] = useState<any[]>([]);
@@ -33,8 +33,9 @@ const DataDashboard = () => {
         setCurrentUserId(user.id);
       }
     };
-    
+
     getUser();
+    // Initial fetch, will re-fetch once currentUserId is set
     fetchConnections();
   }, []);
 
@@ -46,7 +47,7 @@ const DataDashboard = () => {
 
   const fetchConnections = async () => {
     if (!currentUserId) return;
-    
+
     try {
       const [
         pipelineHealthResult,
@@ -76,7 +77,7 @@ const DataDashboard = () => {
       if (pipelineHealthResult.status === 'rejected') {
         console.warn('Pipeline health check failed:', pipelineHealthResult.reason);
       }
-      
+
       if (connectionsResult.status === 'rejected') {
         console.error('Error fetching connections:', connectionsResult.reason);
         setConnections([]);
@@ -86,7 +87,7 @@ const DataDashboard = () => {
       }
 
       const connectionsData = connectionsResult.value.data || [];
-      
+
       let totalEarned = 0;
       if (walletResult.status === 'fulfilled') {
         totalEarned = walletResult.value.data?.total_earned || 0;
@@ -98,7 +99,7 @@ const DataDashboard = () => {
       if (recentDataResult.status === 'fulfilled' && recentDataResult.value.data?.length > 0) {
         const lastDataTime = new Date(recentDataResult.value.data[0].created_at);
         const hoursSinceLastData = (Date.now() - lastDataTime.getTime()) / (1000 * 60 * 60);
-        
+
         if (hoursSinceLastData > 24) {
           setLastSyncStatus('stale');
         } else if (hoursSinceLastData > 6) {
@@ -112,13 +113,13 @@ const DataDashboard = () => {
 
       setConnections(connectionsData);
       setTotalEarnings(totalEarned);
-      
+
       if (connectionsData.length > 0) {
         fetchVirtuousImpacts().catch(error => {
           console.error('Non-critical: Virtuous impacts fetch failed:', error);
         });
       }
-      
+
       setLoading(false);
     } catch (error) {
       console.error('Error fetching connections:', error);
@@ -148,8 +149,8 @@ const DataDashboard = () => {
   };
 
   const triggerFriendForDataEvent = () => {
-    window.dispatchEvent(new CustomEvent('showFriend', { 
-      detail: { trigger: 'data' } 
+    window.dispatchEvent(new CustomEvent('showFriend', {
+      detail: { trigger: 'data' }
     }));
   };
 
@@ -158,7 +159,7 @@ const DataDashboard = () => {
       const { data, error } = await supabase.functions.invoke('pipeline-recovery', {
         body: { force_reset: true }
       });
-      
+
       if (error) {
         console.error('Recovery failed:', error);
       } else {
@@ -172,13 +173,13 @@ const DataDashboard = () => {
 
   const runComprehensiveRecovery = async () => {
     if (!currentUserId) return;
-    
+
     setIsRecovering(true);
     try {
       const { data, error } = await supabase.functions.invoke('comprehensive-pipeline-recovery', {
         body: { user_id: currentUserId }
       });
-      
+
       if (error) {
         console.error('Comprehensive recovery failed:', error);
       } else {
@@ -208,8 +209,9 @@ const DataDashboard = () => {
   };
 
   const handleAppleHealthComplete = async () => {
-    setShowAppleHealthModal(false);
-    
+    console.log("DEBUG_PARENT: handleAppleHealthComplete called. Setting setShowAppleHealthModal(false).");
+    setShowAppleHealthModal(false); // This closes the modal
+
     try {
       await fetchConnections();
       triggerFriendForDataEvent();
@@ -219,8 +221,9 @@ const DataDashboard = () => {
   };
 
   const handleStravaComplete = async () => {
-    setShowStravaModal(false);
-    
+    console.log("DEBUG_PARENT: handleStravaComplete called. Setting setShowStravaModal(false).");
+    setShowStravaModal(false); // This closes the modal
+
     try {
       await fetchConnections();
       triggerFriendForDataEvent();
@@ -289,7 +292,7 @@ const DataDashboard = () => {
             <p className="text-sm text-orange-700 mb-4">
               Your daily earnings may be affected due to data sync issues. Run a comprehensive recovery to restore functionality.
             </p>
-            <Button 
+            <Button
               onClick={runComprehensiveRecovery}
               disabled={isRecovering}
               className="bg-orange-600 hover:bg-orange-700"
@@ -351,29 +354,29 @@ const DataDashboard = () => {
         {!getConnectionStatus('apple_health') || !getConnectionStatus('strava') ? (
           <div className="flex justify-center space-x-8">
             {!getConnectionStatus('apple_health') && (
-              <div 
+              <div
                 className="relative cursor-pointer group"
                 onClick={() => setShowAppleHealthModal(true)}
               >
                 <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
-                  <img 
-                    src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" 
-                    alt="Apple Health" 
+                  <img
+                    src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
+                    alt="Apple Health"
                     className="w-full h-full object-contain p-2"
                   />
                 </div>
               </div>
             )}
-            
+
             {!getConnectionStatus('strava') && (
-              <div 
+              <div
                 className="relative cursor-pointer group"
                 onClick={() => setShowStravaModal(true)}
               >
                 <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
-                  <img 
-                    src="/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png" 
-                    alt="Strava" 
+                  <img
+                    src="/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"
+                    alt="Strava"
                     className="w-full h-full object-contain p-2"
                   />
                 </div>
@@ -394,9 +397,9 @@ const DataDashboard = () => {
         <div className="flex justify-between items-center">
           <h2 className="text-xl font-bold text-gray-900">Connected Data Sources</h2>
           {connections.length > 0 && (
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={processStuckData}
               className="text-xs"
             >
@@ -408,7 +411,7 @@ const DataDashboard = () => {
         {connections.length > 0 ? (
           <div className="flex justify-center space-x-8">
             {connections.map((connection) => (
-              <div 
+              <div
                 key={connection.id}
                 className="relative cursor-pointer group"
                 onClick={() => {
@@ -420,9 +423,9 @@ const DataDashboard = () => {
                 }}
               >
                 <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border-2 border-green-500 transition-all group-hover:shadow-md group-hover:scale-105">
-                  <img 
-                    src={connection.connection_type === 'apple_health' ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"} 
-                    alt={connection.connection_type} 
+                  <img
+                    src={connection.connection_type === 'apple_health' ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"}
+                    alt={connection.connection_type}
                     className="w-full h-full object-contain p-2"
                   />
                 </div>
@@ -441,7 +444,7 @@ const DataDashboard = () => {
         )}
       </div>
 
-      <AppleHealthModal 
+      <AppleHealthModal
         isOpen={showAppleHealthModal}
         onClose={() => setShowAppleHealthModal(false)}
         onComplete={handleAppleHealthComplete}
@@ -449,14 +452,14 @@ const DataDashboard = () => {
         onDisconnect={fetchConnections}
       />
 
-      <StravaConnectionModal 
+      <StravaConnectionModal
         isOpen={showStravaModal}
         onClose={() => setShowStravaModal(false)}
         onComplete={handleStravaComplete}
         existingConnection={getConnectionStatus('strava')}
         onDisconnect={fetchConnections}
       />
-      
+
     </div>
   );
 };
