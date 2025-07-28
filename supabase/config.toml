@@ -84,7 +84,16 @@ verify_jwt = false
 [functions.text-to-speech]
 verify_jwt = false
 
+[functions.universal-data-bundler]
+verify_jwt = false
+
+[functions.universal-data-processor]
+verify_jwt = false
+
 [functions.validate-proposal]
+verify_jwt = false
+
+[functions.process-pending-events]
 verify_jwt = false
 
 [functions.test-reward-pipeline]
