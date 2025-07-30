@@ -7,6 +7,8 @@ import { useEnhancedProfile } from '@/hooks/useEnhancedProfile';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
 import { supabase } from '@/integrations/supabase/client';
 import NFCPayrollModal from '../NFCPayrollModal';
+import SendRequestModal from '../SendRequestModal';
+import AddFundsModal from '../AddFundsModal';
 import { 
   Wallet, 
   CreditCard, 
@@ -16,7 +18,8 @@ import {
   Shield, 
   Download,
   Smartphone,
-  Clock
+  Clock,
+  Plus
 } from 'lucide-react';
 
 interface Transaction {
@@ -42,6 +45,8 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [creditSimulation, setCreditSimulation] = useState<CreditSimulation | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [showNFCModal, setShowNFCModal] = useState(false);
+  const [showSendRequestModal, setShowSendRequestModal] = useState(false);
+  const [showAddFundsModal, setShowAddFundsModal] = useState(false);
 
   useEffect(() => {
     fetchTransactions();
@@ -206,25 +211,33 @@ const EnhancedWalletDashboard: React.FC = () => {
           </Card>
 
           {/* Quick Actions */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Button className="h-20 flex-col">
-              <ArrowUpRight className="w-6 h-6 mb-2" />
-              Send Money
+          <div className="grid grid-cols-3 gap-4">
+            <Button 
+              className="h-20 flex-col bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white"
+              onClick={() => setShowSendRequestModal(true)}
+            >
+              <div className="flex items-center space-x-1 mb-2">
+                <ArrowUpRight className="w-5 h-5" />
+                <ArrowDownLeft className="w-5 h-5" />
+              </div>
+              Send / Request
             </Button>
-            <Button variant="outline" className="h-20 flex-col">
-              <ArrowDownLeft className="w-6 h-6 mb-2" />
-              Request
-            </Button>
+            
             <Button 
               variant="outline" 
-              className="h-20 flex-col"
+              className="h-20 flex-col border-2 border-teal-200 hover:bg-teal-50 hover:border-teal-300 text-teal-700"
               onClick={() => setShowNFCModal(true)}
             >
-              <Smartphone className="w-6 h-6 mb-2" />
+              <Smartphone className="w-6 h-6 mb-2 text-teal-600" />
               Tap To Payroll
             </Button>
-            <Button variant="outline" className="h-20 flex-col">
-              <CreditCard className="w-6 h-6 mb-2" />
+            
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col border-2 border-cyan-200 hover:bg-cyan-50 hover:border-cyan-300 text-cyan-700"
+              onClick={() => setShowAddFundsModal(true)}
+            >
+              <Plus className="w-6 h-6 mb-2 text-cyan-600" />
               Add Funds
             </Button>
           </div>
@@ -411,6 +424,16 @@ const EnhancedWalletDashboard: React.FC = () => {
       <NFCPayrollModal 
         isOpen={showNFCModal} 
         onClose={() => setShowNFCModal(false)} 
+      />
+      
+      <SendRequestModal 
+        isOpen={showSendRequestModal} 
+        onClose={() => setShowSendRequestModal(false)} 
+      />
+      
+      <AddFundsModal 
+        isOpen={showAddFundsModal} 
+        onClose={() => setShowAddFundsModal(false)} 
       />
     </div>
   );
