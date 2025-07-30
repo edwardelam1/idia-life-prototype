@@ -6,10 +6,7 @@ import {
   Activity,
   CheckCircle,
   DollarSign,
-  Shield,
-  Zap,
-  RefreshCw,
-  AlertTriangle
+  Zap
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import AppleHealthModal from './AppleHealthModal';
@@ -22,7 +19,7 @@ const DataDashboard = () => {
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
   const [showStravaModal, setShowStravaModal] = useState(false);
   const [virtuousImpacts, setVirtuousImpacts] = useState<string[]>([]);
-  const [isRecovering, setIsRecovering] = useState(false);
+  
   const [lastSyncStatus, setLastSyncStatus] = useState<string>('unknown');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
@@ -154,44 +151,6 @@ const DataDashboard = () => {
     }));
   };
 
-  const processStuckData = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke('pipeline-recovery', {
-        body: { force_reset: true }
-      });
-
-      if (error) {
-        console.error('Recovery failed:', error);
-      } else {
-        console.log('Recovery completed:', data);
-        await fetchConnections();
-      }
-    } catch (error) {
-      console.error('Recovery error:', error);
-    }
-  };
-
-  const runComprehensiveRecovery = async () => {
-    if (!currentUserId) return;
-
-    setIsRecovering(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('comprehensive-pipeline-recovery', {
-        body: { user_id: currentUserId }
-      });
-
-      if (error) {
-        console.error('Comprehensive recovery failed:', error);
-      } else {
-        console.log('Comprehensive recovery completed:', data);
-        await fetchConnections();
-        triggerFriendForDataEvent();
-      }
-    } catch (error) {
-      console.error('Comprehensive recovery error:', error);
-    }
-    setIsRecovering(false);
-  };
 
   const getSyncStatusBadge = () => {
     switch (lastSyncStatus) {
@@ -265,12 +224,6 @@ const DataDashboard = () => {
               <p className="text-sm text-teal-100 mt-1">
                 {connections.length > 0 ? 'Earnings from connected data sources' : 'Start earning by connecting data sources'}
               </p>
-              {(lastSyncStatus === 'stale' || lastSyncStatus === 'no_data') && (
-                <div className="mt-2 flex items-center space-x-2">
-                  <AlertTriangle className="w-4 h-4" />
-                  <span className="text-sm">Data sync issues detected</span>
-                </div>
-              )}
             </div>
             <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
               <DollarSign className="w-8 h-8" />
@@ -279,39 +232,6 @@ const DataDashboard = () => {
         </CardContent>
       </Card>
 
-      {/* Pipeline Recovery Section */}
-      {(lastSyncStatus === 'stale' || lastSyncStatus === 'no_data' || lastSyncStatus === 'delayed') && (
-        <Card className="border-orange-200 bg-orange-50">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2 text-orange-800">
-              <AlertTriangle className="w-5 h-5" />
-              <span>Data Sync Issues Detected</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-orange-700 mb-4">
-              Your daily earnings may be affected due to data sync issues. Run a comprehensive recovery to restore functionality.
-            </p>
-            <Button
-              onClick={runComprehensiveRecovery}
-              disabled={isRecovering}
-              className="bg-orange-600 hover:bg-orange-700"
-            >
-              {isRecovering ? (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Recovering...
-                </>
-              ) : (
-                <>
-                  <Shield className="w-4 h-4 mr-2" />
-                  Run Full Recovery
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Virtuous Cycle Report */}
       {connections.length > 0 && (
@@ -396,17 +316,6 @@ const DataDashboard = () => {
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="text-xl font-bold text-gray-900">Connected Data Sources</h2>
-          {connections.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={processStuckData}
-              className="text-xs"
-            >
-              <Shield className="w-3 h-3 mr-1" />
-              Quick Recovery
-            </Button>
-          )}
         </div>
         {connections.length > 0 ? (
           <div className="flex justify-center space-x-8">
