@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEnhancedProfile } from '@/hooks/useEnhancedProfile';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
 import { supabase } from '@/integrations/supabase/client';
+import NFCPayrollModal from '../NFCPayrollModal';
 import { 
   Wallet, 
   CreditCard, 
@@ -40,6 +41,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [creditSimulation, setCreditSimulation] = useState<CreditSimulation | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [showNFCModal, setShowNFCModal] = useState(false);
 
   useEffect(() => {
     fetchTransactions();
@@ -213,9 +215,13 @@ const EnhancedWalletDashboard: React.FC = () => {
               <ArrowDownLeft className="w-6 h-6 mb-2" />
               Request
             </Button>
-            <Button variant="outline" className="h-20 flex-col">
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col"
+              onClick={() => setShowNFCModal(true)}
+            >
               <Smartphone className="w-6 h-6 mb-2" />
-              NFC Receive
+              Tap To Payroll
             </Button>
             <Button variant="outline" className="h-20 flex-col">
               <CreditCard className="w-6 h-6 mb-2" />
@@ -401,6 +407,11 @@ const EnhancedWalletDashboard: React.FC = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      <NFCPayrollModal 
+        isOpen={showNFCModal} 
+        onClose={() => setShowNFCModal(false)} 
+      />
     </div>
   );
 };
