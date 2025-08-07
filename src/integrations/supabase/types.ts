@@ -6053,6 +6053,15 @@ export type Database = {
           error_count: number
         }[]
       }
+      process_synapse_backlog: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          processed_health_data: number
+          processed_lifestyle_queue: number
+          processed_business_queue: number
+          bundles_generated: number
+        }[]
+      }
       recover_all_stuck_health_data: {
         Args: Record<PropertyKey, never>
         Returns: {
