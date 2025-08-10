@@ -49,79 +49,18 @@ serve(async (req) => {
     
     // Handle automated sync for all active connections
     if (automated_sync) {
-      console.log('Running automated Apple Health sync for all active connections...');
-      
-      // Get all active Apple Health connections
-      const { data: connections, error: connectionsError } = await supabase
-        .from('data_connections')
-        .select('*')
-        .eq('connection_type', 'apple_health')
-        .eq('is_active', true);
-      
-      if (connectionsError) {
-        console.error('Error fetching Apple Health connections:', connectionsError);
-        return new Response(JSON.stringify({ 
-          error: 'Failed to fetch connections',
-          details: connectionsError.message 
-        }), {
-          status: 500,
+      console.log('Live-only policy active: skipping simulated Apple Health data generation.');
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Live-only policy enforced. Automated sync will not generate simulated Apple Health data. Real data must be pushed from devices or via user-initiated sync.',
+          policy: 'no-simulated-data'
+        }),
+        {
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      
-      const results = [];
-      for (const connection of connections || []) {
-        try {
-          // Generate simulated health data for each user
-          const simulatedData = {
-            steps: Math.floor(Math.random() * 5000) + 3000,
-            heartRate: Math.floor(Math.random() * 40) + 60,
-            sleepHours: Math.floor(Math.random() * 3) + 6,
-            calories: Math.floor(Math.random() * 800) + 1200,
-            recorded_at: new Date().toISOString()
-          };
-          
-          // Insert into raw_health_data
-          const { data: insertData, error: insertError } = await supabase
-            .from('raw_health_data')
-            .insert({
-              user_id: connection.user_id,
-              device_type: 'iPhone Health App',
-              source: 'apple_health',
-              raw_payload: simulatedData,
-              step_count: simulatedData.steps,
-              recorded_at: simulatedData.recorded_at,
-              processing_status: 'pending'
-            });
-          
-          if (insertError) {
-            console.error(`Error inserting data for user ${connection.user_id}:`, insertError);
-          } else {
-            console.log(`Successfully synced data for user ${connection.user_id}`);
-            results.push({ user_id: connection.user_id, status: 'success' });
-          }
-          
-          // Update last sync time
-          await supabase
-            .from('data_connections')
-            .update({ last_sync_at: new Date().toISOString() })
-            .eq('id', connection.id);
-            
-        } catch (error) {
-          console.error(`Error processing connection ${connection.id}:`, error);
-          results.push({ user_id: connection.user_id, status: 'error', error: error.message });
         }
-      }
-      
-      return new Response(JSON.stringify({
-        success: true,
-        message: 'Automated sync completed',
-        results,
-        processed_connections: connections?.length || 0
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      );
     }
 
     if (!user_id || !apple_health_data) {

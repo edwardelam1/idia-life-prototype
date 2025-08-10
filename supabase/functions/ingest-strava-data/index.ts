@@ -50,85 +50,18 @@ serve(async (req) => {
       
       // Check if this is an automated sync request
       if (requestBody.automated_sync) {
-        console.log('Running automated Strava sync for all active connections...');
-        
-        // Get all active Strava connections
-        const { data: connections, error: connectionsError } = await supabase
-          .from('data_connections')
-          .select('*')
-          .eq('connection_type', 'strava')
-          .eq('is_active', true);
-        
-        if (connectionsError) {
-          console.error('Error fetching Strava connections:', connectionsError);
-          return new Response(JSON.stringify({ 
-            error: 'Failed to fetch connections',
-            details: connectionsError.message 
-          }), {
-            status: 500,
+        console.log('Live-only policy active: skipping simulated Strava data generation. Rely on Strava webhooks for live events.');
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: 'Live-only policy enforced. Automated sync will not generate simulated Strava data. Live data flows via Strava webhooks and valid access tokens.',
+            policy: 'no-simulated-data'
+          }),
+          {
+            status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-        
-        const results = [];
-        for (const connection of connections || []) {
-          try {
-            // Generate simulated activity data for each user
-            const activities = ['Run', 'Ride', 'Swim', 'Hike'];
-            const activity = activities[Math.floor(Math.random() * activities.length)];
-            
-            const simulatedData = {
-              name: `Morning ${activity}`,
-              type: activity,
-              start_date: new Date().toISOString(),
-              distance: Math.floor(Math.random() * 15000) + 5000, // 5-20km in meters
-              moving_time: Math.floor(Math.random() * 3600) + 1800, // 30-90 minutes
-              elapsed_time: Math.floor(Math.random() * 4200) + 2100,
-              total_elevation_gain: Math.floor(Math.random() * 500),
-              average_heartrate: Math.floor(Math.random() * 40) + 140,
-              max_heartrate: Math.floor(Math.random() * 60) + 160,
-              calories: Math.floor(Math.random() * 800) + 400
-            };
-            
-            // Insert into raw_strava_data
-            const { error: insertError } = await supabase
-              .from('raw_strava_data')
-              .insert({
-                user_id: connection.user_id,
-                activity_data: simulatedData,
-                received_at: new Date().toISOString(),
-                processed: false,
-                data_source: 'automated_sync'
-              });
-            
-            if (insertError) {
-              console.error(`Error inserting Strava data for user ${connection.user_id}:`, insertError);
-            } else {
-              console.log(`Successfully synced Strava data for user ${connection.user_id}`);
-              results.push({ user_id: connection.user_id, status: 'success' });
-            }
-            
-            // Update last sync time
-            await supabase
-              .from('data_connections')
-              .update({ last_sync_at: new Date().toISOString() })
-              .eq('id', connection.id);
-              
-          } catch (error) {
-            console.error(`Error processing Strava connection ${connection.id}:`, error);
-            results.push({ user_id: connection.user_id, status: 'error', error: error.message });
           }
-        }
-        
-        return new Response(JSON.stringify({
-          success: true,
-          message: 'Automated Strava sync completed',
-          results,
-          processed_connections: connections?.length || 0
-        }), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        );
       }
       
       const payload: StravaWebhookPayload = requestBody;
