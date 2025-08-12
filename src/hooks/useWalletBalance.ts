@@ -44,12 +44,12 @@ export const useWalletBalance = () => {
           total_earned: walletData.total_earned || 0
         });
       } else {
-        // Mock balance for demo
+        // No wallet record found – default to zeros (no simulated data)
         setBalance({
           cash_balance: 0,
-          idia_usd_balance: 24.75,
+          idia_usd_balance: 0,
           idia_token_balance: 0,
-          total_earned: 24.75
+          total_earned: 0
         });
       }
     } catch (error) {

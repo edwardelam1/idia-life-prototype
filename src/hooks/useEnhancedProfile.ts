@@ -116,18 +116,10 @@ export const useEnhancedProfile = () => {
           is_seed_backed_up: false
         });
       } else {
-        // Mock wallet data for demo
-        setWallet({
-          id: `wallet_${user.id}`,
-          user_id: user.id,
-          wallet_address: null,
-          cash_balance: 0,
-          idia_usd_balance: 24.75,
-          idia_token_balance: 0,
-          is_seed_backed_up: false
-        });
+        // No wallet record found – do not simulate values
+        setWallet(null);
       }
-
+ 
     } catch (error) {
       console.error('Error loading profile data:', error);
     } finally {
