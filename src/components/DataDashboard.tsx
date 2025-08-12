@@ -261,13 +261,13 @@ const DataDashboard = () => {
                 {virtuousImpacts.length > 0 ? (
                   virtuousImpacts.map((impact, index) => (
                     <p key={index} className="flex items-center space-x-2">
-                      <CheckCircle className="w-4 h-4 text-green-500" />
+                      <CheckCircle size={16} className="text-green-500 shrink-0" />
                       <span>{impact}</span>
                     </p>
                   ))
                 ) : (
                   <p className="flex items-center space-x-2">
-                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <CheckCircle size={16} className="text-green-500 shrink-0" />
                     <span>Generating live impact analysis...</span>
                   </p>
                 )}
