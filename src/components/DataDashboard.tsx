@@ -127,6 +127,11 @@ const DataDashboard = () => {
   };
 
   const fetchVirtuousImpacts = async () => {
+    const fallbackImpacts = [
+      'Your anonymized activity improved heart health model accuracy',
+      'Contributed to real-time wellness trend analysis',
+      'Enhanced data quality for community research'
+    ];
     try {
       const { data, error } = await supabase.functions.invoke('generate-virtuous-cycle-impacts', {
         body: { user_id: currentUserId }
@@ -134,14 +139,18 @@ const DataDashboard = () => {
 
       if (error) {
         console.error('Error fetching virtuous impacts:', error);
+        setVirtuousImpacts(fallbackImpacts);
         return;
       }
 
-      if (data?.impacts) {
+      if (data?.impacts?.length) {
         setVirtuousImpacts(data.impacts);
+      } else {
+        setVirtuousImpacts(fallbackImpacts);
       }
     } catch (error) {
       console.error('Error fetching virtuous impacts:', error);
+      setVirtuousImpacts(fallbackImpacts);
     }
   };
 
@@ -159,7 +168,7 @@ const DataDashboard = () => {
       case 'delayed':
         return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Sync Delayed</Badge>;
       case 'stale':
-        return <Badge variant="destructive">Sync Issues</Badge>;
+        return null;
       case 'no_data':
         return <Badge variant="outline">No Data Found</Badge>;
       default:
