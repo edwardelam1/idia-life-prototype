@@ -213,47 +213,47 @@ const EnhancedWalletDashboard: React.FC = () => {
           {/* Quick Actions */}
           <div className="grid grid-cols-3 gap-4">
             <Button 
-              className="h-20 flex-col bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white"
+              className="h-14 flex-col bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white text-sm py-0.5"
               onClick={() => setShowSendRequestModal(true)}
             >
-              <div className="flex items-center space-x-1 mb-2">
-                <ArrowUpRight className="w-5 h-5" />
-                <ArrowDownLeft className="w-5 h-5" />
+              <div className="flex items-center space-x-1 mb-1">
+                <ArrowUpRight className="w-4 h-4" />
+                <ArrowDownLeft className="w-4 h-4" />
               </div>
               Send / Request
             </Button>
             
             <Button 
               variant="outline" 
-              className="h-20 flex-col border-2 border-teal-200 hover:bg-teal-50 hover:border-teal-300 text-teal-700"
+              className="h-14 flex-col border border-teal-200 hover:bg-teal-50 hover:border-teal-300 text-teal-700 text-sm py-0.5"
               onClick={() => setShowNFCModal(true)}
             >
-              <Smartphone className="w-6 h-6 mb-2 text-teal-600" />
+              <Smartphone className="w-5 h-5 mb-1 text-teal-600" />
               Tap To Payroll
             </Button>
             
             <Button 
               variant="outline" 
-              className="h-20 flex-col border-2 border-cyan-200 hover:bg-cyan-50 hover:border-cyan-300 text-cyan-700"
+              className="h-14 flex-col border border-cyan-200 hover:bg-cyan-50 hover:border-cyan-300 text-cyan-700 text-sm py-0.5"
               onClick={() => setShowAddFundsModal(true)}
             >
-              <Plus className="w-6 h-6 mb-2 text-cyan-600" />
+              <Plus className="w-5 h-5 mb-1 text-cyan-600" />
               Add Funds
             </Button>
           </div>
 
           {/* Trust Score & Credit */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Card>
-              <CardHeader className="py-2 px-4">
+              <CardHeader className="py-1.5 px-3">
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="w-5 h-5" />
                   Trust Score
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-2 pb-3 px-4">
+              <CardContent className="p-3">
                 <div className="text-center space-y-1">
-                  <div className="text-3xl font-bold text-primary">
+                  <div className="text-2xl font-bold text-primary">
                     {profile?.trust_score || 650}
                   </div>
                   <Badge variant="secondary">Excellent</Badge>
@@ -261,7 +261,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                     variant="outline" 
                     size="sm" 
                     onClick={simulateTrustScore}
-                    className="w-full mt-2"
+                    className="w-full mt-1"
                   >
                     Simulate Score Improvement
                   </Button>
@@ -270,21 +270,21 @@ const EnhancedWalletDashboard: React.FC = () => {
             </Card>
 
             <Card>
-              <CardHeader className="py-2 px-4">
+              <CardHeader className="py-1.5 px-3">
                 <CardTitle className="flex items-center gap-2">
                   <CreditCard className="w-5 h-5" />
                   Available Credit
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-2 pb-3 px-4">
+              <CardContent className="p-3">
                 <div className="text-center space-y-1">
-                  <div className="text-3xl font-bold text-green-600">
+                  <div className="text-2xl font-bold text-green-600">
                     ${profile?.available_credit_line || 0}
                   </div>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Based on your trust score and data contribution
                   </p>
-                  <Button variant="outline" size="sm" className="w-full mt-2">
+                  <Button variant="outline" size="sm" className="w-full mt-1">
                     Apply for Credit Increase
                   </Button>
                 </div>
