@@ -83,7 +83,7 @@ const MainApp = () => {
       <Header />
       <main className="flex-1 overflow-hidden">
         <div className="h-full max-w-4xl mx-auto">
-          <div className="h-[calc(100vh-8rem)] overflow-y-auto px-2 pb-2">
+          <div className="h-full px-2 pb-2 overflow-hidden">
             <ActiveComponent />
           </div>
         </div>

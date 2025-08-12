@@ -243,16 +243,16 @@ const EnhancedWalletDashboard: React.FC = () => {
           </div>
 
           {/* Trust Score & Credit */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
-              <CardHeader>
+              <CardHeader className="py-2 px-4">
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="w-5 h-5" />
                   Trust Score
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-center space-y-2">
+              <CardContent className="pt-2 pb-3 px-4">
+                <div className="text-center space-y-1">
                   <div className="text-3xl font-bold text-primary">
                     {profile?.trust_score || 650}
                   </div>
@@ -261,7 +261,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                     variant="outline" 
                     size="sm" 
                     onClick={simulateTrustScore}
-                    className="w-full mt-4"
+                    className="w-full mt-2"
                   >
                     Simulate Score Improvement
                   </Button>
@@ -270,21 +270,21 @@ const EnhancedWalletDashboard: React.FC = () => {
             </Card>
 
             <Card>
-              <CardHeader>
+              <CardHeader className="py-2 px-4">
                 <CardTitle className="flex items-center gap-2">
                   <CreditCard className="w-5 h-5" />
                   Available Credit
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-center space-y-2">
+              <CardContent className="pt-2 pb-3 px-4">
+                <div className="text-center space-y-1">
                   <div className="text-3xl font-bold text-green-600">
                     ${profile?.available_credit_line || 0}
                   </div>
                   <p className="text-sm text-muted-foreground">
                     Based on your trust score and data contribution
                   </p>
-                  <Button variant="outline" size="sm" className="w-full mt-4">
+                  <Button variant="outline" size="sm" className="w-full mt-2">
                     Apply for Credit Increase
                   </Button>
                 </div>
