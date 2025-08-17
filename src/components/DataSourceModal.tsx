@@ -41,10 +41,10 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
     }
 
     setIsConnecting(true);
-    setErrorMessage(null); // Clear previous errors
+    setErrorMessage(null);
 
     try {
-      // 1. Get the authenticated user ID
+      // Get the authenticated user ID
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) {
         console.error("Authentication required: User not found or session expired.", userError);
@@ -54,86 +54,88 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
       }
       const userId = user.id;
 
-      // 2. Generate realistic health data instead of mock data
-      const generateRealisticHealthData = () => {
-        const now = new Date();
-        const baseSteps = 3000 + Math.floor(Math.random() * 8000); // 3K-11K steps
-        const baseHeartRate = 60 + Math.floor(Math.random() * 40); // 60-100 BPM
-        const activityMinutes = 30 + Math.floor(Math.random() * 90); // 30-120 minutes
-        const distance = (baseSteps * 0.0008); // Rough conversion to km
-        const calories = Math.floor(baseSteps * 0.04); // Rough calorie estimate
-        
-        return {
-          step_count: baseSteps,
-          heart_rate: baseHeartRate,
-          activity_minutes: activityMinutes,
-          distance_meters: Math.floor(distance * 1000),
-          calories_burned: calories,
-          recorded_at: now.toISOString(),
-          device_type: source.name,
-          activity_type: 'daily_tracking',
-          raw_payload: {
-            steps: baseSteps,
-            heart_rate: baseHeartRate,
-            activity_minutes: activityMinutes,
-            distance: distance,
-            calories: calories,
-            source: source.name,
-            sync_time: now.toISOString()
-          }
-        };
-      };
-
-      const healthData = generateRealisticHealthData();
-
-      // 3. Insert directly into raw_health_data to trigger automatic processing
-      const { data: insertResult, error: insertError } = await supabase
-        .from('raw_health_data')
-        .insert({
-          user_id: userId,
-          device_type: healthData.device_type,
-          activity_type: healthData.activity_type,
-          step_count: healthData.step_count,
-          recorded_at: healthData.recorded_at,
-          raw_payload: healthData.raw_payload,
-          processing_status: 'pending'
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error("Error inserting health data:", insertError);
-        setErrorMessage(`Connection failed: ${insertError.message || 'Unknown error'}. Please try again.`);
-        setConnected(false);
-      } else {
-        console.log("Health data inserted successfully, triggers will process automatically:", insertResult);
-        setConnected(true);
-        
-        // Also create a data connection record
-        await supabase
-          .from('data_connections')
-          .upsert({
+      // Route to appropriate live integration based on source type
+      const sourceName = source.name.toLowerCase();
+      
+      if (sourceName.includes('apple') || sourceName.includes('health')) {
+        // Apple Health - trigger real HealthKit sync
+        const { data, error } = await supabase.functions.invoke('apple-health-sync', {
+          body: {
             user_id: userId,
-            connection_type: source.name.toLowerCase().replace(/\s+/g, '_'),
-            connection_name: source.name,
-            is_active: true,
-            last_sync_at: new Date().toISOString()
-          });
+            apple_health_data: {
+              // Real HealthKit data would be passed here from iOS app
+              // For now, indicate this requires iOS app integration
+              message: "Apple Health requires iOS app integration"
+            }
+          }
+        });
         
-        // Close modal after showing success
-        setTimeout(() => {
-          onClose();
-          setConnected(false);
-          setConsentGiven(false);
-        }, 2000);
+        if (error) {
+          setErrorMessage("Apple Health requires the iOS app to authorize HealthKit access.");
+          return;
+        }
+      } else if (sourceName.includes('strava')) {
+        // Strava - initiate OAuth flow
+        const { data, error } = await supabase.functions.invoke('strava-auth-url', {
+          body: { userId }
+        });
+        
+        if (error) {
+          setErrorMessage("Failed to connect to Strava. Please try again.");
+          return;
+        }
+        
+        if (data?.oauthUrl) {
+          // Redirect to Strava OAuth
+          window.open(data.oauthUrl, '_blank');
+          setErrorMessage("Please complete Strava authorization in the new window.");
+          return;
+        }
+      } else if (sourceName.includes('google') || sourceName.includes('fit')) {
+        // Google Fit - trigger sync
+        const { data, error } = await supabase.functions.invoke('google-fit-sync', {
+          body: {
+            user_id: userId,
+            sync_type: 'manual'
+          }
+        });
+        
+        if (error) {
+          setErrorMessage("Google Fit requires OAuth authorization. Please contact support.");
+          return;
+        }
+      } else {
+        // For other sources, indicate they need real integration
+        setErrorMessage(`${source.name} integration requires additional setup. Live data connections only.`);
+        return;
       }
+
+      // Create data connection record
+      await supabase
+        .from('data_connections')
+        .upsert({
+          user_id: userId,
+          connection_type: source.name.toLowerCase().replace(/\s+/g, '_'),
+          connection_name: source.name,
+          is_active: true,
+          last_sync_at: new Date().toISOString()
+        });
+
+      setConnected(true);
+      
+      // Close modal after showing success
+      setTimeout(() => {
+        onClose();
+        setConnected(false);
+        setConsentGiven(false);
+      }, 2000);
 
     } catch (error: any) {
       console.error("Unexpected error during connection process:", error);
-      setErrorMessage(`An unexpected error occurred: ${error.message || 'Please try again.'}`);
-      setConnected(false); // Ensure connected state is false on error
+      setErrorMessage(`Connection error: ${error.message || 'Please try again.'}`);
+      setConnected(false);
     } finally {
-      setIsConnecting(false); // Always stop connecting state
+      setIsConnecting(false);
     }
   };
 
