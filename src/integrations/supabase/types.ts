@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.3 (519615d)"
@@ -5953,49 +5953,49 @@ export type Database = {
       calculate_comprehensive_data_quality_score: {
         Args: {
           p_basic_metrics_count?: number
-          p_vitals_count?: number
+          p_clinical_data?: boolean
           p_nutrition_count?: number
           p_sleep_data?: boolean
-          p_clinical_data?: boolean
           p_symptoms_count?: number
+          p_vitals_count?: number
         }
         Returns: number
       }
       calculate_data_quality_score: {
         Args: {
-          p_heartrate: number
-          p_elevation: number
-          p_duration: number
           p_distance: number
+          p_duration: number
+          p_elevation: number
+          p_heartrate: number
         }
         Returns: number
       }
       check_health_data_pipeline_status: {
         Args: Record<PropertyKey, never>
         Returns: {
-          total_raw_records: number
-          pending_records: number
-          processing_records: number
           completed_records: number
           failed_records: number
-          stuck_records: number
+          pending_records: number
           pipeline_health_score: number
+          processing_records: number
+          stuck_records: number
+          total_raw_records: number
         }[]
       }
       check_pipeline_health: {
         Args: Record<PropertyKey, never>
         Returns: {
-          total_raw_data: number
-          unprocessed_raw_data: number
-          processing_raw_data: number
           processed_raw_data: number
+          processing_raw_data: number
+          total_raw_data: number
           total_staged_data: number
-          unrewarded_staged_data: number
           total_transactions: number
+          unprocessed_raw_data: number
+          unrewarded_staged_data: number
         }[]
       }
       check_raw_health_data_duplicate: {
-        Args: { p_step_count: number; p_recorded_at: string; p_user_id: string }
+        Args: { p_recorded_at: string; p_step_count: number; p_user_id: string }
         Returns: boolean
       }
       cleanup_orphaned_queue_items: {
@@ -6009,21 +6009,21 @@ export type Database = {
       get_all_user_health_data: {
         Args: { p_user_id: string }
         Returns: {
-          source_table: string
-          record_id: string
-          user_id: string
           activity_type: string
-          recorded_at: string
-          processed_at: string
-          step_count: number
-          heart_rate: number
-          distance_meters: number
-          duration_seconds: number
           calories_burned: number
           device_type: string
-          raw_data: Json
-          reward_amount: number
+          distance_meters: number
+          duration_seconds: number
+          heart_rate: number
+          processed_at: string
           processing_status: string
+          raw_data: Json
+          record_id: string
+          recorded_at: string
+          reward_amount: number
+          source_table: string
+          step_count: number
+          user_id: string
         }[]
       }
       get_user_business_access: {
@@ -6033,65 +6033,65 @@ export type Database = {
         }[]
       }
       get_user_business_role: {
-        Args: { p_user_id: string; p_business_id: string }
+        Args: { p_business_id: string; p_user_id: string }
         Returns: {
-          role: Database["public"]["Enums"]["user_role"]
           permissions: Json
+          role: Database["public"]["Enums"]["user_role"]
         }[]
       }
       process_backlog_data: {
         Args: Record<PropertyKey, never>
         Returns: {
-          processed_count: number
           error_count: number
+          processed_count: number
         }[]
       }
       process_stuck_raw_data: {
         Args: Record<PropertyKey, never>
         Returns: {
-          processed_count: number
           error_count: number
+          processed_count: number
         }[]
       }
       process_synapse_backlog: {
         Args: Record<PropertyKey, never>
         Returns: {
+          bundles_generated: number
+          processed_business_queue: number
           processed_health_data: number
           processed_lifestyle_queue: number
-          processed_business_queue: number
-          bundles_generated: number
         }[]
       }
       recover_all_stuck_health_data: {
         Args: Record<PropertyKey, never>
         Returns: {
-          recovered_count: number
           failed_count: number
+          recovered_count: number
         }[]
       }
       recover_stuck_health_data: {
         Args: Record<PropertyKey, never>
         Returns: {
-          recovered_count: number
           error_count: number
+          recovered_count: number
         }[]
       }
       update_raw_health_data_status: {
         Args: {
+          p_error_message?: string
           p_record_id: string
           p_status: string
-          p_error_message?: string
         }
         Returns: undefined
       }
       user_has_permission: {
-        Args: { p_user_id: string; p_permission_name: string }
+        Args: { p_permission_name: string; p_user_id: string }
         Returns: boolean
       }
       validate_nfc_signature: {
         Args: {
-          p_transaction_data: Json
           p_signature: string
+          p_transaction_data: Json
           p_wallet_address: string
         }
         Returns: boolean
