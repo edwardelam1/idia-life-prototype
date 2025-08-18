@@ -242,55 +242,44 @@ const EnhancedWalletDashboard: React.FC = () => {
             </Button>
           </div>
 
-          {/* Trust Score & Credit */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Card>
-              <CardHeader className="py-1.5 px-3">
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5" />
-                  Trust Score
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-3">
-                <div className="text-center space-y-1">
-                  <div className="text-2xl font-bold text-primary">
+          {/* Trust Score & Credit - Condensed */}
+          <Card>
+            <CardHeader className="py-2 px-3">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <TrendingUp className="w-4 h-4" />
+                Trust Score & Credit
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center">
+                  <div className="text-xl font-bold text-primary">
                     {profile?.trust_score || 650}
                   </div>
-                  <Badge variant="secondary">Excellent</Badge>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={simulateTrustScore}
-                    className="w-full mt-1"
-                  >
-                    Simulate Score Improvement
-                  </Button>
+                  <Badge variant="secondary" className="text-xs">Excellent</Badge>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="py-1.5 px-3">
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="w-5 h-5" />
-                  Available Credit
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-3">
-                <div className="text-center space-y-1">
-                  <div className="text-2xl font-bold text-green-600">
+                <div className="text-center">
+                  <div className="text-xl font-bold text-green-600">
                     ${profile?.available_credit_line || 0}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Based on your trust score and data contribution
-                  </p>
-                  <Button variant="outline" size="sm" className="w-full mt-1">
-                    Apply for Credit Increase
-                  </Button>
+                  <p className="text-xs text-muted-foreground">Available Credit</p>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={simulateTrustScore}
+                  className="text-xs h-8"
+                >
+                  Simulate Improvement
+                </Button>
+                <Button variant="outline" size="sm" className="text-xs h-8">
+                  Apply for Credit
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="transactions" className="space-y-4">

@@ -81,9 +81,9 @@ const MainApp = () => {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <Header />
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-hidden pt-14">
         <div className="h-full max-w-4xl mx-auto">
-          <div className="h-full px-2 pb-2 overflow-hidden">
+          <div className="h-full px-2 pb-2 overflow-y-auto">
             <ActiveComponent />
           </div>
         </div>
