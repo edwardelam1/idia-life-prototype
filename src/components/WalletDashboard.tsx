@@ -43,11 +43,22 @@ const WalletDashboard = () => {
 
   const fetchBalances = async () => {
     try {
-      // Fetch real user wallet data
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setBalances({
+          cash: 0,
+          idiaUsd: 0,
+          idiaToken: 0
+        });
+        return;
+      }
+
+      // Fetch real user wallet data - filter by authenticated user ID
       const { data: walletData, error: walletError } = await supabase
         .from('user_wallets')
         .select('*')
-        .single();
+        .eq('user_id', user.id)
+        .maybeSingle();
 
       if (walletError && walletError.code !== 'PGRST116') {
         console.error('Error fetching wallet:', walletError);
@@ -76,10 +87,18 @@ const WalletDashboard = () => {
 
   const fetchTransactions = async () => {
     try {
-      // Fetch real transactions from database
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setTransactions([]);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch real transactions from database - filter by authenticated user ID
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(10);
 
