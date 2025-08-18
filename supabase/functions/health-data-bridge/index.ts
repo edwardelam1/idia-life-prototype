@@ -72,6 +72,7 @@ serve(async (req) => {
     const insertData = {
       user_id: user_id,
       device_type: health_data.device_type || 'apple_health',
+      activity_type: health_data.type || health_data.activityType || 'health_metrics',
       source: health_data.source || 'apple_health',
       raw_payload: health_data,
       step_count: health_data.steps || health_data.stepCount || health_data.step_count || null,

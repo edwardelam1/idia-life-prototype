@@ -4084,6 +4084,7 @@ export type Database = {
       }
       raw_health_data: {
         Row: {
+          activity_type: string | null
           created_at: string | null
           device_type: string | null
           id: string
@@ -4101,6 +4102,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          activity_type?: string | null
           created_at?: string | null
           device_type?: string | null
           id?: string
@@ -4118,6 +4120,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          activity_type?: string | null
           created_at?: string | null
           device_type?: string | null
           id?: string
