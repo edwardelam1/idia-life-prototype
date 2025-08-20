@@ -11,7 +11,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import AppleHealthModal from './AppleHealthModal';
 import StravaConnectionModal from './StravaConnectionModal'; // Assuming this exists
-import { HealthDataSimulator } from './HealthDataSimulator';
+
 
 const DataDashboard = () => {
   const [connections, setConnections] = useState<any[]>([]);
@@ -221,7 +221,7 @@ const DataDashboard = () => {
 
   return (
       <div className="space-y-4">
-      <HealthDataSimulator />
+      
       
       {/* Data Earnings Summary with Sync Status */}
       <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white">
