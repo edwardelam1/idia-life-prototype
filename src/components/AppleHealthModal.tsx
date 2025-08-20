@@ -119,59 +119,30 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, [connectionStatus, onComplete]);
 
   useEffect(() => {
-    // This callback is expected from the native app upon sync completion
-    (window as any).onHealthDataSyncComplete = (responseBody: any) => {
+    // This callback matches exactly what Swift code sends via evaluateJavaScript
+    (window as any).onHealthDataSyncComplete = (serverResponse: any) => {
       console.log("DEBUG_UI: Web view received sync completion callback from native app.");
-      console.log("DEBUG_UI: Raw Response Body from Native:", responseBody);
+      console.log("DEBUG_UI: Server Response from Native:", serverResponse);
 
-      try {
-        let responseData;
-        
-        // Handle both string (JSON) and object responses from native app
-        if (typeof responseBody === 'string') {
-          responseData = JSON.parse(responseBody);
-        } else {
-          responseData = responseBody;
-        }
-        
-        console.log("DEBUG_UI: Parsed/Direct Response Data from Native:", responseData);
-
-        if (responseData && responseData.health_data) {
-          setHealthData(responseData.health_data);
-        } else if (responseData) {
-          setHealthData(responseData); // Use the entire response if no health_data field
-        } else {
-          setHealthData({}); // Clear healthData on empty response
-        }
-
-        setConnectionStatus('connected');
-        setIsConnecting(false);
-        console.log("DEBUG_UI: Connection status set to 'connected', will auto-close in 2 seconds.");
-
-        // Track successful connection
-        eventTracker.trackFeatureUsage({
-          feature: 'apple_health_connection',
-          action: 'sync_completed',
-          success: true
-        });
-
-      } catch (error: any) {
-        console.error("DEBUG_UI: Failed to parse native callback response:", error);
-        setErrorMessage(`HealthKit sync failed: ${error.message || 'Unknown error'}`);
-        setConnectionStatus('error');
-        setIsConnecting(false);
-        console.log("DEBUG_UI: Connection status set to 'error' due to parsing failure.");
-        
-        // Track sync error
-        eventTracker.trackFeatureUsage({
-          feature: 'apple_health_connection',
-          action: 'sync_failed',
-          success: false,
-          context: {
-            error_message: error.message || 'Unknown error'
-          }
-        });
+      // Swift code embeds server response directly into JavaScript, so no parsing needed
+      if (serverResponse && typeof serverResponse === 'object' && serverResponse.health_data) {
+        setHealthData(serverResponse.health_data);
+      } else if (serverResponse) {
+        setHealthData(serverResponse);
+      } else {
+        setHealthData({});
       }
+
+      setConnectionStatus('connected');
+      setIsConnecting(false);
+      console.log("DEBUG_UI: Connection status set to 'connected', will auto-close in 2 seconds.");
+
+      // Track successful connection
+      eventTracker.trackFeatureUsage({
+        feature: 'apple_health_connection',
+        action: 'sync_completed',
+        success: true
+      });
     };
     // Handle error callback from native app
     (window as any).onHealthDataSyncError = (errorMsg: string) => {
