@@ -4821,6 +4821,7 @@ export type Database = {
           anonymized_location_zone: string | null
           average_heartrate: number | null
           average_speed_mps: number | null
+          calories_burned: number | null
           device_type: string | null
           distance_meters: number | null
           duration_seconds: number | null
@@ -4841,6 +4842,7 @@ export type Database = {
           anonymized_location_zone?: string | null
           average_heartrate?: number | null
           average_speed_mps?: number | null
+          calories_burned?: number | null
           device_type?: string | null
           distance_meters?: number | null
           duration_seconds?: number | null
@@ -4861,6 +4863,7 @@ export type Database = {
           anonymized_location_zone?: string | null
           average_heartrate?: number | null
           average_speed_mps?: number | null
+          calories_burned?: number | null
           device_type?: string | null
           distance_meters?: number | null
           duration_seconds?: number | null

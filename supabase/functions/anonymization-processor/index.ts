@@ -396,13 +396,14 @@ serve(async (req) => {
         average_heartrate: healthData.average_heartrate || null,
         duration_seconds: healthData.duration_seconds || null,
         distance_meters: healthData.distance_meters || healthData.distance_walking_running_meters || healthData.distance_cycling_meters || null,
+        calories_burned: healthData.calories_burned || null,
         device_type: 'Apple Health',
         // Additional health metrics for enhanced rewards
         elevation_gain_meters: null, // Apple Health doesn't provide this directly
         weather_conditions: null // Will be enriched later if needed
       };
 
-      console.log(`Creating staged_data with: hr=${rewardData.average_heartrate}, duration=${rewardData.duration_seconds}, distance=${rewardData.distance_meters}`);
+      console.log(`Creating staged_data with: hr=${rewardData.average_heartrate}, duration=${rewardData.duration_seconds}, distance=${rewardData.distance_meters}, calories=${rewardData.calories_burned}`);
 
       const { data: stagedData, error: stagedError } = await supabase
         .from('staged_data')
