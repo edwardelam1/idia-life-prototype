@@ -47,20 +47,69 @@ serve(async (req) => {
     const requestBody = await req.json();
     const { user_id, apple_health_data, automated_sync, connection_id } = requestBody;
     
-    // Handle automated sync for all active connections
-    if (automated_sync) {
-      console.log('Live-only policy active: skipping simulated Apple Health data generation.');
-      return new Response(
-        JSON.stringify({
+    // Enhanced real data validation for automated sync
+    const { force_real_data_only = false } = requestBody;
+    
+    if (automated_sync || force_real_data_only) {
+      console.log('🔍 Automated sync - validating data for real-only policy...');
+      
+      if (!apple_health_data || apple_health_data.length === 0) {
+        console.log('⚠️ No Apple Health data provided for automated sync');
+        return new Response(JSON.stringify({
           success: true,
-          message: 'Live-only policy enforced. Automated sync will not generate simulated Apple Health data. Real data must be pushed from devices or via user-initiated sync.',
-          policy: 'no-simulated-data'
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          message: 'No new health data available for sync',
+          processed_count: 0,
+          reason: 'no_data_provided'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Filter out any simulated data from the payload
+      const originalCount = Object.keys(apple_health_data).reduce((total, key) => {
+        return total + (Array.isArray(apple_health_data[key]) ? apple_health_data[key].length : 0);
+      }, 0);
+
+      let hasSimulatedData = false;
+      const filteredData = {};
+
+      // Process each health data type
+      Object.keys(apple_health_data).forEach(dataType => {
+        if (Array.isArray(apple_health_data[dataType])) {
+          const realDataOnly = apple_health_data[dataType].filter(item => {
+            const isSimulated = item.simulated === true || 
+                               (item.metadata && item.metadata.simulated === true) ||
+                               (typeof item.value === 'object' && item.value?.simulated === true);
+            if (isSimulated) hasSimulatedData = true;
+            return !isSimulated;
+          });
+          
+          if (realDataOnly.length > 0) {
+            filteredData[dataType] = realDataOnly;
+          }
         }
-      );
+      });
+
+      const filteredCount = Object.keys(filteredData).reduce((total, key) => {
+        return total + (Array.isArray(filteredData[key]) ? filteredData[key].length : 0);
+      }, 0);
+
+      if (filteredCount === 0) {
+        console.log('⚠️ All provided data was simulated - skipping automated sync');
+        return new Response(JSON.stringify({
+          success: true,
+          message: 'Automated sync completed - only simulated data was filtered out',
+          processed_count: 0,
+          skipped_simulated: true,
+          original_count: originalCount
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Update apple_health_data to only include real data
+      requestBody.apple_health_data = filteredData;
+      console.log(`✅ Automated sync processing ${filteredCount} real health data records (filtered ${originalCount - filteredCount} simulated)`);
     }
 
     if (!user_id || !apple_health_data) {

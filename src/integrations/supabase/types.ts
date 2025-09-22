@@ -1354,8 +1354,11 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean | null
+          last_successful_sync: string | null
           last_sync_at: string | null
           refresh_token: string | null
+          sync_failure_count: number | null
+          sync_status: string | null
           token_expires_at: string | null
           updated_at: string
           user_id: string
@@ -1367,8 +1370,11 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean | null
+          last_successful_sync?: string | null
           last_sync_at?: string | null
           refresh_token?: string | null
+          sync_failure_count?: number | null
+          sync_status?: string | null
           token_expires_at?: string | null
           updated_at?: string
           user_id: string
@@ -1380,8 +1386,11 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean | null
+          last_successful_sync?: string | null
           last_sync_at?: string | null
           refresh_token?: string | null
+          sync_failure_count?: number | null
+          sync_status?: string | null
           token_expires_at?: string | null
           updated_at?: string
           user_id?: string
@@ -5281,6 +5290,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sync_logs: {
+        Row: {
+          created_at: string
+          failed_syncs: number
+          id: string
+          successful_syncs: number
+          sync_results: Json | null
+          sync_type: string
+          total_connections: number
+        }
+        Insert: {
+          created_at?: string
+          failed_syncs?: number
+          id?: string
+          successful_syncs?: number
+          sync_results?: Json | null
+          sync_type: string
+          total_connections?: number
+        }
+        Update: {
+          created_at?: string
+          failed_syncs?: number
+          id?: string
+          successful_syncs?: number
+          sync_results?: Json | null
+          sync_type?: string
+          total_connections?: number
+        }
+        Relationships: []
       }
       tax_rates: {
         Row: {

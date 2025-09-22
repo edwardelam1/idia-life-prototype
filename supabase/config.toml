@@ -48,6 +48,9 @@ verify_jwt = false
 [functions.credit-user-wallet]
 verify_jwt = false
 
+[functions.daily-apple-health-sync]
+verify_jwt = false
+
 [functions.gemini-chat]
 verify_jwt = false
 
