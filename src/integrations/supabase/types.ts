@@ -6121,6 +6121,12 @@ export type Database = {
           recovered_count: number
         }[]
       }
+      trigger_daily_apple_health_sync: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          request_id: number
+        }[]
+      }
       update_raw_health_data_status: {
         Args: {
           p_error_message?: string
