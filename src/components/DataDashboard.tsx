@@ -340,33 +340,6 @@ const DataDashboard = () => {
         </Card>
       )}
 
-      {/* HRI Score Card - "Check Engine Light" */}
-      <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <Heart className="w-5 h-5 text-primary" />
-                <span className="text-sm font-medium text-muted-foreground">Human Readiness Index</span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className={`text-4xl font-bold ${getHRIColor()}`}>{hriScore}</span>
-                <span className="text-lg text-muted-foreground">/100</span>
-                <Badge variant="secondary" className={`${getHRIBg()} text-white ml-2`}>
-                  {getHRIStatus()}
-                </Badge>
-              </div>
-              <Progress value={hriScore} className="mt-2 h-2" />
-            </div>
-            <div className="text-right">
-              <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                <TrendingUp className="w-4 h-4 text-green-500" />
-                <span>+3 today</span>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Trust Score & Earnings Row */}
       <div className="grid grid-cols-2 gap-3">
