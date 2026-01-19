@@ -81,11 +81,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [authSession, setAuthSession] = useState<any>(null);
-  // State to manage selected data types - all selected by default
-  const [selectedDataTypes, setSelectedDataTypes] = useState<Set<string>>(new Set(ALL_HEALTH_DATA_TYPES.map(d => d.id)));
+  // State to manage selected data types - none selected by default
+  const [selectedDataTypes, setSelectedDataTypes] = useState<Set<string>>(new Set());
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  // Removed showAllTypes state as it's not used in current simplified list view
-  // const [showAllTypes, setShowAllTypes] = useState(false);
 
 
   useEffect(() => {
@@ -170,6 +168,17 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       return newSet;
     });
   }, []);
+
+  const handleSelectAll = useCallback(() => {
+    setSelectedDataTypes(new Set(ALL_HEALTH_DATA_TYPES.map(d => d.id)));
+  }, []);
+
+  const handleDeselectAll = useCallback(() => {
+    setSelectedDataTypes(new Set());
+  }, []);
+
+  const allSelected = selectedDataTypes.size === ALL_HEALTH_DATA_TYPES.length;
+  const noneSelected = selectedDataTypes.size === 0;
 
   const syncHealthDataViaNativeApp = useCallback(() => {
     setIsConnecting(true);
@@ -397,8 +406,18 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               </p>
 
               <div className="space-y-2">
-                <h4 className="font-medium text-sm">Select HealthKit Data to Access:</h4>
-                <div className="max-h-60 overflow-y-auto border p-2 rounded-md"> {/* Increased max-height */}
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium text-sm">Select HealthKit Data to Access:</h4>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-7 px-2"
+                    onClick={allSelected ? handleDeselectAll : handleSelectAll}
+                  >
+                    {allSelected ? 'Deselect All' : 'Select All'}
+                  </Button>
+                </div>
+                <div className="max-h-60 overflow-y-auto border p-2 rounded-md">
                   {/* Group data types by category for better UX */}
                   {Array.from(new Set(ALL_HEALTH_DATA_TYPES.map(d => d.category))).map(category => (
                     <div key={category} className="mb-2">
@@ -416,7 +435,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                     </div>
                   ))}
                 </div>
-                {/* Removed setShowAllTypes toggle as it makes list too long */}
+                <p className="text-xs text-muted-foreground">
+                  {selectedDataTypes.size} of {ALL_HEALTH_DATA_TYPES.length} data types selected
+                </p>
                 <p className="text-xs text-blue-600 mt-2">
                   All data is anonymized and encrypted for privacy protection
                 </p>
