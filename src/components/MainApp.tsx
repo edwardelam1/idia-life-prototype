@@ -80,12 +80,25 @@ const MainApp = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-screen overflow-hidden bg-gradient-to-br from-background via-background to-muted/30">
       <Header />
       <main className="flex-1 overflow-hidden pt-14">
-        <div className="h-full max-w-4xl mx-auto">
-          <div className="h-full px-2 pb-2 overflow-y-auto">
-            <ActiveComponent />
+        <div className="h-full max-w-4xl mx-auto px-2">
+          {/* Holographic Shell - Glassmorphism container */}
+          <div className="h-full relative">
+            {/* Outer glow layer */}
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 rounded-2xl blur-xl" />
+            
+            {/* Main glassmorphism container */}
+            <div className="relative h-full backdrop-blur-xl bg-card/40 border border-border/30 rounded-2xl shadow-2xl overflow-hidden">
+              {/* Inner highlight edge */}
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
+              
+              {/* Content area with secondary blur layer */}
+              <div className="h-full px-4 pb-4 pt-2 overflow-y-auto relative z-10">
+                <ActiveComponent />
+              </div>
+            </div>
           </div>
         </div>
       </main>
