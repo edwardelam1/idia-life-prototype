@@ -2,109 +2,92 @@
 @tailwind components;
 @tailwind utilities;
 
-/* IDIA Life - Holographic Shell Design System
-   Visual Sovereignty: Interface as "Window into Data"
-   All colors MUST be HSL.
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
 */
 
 @layer base {
   :root {
-    /* Deep space background for holographic effect */
-    --background: 225 25% 6%;
-    --foreground: 210 40% 96%;
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
 
-    /* Glassmorphism card surfaces */
-    --card: 220 20% 12%;
-    --card-foreground: 210 40% 96%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
 
-    /* Popover with glass effect */
-    --popover: 220 20% 10%;
-    --popover-foreground: 210 40% 96%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
 
-    /* Primary accent - Cyan holographic */
-    --primary: 185 100% 50%;
-    --primary-foreground: 225 25% 6%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
 
-    /* Secondary - Muted glass */
-    --secondary: 220 15% 18%;
-    --secondary-foreground: 210 40% 90%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
 
-    /* Muted surfaces */
-    --muted: 220 15% 15%;
-    --muted-foreground: 215 20% 55%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
 
-    /* Accent - Purple holographic */
-    --accent: 265 80% 60%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
 
-    /* Destructive */
-    --destructive: 0 72% 51%;
+    --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    /* Borders - Subtle glass edges */
-    --border: 220 20% 20%;
-    --input: 220 20% 18%;
-    --ring: 185 100% 50%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
 
-    --radius: 1rem;
+    --radius: 0.5rem;
 
-    /* Holographic gradients */
-    --glass-blur: 20px;
-    --glass-opacity: 0.6;
-    --glow-primary: 185 100% 50%;
-    --glow-accent: 265 80% 60%;
-
-    --sidebar-background: 220 20% 8%;
-    --sidebar-foreground: 210 40% 90%;
-    --sidebar-primary: 185 100% 50%;
-    --sidebar-primary-foreground: 225 25% 6%;
-    --sidebar-accent: 220 15% 15%;
-    --sidebar-accent-foreground: 210 40% 90%;
-    --sidebar-border: 220 20% 18%;
-    --sidebar-ring: 185 100% 50%;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
 
     /* Font sizes */
     --font-size: 1rem;
   }
 
-  /* Dark mode inherits the holographic theme */
   .dark {
-    --background: 225 25% 6%;
-    --foreground: 210 40% 96%;
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
 
-    --card: 220 20% 12%;
-    --card-foreground: 210 40% 96%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
 
-    --popover: 220 20% 10%;
-    --popover-foreground: 210 40% 96%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 185 100% 50%;
-    --primary-foreground: 225 25% 6%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
 
-    --secondary: 220 15% 18%;
-    --secondary-foreground: 210 40% 90%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 220 15% 15%;
-    --muted-foreground: 215 20% 55%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
 
-    --accent: 265 80% 60%;
+    --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 220 20% 20%;
-    --input: 220 20% 18%;
-    --ring: 185 100% 50%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
     
-    --sidebar-background: 220 20% 8%;
-    --sidebar-foreground: 210 40% 90%;
-    --sidebar-primary: 185 100% 50%;
-    --sidebar-primary-foreground: 225 25% 6%;
-    --sidebar-accent: 220 15% 15%;
-    --sidebar-accent-foreground: 210 40% 90%;
-    --sidebar-border: 220 20% 18%;
-    --sidebar-ring: 185 100% 50%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   /* Colorblind mode - works with both light and dark themes */
@@ -212,65 +195,5 @@
   /* Ensure all text elements inherit the font size */
   html, body, div, span, p, h1, h2, h3, h4, h5, h6 {
     font-size: inherit;
-  }
-}
-
-/* Holographic Shell Utilities */
-@layer utilities {
-  .glass {
-    @apply backdrop-blur-xl bg-card/60 border border-border/50;
-  }
-
-  .glass-subtle {
-    @apply backdrop-blur-md bg-card/40 border border-border/30;
-  }
-
-  .glass-strong {
-    @apply backdrop-blur-2xl bg-card/70 border border-border/60;
-  }
-
-  .glow-primary {
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.3),
-                0 0 40px hsl(var(--primary) / 0.1);
-  }
-
-  .glow-accent {
-    box-shadow: 0 0 20px hsl(var(--accent) / 0.3),
-                0 0 40px hsl(var(--accent) / 0.1);
-  }
-
-  .holographic-border {
-    position: relative;
-  }
-
-  .holographic-border::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 1px;
-    background: linear-gradient(
-      135deg,
-      hsl(var(--primary) / 0.5),
-      hsl(var(--accent) / 0.3),
-      hsl(var(--primary) / 0.1)
-    );
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    pointer-events: none;
-  }
-
-  .text-glow {
-    text-shadow: 0 0 10px hsl(var(--primary) / 0.5);
-  }
-
-  .nav-glass {
-    @apply backdrop-blur-2xl bg-background/80 border-t border-border/50;
-  }
-
-  .header-glass {
-    @apply backdrop-blur-2xl bg-background/70 border-b border-border/30;
   }
 }
