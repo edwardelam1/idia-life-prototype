@@ -10,34 +10,17 @@ import NFCPayrollModal from '../NFCPayrollModal';
 import SendRequestModal from '../SendRequestModal';
 import AddFundsModal from '../AddFundsModal';
 import { 
-  CreditCard, 
-  TrendingUp, 
-  ArrowUpRight, 
-  ArrowDownLeft, 
-  Shield, 
-  Download,
-  Smartphone,
-  Clock,
-  Plus,
-  ShieldCheck,
-  Landmark,
-  History
+  CreditCard, TrendingUp, ArrowUpRight, ArrowDownLeft, Shield, Download,
+  Smartphone, Clock, Plus, ShieldCheck, Landmark, History
 } from 'lucide-react';
 
 interface Transaction {
-  id: string;
-  transaction_type: string;
-  amount: number;
-  description: string;
-  source: string;
-  created_at: string;
-  metadata?: any;
+  id: string; transaction_type: string; amount: number; description: string;
+  source: string; created_at: string; metadata?: any;
 }
 
 interface CreditSimulation {
-  current_score: number;
-  simulated_score: number;
-  actions: string[];
+  current_score: number; simulated_score: number; actions: string[];
 }
 
 const EnhancedWalletDashboard: React.FC = () => {
@@ -50,88 +33,47 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [showSendRequestModal, setShowSendRequestModal] = useState(false);
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
 
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
+  useEffect(() => { fetchTransactions(); }, []);
 
   const fetchTransactions = async () => {
     try {
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (error) {
-        console.error('Error fetching transactions:', error);
-      } else {
-        setTransactions(data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-    }
+      const { data, error } = await supabase.from('transactions').select('*')
+        .order('created_at', { ascending: false }).limit(20);
+      if (error) console.error('Error fetching transactions:', error);
+      else setTransactions(data || []);
+    } catch (error) { console.error('Error fetching transactions:', error); }
   };
 
   const simulateTrustScore = async () => {
-    try {
-      const hypotheticalActions = [
-        'Complete verification',
-        'Connect bank account',
-        'Make regular payments',
-        'Maintain positive social health metrics'
-      ];
-
-      setCreditSimulation({
-        current_score: profile?.trust_score || 650,
-        simulated_score: (profile?.trust_score || 650) + 50,
-        actions: hypotheticalActions
-      });
-    } catch (error) {
-      console.error('Error simulating trust score:', error);
-    }
+    setCreditSimulation({
+      current_score: profile?.trust_score || 650,
+      simulated_score: (profile?.trust_score || 650) + 50,
+      actions: ['Complete verification', 'Connect bank account', 'Make regular payments', 'Maintain positive social health metrics']
+    });
   };
 
   const exportTaxableEvents = async () => {
     try {
       const taxableEvents = transactions.filter(t => 
-        t.transaction_type === 'data_reward' || 
-        t.transaction_type === 'crypto_sale' ||
-        t.transaction_type === 'income'
-      );
-
-      const csvContent = [
-        'Date,Type,Amount,Description,Tax Category',
-        ...taxableEvents.map(t => 
-          `${t.created_at},${t.transaction_type},${t.amount},${t.description},Taxable Income`
-        )
+        ['data_reward', 'crypto_sale', 'income'].includes(t.transaction_type));
+      const csvContent = ['Date,Type,Amount,Description,Tax Category',
+        ...taxableEvents.map(t => `${t.created_at},${t.transaction_type},${t.amount},${t.description},Taxable Income`)
       ].join('\n');
-
       const blob = new Blob([csvContent], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
+      const a = document.createElement('a'); a.href = url;
       a.download = `taxable-events-${new Date().getFullYear()}.csv`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Error exporting taxable events:', error);
-    }
+      a.click(); window.URL.revokeObjectURL(url);
+    } catch (error) { console.error('Error exporting taxable events:', error); }
   };
 
   const getTransactionIcon = (type: string) => {
     switch (type) {
-      case 'data_reward':
-      case 'data_earnings':
-        return TrendingUp;
-      case 'payment_sent':
-        return ArrowUpRight;
-      case 'payment_received':
-      case 'payroll':
-        return ArrowDownLeft;
-      case 'nfc_payroll':
-        return Smartphone;
-      default:
-        return CreditCard;
+      case 'data_reward': case 'data_earnings': return TrendingUp;
+      case 'payment_sent': return ArrowUpRight;
+      case 'payment_received': case 'payroll': return ArrowDownLeft;
+      case 'nfc_payroll': return Smartphone;
+      default: return CreditCard;
     }
   };
 
@@ -155,13 +97,13 @@ const EnhancedWalletDashboard: React.FC = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-bold text-foreground">Wallet</h1>
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-            <span className="text-xs font-medium text-emerald-600">Bio-Sovereign Protected</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20">
+            <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+            <span className="text-xs font-medium text-primary">Bio-Sovereign Protected</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs font-mono px-2 py-1 rounded bg-indigo-500/10 text-indigo-600 border border-indigo-500/20">
+          <span className="text-xs font-mono px-2 py-1 rounded bg-accent/10 text-accent border border-accent/20">
             KYC TIER 1
           </span>
           <Button variant="ghost" size="sm" onClick={exportTaxableEvents}>
@@ -179,8 +121,7 @@ const EnhancedWalletDashboard: React.FC = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-          {/* Three-Pillar Balance Card */}
-          <Card className="bg-gradient-to-br from-indigo-50 to-blue-50">
+          <Card className="bg-gradient-to-br from-primary/5 to-accent/5 shadow-lg backdrop-blur-sm">
             <CardContent className="p-5">
               <div className="flex items-center justify-between mb-4">
                 <p className="text-sm text-muted-foreground font-medium">Total Account Value</p>
@@ -189,9 +130,7 @@ const EnhancedWalletDashboard: React.FC = () => {
               <p className="text-3xl font-bold text-foreground mb-5 font-mono">
                 ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </p>
-
               <div className="h-px bg-border mb-4" />
-
               <div className="grid grid-cols-3 gap-4">
                 <div className="text-center">
                   <p className="text-xs text-muted-foreground font-medium mb-1">Cash (FBO)</p>
@@ -209,80 +148,56 @@ const EnhancedWalletDashboard: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Quick Actions */}
           <div className="grid grid-cols-3 gap-3">
-            <Button 
-              variant="outline"
-              className="h-14 flex-col text-sm py-0.5"
-              onClick={() => setShowSendRequestModal(true)}
-            >
+            <Button variant="outline" className="h-14 flex-col text-sm py-0.5 shadow-sm"
+              onClick={() => setShowSendRequestModal(true)}>
               <div className="flex items-center space-x-1 mb-1">
-                <ArrowUpRight className="w-4 h-4" />
-                <ArrowDownLeft className="w-4 h-4" />
+                <ArrowUpRight className="w-4 h-4" /><ArrowDownLeft className="w-4 h-4" />
               </div>
               Send / Request
             </Button>
-            
-            <Button 
-              variant="outline"
-              className="h-14 flex-col text-sm py-0.5"
-              onClick={() => setShowNFCModal(true)}
-            >
+            <Button variant="outline" className="h-14 flex-col text-sm py-0.5 shadow-sm"
+              onClick={() => setShowNFCModal(true)}>
               <Smartphone className="w-5 h-5 mb-1" />
               Tap To Payroll
             </Button>
-            
-            <Button 
-              className="h-14 flex-col bg-indigo-600 hover:bg-indigo-700 text-white text-sm py-0.5"
-              onClick={() => setShowAddFundsModal(true)}
-            >
+            <Button className="h-14 flex-col text-sm py-0.5 shadow-md"
+              onClick={() => setShowAddFundsModal(true)}>
               <Plus className="w-5 h-5 mb-1" />
               Add Funds
             </Button>
           </div>
 
-          {/* Trust Score & Credit */}
-          <Card>
+          <Card className="shadow-sm">
             <CardHeader className="py-2 px-3">
               <CardTitle className="flex items-center gap-2 text-sm">
-                <TrendingUp className="w-4 h-4 text-indigo-500" />
+                <TrendingUp className="w-4 h-4 text-primary" />
                 Trust Score & Credit
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3">
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center">
-                  <div className="text-xl font-bold text-indigo-600">
-                    {profile?.trust_score || 650}
-                  </div>
-                  <Badge className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/20">Excellent</Badge>
+                  <div className="text-xl font-bold text-primary">{profile?.trust_score || 650}</div>
+                  <Badge className="text-xs bg-primary/10 text-primary border-primary/20">Excellent</Badge>
                 </div>
                 <div className="text-center">
-                  <div className="text-xl font-bold text-emerald-500">
-                    ${profile?.available_credit_line || 0}
-                  </div>
+                  <div className="text-xl font-bold text-accent">${profile?.available_credit_line || 0}</div>
                   <p className="text-xs text-muted-foreground">Available Credit</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 mt-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={simulateTrustScore}
-                  className="text-xs h-8"
-                >
+                <Button variant="outline" size="sm" onClick={simulateTrustScore} className="text-xs h-8">
                   Simulate Improvement
                 </Button>
-                <Button variant="outline" size="sm" className="text-xs h-8">
-                  Apply for Credit
-                </Button>
+                <Button variant="outline" size="sm" className="text-xs h-8">Apply for Credit</Button>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="transactions" className="space-y-4">
-          <Card>
+          <Card className="shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <History className="w-5 h-5 text-muted-foreground" />
@@ -291,9 +206,7 @@ const EnhancedWalletDashboard: React.FC = () => {
             </CardHeader>
             <CardContent>
               {transactions.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <p>No transactions yet</p>
-                </div>
+                <div className="text-center py-8 text-muted-foreground"><p>No transactions yet</p></div>
               ) : (
                 <div className="space-y-2">
                   {transactions.map((transaction) => (
@@ -301,7 +214,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
                           {transaction.amount > 0 ? (
-                            <ArrowDownLeft className="w-4 h-4 text-emerald-500" />
+                            <ArrowDownLeft className="w-4 h-4 text-accent" />
                           ) : (
                             <ArrowUpRight className="w-4 h-4 text-muted-foreground" />
                           )}
@@ -312,7 +225,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className={`text-sm font-semibold font-mono ${transaction.amount > 0 ? 'text-emerald-500' : 'text-muted-foreground'}`}>
+                        <p className={`text-sm font-semibold font-mono ${transaction.amount > 0 ? 'text-accent' : 'text-muted-foreground'}`}>
                           {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toFixed(2)}
                         </p>
                         <p className="text-xs text-muted-foreground">Settled</p>
@@ -326,10 +239,8 @@ const EnhancedWalletDashboard: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="credit" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Credit Simulation</CardTitle>
-            </CardHeader>
+          <Card className="shadow-sm">
+            <CardHeader><CardTitle>Credit Simulation</CardTitle></CardHeader>
             <CardContent>
               {creditSimulation ? (
                 <div className="space-y-4">
@@ -338,9 +249,9 @@ const EnhancedWalletDashboard: React.FC = () => {
                       <p className="text-sm text-muted-foreground">Current Score</p>
                       <p className="text-2xl font-bold text-foreground">{creditSimulation.current_score}</p>
                     </div>
-                    <div className="text-center p-4 border border-emerald-500/20 rounded-lg bg-emerald-500/5">
+                    <div className="text-center p-4 border border-accent/20 rounded-lg bg-accent/5">
                       <p className="text-sm text-muted-foreground">Potential Score</p>
-                      <p className="text-2xl font-bold text-emerald-500">{creditSimulation.simulated_score}</p>
+                      <p className="text-2xl font-bold text-accent">{creditSimulation.simulated_score}</p>
                     </div>
                   </div>
                   <div>
@@ -348,8 +259,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                     <ul className="space-y-1">
                       {creditSimulation.actions.map((action, index) => (
                         <li key={index} className="text-sm flex items-center gap-2 text-muted-foreground">
-                          <div className="w-2 h-2 bg-indigo-500 rounded-full" />
-                          {action}
+                          <div className="w-2 h-2 bg-primary rounded-full" />{action}
                         </li>
                       ))}
                     </ul>
@@ -357,9 +267,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                 </div>
               ) : (
                 <div className="text-center py-8">
-                  <Button onClick={simulateTrustScore} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                    Run Credit Simulation
-                  </Button>
+                  <Button onClick={simulateTrustScore}>Run Credit Simulation</Button>
                 </div>
               )}
             </CardContent>
@@ -367,11 +275,10 @@ const EnhancedWalletDashboard: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="security" className="space-y-4">
-          <Card>
+          <Card className="shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-indigo-500" />
-                Wallet Security
+                <Shield className="w-5 h-5 text-primary" />Wallet Security
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -381,23 +288,19 @@ const EnhancedWalletDashboard: React.FC = () => {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-foreground">PIN Protection</span>
-                <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Enabled</Badge>
+                <Badge className="bg-primary/10 text-primary border-primary/20">Enabled</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-foreground">Biometric Auth</span>
-                <Badge className="bg-indigo-500/10 text-indigo-600 border-indigo-500/20">Available</Badge>
+                <Badge variant="secondary">Available</Badge>
               </div>
-              <Button variant="outline" className="w-full">
-                Backup Seed Phrase
-              </Button>
+              <Button variant="outline" className="w-full">Backup Seed Phrase</Button>
             </CardContent>
           </Card>
-
-          <Card>
+          <Card className="shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-muted-foreground" />
-                Recent Activity
+                <Clock className="w-5 h-5 text-muted-foreground" />Recent Activity
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -412,20 +315,9 @@ const EnhancedWalletDashboard: React.FC = () => {
         </TabsContent>
       </Tabs>
 
-      <NFCPayrollModal 
-        isOpen={showNFCModal} 
-        onClose={() => setShowNFCModal(false)} 
-      />
-      
-      <SendRequestModal 
-        isOpen={showSendRequestModal} 
-        onClose={() => setShowSendRequestModal(false)} 
-      />
-      
-      <AddFundsModal 
-        isOpen={showAddFundsModal} 
-        onClose={() => setShowAddFundsModal(false)} 
-      />
+      <NFCPayrollModal isOpen={showNFCModal} onClose={() => setShowNFCModal(false)} />
+      <SendRequestModal isOpen={showSendRequestModal} onClose={() => setShowSendRequestModal(false)} />
+      <AddFundsModal isOpen={showAddFundsModal} onClose={() => setShowAddFundsModal(false)} />
     </div>
   );
 };
