@@ -1,38 +1,60 @@
 
-# Wallet Dashboard and Add Funds Modal Redesign
 
-## Overview
-Redesign the wallet experience with a dark, premium aesthetic featuring a Bio-Sovereign identity header, three-pillar balance display, and a compliance-aware Add Funds modal with Bio-Key authorization flow. All data will be simulated since no database changes are allowed.
+# Revert Wallet to Light Theme + Create Onboarding Flow
 
-## Changes
+## 1. Remove Dark Theme from Wallet Components
 
-### 1. Update WalletDashboard (`src/components/WalletDashboard.tsx`)
-- Replace the current light-themed layout with a dark slate/indigo premium design
-- Add an identity and security header showing "Wallet" title with "Bio-Sovereign Protected" badge and KYC tier indicator
-- Redesign balance card as a "Three-Pillar" display showing Total Account Value prominently, with Cash (FBO), IDIA-USD, and IDIA Token sub-balances in a dark gradient card
-- Replace quick actions with "Add Funds" and "Send Payment" buttons styled in indigo/slate tones
-- Redesign the Recent Activity section as a dark-themed ledger with status indicators (e.g., "Settled"), green for incoming and muted for outgoing amounts
-- Keep existing Supabase data fetching but use simulated fallback values when no real data exists
-- Remove dependency on non-existent `fetchApi` -- keep using Supabase client
+Revert all three wallet-related files from the dark slate/indigo theme back to standard light theme colors that follow the app's design system (using Tailwind semantic classes like `bg-background`, `text-foreground`, `bg-card`, `border`, etc.).
 
-### 2. Update EnhancedWalletDashboard (`src/components/enhanced/EnhancedWalletDashboard.tsx`)
-- Apply the same dark premium redesign to the enhanced version (this is the one displayed in the app via MainApp)
-- Maintain existing tabs (Overview, Transactions, Credit, Security) but restyle them with the dark theme
-- Update the overview tab balance card with the new three-pillar layout and total account value
-- Keep existing functionality (tax export, NFC payroll, send/request, trust score simulation)
+### Files to update:
 
-### 3. Redesign AddFundsModal (`src/components/AddFundsModal.tsx`)
-- Replace the current simple card-selection flow with a compliance-aware deposit flow
-- Add Bio-Key and KYC status checks: if Bio-Key is not "STABLE" or KYC tier is less than 1, show a security lock message preventing deposits
-- Add a USD amount input field with large mono-styled font
-- Show "Worldpay Secure" payment gateway info badge with "PCI-DSS Compliant Egress" label
-- Replace the submit button with "Authorize with Bio-Key" featuring a fingerprint icon
-- Add footer text explaining FBO settlement and IDIA-USD ledger crediting
-- Simulate Bio-Key as "STABLE" and KYC as Tier 1 by default so the deposit form is accessible
-- Show loading spinner state during simulated processing
+**`src/components/WalletDashboard.tsx`**
+- Replace `bg-slate-950`, `bg-slate-900`, `bg-slate-800` backgrounds with `bg-background`, `bg-card`, `bg-muted`
+- Replace `text-white`, `text-slate-200`, `text-slate-400`, `text-slate-500` with `text-foreground`, `text-muted-foreground`
+- Replace `border-slate-700`, `border-slate-800` with `border` (standard border)
+- Update gradient card to use light-friendly gradient (e.g., `from-primary/5 to-primary/10`)
+- Update button colors from `bg-indigo-600` to `bg-primary`
+- Keep the structure (Bio-Sovereign header, three-pillar balance, quick actions, activity ledger) -- just restyle to light theme
 
-### Technical Notes
-- No new dependencies required -- all icons (`ShieldCheck`, `Landmark`, `Fingerprint`, `Loader2`, `History`) are available from lucide-react
-- No `fetchApi` module will be created -- all data continues to flow through existing Supabase queries with simulated fallbacks
-- The `AddFundsModal` interface will gain optional `bioKeyStatus` and `kycTier` props with sensible defaults
-- Dark theme uses Tailwind classes (`bg-slate-950`, `bg-slate-900`, `border-slate-800`, `text-slate-300`, etc.) applied at component level, not globally
+**`src/components/enhanced/EnhancedWalletDashboard.tsx`**
+- Same color reversion as above across all four tabs (Overview, Transactions, Credit, Security)
+- TabsList and TabsTrigger: remove dark overrides, use default shadcn styling
+- Cards, badges, buttons: revert to standard light theme classes
+- Keep all functionality intact (tax export, NFC, send/request, trust score simulation)
+
+**`src/components/AddFundsModal.tsx`**
+- DialogContent: remove `bg-slate-950 border-slate-800 text-white`, use defaults
+- Input: remove `bg-slate-900 border-slate-800 text-white`, use defaults
+- Payment info card: light background instead of dark slate
+- Button: `bg-primary` instead of `bg-indigo-600`
+- Text colors: use semantic classes
+
+## 2. Create Onboarding Flow Component
+
+Create a new `src/components/OnboardingFlow.tsx` that implements a multi-step onboarding experience. Since `framer-motion` is not installed, animations will use CSS transitions/Tailwind animations instead.
+
+### Steps in the flow:
+1. **OAuth** -- Apple/Google sign-in buttons with identity mobilization branding. Uses Supabase OAuth (existing pattern from Auth.tsx) instead of `@capgo/capacitor-social-login` which isn't installed.
+2. **KYC Auto-Confirmation** -- Shows the captured user profile data (name, email, provider) with a confirm button.
+3. **Bio-Key Minting** -- Animated fingerprint icon with status progression (initializing -> syncing -> minted). Uses CSS keyframes for the pulsing rings animation.
+4. **Privacy/Data Sovereignty** -- Embeds the existing `PrivacySettings` component with a "Enter IDIA Life" button.
+
+### Sub-components (all inside OnboardingFlow.tsx):
+- `OAuthOnboarding` -- Sign-in screen with Apple/Google buttons
+- `KYCAutoConfirmation` -- Profile review and confirm
+- `BioKeyMinting` -- Animated minting sequence with pulsing rings
+- Progress indicator dots at the bottom
+
+### Integration:
+- The component accepts an `onComplete` callback prop
+- Uses Supabase auth (not `@capgo/capacitor-social-login` or `fetchApi`)
+- Uses the existing `PrivacySettings` component from `src/components/settings/PrivacySettings.tsx`
+- Includes the `FriendAssistant` overlay with trigger="onboarding" (requires adding 'onboarding' to the trigger type)
+- Animations use Tailwind `animate-` classes and CSS transitions instead of framer-motion
+
+### Type update:
+- **`src/components/FriendAssistant/types.ts`** -- Add `'onboarding'` to the trigger union type
+
+### Note:
+The onboarding flow will be created as a standalone component. Integration into the app routing (e.g., showing it after first sign-up) can be done as a follow-up step.
+
