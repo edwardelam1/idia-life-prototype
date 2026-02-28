@@ -3,13 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { 
-  ShieldCheck, 
-  Loader2, 
-  Landmark,
-  Fingerprint,
-  Lock
-} from 'lucide-react';
+import { ShieldCheck, Loader2, Landmark, Fingerprint, Lock } from 'lucide-react';
 
 interface AddFundsModalProps {
   isOpen: boolean;
@@ -28,7 +22,6 @@ const AddFundsModal = ({ isOpen, onClose, bioKeyStatus = 'STABLE', kycTier = 1 }
   const handleDeposit = async () => {
     setIsProcessing(true);
     setError(null);
-
     setTimeout(() => {
       console.log('Deposit authorized:', { amount: parseFloat(amount), method: 'WORLDPAY_HPP' });
       setIsProcessing(false);
@@ -41,7 +34,7 @@ const AddFundsModal = ({ isOpen, onClose, bioKeyStatus = 'STABLE', kycTier = 1 }
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Landmark className="w-5 h-5 text-indigo-500" />
+            <Landmark className="w-5 h-5 text-primary" />
             Add Funds
           </DialogTitle>
         </DialogHeader>
@@ -54,32 +47,24 @@ const AddFundsModal = ({ isOpen, onClose, bioKeyStatus = 'STABLE', kycTier = 1 }
               </div>
               <h3 className="text-lg font-bold text-foreground mb-2">Security Lock Active</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Deposits are disabled. Ensure your Bio-Key is stable and KYC Tier 1 is verified in the Life App before adding fiat funds.
+                Deposits are disabled. Ensure your Bio-Key is stable and KYC Tier 1 is verified.
               </p>
             </div>
           ) : (
             <>
-              {/* Amount Input */}
               <div className="space-y-2">
-                <Label className="text-muted-foreground text-xs font-medium">
-                  Deposit Amount (USD)
-                </Label>
+                <Label className="text-muted-foreground text-xs font-medium">Deposit Amount (USD)</Label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl text-muted-foreground font-mono">$</span>
-                  <Input
-                    type="text"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    className="h-16 text-2xl font-mono pl-10"
-                  />
+                  <Input type="text" value={amount} onChange={(e) => setAmount(e.target.value)}
+                    className="h-16 text-2xl font-mono pl-10" />
                 </div>
               </div>
 
-              {/* Payment Gateway Info */}
               <div className="flex items-center justify-between p-3 rounded-lg bg-muted border">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center">
-                    <ShieldCheck className="w-4 h-4 text-indigo-500" />
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <ShieldCheck className="w-4 h-4 text-primary" />
                   </div>
                   <div>
                     <p className="text-sm font-medium text-foreground">Worldpay Secure</p>
@@ -91,27 +76,15 @@ const AddFundsModal = ({ isOpen, onClose, bioKeyStatus = 'STABLE', kycTier = 1 }
 
               {error && <p className="text-sm text-destructive">{error}</p>}
 
-              {/* Authorize Button */}
-              <Button
-                onClick={handleDeposit}
-                disabled={isProcessing || !amount}
-                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
-              >
-                {isProcessing ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <>
-                    <Fingerprint className="w-5 h-5 mr-2" />
-                    Authorize with Bio-Key
-                  </>
+              <Button onClick={handleDeposit} disabled={isProcessing || !amount}
+                className="w-full h-12 font-semibold shadow-md">
+                {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+                  <><Fingerprint className="w-5 h-5 mr-2" />Authorize with Bio-Key</>
                 )}
               </Button>
 
-              {/* Footer Info */}
               <div className="space-y-1.5 pt-1">
-                <p className="text-xs text-muted-foreground text-center">
-                  Funds will settle in your FBO account
-                </p>
+                <p className="text-xs text-muted-foreground text-center">Funds will settle in your FBO account</p>
                 <p className="text-xs text-muted-foreground/70 text-center leading-relaxed">
                   By authorizing, you initiate a secure ingress move to the IDIA Treasury.
                   Digital value will be available in your IDIA-USD ledger immediately upon bank confirmation.
