@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import FriendAssistant from './FriendAssistant';
 import { PrivacySettings } from './settings/PrivacySettings';
+import AuthSelection from './onboarding/AuthSelection';
 
 // --- SUB-COMPONENTS ---
 
@@ -186,7 +187,7 @@ interface OnboardingFlowProps {
 }
 
 export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
-  const [step, setStep] = useState<'oauth' | 'confirm' | 'minting' | 'privacy'>('oauth');
+  const [step, setStep] = useState<'auth-select' | 'oauth' | 'confirm' | 'minting' | 'privacy'>('auth-select');
   const [capturedData, setCapturedData] = useState<any>(null);
   const [isFriendVisible, setIsFriendVisible] = useState(true);
 
@@ -203,7 +204,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     setStep('minting');
   };
 
-  const stepsArray = ['oauth', 'confirm', 'minting', 'privacy'] as const;
+  const stepsArray = ['auth-select', 'oauth', 'confirm', 'minting', 'privacy'] as const;
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -215,6 +216,16 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       />
 
       <div className="relative">
+        {step === 'auth-select' && (
+          <AuthSelection
+            onOAuthSuccess={(data) => {
+              setCapturedData(data);
+              setStep('confirm');
+            }}
+            onManualSelection={() => setStep('oauth')}
+          />
+        )}
+
         {step === 'oauth' && <OAuthOnboarding onKYCCaptured={handleKYCCaptured} />}
 
         {step === 'confirm' && capturedData && (
