@@ -143,18 +143,18 @@ const WalletDashboard = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-bold text-foreground">Wallet</h1>
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20">
-            <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-            <span className="text-xs font-medium text-primary">Bio-Sovereign Protected</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+            <span className="text-xs font-medium text-emerald-600">Bio-Sovereign Protected</span>
           </div>
         </div>
-        <span className="text-xs font-mono px-2 py-1 rounded bg-accent text-accent-foreground border">
+        <span className="text-xs font-mono px-2 py-1 rounded bg-indigo-500/10 text-indigo-600 border border-indigo-500/20">
           KYC TIER 1
         </span>
       </div>
 
       {/* Three-Pillar Balance Card */}
-      <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border overflow-hidden">
+      <Card className="bg-gradient-to-br from-indigo-50 to-blue-50 border overflow-hidden">
         <CardContent className="p-5">
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-muted-foreground font-medium">Total Account Value</p>
@@ -186,7 +186,7 @@ const WalletDashboard = () => {
       {/* Quick Actions */}
       <div className="grid grid-cols-2 gap-3">
         <Button
-          className="py-6 rounded-xl"
+          className="py-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white"
           onClick={() => setIsAddFundsOpen(true)}
         >
           <div className="text-center">
@@ -226,7 +226,7 @@ const WalletDashboard = () => {
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
                         {transaction.amount > 0 ? (
-                          <ArrowDownLeft className="w-4 h-4 text-primary" />
+                          <ArrowDownLeft className="w-4 h-4 text-emerald-500" />
                         ) : (
                           <ArrowUpRight className="w-4 h-4 text-muted-foreground" />
                         )}
@@ -237,7 +237,7 @@ const WalletDashboard = () => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className={`text-sm font-semibold font-mono ${transaction.amount > 0 ? 'text-primary' : 'text-muted-foreground'}`}>
+                      <p className={`text-sm font-semibold font-mono ${transaction.amount > 0 ? 'text-emerald-500' : 'text-muted-foreground'}`}>
                         {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toFixed(2)}
                       </p>
                       <p className="text-xs text-muted-foreground">Settled</p>
