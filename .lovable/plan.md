@@ -1,60 +1,39 @@
 
 
-# Revert Wallet to Light Theme + Create Onboarding Flow
+# Create AuthSelection Onboarding Component
 
-## 1. Remove Dark Theme from Wallet Components
+## Overview
+Create a new `src/components/onboarding/AuthSelection.tsx` component that provides three sign-in options: Apple, Google, and Email. This replaces the inline `OAuthOnboarding` sub-component in OnboardingFlow with a more polished, separated version.
 
-Revert all three wallet-related files from the dark slate/indigo theme back to standard light theme colors that follow the app's design system (using Tailwind semantic classes like `bg-background`, `text-foreground`, `bg-card`, `border`, etc.).
+## Changes
 
-### Files to update:
+### 1. Install `@capgo/capacitor-social-login`
+This package is referenced in your code but not currently installed. It needs to be added as a dependency for native Apple/Google sign-in to work on mobile devices.
 
-**`src/components/WalletDashboard.tsx`**
-- Replace `bg-slate-950`, `bg-slate-900`, `bg-slate-800` backgrounds with `bg-background`, `bg-card`, `bg-muted`
-- Replace `text-white`, `text-slate-200`, `text-slate-400`, `text-slate-500` with `text-foreground`, `text-muted-foreground`
-- Replace `border-slate-700`, `border-slate-800` with `border` (standard border)
-- Update gradient card to use light-friendly gradient (e.g., `from-primary/5 to-primary/10`)
-- Update button colors from `bg-indigo-600` to `bg-primary`
-- Keep the structure (Bio-Sovereign header, three-pillar balance, quick actions, activity ledger) -- just restyle to light theme
+### 2. Create `src/components/onboarding/AuthSelection.tsx`
+A new component with:
+- **ShieldCheck icon** header with "Identity Mobilization" title and subtitle
+- **"Continue with Apple" button** -- white background, black text, calls `SocialLogin.login({ provider: 'apple' })`
+- **"Continue with Google" button** -- dark background, white text, calls `SocialLogin.login({ provider: 'google' })`
+- **Divider** with "Or" text
+- **"Continue with Email" button** -- outline style with Mail icon, calls `onManualSelection` callback
+- Loading spinner (`Loader2`) shown on Apple/Google buttons while authenticating
+- On successful OAuth, extracts `givenName`, `familyName`, `email` from result and calls `onOAuthSuccess` with a profile data object (including `kyc_tier: 1`, `is_verified: true`)
 
-**`src/components/enhanced/EnhancedWalletDashboard.tsx`**
-- Same color reversion as above across all four tabs (Overview, Transactions, Credit, Security)
-- TabsList and TabsTrigger: remove dark overrides, use default shadcn styling
-- Cards, badges, buttons: revert to standard light theme classes
-- Keep all functionality intact (tax export, NFC, send/request, trust score simulation)
+**Props:**
+- `onOAuthSuccess: (profileData) => void` -- called after successful Apple/Google login
+- `onManualSelection: () => void` -- called when user taps "Continue with Email"
 
-**`src/components/AddFundsModal.tsx`**
-- DialogContent: remove `bg-slate-950 border-slate-800 text-white`, use defaults
-- Input: remove `bg-slate-900 border-slate-800 text-white`, use defaults
-- Payment info card: light background instead of dark slate
-- Button: `bg-primary` instead of `bg-indigo-600`
-- Text colors: use semantic classes
+### 3. Update `src/components/OnboardingFlow.tsx`
+- Add a new step `'auth-select'` as the first step (before `'oauth'`)
+- Import `AuthSelection` from `./onboarding/AuthSelection`
+- When `onOAuthSuccess` is called, capture the data and advance to `'confirm'` step
+- When `onManualSelection` is called, advance to `'oauth'` step (existing Supabase OAuth flow as fallback for web)
+- Update the progress indicator dots to include the new step
 
-## 2. Create Onboarding Flow Component
-
-Create a new `src/components/OnboardingFlow.tsx` that implements a multi-step onboarding experience. Since `framer-motion` is not installed, animations will use CSS transitions/Tailwind animations instead.
-
-### Steps in the flow:
-1. **OAuth** -- Apple/Google sign-in buttons with identity mobilization branding. Uses Supabase OAuth (existing pattern from Auth.tsx) instead of `@capgo/capacitor-social-login` which isn't installed.
-2. **KYC Auto-Confirmation** -- Shows the captured user profile data (name, email, provider) with a confirm button.
-3. **Bio-Key Minting** -- Animated fingerprint icon with status progression (initializing -> syncing -> minted). Uses CSS keyframes for the pulsing rings animation.
-4. **Privacy/Data Sovereignty** -- Embeds the existing `PrivacySettings` component with a "Enter IDIA Life" button.
-
-### Sub-components (all inside OnboardingFlow.tsx):
-- `OAuthOnboarding` -- Sign-in screen with Apple/Google buttons
-- `KYCAutoConfirmation` -- Profile review and confirm
-- `BioKeyMinting` -- Animated minting sequence with pulsing rings
-- Progress indicator dots at the bottom
-
-### Integration:
-- The component accepts an `onComplete` callback prop
-- Uses Supabase auth (not `@capgo/capacitor-social-login` or `fetchApi`)
-- Uses the existing `PrivacySettings` component from `src/components/settings/PrivacySettings.tsx`
-- Includes the `FriendAssistant` overlay with trigger="onboarding" (requires adding 'onboarding' to the trigger type)
-- Animations use Tailwind `animate-` classes and CSS transitions instead of framer-motion
-
-### Type update:
-- **`src/components/FriendAssistant/types.ts`** -- Add `'onboarding'` to the trigger union type
-
-### Note:
-The onboarding flow will be created as a standalone component. Integration into the app routing (e.g., showing it after first sign-up) can be done as a follow-up step.
+### Technical Notes
+- `@capgo/capacitor-social-login` will only work on native iOS/Android builds. On web preview, it will throw an error -- the catch block handles this gracefully
+- The existing `OAuthOnboarding` (Supabase OAuth) remains as the fallback for the email/web path
+- Uses the app's teal primary and amber accent via semantic tokens (`bg-primary`, `text-primary`, etc.)
+- Apple button uses explicit `bg-white text-black` and Google button uses `bg-slate-900 text-white` per platform brand guidelines (these are brand-specific, not theme colors)
 
