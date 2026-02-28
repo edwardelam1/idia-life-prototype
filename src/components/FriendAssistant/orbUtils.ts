@@ -41,7 +41,7 @@ export const getOrbStyling = (friendState: FriendState, isBlinking?: boolean): O
   }
 };
 
-export const getContextualGreeting = (trigger?: 'social' | 'wallet' | 'data' | 'achievement'): string => {
+export const getContextualGreeting = (trigger?: 'social' | 'wallet' | 'data' | 'achievement' | 'onboarding'): string => {
   if (trigger === 'social') {
     return "I see you're exploring the Social features! Need help connecting with friends or understanding trust scores? 🤝";
   } else if (trigger === 'wallet') {
