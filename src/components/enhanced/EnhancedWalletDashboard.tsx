@@ -155,13 +155,13 @@ const EnhancedWalletDashboard: React.FC = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-bold text-foreground">Wallet</h1>
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20">
-            <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-            <span className="text-xs font-medium text-primary">Bio-Sovereign Protected</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+            <span className="text-xs font-medium text-emerald-600">Bio-Sovereign Protected</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs font-mono px-2 py-1 rounded bg-accent text-accent-foreground border">
+          <span className="text-xs font-mono px-2 py-1 rounded bg-indigo-500/10 text-indigo-600 border border-indigo-500/20">
             KYC TIER 1
           </span>
           <Button variant="ghost" size="sm" onClick={exportTaxableEvents}>
@@ -180,7 +180,7 @@ const EnhancedWalletDashboard: React.FC = () => {
 
         <TabsContent value="overview" className="space-y-4">
           {/* Three-Pillar Balance Card */}
-          <Card className="bg-gradient-to-br from-primary/5 to-primary/10">
+          <Card className="bg-gradient-to-br from-indigo-50 to-blue-50">
             <CardContent className="p-5">
               <div className="flex items-center justify-between mb-4">
                 <p className="text-sm text-muted-foreground font-medium">Total Account Value</p>
@@ -233,7 +233,7 @@ const EnhancedWalletDashboard: React.FC = () => {
             </Button>
             
             <Button 
-              className="h-14 flex-col text-sm py-0.5"
+              className="h-14 flex-col bg-indigo-600 hover:bg-indigo-700 text-white text-sm py-0.5"
               onClick={() => setShowAddFundsModal(true)}
             >
               <Plus className="w-5 h-5 mb-1" />
@@ -245,20 +245,20 @@ const EnhancedWalletDashboard: React.FC = () => {
           <Card>
             <CardHeader className="py-2 px-3">
               <CardTitle className="flex items-center gap-2 text-sm">
-                <TrendingUp className="w-4 h-4 text-primary" />
+                <TrendingUp className="w-4 h-4 text-indigo-500" />
                 Trust Score & Credit
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3">
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center">
-                  <div className="text-xl font-bold text-primary">
+                  <div className="text-xl font-bold text-indigo-600">
                     {profile?.trust_score || 650}
                   </div>
-                  <Badge variant="secondary" className="text-xs">Excellent</Badge>
+                  <Badge className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/20">Excellent</Badge>
                 </div>
                 <div className="text-center">
-                  <div className="text-xl font-bold text-primary">
+                  <div className="text-xl font-bold text-emerald-500">
                     ${profile?.available_credit_line || 0}
                   </div>
                   <p className="text-xs text-muted-foreground">Available Credit</p>
@@ -301,7 +301,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
                           {transaction.amount > 0 ? (
-                            <ArrowDownLeft className="w-4 h-4 text-primary" />
+                            <ArrowDownLeft className="w-4 h-4 text-emerald-500" />
                           ) : (
                             <ArrowUpRight className="w-4 h-4 text-muted-foreground" />
                           )}
@@ -312,7 +312,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className={`text-sm font-semibold font-mono ${transaction.amount > 0 ? 'text-primary' : 'text-muted-foreground'}`}>
+                        <p className={`text-sm font-semibold font-mono ${transaction.amount > 0 ? 'text-emerald-500' : 'text-muted-foreground'}`}>
                           {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toFixed(2)}
                         </p>
                         <p className="text-xs text-muted-foreground">Settled</p>
@@ -338,9 +338,9 @@ const EnhancedWalletDashboard: React.FC = () => {
                       <p className="text-sm text-muted-foreground">Current Score</p>
                       <p className="text-2xl font-bold text-foreground">{creditSimulation.current_score}</p>
                     </div>
-                    <div className="text-center p-4 border border-primary/20 rounded-lg bg-primary/5">
+                    <div className="text-center p-4 border border-emerald-500/20 rounded-lg bg-emerald-500/5">
                       <p className="text-sm text-muted-foreground">Potential Score</p>
-                      <p className="text-2xl font-bold text-primary">{creditSimulation.simulated_score}</p>
+                      <p className="text-2xl font-bold text-emerald-500">{creditSimulation.simulated_score}</p>
                     </div>
                   </div>
                   <div>
@@ -348,7 +348,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                     <ul className="space-y-1">
                       {creditSimulation.actions.map((action, index) => (
                         <li key={index} className="text-sm flex items-center gap-2 text-muted-foreground">
-                          <div className="w-2 h-2 bg-primary rounded-full" />
+                          <div className="w-2 h-2 bg-indigo-500 rounded-full" />
                           {action}
                         </li>
                       ))}
@@ -357,7 +357,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                 </div>
               ) : (
                 <div className="text-center py-8">
-                  <Button onClick={simulateTrustScore}>
+                  <Button onClick={simulateTrustScore} className="bg-indigo-600 hover:bg-indigo-700 text-white">
                     Run Credit Simulation
                   </Button>
                 </div>
@@ -370,7 +370,7 @@ const EnhancedWalletDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-primary" />
+                <Shield className="w-5 h-5 text-indigo-500" />
                 Wallet Security
               </CardTitle>
             </CardHeader>
@@ -381,11 +381,11 @@ const EnhancedWalletDashboard: React.FC = () => {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-foreground">PIN Protection</span>
-                <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">Enabled</Badge>
+                <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Enabled</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-foreground">Biometric Auth</span>
-                <Badge variant="secondary">Available</Badge>
+                <Badge className="bg-indigo-500/10 text-indigo-600 border-indigo-500/20">Available</Badge>
               </div>
               <Button variant="outline" className="w-full">
                 Backup Seed Phrase

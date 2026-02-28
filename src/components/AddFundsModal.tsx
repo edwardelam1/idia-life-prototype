@@ -41,7 +41,7 @@ const AddFundsModal = ({ isOpen, onClose, bioKeyStatus = 'STABLE', kycTier = 1 }
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Landmark className="w-5 h-5 text-primary" />
+            <Landmark className="w-5 h-5 text-indigo-500" />
             Add Funds
           </DialogTitle>
         </DialogHeader>
@@ -78,8 +78,8 @@ const AddFundsModal = ({ isOpen, onClose, bioKeyStatus = 'STABLE', kycTier = 1 }
               {/* Payment Gateway Info */}
               <div className="flex items-center justify-between p-3 rounded-lg bg-muted border">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <ShieldCheck className="w-4 h-4 text-primary" />
+                  <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center">
+                    <ShieldCheck className="w-4 h-4 text-indigo-500" />
                   </div>
                   <div>
                     <p className="text-sm font-medium text-foreground">Worldpay Secure</p>
@@ -95,7 +95,7 @@ const AddFundsModal = ({ isOpen, onClose, bioKeyStatus = 'STABLE', kycTier = 1 }
               <Button
                 onClick={handleDeposit}
                 disabled={isProcessing || !amount}
-                className="w-full h-12 font-semibold"
+                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
               >
                 {isProcessing ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
