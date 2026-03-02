@@ -46,8 +46,8 @@ const EnhancedWalletDashboard: React.FC = () => {
 
   const simulateTrustScore = async () => {
     setCreditSimulation({
-      current_score: profile?.trust_score || 650,
-      simulated_score: (profile?.trust_score || 650) + 50,
+      current_score: profile?.trust_score || 850,
+      simulated_score: (profile?.trust_score || 850) + 50,
       actions: ['Complete verification', 'Connect bank account', 'Make regular payments', 'Maintain positive social health metrics']
     });
   };
@@ -178,7 +178,7 @@ const EnhancedWalletDashboard: React.FC = () => {
             <CardContent className="p-3">
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center">
-                  <div className="text-xl font-bold text-primary">{profile?.trust_score || 650}</div>
+                  <div className="text-xl font-bold text-primary">{profile?.trust_score || 850}</div>
                   <Badge className="text-xs bg-primary/10 text-primary border-primary/20">Excellent</Badge>
                 </div>
                 <div className="text-center">
