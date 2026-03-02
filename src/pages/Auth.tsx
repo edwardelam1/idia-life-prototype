@@ -30,13 +30,13 @@ const Auth = () => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      // THE TRAP: Catch the native iOS app dropping the user here with a recovery token
-      if (event === "PASSWORD_RECOVERY") {
+      // THE FIX: Cast 'event' as a string to bypass the strict TypeScript check
+      if ((event as string) === "PASSWORD_RECOVERY") {
         setShowUpdateModal(true);
         setIsResetMode(false);
       }
       // Normal routing
-      else if (session && event !== "PASSWORD_RECOVERY") {
+      else if (session && (event as string) !== "PASSWORD_RECOVERY") {
         navigate("/");
       }
     });
