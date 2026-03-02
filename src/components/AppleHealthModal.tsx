@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Activity, Heart, Footprints, Moon, Zap } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { Checkbox } from '@/components/ui/checkbox';
-import React from 'react';
-import { eventTracker } from '@/utils/EventTracker';
+import { useState, useEffect, useCallback } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Activity, Heart, Footprints, Moon, Zap } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Checkbox } from "@/components/ui/checkbox";
+import React from "react";
+import { eventTracker } from "@/utils/EventTracker";
 
 interface AppleHealthModalProps {
   isOpen: boolean;
@@ -19,86 +19,92 @@ interface AppleHealthModalProps {
 // Define all 37 data types with their display names and categories (Matching HealthKitManager omissions)
 const ALL_HEALTH_DATA_TYPES = [
   // Activity & Movement
-  { id: 'HKQuantityTypeIdentifierStepCount', name: 'Steps', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierDistanceWalkingRunning', name: 'Distance (Walking/Running)', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierDistanceCycling', name: 'Distance (Cycling)', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierFlightsClimbed', name: 'Flights Climbed', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierActiveEnergyBurned', name: 'Active Energy Burned', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierBasalEnergyBurned', name: 'Basal Energy Burned', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierAppleExerciseTime', name: 'Exercise Time', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierWalkingSpeed', name: 'Walking Speed', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierWalkingStepLength', name: 'Walking Step Length', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierWalkingAsymmetryPercentage', name: 'Walking Asymmetry', category: 'Activity' },
-  { id: 'HKQuantityTypeIdentifierWalkingDoubleSupportPercentage', name: 'Double Support Time', category: 'Activity' },
+  { id: "HKQuantityTypeIdentifierStepCount", name: "Steps", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierDistanceWalkingRunning", name: "Distance (Walking/Running)", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierDistanceCycling", name: "Distance (Cycling)", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierFlightsClimbed", name: "Flights Climbed", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierActiveEnergyBurned", name: "Active Energy Burned", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierBasalEnergyBurned", name: "Basal Energy Burned", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierAppleExerciseTime", name: "Exercise Time", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierWalkingSpeed", name: "Walking Speed", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierWalkingStepLength", name: "Walking Step Length", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierWalkingAsymmetryPercentage", name: "Walking Asymmetry", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierWalkingDoubleSupportPercentage", name: "Double Support Time", category: "Activity" },
 
   // Heart & Vitals (Basic)
-  { id: 'HKQuantityTypeIdentifierHeartRate', name: 'Heart Rate', category: 'Vitals' },
-  { id: 'HKQuantityTypeIdentifierRestingHeartRate', name: 'Resting Heart Rate', category: 'Vitals' },
+  { id: "HKQuantityTypeIdentifierHeartRate", name: "Heart Rate", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierRestingHeartRate", name: "Resting Heart Rate", category: "Vitals" },
   // OMITTED: HeartRateVariabilitySDNN
-  { id: 'HKQuantityTypeIdentifierOxygenSaturation', name: 'Blood Oxygen', category: 'Vitals' },
+  { id: "HKQuantityTypeIdentifierOxygenSaturation", name: "Blood Oxygen", category: "Vitals" },
   // OMITTED: BloodPressureSystolic, BloodPressureDiastolic
-  { id: 'HKQuantityTypeIdentifierRespiratoryRate', name: 'Respiratory Rate', category: 'Vitals' },
-  { id: 'HKQuantityTypeIdentifierBodyTemperature', name: 'Body Temperature', category: 'Vitals' },
-  { id: 'HKQuantityTypeIdentifierVO2Max', name: 'VO2 Max', category: 'Vitals' },
+  { id: "HKQuantityTypeIdentifierRespiratoryRate", name: "Respiratory Rate", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierBodyTemperature", name: "Body Temperature", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierVO2Max", name: "VO2 Max", category: "Vitals" },
 
   // Body Measurements
-  { id: 'HKQuantityTypeIdentifierHeight', name: 'Height', category: 'Body' },
-  { id: 'HKQuantityTypeIdentifierBodyMass', name: 'Weight', category: 'Body' },
-  { id: 'HKQuantityTypeIdentifierBodyMassIndex', name: 'BMI', category: 'Body' },
-  { id: 'HKQuantityTypeIdentifierBodyFatPercentage', name: 'Body Fat %', category: 'Body' },
-  { id: 'HKQuantityTypeIdentifierLeanBodyMass', name: 'Lean Body Mass', category: 'Body' },
-  { id: 'HKQuantityTypeIdentifierWaistCircumference', name: 'Waist Circumference', category: 'Body' },
+  { id: "HKQuantityTypeIdentifierHeight", name: "Height", category: "Body" },
+  { id: "HKQuantityTypeIdentifierBodyMass", name: "Weight", category: "Body" },
+  { id: "HKQuantityTypeIdentifierBodyMassIndex", name: "BMI", category: "Body" },
+  { id: "HKQuantityTypeIdentifierBodyFatPercentage", name: "Body Fat %", category: "Body" },
+  { id: "HKQuantityTypeIdentifierLeanBodyMass", name: "Lean Body Mass", category: "Body" },
+  { id: "HKQuantityTypeIdentifierWaistCircumference", name: "Waist Circumference", category: "Body" },
 
   // Nutrition (Basic)
-  { id: 'HKQuantityTypeIdentifierDietaryEnergyConsumed', name: 'Dietary Energy', category: 'Nutrition' },
-  { id: 'HKQuantityTypeIdentifierDietaryFatTotal', name: 'Total Fat', category: 'Nutrition' },
-  { id: 'HKQuantityTypeIdentifierDietaryProtein', name: 'Protein', category: 'Nutrition' },
-  { id: 'HKQuantityTypeIdentifierDietaryWater', name: 'Water Intake', category: 'Nutrition' },
+  { id: "HKQuantityTypeIdentifierDietaryEnergyConsumed", name: "Dietary Energy", category: "Nutrition" },
+  { id: "HKQuantityTypeIdentifierDietaryFatTotal", name: "Total Fat", category: "Nutrition" },
+  { id: "HKQuantityTypeIdentifierDietaryProtein", name: "Protein", category: "Nutrition" },
+  { id: "HKQuantityTypeIdentifierDietaryWater", name: "Water Intake", category: "Nutrition" },
   // OMITTED: Specific dietary fats, fiber, sugar, caffeine, sodium, potassium, vitamins, calcium, iron
 
   // OMITTED: Sleep Analysis
 
   // Other Categories
-  { id: 'HKCategoryTypeIdentifierMindfulSession', name: 'Mindful Minutes', category: 'Mindfulness' },
-  { id: 'HKQuantityTypeIdentifierEnvironmentalAudioExposure', name: 'Environmental Audio Exposure', category: 'Environment' },
-  { id: 'HKQuantityTypeIdentifierHeadphoneAudioExposure', name: 'Headphone Audio Exposure', category: 'Environment' },
+  { id: "HKCategoryTypeIdentifierMindfulSession", name: "Mindful Minutes", category: "Mindfulness" },
+  {
+    id: "HKQuantityTypeIdentifierEnvironmentalAudioExposure",
+    name: "Environmental Audio Exposure",
+    category: "Environment",
+  },
+  { id: "HKQuantityTypeIdentifierHeadphoneAudioExposure", name: "Headphone Audio Exposure", category: "Environment" },
 
   // Reproductive Health
-  { id: 'HKCategoryTypeIdentifierMenstrualFlow', name: 'Menstrual Flow', category: 'Reproductive' },
-  { id: 'HKQuantityTypeIdentifierBasalBodyTemperature', name: 'Basal Body Temperature', category: 'Reproductive' },
-  { id: 'HKCategoryTypeIdentifierOvulationTestResult', name: 'Ovulation Test Result', category: 'Reproductive' },
-  { id: 'HKCategoryTypeIdentifierCervicalMucusQuality', name: 'Cervical Mucus Quality', category: 'Reproductive' },
-  { id: 'HKCategoryTypeIdentifierSexualActivity', name: 'Sexual Activity', category: 'Reproductive' },
+  { id: "HKCategoryTypeIdentifierMenstrualFlow", name: "Menstrual Flow", category: "Reproductive" },
+  { id: "HKQuantityTypeIdentifierBasalBodyTemperature", name: "Basal Body Temperature", category: "Reproductive" },
+  { id: "HKCategoryTypeIdentifierOvulationTestResult", name: "Ovulation Test Result", category: "Reproductive" },
+  { id: "HKCategoryTypeIdentifierCervicalMucusQuality", name: "Cervical Mucus Quality", category: "Reproductive" },
+  { id: "HKCategoryTypeIdentifierSexualActivity", name: "Sexual Activity", category: "Reproductive" },
 
-  { id: 'HKWorkoutTypeIdentifier', name: 'Workout Data', category: 'Activity' },
-  { id: 'HKClinicalTypeIdentifier', name: 'Clinical Data Indicator', category: 'Clinical' }, // Generic placeholder
+  { id: "HKWorkoutTypeIdentifier", name: "Workout Data", category: "Activity" },
+  { id: "HKClinicalTypeIdentifier", name: "Clinical Data Indicator", category: "Clinical" }, // Generic placeholder
   // OMITTED: Emotional State
 ];
 
 const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onDisconnect }: AppleHealthModalProps) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [healthData, setHealthData] = useState<any>(null); // To show what was sent by native app
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
+  const [connectionStatus, setConnectionStatus] = useState<"idle" | "connecting" | "connected" | "error">("idle");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [authSession, setAuthSession] = useState<any>(null);
   // State to manage selected data types - none selected by default
   const [selectedDataTypes, setSelectedDataTypes] = useState<Set<string>>(new Set());
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-
   useEffect(() => {
     const getSession = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
       if (error) {
-        console.error('Error getting session:', error);
-        setErrorMessage('Authentication error. Please log in again.');
+        console.error("Error getting session:", error);
+        setErrorMessage("Authentication error. Please log in again.");
         return;
       }
       if (session?.user) {
         setCurrentUserId(session.user.id);
         setAuthSession(session);
       } else {
-        setErrorMessage('Please log in to connect Apple Health data.');
+        setErrorMessage("Please log in to connect Apple Health data.");
       }
     };
     getSession();
@@ -106,7 +112,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
   // Auto-close timer when connection is successful
   useEffect(() => {
-    if (connectionStatus === 'connected') {
+    if (connectionStatus === "connected") {
       const timer = setTimeout(() => {
         console.log("DEBUG_UI: Auto-closing modal after 2 second delay.");
         onComplete();
@@ -117,38 +123,45 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, [connectionStatus, onComplete]);
 
   useEffect(() => {
-    // This callback matches exactly what Swift code sends via evaluateJavaScript
+    // Define the success handler
     (window as any).onHealthDataSyncComplete = (serverResponse: any) => {
-      console.log("DEBUG_UI: Web view received sync completion callback from native app.");
-      console.log("DEBUG_UI: Server Response from Native:", serverResponse);
+      console.log("DEBUG_UI: Received sync completion from native.");
 
-      // Swift code embeds server response directly into JavaScript, so no parsing needed
-      if (serverResponse && typeof serverResponse === 'object' && serverResponse.health_data) {
-        setHealthData(serverResponse.health_data);
-      } else if (serverResponse) {
-        setHealthData(serverResponse);
-      } else {
-        setHealthData({});
+      // 1. Force the status to connected to kill the spinner immediately
+      setConnectionStatus("connected");
+      setIsConnecting(false);
+
+      // 2. Handle data parsing
+      let parsedData = serverResponse;
+      if (typeof serverResponse === "string") {
+        try {
+          parsedData = JSON.parse(serverResponse);
+        } catch (e) {
+          console.error("Failed to parse server response", e);
+        }
       }
 
-      setConnectionStatus('connected');
-      setIsConnecting(false);
-      console.log("DEBUG_UI: Connection status set to 'connected', will auto-close in 2 seconds.");
+      // 3. Set health data (looking for health_data or just using the whole object)
+      if (parsedData?.health_data) {
+        setHealthData(parsedData.health_data);
+      } else {
+        setHealthData(parsedData || {});
+      }
 
-      // Track successful connection
+      // 4. Track Success
       eventTracker.trackFeatureUsage({
-        feature: 'apple_health_connection',
-        action: 'sync_completed',
-        success: true
+        feature: "apple_health_connection",
+        action: "sync_completed",
+        success: true,
       });
     };
-    // Handle error callback from native app
+
+    // Define the error handler
     (window as any).onHealthDataSyncError = (errorMsg: string) => {
-        console.error("DEBUG_UI: Web view received error callback from native app:", errorMsg);
-        setErrorMessage(`HealthKit Sync Error: ${errorMsg}`);
-        setConnectionStatus('error');
-        setIsConnecting(false);
-        console.log("DEBUG_UI: Connection status set to 'error' by native error callback.");
+      console.error("DEBUG_UI: Received native error:", errorMsg);
+      setErrorMessage(`HealthKit Sync Error: ${errorMsg}`);
+      setConnectionStatus("error");
+      setIsConnecting(false);
     };
 
     return () => {
@@ -158,7 +171,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, [onComplete]);
 
   const handleCheckboxChange = useCallback((id: string, isChecked: boolean) => {
-    setSelectedDataTypes(prev => {
+    setSelectedDataTypes((prev) => {
       const newSet = new Set(prev);
       if (isChecked) {
         newSet.add(id);
@@ -170,7 +183,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, []);
 
   const handleSelectAll = useCallback(() => {
-    setSelectedDataTypes(new Set(ALL_HEALTH_DATA_TYPES.map(d => d.id)));
+    setSelectedDataTypes(new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.id)));
   }, []);
 
   const handleDeselectAll = useCallback(() => {
@@ -182,7 +195,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
   const syncHealthDataViaNativeApp = useCallback(() => {
     setIsConnecting(true);
-    setConnectionStatus('connecting');
+    setConnectionStatus("connecting");
     setErrorMessage(null);
 
     const webkit = (window as any).webkit;
@@ -190,7 +203,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       console.log("DEBUG_UI: Preparing HealthKit data sync request for native iOS app...");
 
       const requestedTypesByCategory: { [key: string]: string[] } = {};
-      ALL_HEALTH_DATA_TYPES.forEach(type => {
+      ALL_HEALTH_DATA_TYPES.forEach((type) => {
         if (selectedDataTypes.has(type.id)) {
           if (!requestedTypesByCategory[type.category.toLowerCase()]) {
             requestedTypesByCategory[type.category.toLowerCase()] = [];
@@ -202,20 +215,19 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       const comprehensiveHealthRequest = {
         action: "comprehensive_health_sync",
         config: {
-          endpoint: 'https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/health-data-bridge',
+          endpoint: "https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/health-data-bridge",
           user_id: currentUserId,
-          auth_token: authSession?.access_token
+          auth_token: authSession?.access_token,
         },
-        requestedDataTypes: requestedTypesByCategory // Send only user-selected types
+        requestedDataTypes: requestedTypesByCategory, // Send only user-selected types
       };
 
       webkit.messageHandlers.syncHealthData.postMessage(comprehensiveHealthRequest);
       console.log("DEBUG_UI: Sent request to native app with selected types:", requestedTypesByCategory);
-
     } else {
       console.log("DEBUG_UI: Not running in the native app wrapper. HealthKit sync unavailable (Launch via Xcode).");
       setErrorMessage("HealthKit sync is unavailable outside the native iOS app wrapper. Please launch from Xcode.");
-      setConnectionStatus('error');
+      setConnectionStatus("error");
       setIsConnecting(false);
     }
   }, [selectedDataTypes, currentUserId, authSession]);
@@ -226,156 +238,159 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     try {
       // Track disconnection through synapse
       eventTracker.trackFeatureUsage({
-        feature: 'apple_health_connection',
-        action: 'disconnect_initiated',
-        success: false
+        feature: "apple_health_connection",
+        action: "disconnect_initiated",
+        success: false,
       });
 
       const { error } = await supabase
-        .from('data_connections')
+        .from("data_connections")
         .update({ is_active: false })
-        .eq('id', existingConnection.id)
-        .eq('user_id', currentUserId);
+        .eq("id", existingConnection.id)
+        .eq("user_id", currentUserId);
 
       if (!error) {
         // Track successful disconnection
         eventTracker.trackFeatureUsage({
-          feature: 'apple_health_connection',
-          action: 'disconnected',
-          success: true
+          feature: "apple_health_connection",
+          action: "disconnected",
+          success: true,
         });
 
         onDisconnect?.();
         onClose();
       }
     } catch (error: any) {
-      console.error('Error disconnecting Apple Health:', error);
+      console.error("Error disconnecting Apple Health:", error);
 
       // Track disconnection error
       eventTracker.trackFeatureUsage({
-        feature: 'apple_health_connection',
-        action: 'disconnect_failed',
-        success: false
+        feature: "apple_health_connection",
+        action: "disconnect_failed",
+        success: false,
       });
     }
   }, [currentUserId, existingConnection, onDisconnect, onClose]);
 
   const handleConnect = useCallback(async () => {
-    console.log('=== HANDLECONNECT START (Native App Driven) ===');
-    console.log('handleConnect called, currentUserId:', currentUserId);
-    console.log('authSession present:', !!authSession);
+    console.log("=== HANDLECONNECT START (Native App Driven) ===");
+    console.log("handleConnect called, currentUserId:", currentUserId);
+    console.log("authSession present:", !!authSession);
 
     // Track connection attempt through synapse
     eventTracker.trackFeatureUsage({
-      feature: 'apple_health_connection',
-      action: 'connect_initiated',
+      feature: "apple_health_connection",
+      action: "connect_initiated",
       success: false,
       context: {
         selected_data_types: selectedDataTypes.size,
-        auth_session_present: !!authSession
-      }
+        auth_session_present: !!authSession,
+      },
     });
 
     setErrorMessage(null);
-    setConnectionStatus('connecting'); // Set status to connecting immediately
+    setConnectionStatus("connecting"); // Set status to connecting immediately
 
     if (!currentUserId || !authSession) {
-      const errorMsg = 'Please log in to connect Apple Health data.';
-      console.error('Authentication check failed:', { currentUserId, authSession: !!authSession });
+      const errorMsg = "Please log in to connect Apple Health data.";
+      console.error("Authentication check failed:", { currentUserId, authSession: !!authSession });
       setErrorMessage(errorMsg);
-      setConnectionStatus('error');
+      setConnectionStatus("error");
 
       // Track authentication error
       eventTracker.trackFeatureUsage({
-        feature: 'apple_health_connection',
-        action: 'auth_failed',
-        success: false
+        feature: "apple_health_connection",
+        action: "auth_failed",
+        success: false,
       });
 
       return;
     }
 
     try {
-      console.log('DEBUG_UI: Creating/updating connection record with upsert');
+      console.log("DEBUG_UI: Creating/updating connection record with upsert");
 
       // The database insert will automatically trigger synapse via database trigger
       const { data: connectionResult, error: connectionError } = await supabase
-        .from('data_connections')
-        .upsert({
-          user_id: currentUserId,
-          connection_type: 'apple_health',
-          connection_name: 'Apple Health',
-          is_active: true,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id,connection_type'
-        })
+        .from("data_connections")
+        .upsert(
+          {
+            user_id: currentUserId,
+            connection_type: "apple_health",
+            connection_name: "Apple Health",
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "user_id,connection_type",
+          },
+        )
         .select()
         .single();
 
-      console.log('DEBUG_UI: Connection operation result:', { connectionResult, connectionError });
+      console.log("DEBUG_UI: Connection operation result:", { connectionResult, connectionError });
 
       if (connectionError) {
-        console.error('DEBUG_UI: Database connection error details:', {
+        console.error("DEBUG_UI: Database connection error details:", {
           code: connectionError.code,
           message: connectionError.message,
           details: connectionError.details,
-          hint: connectionError.hint
+          hint: connectionError.hint,
         });
         setErrorMessage(`Failed to initialize connection: ${connectionError.message}`);
-        setConnectionStatus('error');
+        setConnectionStatus("error");
 
         // Track connection error
         eventTracker.trackFeatureUsage({
-          feature: 'apple_health_connection',
-          action: 'connection_failed',
+          feature: "apple_health_connection",
+          action: "connection_failed",
           success: false,
           context: {
             error_code: connectionError.code,
-            error_message: connectionError.message
-          }
+            error_message: connectionError.message,
+          },
         });
 
         return;
       }
 
-      console.log('DEBUG_UI: Connection record created/updated successfully:', connectionResult);
-      console.log('DEBUG_UI: Starting comprehensive HealthKit data sync via native app...');
+      console.log("DEBUG_UI: Connection record created/updated successfully:", connectionResult);
+      console.log("DEBUG_UI: Starting comprehensive HealthKit data sync via native app...");
 
       // Track successful connection creation
       eventTracker.trackFeatureUsage({
-        feature: 'apple_health_connection',
-        action: 'connection_created',
+        feature: "apple_health_connection",
+        action: "connection_created",
         success: true,
         context: {
-          connection_id: connectionResult.id
-        }
+          connection_id: connectionResult.id,
+        },
       });
 
       syncHealthDataViaNativeApp(); // Call the native sync function
     } catch (error: any) {
-      console.error('DEBUG_UI: Unexpected error in handleConnect:', error);
-      console.error('DEBUG_UI: Error details:', {
+      console.error("DEBUG_UI: Unexpected error in handleConnect:", error);
+      console.error("DEBUG_UI: Error details:", {
         name: error.name,
         message: error.message,
-        stack: error.stack
+        stack: error.stack,
       });
       setErrorMessage(`Connection failed: ${error.message}`);
-      setConnectionStatus('error');
+      setConnectionStatus("error");
 
       // Track unexpected error
       eventTracker.trackFeatureUsage({
-        feature: 'apple_health_connection',
-        action: 'unexpected_error',
+        feature: "apple_health_connection",
+        action: "unexpected_error",
         success: false,
         context: {
           error_name: error.name,
-          error_message: error.message
-        }
+          error_message: error.message,
+        },
       });
     }
 
-    console.log('=== HANDLECONNECT END (Native App Driven) ===');
+    console.log("=== HANDLECONNECT END (Native App Driven) ===");
   }, [currentUserId, authSession, syncHealthDataViaNativeApp, selectedDataTypes]);
 
   return (
@@ -388,7 +403,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               alt="Apple Health"
               className="w-6 h-6"
             />
-            <span>{existingConnection ? 'Apple Health' : 'Connect Apple Health'}</span>
+            <span>{existingConnection ? "Apple Health" : "Connect Apple Health"}</span>
           </DialogTitle>
         </DialogHeader>
 
@@ -399,7 +414,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             </div>
           )}
 
-          {connectionStatus === 'idle' && !existingConnection && (
+          {connectionStatus === "idle" && !existingConnection && (
             <>
               <p className="text-sm text-gray-600">
                 Connect your Apple Health data to earn rewards for your fitness activities and health metrics.
@@ -414,22 +429,24 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                     className="text-xs h-7 px-2"
                     onClick={allSelected ? handleDeselectAll : handleSelectAll}
                   >
-                    {allSelected ? 'Deselect All' : 'Select All'}
+                    {allSelected ? "Deselect All" : "Select All"}
                   </Button>
                 </div>
                 <div className="max-h-60 overflow-y-auto border p-2 rounded-md">
                   {/* Group data types by category for better UX */}
-                  {Array.from(new Set(ALL_HEALTH_DATA_TYPES.map(d => d.category))).map(category => (
+                  {Array.from(new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.category))).map((category) => (
                     <div key={category} className="mb-2">
                       <h5 className="font-semibold text-xs text-gray-700 mt-1">{category}</h5>
-                      {ALL_HEALTH_DATA_TYPES.filter(d => d.category === category).map(type => (
+                      {ALL_HEALTH_DATA_TYPES.filter((d) => d.category === category).map((type) => (
                         <div key={type.id} className="flex items-center space-x-2 text-xs py-1">
                           <Checkbox
                             id={type.id}
                             checked={selectedDataTypes.has(type.id)}
                             onCheckedChange={(checked: boolean) => handleCheckboxChange(type.id, checked)}
                           />
-                          <label htmlFor={type.id} className="text-gray-600 cursor-pointer">{type.name}</label>
+                          <label htmlFor={type.id} className="text-gray-600 cursor-pointer">
+                            {type.name}
+                          </label>
                         </div>
                       ))}
                     </div>
@@ -443,17 +460,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                 </p>
               </div>
 
-              <Button
-                onClick={handleConnect}
-                className="w-full"
-                disabled={isConnecting || !currentUserId}
-              >
-                {isConnecting ? 'Connecting...' : 'Connect Apple Health'}
+              <Button onClick={handleConnect} className="w-full" disabled={isConnecting || !currentUserId}>
+                {isConnecting ? "Connecting..." : "Connect Apple Health"}
               </Button>
             </>
           )}
 
-          {existingConnection && connectionStatus === 'idle' && (
+          {existingConnection && connectionStatus === "idle" && (
             <div className="space-y-4">
               <div className="text-center">
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
@@ -474,30 +487,22 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               </div>
 
               <div className="flex space-x-3">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={onClose}
-                >
+                <Button variant="outline" className="flex-1" onClick={onClose}>
                   Close
                 </Button>
-                <Button
-                  variant="destructive"
-                  className="flex-1"
-                  onClick={handleDisconnect}
-                >
+                <Button variant="destructive" className="flex-1" onClick={handleDisconnect}>
                   Disconnect
                 </Button>
               </div>
             </div>
           )}
 
-          {connectionStatus === 'error' && (
+          {connectionStatus === "error" && (
             <div className="text-center py-6">
               <p className="text-sm text-red-600 mb-4">Connection failed. Please try again.</p>
               <Button
                 onClick={() => {
-                  setConnectionStatus('idle');
+                  setConnectionStatus("idle");
                   setErrorMessage(null);
                 }}
                 variant="outline"
@@ -508,14 +513,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             </div>
           )}
 
-          {connectionStatus === 'connecting' && (
+          {connectionStatus === "connecting" && (
             <div className="text-center py-6">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
               <p className="text-sm text-gray-600">Syncing your health data...</p>
             </div>
           )}
 
-          {connectionStatus === 'connected' && healthData && (
+          {connectionStatus === "connected" && healthData && (
             <div className="space-y-4">
               <div className="text-center">
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
@@ -555,9 +560,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                 </Card>
               </div>
 
-              <p className="text-sm text-center text-gray-600">
-                Earning rewards for your health data...
-              </p>
+              <p className="text-sm text-center text-gray-600">Earning rewards for your health data...</p>
             </div>
           )}
         </div>
