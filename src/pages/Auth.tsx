@@ -27,10 +27,32 @@ const Auth = () => {
   const { toast } = useToast();
 
   useEffect(() => {
+    // 1. APPLE SIGN-IN BRIDGE: Catch the token coming back from Swift
+    (window as any).handleNativeAppleAuth = async (idToken: string) => {
+      setIsLoading(true);
+
+      const { error } = await supabase.auth.signInWithIdToken({
+        provider: "apple",
+        token: idToken,
+      });
+
+      if (error) {
+        toast({
+          title: "Apple Sign In failed",
+          description: error.message,
+          variant: "destructive",
+        });
+        setIsLoading(false);
+      } else {
+        navigate("/"); // Success! Route them into the app.
+      }
+    };
+
+    // 2. SUPABASE AUTH LISTENER: Handles routing and deep links
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      // THE FIX: Cast 'event' as a string to bypass the strict TypeScript check
+      // (event as string) bypasses the strict TypeScript TS2367 error
       if ((event as string) === "PASSWORD_RECOVERY") {
         setShowUpdateModal(true);
         setIsResetMode(false);
@@ -41,8 +63,12 @@ const Auth = () => {
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, [navigate]);
+    return () => {
+      subscription.unsubscribe();
+      // Cleanup the global Apple auth function when component unmounts
+      delete (window as any).handleNativeAppleAuth;
+    };
+  }, [navigate, toast]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,6 +113,14 @@ const Auth = () => {
   const handleAppleSignIn = async () => {
     setIsLoading(true);
     try {
+      // 1. CHECK IF NATIVE: If running in your custom Swift wrapper, shout up to iOS
+      if ((window as any).webkit?.messageHandlers?.appleSignIn) {
+        (window as any).webkit.messageHandlers.appleSignIn.postMessage("start");
+        // We leave isLoading as true here so the UI keeps spinning while the FaceID sheet is up
+        return;
+      }
+
+      // 2. FALLBACK: Standard Web Browser OAuth (for users on their Mac/PC web browser)
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "apple",
         options: {
@@ -109,7 +143,7 @@ const Auth = () => {
     setIsResetLoading(true);
 
     try {
-      // LOVABLE + CUSTOM MERGE: Send the email and attach the custom iOS protocol
+      // Send the email and attach the custom iOS protocol so the email link opens the app
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
         redirectTo: "idialife://update-password",
       });
@@ -134,7 +168,6 @@ const Auth = () => {
     }
   };
 
-  // CUSTOM LOGIC: Save the newly typed password to Supabase
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdatingLoading(true);
