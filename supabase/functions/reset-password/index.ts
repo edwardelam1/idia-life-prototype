@@ -30,7 +30,7 @@ serve(async (req) => {
     }
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://idia-life-prototype.lovable.app/update-password'
+      redirectTo: 'idialife://update-password'
     });
 
     if (error) throw error;
