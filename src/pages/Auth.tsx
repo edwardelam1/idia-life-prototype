@@ -5,26 +5,17 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Mail, Lock, User, KeyRound } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [resetEmail, setResetEmail] = useState("");
-
-  // NEW STATE: For the actual new password input
-  const [newPassword, setNewPassword] = useState("");
-
   const [isLogin, setIsLogin] = useState(true);
   const [isResetMode, setIsResetMode] = useState(false);
-
-  // NEW STATE: To show the "Set New Password" modal when they return from the email
-  const [showUpdateModal, setShowUpdateModal] = useState(false);
-
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isResetLoading, setIsResetLoading] = useState(false);
-  const [isUpdatingLoading, setIsUpdatingLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -32,13 +23,8 @@ const Auth = () => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      // 1. THIS IS THE TRAP: Catch the user returning from the email link
-      if (event === "PASSWORD_RECOVERY") {
-        setShowUpdateModal(true);
-        setIsResetMode(false);
-      }
-      // 2. Normal login routing (only route home if they aren't currently resetting)
-      else if (session && event !== "PASSWORD_RECOVERY") {
+      // Only navigate home on sign-in if user isn't on the update-password page
+      if (event === "SIGNED_IN" && session && window.location.pathname !== "/update-password") {
         navigate("/");
       }
     });
@@ -113,8 +99,14 @@ const Auth = () => {
     try {
       // FIXED: Bypassing the broken Edge Function and using the native Supabase client.
       // We route back to the auth page so our PASSWORD_RECOVERY listener catches it.
+      // Use web URL for browser, deep link for native Capacitor
+      const isNative = window.location.hostname === 'localhost' || window.location.origin.includes('capacitor');
+      const redirectUrl = isNative
+        ? "idialife://update-password"
+        : `${window.location.origin}/update-password`;
+
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-        redirectTo: "idialife://auth",
+        redirectTo: redirectUrl,
       });
 
       if (error) throw error;
@@ -137,77 +129,7 @@ const Auth = () => {
     }
   };
 
-  // NEW FUNCTION: Save the newly typed password to Supabase
-  const handleUpdatePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsUpdatingLoading(true);
 
-    try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Password updated!",
-        description: "Your password has been changed successfully. You are now logged in.",
-      });
-
-      setShowUpdateModal(false);
-      setNewPassword("");
-      navigate("/"); // Route them into the app!
-    } catch (error: any) {
-      toast({
-        title: "Update failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsUpdatingLoading(false);
-    }
-  };
-
-  // UI BLOCK 1: The "Set New Password" UI (Triggered by the email link)
-  if (showUpdateModal) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">Set New Password</CardTitle>
-            <p className="text-sm text-gray-600 text-center">Please enter your new secure password below.</p>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleUpdatePassword} className="space-y-4">
-              <div className="relative">
-                <KeyRound className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="New password (min 6 chars)"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="pl-10 pr-10"
-                  required
-                  minLength={6}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 h-4 w-4 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? <EyeOff /> : <Eye />}
-                </button>
-              </div>
-
-              <Button type="submit" className="w-full" disabled={isUpdatingLoading || newPassword.length < 6}>
-                {isUpdatingLoading ? "Saving..." : "Update Password"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   // UI BLOCK 2: The "Request Reset Link" UI
   if (isResetMode) {
