@@ -198,20 +198,34 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setConnectionStatus("connecting");
     setErrorMessage(null);
 
+    // 1. ATTACH THE GLOBAL CALLBACKS IMMEDIATELY
+    (window as any).onHealthDataSyncComplete = (serverResponse: any) => {
+      console.log("NATIVE_BRIDGE: Success signal received.");
+      setConnectionStatus("connected");
+      setIsConnecting(false);
+    };
+
+    (window as any).onHealthDataSyncError = (errorMsg: string) => {
+      console.error("NATIVE_BRIDGE: Error signal received:", errorMsg);
+      setErrorMessage(errorMsg);
+      setConnectionStatus("error");
+      setIsConnecting(false);
+    };
+
+    // 2. SAFETY TIMEOUT (10 seconds)
+    // If the bridge fails, don't leave the user spinning forever.
+    setTimeout(() => {
+      if (isConnecting) {
+        console.warn("NATIVE_BRIDGE: Timeout reached. Forcing spinner off.");
+        setIsConnecting(false);
+        setConnectionStatus("error");
+        setErrorMessage("Sync timed out. Please try again.");
+      }
+    }, 10000);
+
+    // 3. TRIGGER NATIVE
     const webkit = (window as any).webkit;
-    if (webkit && webkit.messageHandlers && webkit.messageHandlers.syncHealthData) {
-      console.log("DEBUG_UI: Preparing HealthKit data sync request for native iOS app...");
-
-      const requestedTypesByCategory: { [key: string]: string[] } = {};
-      ALL_HEALTH_DATA_TYPES.forEach((type) => {
-        if (selectedDataTypes.has(type.id)) {
-          if (!requestedTypesByCategory[type.category.toLowerCase()]) {
-            requestedTypesByCategory[type.category.toLowerCase()] = [];
-          }
-          requestedTypesByCategory[type.category.toLowerCase()].push(type.id);
-        }
-      });
-
+    if (webkit?.messageHandlers?.syncHealthData) {
       const comprehensiveHealthRequest = {
         action: "comprehensive_health_sync",
         config: {
@@ -219,18 +233,16 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           user_id: currentUserId,
           auth_token: authSession?.access_token,
         },
-        requestedDataTypes: requestedTypesByCategory, // Send only user-selected types
+        requestedDataTypes: { activity: ["HKQuantityTypeIdentifierStepCount"] },
       };
 
       webkit.messageHandlers.syncHealthData.postMessage(comprehensiveHealthRequest);
-      console.log("DEBUG_UI: Sent request to native app with selected types:", requestedTypesByCategory);
     } else {
-      console.log("DEBUG_UI: Not running in the native app wrapper. HealthKit sync unavailable (Launch via Xcode).");
-      setErrorMessage("HealthKit sync is unavailable outside the native iOS app wrapper. Please launch from Xcode.");
+      setErrorMessage("Native bridge not found.");
       setConnectionStatus("error");
       setIsConnecting(false);
     }
-  }, [selectedDataTypes, currentUserId, authSession]);
+  }, [currentUserId, authSession, isConnecting]);
 
   const handleDisconnect = useCallback(async () => {
     if (!currentUserId || !existingConnection) return;
