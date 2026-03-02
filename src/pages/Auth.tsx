@@ -100,13 +100,8 @@ const Auth = () => {
       // FIXED: Bypassing the broken Edge Function and using the native Supabase client.
       // We route back to the auth page so our PASSWORD_RECOVERY listener catches it.
       // Use web URL for browser, deep link for native Capacitor
-      const isNative = window.location.hostname === 'localhost' || window.location.origin.includes('capacitor');
-      const redirectUrl = isNative
-        ? "idialife://update-password"
-        : `${window.location.origin}/update-password`;
-
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-        redirectTo: redirectUrl,
+        redirectTo: "idialife://update-password",
       });
 
       if (error) throw error;
