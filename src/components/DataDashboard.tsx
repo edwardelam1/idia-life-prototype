@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Activity,
   CheckCircle,
@@ -18,13 +18,13 @@ import {
   Lock,
   TrendingUp,
   Gift,
-  Eye
-} from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import AppleHealthModal from './AppleHealthModal';
-import StravaConnectionModal from './StravaConnectionModal';
-import NikeConnectionModal from './NikeConnectionModal';
-import DataSourceModal from './DataSourceModal';
+  Eye,
+} from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import AppleHealthModal from "./AppleHealthModal";
+import StravaConnectionModal from "./StravaConnectionModal";
+import NikeConnectionModal from "./NikeConnectionModal";
+import DataSourceModal from "./DataSourceModal";
 
 interface DataSource {
   id: string;
@@ -32,47 +32,47 @@ interface DataSource {
   type: string;
   icon: string;
   description: string;
-  category: 'health' | 'fitness' | 'wearable' | 'lifestyle';
+  category: "health" | "fitness" | "wearable" | "lifestyle";
   earnings_rate: string;
 }
 
 const DATA_SOURCES: DataSource[] = [
   {
-    id: 'apple_health',
-    name: 'Apple Health',
-    type: 'apple_health',
-    icon: '/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png',
-    description: 'Sleep, HRV, Activity, Workouts',
-    category: 'health',
-    earnings_rate: '$0.02/day'
+    id: "apple_health",
+    name: "Apple Health",
+    type: "apple_health",
+    icon: "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png",
+    description: "Sleep, HRV, Activity, Workouts",
+    category: "health",
+    earnings_rate: "$0.02/day",
   },
   {
-    id: 'google_fit',
-    name: 'Google Fit',
-    type: 'google_fit',
-    icon: '/lovable-uploads/a1fcabab-f9bb-4a81-9b30-10d1aab93545.png',
-    description: 'Steps, Heart Rate, Sleep',
-    category: 'health',
-    earnings_rate: '$0.02/day'
+    id: "google_fit",
+    name: "Google Fit",
+    type: "google_fit",
+    icon: "/gstatic.com/images/branding/product/1x/gfit_512dp.png",
+    description: "Steps, Heart Rate, Sleep",
+    category: "health",
+    earnings_rate: "$0.02/day",
   },
   {
-    id: 'strava',
-    name: 'Strava',
-    type: 'strava',
-    icon: '/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png',
-    description: 'Running, Cycling, Activities',
-    category: 'fitness',
-    earnings_rate: '$0.03/activity'
+    id: "strava",
+    name: "Strava",
+    type: "strava",
+    icon: "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png",
+    description: "Running, Cycling, Activities",
+    category: "fitness",
+    earnings_rate: "$0.03/activity",
   },
   {
-    id: 'nike',
-    name: 'Nike Run Club',
-    type: 'nike',
-    icon: 'https://upload.wikimedia.org/wikipedia/commons/a/a6/Logo_NIKE.svg',
-    description: 'Runs, Training, Achievements',
-    category: 'fitness',
-    earnings_rate: '$0.03/activity'
-  }
+    id: "nike",
+    name: "Nike Run Club",
+    type: "nike",
+    icon: "https://upload.wikimedia.org/wikipedia/commons/a/a6/Logo_NIKE.svg",
+    description: "Runs, Training, Achievements",
+    category: "fitness",
+    earnings_rate: "$0.03/activity",
+  },
 ];
 
 interface ConsentSettings {
@@ -85,43 +85,57 @@ const DataDashboard = () => {
   const [connections, setConnections] = useState<any[]>([]);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('sources');
-  
+  const [activeTab, setActiveTab] = useState("sources");
+
   // Modal states
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
   const [showStravaModal, setShowStravaModal] = useState(false);
   const [showNikeModal, setShowNikeModal] = useState(false);
   const [showGoogleFitModal, setShowGoogleFitModal] = useState(false);
-  
+
   const [virtuousImpacts, setVirtuousImpacts] = useState<string[]>([]);
-  const [lastSyncStatus, setLastSyncStatus] = useState<string>('unknown');
+  const [lastSyncStatus, setLastSyncStatus] = useState<string>("unknown");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  
+
   // HRI Score (simulated)
   const [hriScore, setHriScore] = useState(72);
   const [trustScore, setTrustScore] = useState(850);
-  
+
   // Consent settings
   const [consents, setConsents] = useState<ConsentSettings>({
     allow_health: true,
     allow_activity: true,
-    allow_location: false
+    allow_location: false,
   });
-  
+
   // Minor status (simulated - would come from profile)
   const [isMinor, setIsMinor] = useState(false);
   const [ghostModeActive, setGhostModeActive] = useState(false);
-  
+
   // Rewards ledger (simulated)
   const [recentRewards, setRecentRewards] = useState([
-    { id: 1, source: 'Apple Health', amount: 0.02, timestamp: new Date().toISOString(), type: 'health_data' },
-    { id: 2, source: 'Strava Run', amount: 0.03, timestamp: new Date(Date.now() - 86400000).toISOString(), type: 'activity' },
-    { id: 3, source: 'Sleep Data', amount: 0.02, timestamp: new Date(Date.now() - 172800000).toISOString(), type: 'health_data' },
+    { id: 1, source: "Apple Health", amount: 0.02, timestamp: new Date().toISOString(), type: "health_data" },
+    {
+      id: 2,
+      source: "Strava Run",
+      amount: 0.03,
+      timestamp: new Date(Date.now() - 86400000).toISOString(),
+      type: "activity",
+    },
+    {
+      id: 3,
+      source: "Sleep Data",
+      amount: 0.02,
+      timestamp: new Date(Date.now() - 172800000).toISOString(),
+      type: "health_data",
+    },
   ]);
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) {
         setCurrentUserId(user.id);
       }
@@ -144,7 +158,7 @@ const DataDashboard = () => {
       setConsents({
         allow_health: false,
         allow_activity: false,
-        allow_location: false
+        allow_location: false,
       });
     }
   }, [isMinor]);
@@ -156,37 +170,24 @@ const DataDashboard = () => {
     }
 
     try {
-      const [
-        pipelineHealthResult,
-        connectionsResult,
-        walletResult,
-        recentDataResult
-      ] = await Promise.allSettled([
-        supabase.functions.invoke('pipeline-diagnostics'),
+      const [pipelineHealthResult, connectionsResult, walletResult, recentDataResult] = await Promise.allSettled([
+        supabase.functions.invoke("pipeline-diagnostics"),
+        supabase.from("data_connections").select("*").eq("user_id", currentUserId).eq("is_active", true),
+        supabase.from("user_wallets").select("*").eq("user_id", currentUserId).maybeSingle(),
         supabase
-          .from('data_connections')
-          .select('*')
-          .eq('user_id', currentUserId)
-          .eq('is_active', true),
-        supabase
-          .from('user_wallets')
-          .select('*')
-          .eq('user_id', currentUserId)
-          .maybeSingle(),
-        supabase
-          .from('raw_health_data')
-          .select('created_at')
-          .eq('user_id', currentUserId)
-          .order('created_at', { ascending: false })
-          .limit(1)
+          .from("raw_health_data")
+          .select("created_at")
+          .eq("user_id", currentUserId)
+          .order("created_at", { ascending: false })
+          .limit(1),
       ]);
 
-      if (pipelineHealthResult.status === 'rejected') {
-        console.warn('Pipeline health check failed:', pipelineHealthResult.reason);
+      if (pipelineHealthResult.status === "rejected") {
+        console.warn("Pipeline health check failed:", pipelineHealthResult.reason);
       }
 
-      if (connectionsResult.status === 'rejected') {
-        console.error('Error fetching connections:', connectionsResult.reason);
+      if (connectionsResult.status === "rejected") {
+        console.error("Error fetching connections:", connectionsResult.reason);
         setConnections([]);
         setTotalEarnings(0);
         setLoading(false);
@@ -196,23 +197,23 @@ const DataDashboard = () => {
       const connectionsData = connectionsResult.value.data || [];
 
       let totalEarned = 0;
-      if (walletResult.status === 'fulfilled') {
+      if (walletResult.status === "fulfilled") {
         totalEarned = walletResult.value.data?.total_earned || 0;
       }
 
-      if (recentDataResult.status === 'fulfilled' && recentDataResult.value.data?.length > 0) {
+      if (recentDataResult.status === "fulfilled" && recentDataResult.value.data?.length > 0) {
         const lastDataTime = new Date(recentDataResult.value.data[0].created_at);
         const hoursSinceLastData = (Date.now() - lastDataTime.getTime()) / (1000 * 60 * 60);
 
         if (hoursSinceLastData > 24) {
-          setLastSyncStatus('stale');
+          setLastSyncStatus("stale");
         } else if (hoursSinceLastData > 6) {
-          setLastSyncStatus('delayed');
+          setLastSyncStatus("delayed");
         } else {
-          setLastSyncStatus('recent');
+          setLastSyncStatus("recent");
         }
       } else {
-        setLastSyncStatus('no_data');
+        setLastSyncStatus("no_data");
       }
 
       setConnections(connectionsData);
@@ -224,7 +225,7 @@ const DataDashboard = () => {
 
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching connections:', error);
+      console.error("Error fetching connections:", error);
       setConnections([]);
       setTotalEarnings(0);
       setLoading(false);
@@ -233,13 +234,13 @@ const DataDashboard = () => {
 
   const fetchVirtuousImpacts = async () => {
     const fallbackImpacts = [
-      'Your anonymized activity improved heart health model accuracy',
-      'Contributed to real-time wellness trend analysis',
-      'Enhanced data quality for community research'
+      "Your anonymized activity improved heart health model accuracy",
+      "Contributed to real-time wellness trend analysis",
+      "Enhanced data quality for community research",
     ];
     try {
-      const { data, error } = await supabase.functions.invoke('generate-virtuous-cycle-impacts', {
-        body: { user_id: currentUserId }
+      const { data, error } = await supabase.functions.invoke("generate-virtuous-cycle-impacts", {
+        body: { user_id: currentUserId },
       });
 
       if (error || !data?.impacts?.length) {
@@ -253,27 +254,29 @@ const DataDashboard = () => {
   };
 
   const triggerFriendForDataEvent = () => {
-    window.dispatchEvent(new CustomEvent('showFriend', {
-      detail: { trigger: 'data' }
-    }));
+    window.dispatchEvent(
+      new CustomEvent("showFriend", {
+        detail: { trigger: "data" },
+      }),
+    );
   };
 
   const getConnectionStatus = (connectionType: string) => {
-    return connections.find(conn => conn.connection_type === connectionType);
+    return connections.find((conn) => conn.connection_type === connectionType);
   };
 
   const handleSourceClick = (sourceType: string) => {
     switch (sourceType) {
-      case 'apple_health':
+      case "apple_health":
         setShowAppleHealthModal(true);
         break;
-      case 'strava':
+      case "strava":
         setShowStravaModal(true);
         break;
-      case 'nike':
+      case "nike":
         setShowNikeModal(true);
         break;
-      case 'google_fit':
+      case "google_fit":
         setShowGoogleFitModal(true);
         break;
     }
@@ -285,21 +288,21 @@ const DataDashboard = () => {
   };
 
   const getHRIColor = () => {
-    if (hriScore >= 70) return 'text-green-600';
-    if (hriScore >= 40) return 'text-yellow-600';
-    return 'text-red-600';
+    if (hriScore >= 70) return "text-green-600";
+    if (hriScore >= 40) return "text-yellow-600";
+    return "text-red-600";
   };
 
   const getHRIBg = () => {
-    if (hriScore >= 70) return 'bg-green-500';
-    if (hriScore >= 40) return 'bg-yellow-500';
-    return 'bg-red-500';
+    if (hriScore >= 70) return "bg-green-500";
+    if (hriScore >= 40) return "bg-yellow-500";
+    return "bg-red-500";
   };
 
   const getHRIStatus = () => {
-    if (hriScore >= 70) return 'Optimal';
-    if (hriScore >= 40) return 'Moderate';
-    return 'Needs Attention';
+    if (hriScore >= 70) return "Optimal";
+    if (hriScore >= 40) return "Moderate";
+    return "Needs Attention";
   };
 
   const handleConsentChange = (key: keyof ConsentSettings, value: boolean) => {
@@ -307,7 +310,7 @@ const DataDashboard = () => {
       // Minors cannot enable data sharing without guardian consent
       return;
     }
-    setConsents(prev => ({ ...prev, [key]: value }));
+    setConsents((prev) => ({ ...prev, [key]: value }));
   };
 
   if (loading) {
@@ -340,7 +343,6 @@ const DataDashboard = () => {
         </Card>
       )}
 
-
       {/* Trust Score & Earnings Row */}
       <div className="grid grid-cols-2 gap-3">
         <Card>
@@ -350,7 +352,9 @@ const DataDashboard = () => {
               <span className="text-xs text-muted-foreground">Trust Score</span>
             </div>
             <p className="text-2xl font-bold">{trustScore}</p>
-            <Badge variant="outline" className="text-xs mt-1">Verified</Badge>
+            <Badge variant="outline" className="text-xs mt-1">
+              Verified
+            </Badge>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-teal-500 to-cyan-600 text-white">
@@ -380,9 +384,9 @@ const DataDashboard = () => {
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-muted-foreground">Connected</h3>
               <div className="grid grid-cols-2 gap-3">
-                {DATA_SOURCES.filter(source => getConnectionStatus(source.type)).map(source => (
-                  <Card 
-                    key={source.id} 
+                {DATA_SOURCES.filter((source) => getConnectionStatus(source.type)).map((source) => (
+                  <Card
+                    key={source.id}
                     className="cursor-pointer border-green-200 bg-green-50/50 hover:shadow-md transition-shadow"
                     onClick={() => handleSourceClick(source.type)}
                   >
@@ -397,7 +401,9 @@ const DataDashboard = () => {
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm truncate">{source.name}</p>
                           <p className="text-xs text-muted-foreground truncate">{source.description}</p>
-                          <Badge variant="secondary" className="text-xs mt-1">{source.earnings_rate}</Badge>
+                          <Badge variant="secondary" className="text-xs mt-1">
+                            {source.earnings_rate}
+                          </Badge>
                         </div>
                       </div>
                     </CardContent>
@@ -411,9 +417,9 @@ const DataDashboard = () => {
           <div className="space-y-3">
             <h3 className="text-sm font-semibold text-muted-foreground">Available Sources</h3>
             <div className="grid grid-cols-2 gap-3">
-              {DATA_SOURCES.filter(source => !getConnectionStatus(source.type)).map(source => (
-                <Card 
-                  key={source.id} 
+              {DATA_SOURCES.filter((source) => !getConnectionStatus(source.type)).map((source) => (
+                <Card
+                  key={source.id}
                   className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary/50"
                   onClick={() => handleSourceClick(source.type)}
                 >
@@ -425,7 +431,9 @@ const DataDashboard = () => {
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm truncate">{source.name}</p>
                         <p className="text-xs text-muted-foreground truncate">{source.description}</p>
-                        <Badge variant="outline" className="text-xs mt-1">{source.earnings_rate}</Badge>
+                        <Badge variant="outline" className="text-xs mt-1">
+                          {source.earnings_rate}
+                        </Badge>
                       </div>
                     </div>
                   </CardContent>
@@ -477,9 +485,9 @@ const DataDashboard = () => {
                     <p className="text-xs text-muted-foreground">Sleep, HRV, Heart Rate</p>
                   </div>
                 </div>
-                <Switch 
-                  checked={consents.allow_health} 
-                  onCheckedChange={(val) => handleConsentChange('allow_health', val)}
+                <Switch
+                  checked={consents.allow_health}
+                  onCheckedChange={(val) => handleConsentChange("allow_health", val)}
                   disabled={isMinor}
                 />
               </div>
@@ -493,9 +501,9 @@ const DataDashboard = () => {
                     <p className="text-xs text-muted-foreground">Steps, Workouts, Exercises</p>
                   </div>
                 </div>
-                <Switch 
-                  checked={consents.allow_activity} 
-                  onCheckedChange={(val) => handleConsentChange('allow_activity', val)}
+                <Switch
+                  checked={consents.allow_activity}
+                  onCheckedChange={(val) => handleConsentChange("allow_activity", val)}
                   disabled={isMinor}
                 />
               </div>
@@ -509,9 +517,9 @@ const DataDashboard = () => {
                     <p className="text-xs text-muted-foreground">Geo-temporal patterns</p>
                   </div>
                 </div>
-                <Switch 
-                  checked={consents.allow_location} 
-                  onCheckedChange={(val) => handleConsentChange('allow_location', val)}
+                <Switch
+                  checked={consents.allow_location}
+                  onCheckedChange={(val) => handleConsentChange("allow_location", val)}
                   disabled={isMinor}
                 />
               </div>
@@ -535,8 +543,8 @@ const DataDashboard = () => {
                 <div>
                   <p className="font-medium text-sm">Your Data, Your Control</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    All data is anonymized before processing. You earn IDIA-USD for each validated data packet. 
-                    Toggle off anytime to stop sharing specific data types.
+                    All data is anonymized before processing. You earn IDIA-USD for each validated data packet. Toggle
+                    off anytime to stop sharing specific data types.
                   </p>
                 </div>
               </div>
@@ -616,7 +624,7 @@ const DataDashboard = () => {
         isOpen={showAppleHealthModal}
         onClose={() => setShowAppleHealthModal(false)}
         onComplete={handleConnectionComplete}
-        existingConnection={getConnectionStatus('apple_health')}
+        existingConnection={getConnectionStatus("apple_health")}
         onDisconnect={fetchConnections}
       />
 
@@ -624,7 +632,7 @@ const DataDashboard = () => {
         isOpen={showStravaModal}
         onClose={() => setShowStravaModal(false)}
         onComplete={handleConnectionComplete}
-        existingConnection={getConnectionStatus('strava')}
+        existingConnection={getConnectionStatus("strava")}
         onDisconnect={fetchConnections}
       />
 
@@ -641,12 +649,12 @@ const DataDashboard = () => {
         isOpen={showGoogleFitModal}
         onClose={() => setShowGoogleFitModal(false)}
         source={{
-          name: 'Google Fit',
+          name: "Google Fit",
           icon: Activity,
-          estimatedEarnings: '$0.60/month',
-          privacyLevel: 'High',
-          description: 'Sync your Google Fit health and activity data to earn rewards',
-          dataTypes: ['Steps', 'Heart Rate', 'Sleep', 'Workouts']
+          estimatedEarnings: "$0.60/month",
+          privacyLevel: "High",
+          description: "Sync your Google Fit health and activity data to earn rewards",
+          dataTypes: ["Steps", "Heart Rate", "Sleep", "Workouts"],
         }}
       />
     </div>
