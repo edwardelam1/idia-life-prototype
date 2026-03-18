@@ -5,7 +5,7 @@ import { Activity, Footprints, Moon, Heart, CheckCircle2 } from 'lucide-react';
 import DataSourceModal from './DataSourceModal';
 
 interface DataDashboardProps {
-  onComplete: () => void;
+  onComplete?: () => void;
   onBack?: () => void;
 }
 
@@ -60,7 +60,6 @@ export default function DataDashboard({ onComplete, onBack }: DataDashboardProps
   const hasConnections = Object.keys(connectedSources).length > 0;
 
   return (
-    {/* STRICT NO-SCROLL LOCK */}
     <div className="fixed inset-0 bg-[#0a0f1a] text-white flex flex-col overflow-hidden">
       
       {/* Header Area */}
@@ -135,7 +134,6 @@ export default function DataDashboard({ onComplete, onBack }: DataDashboardProps
           isOpen={!!selectedSource}
           source={selectedSource} 
           onClose={() => setSelectedSource(null)} 
-          onConsent={() => handleConsentGiven(selectedSource.id)} 
         />
       )}
     </div>
