@@ -5,7 +5,7 @@ import { Activity, Footprints, Moon, Heart, CheckCircle2 } from 'lucide-react';
 import DataSourceModal from './DataSourceModal';
 
 interface DataDashboardProps {
-  onComplete: () => void;
+  onComplete?: () => void;
   onBack?: () => void;
 }
 
