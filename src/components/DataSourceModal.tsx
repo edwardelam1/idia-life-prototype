@@ -25,7 +25,7 @@ interface DataSourceModalProps {
   onConsent?: () => void;
 }
 
-const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
+const DataSourceModal = ({ source, isOpen, onClose, onConsent }: DataSourceModalProps) => {
   const [consentGiven, setConsentGiven] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
