@@ -44,7 +44,7 @@ const DATA_SOURCES: DataSource[] = [
     icon: "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png",
     description: "Sleep, HRV, Activity, Workouts",
     category: "health",
-    earnings_rate: "$0.02/day",
+    earnings_rate: "$15/day",
   },
   {
     id: "google_fit",
@@ -53,7 +53,7 @@ const DATA_SOURCES: DataSource[] = [
     icon: "https://gstatic.com/images/branding/product/1x/gfit_512dp.png",
     description: "Steps, Heart Rate, Sleep",
     category: "health",
-    earnings_rate: "$0.02/day",
+    earnings_rate: "$15/day",
   },
   {
     id: "strava",
@@ -62,7 +62,7 @@ const DATA_SOURCES: DataSource[] = [
     icon: "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png",
     description: "Running, Cycling, Activities",
     category: "fitness",
-    earnings_rate: "$0.03/activity",
+    earnings_rate: "$15/day",
   },
   {
     id: "nike",
@@ -71,7 +71,7 @@ const DATA_SOURCES: DataSource[] = [
     icon: "https://upload.wikimedia.org/wikipedia/commons/a/a6/Logo_NIKE.svg",
     description: "Runs, Training, Achievements",
     category: "fitness",
-    earnings_rate: "$0.03/activity",
+    earnings_rate: "$15/day",
   },
 ];
 
@@ -114,18 +114,18 @@ const DataDashboard = () => {
 
   // Rewards ledger (simulated)
   const [recentRewards, setRecentRewards] = useState([
-    { id: 1, source: "Apple Health", amount: 0.02, timestamp: new Date().toISOString(), type: "health_data" },
+    { id: 1, source: "Apple Health", amount: "$15, timestamp: new Date().toISOString(), type: "health_data" },
     {
       id: 2,
       source: "Strava Run",
-      amount: 0.03,
+      amount: 15.00,
       timestamp: new Date(Date.now() - 86400000).toISOString(),
       type: "activity",
     },
     {
       id: 3,
       source: "Sleep Data",
-      amount: 0.02,
+      amount: 15.00,
       timestamp: new Date(Date.now() - 172800000).toISOString(),
       type: "health_data",
     },
