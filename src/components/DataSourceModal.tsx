@@ -22,8 +22,7 @@ interface DataSourceModalProps {
   source: any;
   isOpen: boolean;
   onClose: () => void;
-  // Potentially pass user ID here if not fetching globally
-  // userId: string;
+  onConsent?: () => void;
 }
 
 const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
