@@ -114,7 +114,7 @@ const DataDashboard = () => {
 
   // Rewards ledger (simulated)
   const [recentRewards, setRecentRewards] = useState([
-    { id: 1, source: "Apple Health", amount: "$15, timestamp: new Date().toISOString(), type: "health_data" },
+    { id: 1, source: "Apple Health", amount: 15.00, timestamp: new Date().toISOString(), type: "health_data" },
     {
       id: 2,
       source: "Strava Run",
