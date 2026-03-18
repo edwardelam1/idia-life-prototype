@@ -51,7 +51,7 @@ const Index = () => {
 
   if (!isAuthenticated) {
     if (showFlashingSplash) {
-      return <FlashingSplashScreen onVerificationComplete={handleFlashingSplashComplete} />;
+      return <FlashingSplashScreen onComplete={handleFlashingSplashComplete} />;
     }
     return <LandingScreen onSignUp={handleSignUp} />;
   }
