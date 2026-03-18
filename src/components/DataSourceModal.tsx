@@ -22,10 +22,11 @@ interface DataSourceModalProps {
   source: any;
   isOpen: boolean;
   onClose: () => void;
-  onConsent?: () => void;
+  // Potentially pass user ID here if not fetching globally
+  // userId: string;
 }
 
-const DataSourceModal = ({ source, isOpen, onClose, onConsent }: DataSourceModalProps) => {
+const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
   const [consentGiven, setConsentGiven] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -121,7 +122,6 @@ const DataSourceModal = ({ source, isOpen, onClose, onConsent }: DataSourceModal
         });
 
       setConnected(true);
-      onConsent?.();
       
       // Close modal after showing success
       setTimeout(() => {
