@@ -621,7 +621,7 @@ export type Database = {
           data_source_count: number | null
           generation_type: string
           id: string
-          processing_duration: string | null
+          processing_duration: unknown | null
           quality_metrics: Json | null
         }
         Insert: {
@@ -630,7 +630,7 @@ export type Database = {
           data_source_count?: number | null
           generation_type: string
           id?: string
-          processing_duration?: string | null
+          processing_duration?: unknown | null
           quality_metrics?: Json | null
         }
         Update: {
@@ -639,7 +639,7 @@ export type Database = {
           data_source_count?: number | null
           generation_type?: string
           id?: string
-          processing_duration?: string | null
+          processing_duration?: unknown | null
           quality_metrics?: Json | null
         }
         Relationships: [
@@ -2699,7 +2699,7 @@ export type Database = {
           agreed_at: string | null
           agreement_type: string
           id: string
-          ip_address: unknown
+          ip_address: unknown | null
           user_agent: string | null
           user_id: string
           version: string
@@ -2708,7 +2708,7 @@ export type Database = {
           agreed_at?: string | null
           agreement_type: string
           id?: string
-          ip_address?: unknown
+          ip_address?: unknown | null
           user_agent?: string | null
           user_id: string
           version: string
@@ -2717,7 +2717,7 @@ export type Database = {
           agreed_at?: string | null
           agreement_type?: string
           id?: string
-          ip_address?: unknown
+          ip_address?: unknown | null
           user_agent?: string | null
           user_id?: string
           version?: string
@@ -6016,7 +6016,7 @@ export type Database = {
         Returns: number
       }
       check_health_data_pipeline_status: {
-        Args: never
+        Args: Record<PropertyKey, never>
         Returns: {
           completed_records: number
           failed_records: number
@@ -6028,7 +6028,7 @@ export type Database = {
         }[]
       }
       check_pipeline_health: {
-        Args: never
+        Args: Record<PropertyKey, never>
         Returns: {
           processed_raw_data: number
           processing_raw_data: number
@@ -6043,8 +6043,14 @@ export type Database = {
         Args: { p_recorded_at: string; p_step_count: number; p_user_id: string }
         Returns: boolean
       }
-      cleanup_orphaned_queue_items: { Args: never; Returns: number }
-      generate_pseudonym: { Args: { input_text: string }; Returns: string }
+      cleanup_orphaned_queue_items: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      generate_pseudonym: {
+        Args: { input_text: string }
+        Returns: string
+      }
       get_all_user_health_data: {
         Args: { p_user_id: string }
         Returns: {
@@ -6079,21 +6085,21 @@ export type Database = {
         }[]
       }
       process_backlog_data: {
-        Args: never
+        Args: Record<PropertyKey, never>
         Returns: {
           error_count: number
           processed_count: number
         }[]
       }
       process_stuck_raw_data: {
-        Args: never
+        Args: Record<PropertyKey, never>
         Returns: {
           error_count: number
           processed_count: number
         }[]
       }
       process_synapse_backlog: {
-        Args: never
+        Args: Record<PropertyKey, never>
         Returns: {
           bundles_generated: number
           processed_business_queue: number
@@ -6102,23 +6108,17 @@ export type Database = {
         }[]
       }
       recover_all_stuck_health_data: {
-        Args: never
+        Args: Record<PropertyKey, never>
         Returns: {
           failed_count: number
           recovered_count: number
         }[]
       }
       recover_stuck_health_data: {
-        Args: never
+        Args: Record<PropertyKey, never>
         Returns: {
           error_count: number
           recovered_count: number
-        }[]
-      }
-      trigger_daily_apple_health_sync: {
-        Args: never
-        Returns: {
-          request_id: number
         }[]
       }
       update_raw_health_data_status: {

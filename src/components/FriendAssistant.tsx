@@ -11,7 +11,7 @@ import { eventTracker } from '@/utils/EventTracker';
 interface FriendAssistantProps {
   isVisible: boolean;
   onClose: () => void;
-  trigger?: 'social' | 'wallet' | 'data' | 'achievement' | 'onboarding';
+  trigger?: 'social' | 'wallet' | 'data' | 'achievement';
 }
 
 const FriendAssistant: React.FC<FriendAssistantProps> = ({ isVisible, onClose, trigger }) => {

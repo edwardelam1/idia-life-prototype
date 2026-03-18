@@ -86,7 +86,7 @@ export const useEnhancedProfile = () => {
           avatar_url: null,
           phone_number: null,
           date_of_birth: null,
-          trust_score: profileData.trust_score ?? 850,
+          trust_score: 650,
           available_credit_line: 0,
           quiet_time_enabled: false,
           quiet_time_start: null,

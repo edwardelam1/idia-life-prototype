@@ -9,7 +9,7 @@ export interface Message {
 export interface FriendAssistantProps {
   isVisible: boolean;
   onClose: () => void;
-  trigger?: 'social' | 'wallet' | 'data' | 'achievement' | 'onboarding';
+  trigger?: 'social' | 'wallet' | 'data' | 'achievement';
 }
 
 export type FriendState = 'idle' | 'listening' | 'thinking' | 'speaking';
