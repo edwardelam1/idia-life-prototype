@@ -621,7 +621,7 @@ export type Database = {
           data_source_count: number | null
           generation_type: string
           id: string
-          processing_duration: unknown
+          processing_duration: string | null
           quality_metrics: Json | null
         }
         Insert: {
@@ -630,7 +630,7 @@ export type Database = {
           data_source_count?: number | null
           generation_type: string
           id?: string
-          processing_duration?: unknown
+          processing_duration?: string | null
           quality_metrics?: Json | null
         }
         Update: {
@@ -639,7 +639,7 @@ export type Database = {
           data_source_count?: number | null
           generation_type?: string
           id?: string
-          processing_duration?: unknown
+          processing_duration?: string | null
           quality_metrics?: Json | null
         }
         Relationships: [
