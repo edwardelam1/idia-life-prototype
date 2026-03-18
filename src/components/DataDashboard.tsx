@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import DataSourceModal from "./DataSourceModal";
 
 interface DataDashboardProps {
-  onComplete: (vaultHash: string) => void;
-  onBack: () => void;
+  onComplete?: (vaultHash: string) => void;
+  onBack?: () => void;
 }
 
 const INTEGRATIONS = [
