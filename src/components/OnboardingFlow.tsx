@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import AuthSelection from './AuthSelection';
+import AuthSelection from './onboarding/AuthSelection';
 import FlashingSplashScreen from './FlashingSplashScreen';
 // Import other components: AgeAssurance, DigitalWard, WalletGen, Goals, Consent, WalletDashboard
 
@@ -70,9 +70,9 @@ export default function OnboardingFlow() {
         setTimeout(() => setCurrentStep('GOALS'), 2000);
         return <div className="h-screen bg-[#0a0f1a] text-[#4f8aff] flex items-center justify-center">Generating Secure Vault...</div>;
       case 'GOALS':
-        return <button onClick={() => setCurrentStep('CONSENT')}>Set Goals -> Next</button>;
+        return <button onClick={() => setCurrentStep('CONSENT')}>Set Goals {'->'} Next</button>;
       case 'CONSENT':
-        return <button onClick={() => setCurrentStep('DASHBOARD')}>Generate ACA -> Finish</button>;
+        return <button onClick={() => setCurrentStep('DASHBOARD')}>Generate ACA {'->'} Finish</button>;
       case 'DASHBOARD':
         return <div className="h-screen bg-[#0a0f1a] text-[#d4af37] flex items-center justify-center text-3xl">Wallet Dashboard</div>;
       default:
