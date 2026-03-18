@@ -134,7 +134,6 @@ export default function DataDashboard({ onComplete, onBack }: DataDashboardProps
           isOpen={!!selectedSource}
           source={selectedSource} 
           onClose={() => setSelectedSource(null)} 
-          onConsent={() => handleConsentGiven(selectedSource.id)} 
         />
       )}
     </div>
