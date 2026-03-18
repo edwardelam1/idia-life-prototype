@@ -121,6 +121,7 @@ const DataSourceModal = ({ source, isOpen, onClose, onConsent }: DataSourceModal
         });
 
       setConnected(true);
+      onConsent?.();
       
       // Close modal after showing success
       setTimeout(() => {
