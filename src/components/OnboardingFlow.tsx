@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import AuthSelection from './AuthSelection';
+import AuthSelection from './onboarding/AuthSelection';
 import FlashingSplashScreen from './FlashingSplashScreen';
 // Import other components: AgeAssurance, DigitalWard, WalletGen, Goals, Consent, WalletDashboard
 
