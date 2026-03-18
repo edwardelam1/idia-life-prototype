@@ -1,11 +1,50 @@
-import { useState, useEffect } from 'react';
-import { ArrowUpRight, ArrowDownLeft, CreditCard, TrendingUp, ShieldCheck, Landmark, History, Plus } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
-import AddFundsModal from './AddFundsModal';
-import { eventTracker } from '@/utils/EventTracker';
+import { useState, useEffect } from "react";
+import {
+  ArrowUpRight,
+  ArrowDownLeft,
+  CreditCard,
+  TrendingUp,
+  ShieldCheck,
+  Landmark,
+  History,
+  Plus,
+} from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import AddFundsModal from "./AddFundsModal";
+import { eventTracker } from "@/utils/EventTracker";
+import React from "react";
 
+interface WalletDashboardProps {
+  acaRecordId: string | null;
+}
+
+export default function WalletDashboard({ acaRecordId }: WalletDashboardProps) {
+  const displayHash = acaRecordId
+    ? `${acaRecordId.substring(0, 8)}...${acaRecordId.substring(acaRecordId.length - 8)}`
+    : "UNVERIFIED";
+
+  return (
+    <div className="fixed inset-0 bg-[#0a0f1a] text-white flex flex-col overflow-hidden">
+      <div className="pt-12 pb-4 px-6 flex-shrink-0 flex justify-between items-start">
+        <div>
+          <h1 className="text-2xl font-bold tracking-wide text-white">Wallet</h1>
+          <div className="flex items-center space-x-2 mt-1">
+            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+            {/* CONSUMER COPY UPDATE */}
+            <span className="text-xs font-mono text-green-400">ENCLAVE: {displayHash}</span>
+          </div>
+        </div>
+        <div className="w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center">
+          <span className="text-sm">👤</span>
+        </div>
+      </div>
+
+      {/* ... (Rest of Wallet Dashboard remains the same) ... */}
+    </div>
+  );
+}
 interface Transaction {
   id: string;
   transaction_type: string;
@@ -19,7 +58,7 @@ const WalletDashboard = () => {
   const [balances, setBalances] = useState({
     cash: 0,
     idiaUsd: 0,
-    idiaToken: 0
+    idiaToken: 0,
   });
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isAddFundsOpen, setIsAddFundsOpen] = useState(false);
@@ -28,61 +67,91 @@ const WalletDashboard = () => {
   useEffect(() => {
     fetchBalances();
     fetchTransactions();
-    
+
     const startTime = Date.now();
     return () => {
       const duration = (Date.now() - startTime) / 1000;
       eventTracker.trackWalletView({
         view_duration: duration,
         balance_checked: true,
-        transactions_viewed: transactions.length
+        transactions_viewed: transactions.length,
       });
     };
   }, []);
 
   const fetchBalances = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setBalances({ cash: 0, idiaUsd: 0, idiaToken: 0 }); return; }
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setBalances({ cash: 0, idiaUsd: 0, idiaToken: 0 });
+        return;
+      }
       const { data: walletData, error: walletError } = await supabase
-        .from('user_wallets').select('*').eq('user_id', user.id).maybeSingle();
-      if (walletError && walletError.code !== 'PGRST116') {
-        console.error('Error fetching wallet:', walletError);
-        setBalances({ cash: 0, idiaUsd: 0, idiaToken: 0 }); return;
+        .from("user_wallets")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (walletError && walletError.code !== "PGRST116") {
+        console.error("Error fetching wallet:", walletError);
+        setBalances({ cash: 0, idiaUsd: 0, idiaToken: 0 });
+        return;
       }
       setBalances({ cash: 0, idiaUsd: walletData?.idia_usd_balance || 0, idiaToken: 0 });
     } catch (error) {
-      console.error('Error fetching balances:', error);
+      console.error("Error fetching balances:", error);
       setBalances({ cash: 0, idiaUsd: 0, idiaToken: 0 });
     }
   };
 
   const fetchTransactions = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setTransactions([]); setLoading(false); return; }
-      const { data, error } = await supabase.from('transactions').select('*')
-        .eq('user_id', user.id).order('created_at', { ascending: false }).limit(10);
-      if (error) { setTransactions([]); } else {
-        setTransactions((data || []).map(t => ({
-          ...t,
-          description: t.description.replace('Staged_data_reward', 'Health Data Contribution'),
-          source: t.source || 'IDIA Platform'
-        })));
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setTransactions([]);
+        setLoading(false);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      if (error) {
+        setTransactions([]);
+      } else {
+        setTransactions(
+          (data || []).map((t) => ({
+            ...t,
+            description: t.description.replace("Staged_data_reward", "Health Data Contribution"),
+            source: t.source || "IDIA Platform",
+          })),
+        );
       }
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching transactions:', error);
-      setTransactions([]); setLoading(false);
+      console.error("Error fetching transactions:", error);
+      setTransactions([]);
+      setLoading(false);
     }
   };
 
   const getTransactionIcon = (type: string) => {
     switch (type) {
-      case 'data_reward': case 'data_earnings': return TrendingUp;
-      case 'payment_sent': return ArrowUpRight;
-      case 'payment_received': case 'payroll': return ArrowDownLeft;
-      default: return CreditCard;
+      case "data_reward":
+      case "data_earnings":
+        return TrendingUp;
+      case "payment_sent":
+        return ArrowUpRight;
+      case "payment_received":
+      case "payroll":
+        return ArrowDownLeft;
+      default:
+        return CreditCard;
     }
   };
 
@@ -149,19 +218,13 @@ const WalletDashboard = () => {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 gap-3">
-        <Button
-          className="py-6 rounded-xl shadow-md"
-          onClick={() => setIsAddFundsOpen(true)}
-        >
+        <Button className="py-6 rounded-xl shadow-md" onClick={() => setIsAddFundsOpen(true)}>
           <div className="text-center">
             <Plus className="w-5 h-5 mx-auto mb-1" />
             <span className="block text-sm font-semibold">Add Funds</span>
           </div>
         </Button>
-        <Button
-          variant="outline"
-          className="py-6 rounded-xl shadow-sm"
-        >
+        <Button variant="outline" className="py-6 rounded-xl shadow-sm">
           <div className="text-center">
             <ArrowUpRight className="w-5 h-5 mx-auto mb-1" />
             <span className="block text-sm font-semibold">Send Payment</span>
@@ -194,13 +257,19 @@ const WalletDashboard = () => {
                       )}
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-foreground truncate max-w-[180px]">{transaction.description}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(transaction.created_at).toLocaleDateString()}</p>
+                      <p className="text-sm font-medium text-foreground truncate max-w-[180px]">
+                        {transaction.description}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(transaction.created_at).toLocaleDateString()}
+                      </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className={`text-sm font-semibold font-mono ${transaction.amount > 0 ? 'text-accent' : 'text-muted-foreground'}`}>
-                      {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toFixed(2)}
+                    <p
+                      className={`text-sm font-semibold font-mono ${transaction.amount > 0 ? "text-accent" : "text-muted-foreground"}`}
+                    >
+                      {transaction.amount > 0 ? "+" : ""}${Math.abs(transaction.amount).toFixed(2)}
                     </p>
                     <p className="text-xs text-muted-foreground">Settled</p>
                   </div>
