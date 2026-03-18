@@ -1,93 +1,95 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Shield, Loader2 } from "lucide-react";
 
 interface DataSourceModalProps {
+  isOpen: boolean;
   source: any;
   onClose: () => void;
   onConsent: () => void;
 }
 
-export default function DataSourceModal({ source, onClose, onConsent }: DataSourceModalProps) {
-  // Granular toggles specific to the telemetry source
-  const [permissions, setPermissions] = useState({
-    steps: true,
-    heartRate: true,
-    sleep: false,
-    energyBurned: false,
-  });
+export default function DataSourceModal({ isOpen, source, onClose, onConsent }: DataSourceModalProps) {
+  // Initialize toggles based on the source's dataTypes
+  const [toggles, setToggles] = useState<Record<string, boolean>>(
+    source?.dataTypes?.reduce((acc: any, type: string) => ({ ...acc, [type]: true }), {}) || {},
+  );
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const togglePermission = (key: keyof typeof permissions) => {
-    setPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
+  if (!source) return null;
+
+  const handleToggle = (key: string) => {
+    setToggles((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const handleConsent = async () => {
     setIsProcessing(true);
-    // Simulate native bridge handshake delay
+    // Simulate native bridge API handshake
     await new Promise((r) => setTimeout(r, 1200));
     setIsProcessing(false);
     onConsent();
   };
 
+  const Icon = source.icon;
+
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-
-      {/* Modal Content (Bottom Sheet) */}
-      <div className="relative bg-[#111827] border-t border-white/10 rounded-t-3xl w-full max-h-[80vh] flex flex-col overflow-hidden shadow-2xl animate-in slide-in-from-bottom-full duration-300">
-        {/* Modal Header */}
-        <div className="p-6 border-b border-white/5 flex items-center space-x-4">
-          <div
-            className={`w-12 h-12 rounded-xl ${source.color} ${source.textColor} flex items-center justify-center text-2xl`}
-          >
-            {source.icon}
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="bg-[#111827] border-white/10 text-white sm:max-w-md rounded-3xl p-0 overflow-hidden">
+        <DialogHeader className="p-6 pb-4 border-b border-white/5 bg-white/5">
+          <div className="flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-xl ${source.bg} flex items-center justify-center`}>
+              <Icon className={`w-6 h-6 ${source.color}`} />
+            </div>
+            <div>
+              <DialogTitle className="text-xl font-bold">{source.name}</DialogTitle>
+              <p className="text-sm text-muted-foreground mt-1">Select data to sync</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl font-bold text-white">{source.name}</h2>
-            <p className="text-xs text-gray-400">Select data to sync</p>
-          </div>
-        </div>
+        </DialogHeader>
 
-        {/* Permissions List (Scrollable if needed inside modal) */}
-        <div className="p-6 space-y-4 overflow-y-auto">
-          {Object.entries(permissions).map(([key, isEnabled]) => (
+        <div className="p-6 space-y-4">
+          <div className="flex items-start gap-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl mb-2">
+            <Shield className="w-5 h-5 text-[#4f8aff] mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-blue-100/70 leading-relaxed">
+              Your data is encrypted locally. You maintain total sovereignty and can revoke connection access at any
+              time.
+            </p>
+          </div>
+
+          {source.dataTypes.map((type: string) => (
             <div
-              key={key}
-              className="flex justify-between items-center p-4 bg-white/5 rounded-xl border border-white/5"
+              key={type}
+              className="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-xl"
             >
-              <span className="capitalize text-sm font-medium text-gray-200">
-                {key.replace(/([A-Z])/g, " $1").trim()}
-              </span>
-              <button
-                onClick={() => togglePermission(key as keyof typeof permissions)}
-                className={`w-12 h-6 rounded-full transition-colors relative ${isEnabled ? "bg-[#4f8aff]" : "bg-gray-600"}`}
-              >
-                <div
-                  className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${isEnabled ? "translate-x-7" : "translate-x-1"}`}
-                />
-              </button>
+              <span className="text-sm font-medium">{type}</span>
+              <Switch
+                checked={toggles[type]}
+                onCheckedChange={() => handleToggle(type)}
+                className="data-[state=checked]:bg-[#4f8aff]"
+              />
             </div>
           ))}
         </div>
 
-        {/* Action Area */}
-        <div className="p-6 pt-2 pb-10 bg-[#111827]">
-          <button
+        <div className="p-6 pt-2 bg-[#111827]">
+          <Button
             onClick={handleConsent}
             disabled={isProcessing}
-            className="w-full bg-[#4f8aff] text-white font-semibold py-4 rounded-xl transition active:scale-95 flex justify-center items-center"
+            className="w-full h-14 bg-[#4f8aff] hover:bg-[#4f8aff]/90 text-white font-bold rounded-xl shadow-[0_0_15px_rgba(79,138,255,0.2)]"
           >
-            {isProcessing ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              "You have my consent"
-            )}
-          </button>
-          <button onClick={onClose} className="w-full mt-4 text-sm text-gray-400 py-2">
+            {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : "You have my consent"}
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            className="w-full mt-2 text-muted-foreground hover:text-white hover:bg-white/5"
+          >
             Cancel
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
