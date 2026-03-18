@@ -50,7 +50,7 @@ const DATA_SOURCES: DataSource[] = [
     id: "google_fit",
     name: "Google Fit",
     type: "google_fit",
-    icon: "/gstatic.com/images/branding/product/1x/gfit_512dp.png",
+    icon: "https://gstatic.com/images/branding/product/1x/gfit_512dp.png",
     description: "Steps, Heart Rate, Sleep",
     category: "health",
     earnings_rate: "$0.02/day",
