@@ -159,6 +159,15 @@ const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
       const isoDate = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
       const full_legal_address: USAddress = { street1, street2, city, state, zip };
 
+      // Hash SSN
+      const cleanSSN = ssn.replace(/-/g, '');
+      const encoder = new TextEncoder();
+      const ssnData = encoder.encode(cleanSSN + 'IDIA_SSN_SALT');
+      const hashBuffer = await crypto.subtle.digest('SHA-256', ssnData);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const ssnHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      const ssnLastFour = cleanSSN.slice(-4);
+
       // Get avatar URL without cache buster
       let cleanAvatarUrl: string | null = null;
       if (avatarUrl) {
@@ -173,6 +182,8 @@ const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
           date_of_birth: isoDate,
           phone_number: phoneNumber,
           full_legal_address: full_legal_address as any,
+          ssn_hash: ssnHash,
+          ssn_last_four: ssnLastFour,
           ...(cleanAvatarUrl ? { avatar_url: cleanAvatarUrl } : {}),
         } as any)
         .eq('user_id', user.id);
