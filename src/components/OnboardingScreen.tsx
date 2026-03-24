@@ -38,7 +38,7 @@ interface OnboardingScreenProps {
 const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
-  const totalSteps = 4;
+  const totalSteps = 5;
   const [submitting, setSubmitting] = useState(false);
 
   // Step 1 - Identity
