@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
-import { CalendarIcon, Upload, ChevronRight, ChevronLeft, CheckCircle, AlertCircle } from 'lucide-react';
+import { CalendarIcon, Upload, ChevronRight, ChevronLeft, CheckCircle, AlertCircle, Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -38,7 +38,7 @@ interface OnboardingScreenProps {
 const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
-  const totalSteps = 4;
+  const totalSteps = 5;
   const [submitting, setSubmitting] = useState(false);
 
   // Step 1 - Identity
@@ -57,7 +57,11 @@ const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
   const [state, setState] = useState('');
   const [zip, setZip] = useState('');
 
-  // Step 4 - Avatar
+  // Step 4 - SSN
+  const [ssn, setSSN] = useState('');
+  const [confirmSSN, setConfirmSSN] = useState('');
+
+  // Step 5 - Avatar
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
@@ -91,6 +95,14 @@ const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
       if (!city.trim()) errs.city = 'City is required';
       if (!state) errs.state = 'State is required';
       if (!zip.trim() || !US_ZIP_REGEX.test(zip)) errs.zip = 'Enter a valid ZIP code';
+    }
+
+    if (s === 4) {
+      const SSN_REGEX = /^\d{3}-?\d{2}-?\d{4}$/;
+      if (!ssn || !SSN_REGEX.test(ssn)) errs.ssn = 'Enter a valid SSN (XXX-XX-XXXX)';
+      const cleanSSN = ssn.replace(/-/g, '');
+      const cleanConfirm = confirmSSN.replace(/-/g, '');
+      if (cleanSSN !== cleanConfirm) errs.confirmSSN = 'SSN entries do not match';
     }
 
     setErrors(errs);
@@ -147,6 +159,15 @@ const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
       const isoDate = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
       const full_legal_address: USAddress = { street1, street2, city, state, zip };
 
+      // Hash SSN
+      const cleanSSN = ssn.replace(/-/g, '');
+      const encoder = new TextEncoder();
+      const ssnData = encoder.encode(cleanSSN + 'IDIA_SSN_SALT');
+      const hashBuffer = await crypto.subtle.digest('SHA-256', ssnData);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const ssnHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      const ssnLastFour = cleanSSN.slice(-4);
+
       // Get avatar URL without cache buster
       let cleanAvatarUrl: string | null = null;
       if (avatarUrl) {
@@ -161,6 +182,8 @@ const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
           date_of_birth: isoDate,
           phone_number: phoneNumber,
           full_legal_address: full_legal_address as any,
+          ssn_hash: ssnHash,
+          ssn_last_four: ssnLastFour,
           ...(cleanAvatarUrl ? { avatar_url: cleanAvatarUrl } : {}),
         } as any)
         .eq('user_id', user.id);
@@ -296,8 +319,54 @@ const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
           </div>
         )}
 
-        {/* Step 4 — Avatar (Optional) */}
+        {/* Step 4 — SSN (Required) */}
         {step === 4 && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+              <Shield className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground">
+                As a regulated money transmitter and crypto wallet, we're required to collect your SSN. It is encrypted and hashed immediately — we never store it in plain text.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Social Security Number <span className="text-destructive">*</span></Label>
+              <Input
+                value={ssn}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, '').slice(0, 9);
+                  if (digits.length <= 3) setSSN(digits);
+                  else if (digits.length <= 5) setSSN(`${digits.slice(0, 3)}-${digits.slice(3)}`);
+                  else setSSN(`${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`);
+                }}
+                placeholder="XXX-XX-XXXX"
+                maxLength={11}
+                type="password"
+                autoComplete="off"
+              />
+              {errors.ssn && <p className="text-sm text-destructive">{errors.ssn}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>Confirm SSN <span className="text-destructive">*</span></Label>
+              <Input
+                value={confirmSSN}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, '').slice(0, 9);
+                  if (digits.length <= 3) setConfirmSSN(digits);
+                  else if (digits.length <= 5) setConfirmSSN(`${digits.slice(0, 3)}-${digits.slice(3)}`);
+                  else setConfirmSSN(`${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`);
+                }}
+                placeholder="XXX-XX-XXXX"
+                maxLength={11}
+                type="password"
+                autoComplete="off"
+              />
+              {errors.confirmSSN && <p className="text-sm text-destructive">{errors.confirmSSN}</p>}
+            </div>
+          </div>
+        )}
+
+        {/* Step 5 — Avatar (Optional) */}
+        {step === 5 && (
           <div className="space-y-6 text-center">
             <p className="text-sm text-muted-foreground">Add a profile photo (optional)</p>
             <div className="flex flex-col items-center gap-4">
