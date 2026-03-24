@@ -3729,6 +3729,7 @@ export type Database = {
           created_at: string | null
           date_of_birth: string | null
           display_name: string | null
+          document_type: string | null
           ein: string | null
           first_name: string | null
           full_legal_address: Json | null
@@ -3739,7 +3740,11 @@ export type Database = {
           is_501c3_verified: boolean | null
           is_seed_backed_up: boolean | null
           kyc_status: string | null
+          kyc_submitted_at: string | null
+          kyc_tier: number
+          kyc_verified_at: string | null
           last_name: string | null
+          liveness_verified: boolean
           location: string | null
           middle_name: string | null
           motivational_phase: string | null
@@ -3749,6 +3754,8 @@ export type Database = {
           quiet_time_enabled: boolean | null
           quiet_time_end: string | null
           quiet_time_start: string | null
+          ssn_hash: string | null
+          ssn_last_four: string | null
           ssn_last4: string | null
           suffix: string | null
           trust_score: number | null
@@ -3768,6 +3775,7 @@ export type Database = {
           created_at?: string | null
           date_of_birth?: string | null
           display_name?: string | null
+          document_type?: string | null
           ein?: string | null
           first_name?: string | null
           full_legal_address?: Json | null
@@ -3778,7 +3786,11 @@ export type Database = {
           is_501c3_verified?: boolean | null
           is_seed_backed_up?: boolean | null
           kyc_status?: string | null
+          kyc_submitted_at?: string | null
+          kyc_tier?: number
+          kyc_verified_at?: string | null
           last_name?: string | null
+          liveness_verified?: boolean
           location?: string | null
           middle_name?: string | null
           motivational_phase?: string | null
@@ -3788,6 +3800,8 @@ export type Database = {
           quiet_time_enabled?: boolean | null
           quiet_time_end?: string | null
           quiet_time_start?: string | null
+          ssn_hash?: string | null
+          ssn_last_four?: string | null
           ssn_last4?: string | null
           suffix?: string | null
           trust_score?: number | null
@@ -3807,6 +3821,7 @@ export type Database = {
           created_at?: string | null
           date_of_birth?: string | null
           display_name?: string | null
+          document_type?: string | null
           ein?: string | null
           first_name?: string | null
           full_legal_address?: Json | null
@@ -3817,7 +3832,11 @@ export type Database = {
           is_501c3_verified?: boolean | null
           is_seed_backed_up?: boolean | null
           kyc_status?: string | null
+          kyc_submitted_at?: string | null
+          kyc_tier?: number
+          kyc_verified_at?: string | null
           last_name?: string | null
+          liveness_verified?: boolean
           location?: string | null
           middle_name?: string | null
           motivational_phase?: string | null
@@ -3827,6 +3846,8 @@ export type Database = {
           quiet_time_enabled?: boolean | null
           quiet_time_end?: string | null
           quiet_time_start?: string | null
+          ssn_hash?: string | null
+          ssn_last_four?: string | null
           ssn_last4?: string | null
           suffix?: string | null
           trust_score?: number | null
