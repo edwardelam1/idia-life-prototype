@@ -18,11 +18,13 @@ export interface Profile {
   middle_name: string | null;
   suffix: string | null;
   age: number | null;
+  date_of_birth: string | null;
   gender: string | null;
   location: string | null;
   occupation: string | null;
   bio: string | null;
   phone_number: string | null;
+  avatar_url: string | null;
   full_legal_address: USAddress | null;
   interests: string[];
   health_goals: string[];
