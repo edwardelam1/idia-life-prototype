@@ -2,6 +2,14 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+export interface USAddress {
+  street1: string;
+  street2?: string;
+  city: string;
+  state: string;
+  zip: string;
+}
+
 export interface Profile {
   id: string;
   user_id: string;
@@ -14,6 +22,8 @@ export interface Profile {
   location: string | null;
   occupation: string | null;
   bio: string | null;
+  phone_number: string | null;
+  full_legal_address: USAddress | null;
   interests: string[];
   health_goals: string[];
   activity_preferences: string[];
