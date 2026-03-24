@@ -2,14 +2,6 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
-export interface USAddress {
-  street1: string;
-  street2?: string;
-  city: string;
-  state: string;
-  zip: string;
-}
-
 export interface Profile {
   id: string;
   user_id: string;
@@ -18,14 +10,10 @@ export interface Profile {
   middle_name: string | null;
   suffix: string | null;
   age: number | null;
-  date_of_birth: string | null;
   gender: string | null;
   location: string | null;
   occupation: string | null;
   bio: string | null;
-  phone_number: string | null;
-  avatar_url: string | null;
-  full_legal_address: USAddress | null;
   interests: string[];
   health_goals: string[];
   activity_preferences: string[];
@@ -76,10 +64,7 @@ export const useProfile = () => {
       if (profileError && profileError.code !== 'PGRST116') {
         console.error('Error loading profile:', profileError);
       } else if (profileData) {
-        setProfile({
-          ...profileData,
-          full_legal_address: profileData.full_legal_address as unknown as USAddress | null,
-        } as Profile);
+        setProfile(profileData);
       }
 
       // Load preferences
@@ -110,17 +95,14 @@ export const useProfile = () => {
 
       const { data, error } = await supabase
         .from('profiles')
-        .update(updates as any)
+        .update(updates)
         .eq('user_id', user.id)
         .select()
         .single();
 
       if (error) throw error;
 
-      setProfile({
-        ...data,
-        full_legal_address: data.full_legal_address as unknown as USAddress | null,
-      } as Profile);
+      setProfile(data);
       toast({
         title: "Success",
         description: "Profile updated successfully"
@@ -171,25 +153,11 @@ export const useProfile = () => {
     }
   };
 
-  const isProfileComplete = !!profile && !!(
-    profile.first_name &&
-    profile.last_name &&
-    profile.date_of_birth &&
-    profile.phone_number &&
-    profile.full_legal_address &&
-    (profile.full_legal_address as USAddress)?.street1 &&
-    (profile.full_legal_address as USAddress)?.city &&
-    (profile.full_legal_address as USAddress)?.state &&
-    (profile.full_legal_address as USAddress)?.zip &&
-    (profile as any)?.ssn_hash
-  );
-
   return {
     profile,
     preferences,
     loading,
     updating,
-    isProfileComplete,
     updateProfile,
     updatePreferences,
     reload: loadProfile

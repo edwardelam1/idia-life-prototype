@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -40,24 +40,10 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
     setCurrentSlide(index);
   };
 
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % slides.length);
-    }, 5000);
-
-    return () => window.clearInterval(interval);
-  }, [slides.length]);
-
   return (
-    <div className="relative flex min-h-screen min-h-[100dvh] flex-col overflow-hidden trust-blue-radial text-primary-foreground">
-      <div className="pointer-events-none absolute inset-0 opacity-70">
-        <div className="absolute left-1/2 top-0 h-72 w-72 -translate-x-1/2 rounded-full bg-primary/20 blur-3xl" />
-        <div className="absolute right-[-3rem] top-1/3 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute bottom-24 left-[-2rem] h-36 w-36 rounded-full bg-primary/10 blur-3xl" />
-      </div>
-
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-900 to-slate-800 text-white relative overflow-hidden">
       {/* Logo */}
-      <div className="absolute left-1/2 top-6 z-20 -translate-x-1/2 transform sm:top-8">
+      <div className="absolute top-8 left-1/2 transform -translate-x-1/2 z-20">
         <img 
           src="/lovable-uploads/a1fcabab-f9bb-4a81-9b30-10d1aab93545.png" 
           alt="IDIA Life Logo" 
@@ -66,49 +52,30 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
       </div>
 
       {/* Carousel Container */}
-      <div className="relative flex min-h-0 flex-1 overflow-hidden px-4 pb-28 pt-28 sm:px-6 sm:pb-32 sm:pt-32">
+      <div className="flex-1 relative overflow-hidden">
         <div 
-          className="flex h-full w-full transition-transform duration-500 ease-in-out"
+          className="flex transition-transform duration-500 ease-in-out h-full"
           style={{ transform: `translateX(-${currentSlide * 100}%)` }}
         >
           {slides.map((slide, index) => (
             <div 
               key={index}
-               className="relative flex min-h-full min-w-full flex-col justify-center"
+              className={`min-w-full h-full flex flex-col justify-center items-center px-8 text-center bg-gradient-to-br ${slide.gradient} relative`}
             >
-               <div className="relative mx-auto flex h-full w-full max-w-md flex-col justify-between rounded-[2rem] border border-primary-foreground/10 bg-card/8 px-6 py-8 shadow-2xl backdrop-blur-sm sm:px-8 sm:py-10">
-                 <div className="absolute inset-0 rounded-[2rem] border border-primary-foreground/5" />
-                 <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-primary-foreground/40 to-transparent" />
+              {/* Background Pattern */}
+              <div className="absolute inset-0 opacity-10">
+                <div className="absolute top-20 left-10 w-32 h-32 rounded-full bg-white/20 blur-xl"></div>
+                <div className="absolute bottom-32 right-10 w-24 h-24 rounded-full bg-white/30 blur-lg"></div>
+                <div className="absolute top-1/2 left-1/4 w-16 h-16 rounded-full bg-white/15 blur-md"></div>
+              </div>
 
-                 <div className="relative space-y-6 text-center">
-                   <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-foreground/10 backdrop-blur-sm">
-                     <span className="text-lg font-semibold text-primary-foreground">0{index + 1}</span>
-                   </div>
-
-                   <div className="space-y-4">
-                     <h1 className="text-4xl font-bold leading-tight tracking-tight sm:text-5xl">
-                       {slide.title}
-                     </h1>
-                     <p className="mx-auto max-w-xs text-base leading-7 text-primary-foreground/80 sm:max-w-sm sm:text-lg">
-                       {slide.description}
-                     </p>
-                   </div>
-                 </div>
-
-                 <div className="relative mt-10 grid grid-cols-3 gap-3 text-left">
-                   <div className="rounded-2xl border border-primary-foreground/10 bg-primary-foreground/5 p-3">
-                     <p className="text-[11px] uppercase tracking-[0.18em] text-primary-foreground/55">Tier</p>
-                     <p className="mt-2 text-sm font-semibold">Basic to Verified</p>
-                   </div>
-                   <div className="rounded-2xl border border-primary-foreground/10 bg-primary-foreground/5 p-3">
-                     <p className="text-[11px] uppercase tracking-[0.18em] text-primary-foreground/55">Limits</p>
-                     <p className="mt-2 text-sm font-semibold">$1K to Unlimited</p>
-                   </div>
-                   <div className="rounded-2xl border border-primary-foreground/10 bg-primary-foreground/5 p-3">
-                     <p className="text-[11px] uppercase tracking-[0.18em] text-primary-foreground/55">Privacy</p>
-                     <p className="mt-2 text-sm font-semibold">Encrypted by design</p>
-                   </div>
-                 </div>
+              <div className="relative z-10 max-w-sm mx-auto mt-32">
+                <h1 className="text-4xl font-bold mb-6 leading-tight">
+                  {slide.title}
+                </h1>
+                <p className="text-lg text-white/90 leading-relaxed">
+                  {slide.description}
+                </p>
               </div>
             </div>
           ))}
@@ -117,41 +84,38 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
         {/* Navigation Arrows */}
         <button 
           onClick={prevSlide}
-           className="absolute left-3 top-1/2 z-20 -translate-y-1/2 rounded-full border border-primary-foreground/10 bg-primary-foreground/10 p-3 backdrop-blur-sm transition-colors hover:bg-primary-foreground/20 sm:left-6"
-           aria-label="Previous slide"
+          className="absolute left-4 top-1/2 transform -translate-y-1/2 p-3 rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-colors z-20"
         >
           <ChevronLeft className="w-6 h-6" />
         </button>
         <button 
           onClick={nextSlide}
-           className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-full border border-primary-foreground/10 bg-primary-foreground/10 p-3 backdrop-blur-sm transition-colors hover:bg-primary-foreground/20 sm:right-6"
-           aria-label="Next slide"
+          className="absolute right-4 top-1/2 transform -translate-y-1/2 p-3 rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-colors z-20"
         >
           <ChevronRight className="w-6 h-6" />
         </button>
       </div>
 
       {/* Slide Indicators */}
-      <div className="relative z-20 mb-6 flex justify-center space-x-3 px-6">
+      <div className="flex justify-center space-x-3 mb-8">
         {slides.map((_, index) => (
           <button
             key={index}
             onClick={() => goToSlide(index)}
             className={`w-3 h-3 rounded-full transition-all duration-300 ${
               index === currentSlide 
-                ? 'bg-primary-foreground scale-125' 
-                : 'bg-primary-foreground/35 hover:bg-primary-foreground/60'
+                ? 'bg-white scale-125' 
+                : 'bg-white/40 hover:bg-white/60'
             }`}
-            aria-label={`Go to slide ${index + 1}`}
           />
         ))}
       </div>
 
       {/* Action Buttons */}
-      <div className="relative z-20 px-6 pb-6 sm:px-8 sm:pb-8">
+      <div className="px-8 pb-8 z-20">
         <Button 
           onClick={onSignUp}
-          className="h-14 w-full rounded-2xl bg-card text-card-foreground shadow-xl hover:bg-card/90"
+          className="w-full py-4 text-lg font-semibold bg-white text-teal-700 hover:bg-gray-100 rounded-xl shadow-lg"
         >
           Get Started
         </Button>
