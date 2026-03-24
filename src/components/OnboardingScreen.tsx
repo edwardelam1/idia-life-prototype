@@ -97,6 +97,14 @@ const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
       if (!zip.trim() || !US_ZIP_REGEX.test(zip)) errs.zip = 'Enter a valid ZIP code';
     }
 
+    if (s === 4) {
+      const SSN_REGEX = /^\d{3}-?\d{2}-?\d{4}$/;
+      if (!ssn || !SSN_REGEX.test(ssn)) errs.ssn = 'Enter a valid SSN (XXX-XX-XXXX)';
+      const cleanSSN = ssn.replace(/-/g, '');
+      const cleanConfirm = confirmSSN.replace(/-/g, '');
+      if (cleanSSN !== cleanConfirm) errs.confirmSSN = 'SSN entries do not match';
+    }
+
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
