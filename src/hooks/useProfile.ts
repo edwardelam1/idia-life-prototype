@@ -171,11 +171,24 @@ export const useProfile = () => {
     }
   };
 
+  const isProfileComplete = !!profile && !!(
+    profile.first_name &&
+    profile.last_name &&
+    profile.date_of_birth &&
+    profile.phone_number &&
+    profile.full_legal_address &&
+    (profile.full_legal_address as USAddress)?.street1 &&
+    (profile.full_legal_address as USAddress)?.city &&
+    (profile.full_legal_address as USAddress)?.state &&
+    (profile.full_legal_address as USAddress)?.zip
+  );
+
   return {
     profile,
     preferences,
     loading,
     updating,
+    isProfileComplete,
     updateProfile,
     updatePreferences,
     reload: loadProfile
