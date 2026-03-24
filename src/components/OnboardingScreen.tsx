@@ -319,8 +319,54 @@ const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
           </div>
         )}
 
-        {/* Step 4 — Avatar (Optional) */}
+        {/* Step 4 — SSN (Required) */}
         {step === 4 && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+              <Shield className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground">
+                As a regulated money transmitter and crypto wallet, we're required to collect your SSN. It is encrypted and hashed immediately — we never store it in plain text.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Social Security Number <span className="text-destructive">*</span></Label>
+              <Input
+                value={ssn}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, '').slice(0, 9);
+                  if (digits.length <= 3) setSSN(digits);
+                  else if (digits.length <= 5) setSSN(`${digits.slice(0, 3)}-${digits.slice(3)}`);
+                  else setSSN(`${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`);
+                }}
+                placeholder="XXX-XX-XXXX"
+                maxLength={11}
+                type="password"
+                autoComplete="off"
+              />
+              {errors.ssn && <p className="text-sm text-destructive">{errors.ssn}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>Confirm SSN <span className="text-destructive">*</span></Label>
+              <Input
+                value={confirmSSN}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, '').slice(0, 9);
+                  if (digits.length <= 3) setConfirmSSN(digits);
+                  else if (digits.length <= 5) setConfirmSSN(`${digits.slice(0, 3)}-${digits.slice(3)}`);
+                  else setConfirmSSN(`${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`);
+                }}
+                placeholder="XXX-XX-XXXX"
+                maxLength={11}
+                type="password"
+                autoComplete="off"
+              />
+              {errors.confirmSSN && <p className="text-sm text-destructive">{errors.confirmSSN}</p>}
+            </div>
+          </div>
+        )}
+
+        {/* Step 5 — Avatar (Optional) */}
+        {step === 5 && (
           <div className="space-y-6 text-center">
             <p className="text-sm text-muted-foreground">Add a profile photo (optional)</p>
             <div className="flex flex-col items-center gap-4">
