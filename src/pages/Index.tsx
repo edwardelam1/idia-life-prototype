@@ -40,7 +40,7 @@ const Index = () => {
   const checkProfileComplete = async (userId: string) => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('first_name, last_name, date_of_birth, phone_number, full_legal_address')
+      .select('first_name, last_name, date_of_birth, phone_number, full_legal_address, ssn_hash')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -55,7 +55,8 @@ const Index = () => {
       data.last_name &&
       data.date_of_birth &&
       data.phone_number &&
-      addr && addr.street1 && addr.city && addr.state && addr.zip
+      addr && addr.street1 && addr.city && addr.state && addr.zip &&
+      (data as any).ssn_hash
     );
     setProfileComplete(complete);
   };

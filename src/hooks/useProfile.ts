@@ -180,7 +180,8 @@ export const useProfile = () => {
     (profile.full_legal_address as USAddress)?.street1 &&
     (profile.full_legal_address as USAddress)?.city &&
     (profile.full_legal_address as USAddress)?.state &&
-    (profile.full_legal_address as USAddress)?.zip
+    (profile.full_legal_address as USAddress)?.zip &&
+    (profile as any)?.ssn_hash
   );
 
   return {
