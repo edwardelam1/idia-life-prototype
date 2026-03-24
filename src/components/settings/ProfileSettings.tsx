@@ -2,14 +2,21 @@ import { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { format, parse } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Plus, CheckCircle, AlertCircle } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { X, Plus, CheckCircle, AlertCircle, CalendarIcon, Upload } from 'lucide-react';
 import { useProfile, USAddress } from '@/hooks/useProfile';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -18,39 +25,37 @@ const US_STATES = [
   'VA','WA','WV','WI','WY','DC','AS','GU','MP','PR','VI'
 ];
 
-// US phone: (XXX) XXX-XXXX or XXX-XXX-XXXX or 10 digits
 const US_PHONE_REGEX = /^(\+1\s?)?(\(\d{3}\)|\d{3})[\s\-.]?\d{3}[\s\-.]?\d{4}$/;
-// ZIP: 5 digits or 5+4
 const US_ZIP_REGEX = /^\d{5}(-\d{4})?$/;
 
 const profileSchema = z.object({
-  first_name: z.string().min(2, 'First name must be at least 2 characters'),
-  last_name: z.string().min(2, 'Last name must be at least 2 characters'),
+  first_name: z.string().min(2, 'First name is required (min 2 characters)'),
+  last_name: z.string().min(2, 'Last name is required (min 2 characters)'),
   middle_name: z.string().optional(),
   suffix: z.string().optional(),
-  age: z.number().min(13, 'Must be at least 13 years old').max(120, 'Invalid age').optional(),
+  date_of_birth: z.string().min(1, 'Date of birth is required'),
+  email: z.string().email('Valid email is required'),
   gender: z.string().optional(),
   occupation: z.string().optional(),
   bio: z.string().max(500, 'Bio must be less than 500 characters').optional(),
   phone_number: z.string()
-    .optional()
-    .refine(val => !val || US_PHONE_REGEX.test(val), {
+    .min(1, 'Phone number is required')
+    .refine(val => US_PHONE_REGEX.test(val), {
       message: 'Enter a valid US phone number, e.g. (555) 123-4567'
     }),
-  street1: z.string().max(100).optional(),
+  street1: z.string().min(1, 'Street address is required'),
   street2: z.string().max(100).optional(),
-  city: z.string().max(60).optional(),
-  state: z.string().optional(),
+  city: z.string().min(1, 'City is required'),
+  state: z.string().min(1, 'State is required'),
   zip: z.string()
-    .optional()
-    .refine(val => !val || US_ZIP_REGEX.test(val), {
+    .min(1, 'ZIP code is required')
+    .refine(val => US_ZIP_REGEX.test(val), {
       message: 'Enter a valid ZIP code, e.g. 90210 or 90210-1234'
     }),
 });
 
 type ProfileFormData = z.infer<typeof profileSchema>;
 
-/** Format a raw digit string into (XXX) XXX-XXXX */
 function formatUSPhone(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 10);
   if (digits.length <= 3) return digits;
@@ -58,7 +63,6 @@ function formatUSPhone(value: string): string {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
 
-/** Basic USPS-style address validation */
 function validateUSPSAddress(street1?: string, city?: string, state?: string, zip?: string): { valid: boolean; message: string } {
   if (!street1 && !city && !state && !zip) return { valid: true, message: '' };
 
@@ -72,7 +76,6 @@ function validateUSPSAddress(street1?: string, city?: string, state?: string, zi
     return { valid: false, message: `Missing required fields: ${missing.join(', ')}` };
   }
 
-  // USPS format checks
   if (street1 && !/^\d+\s+/i.test(street1.trim())) {
     return { valid: false, message: 'Street address should start with a street number (e.g. 123 Main St)' };
   }
@@ -105,11 +108,16 @@ const ACTIVITY_PREFERENCE_OPTIONS = [
 ];
 
 export function ProfileSettings() {
-  const { profile, loading, updating, updateProfile } = useProfile();
+  const { profile, loading, updating, updateProfile, reload } = useProfile();
+  const { toast } = useToast();
   const [newInterest, setNewInterest] = useState('');
   const [newHealthGoal, setNewHealthGoal] = useState('');
   const [newActivityPref, setNewActivityPref] = useState('');
   const [addressValidation, setAddressValidation] = useState<{ valid: boolean; message: string }>({ valid: true, message: '' });
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>();
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
 
   const {
     register,
@@ -130,11 +138,22 @@ export function ProfileSettings() {
   const watchedState = watch('state');
   const watchedZip = watch('zip');
 
-  // Validate address on field changes
   useEffect(() => {
     const result = validateUSPSAddress(watchedStreet1, watchedCity, watchedState, watchedZip);
     setAddressValidation(result);
   }, [watchedStreet1, watchedCity, watchedState, watchedZip]);
+
+  // Load user email from auth
+  useEffect(() => {
+    const getEmail = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        setUserEmail(user.email);
+        setValue('email', user.email);
+      }
+    };
+    getEmail();
+  }, [setValue]);
 
   useEffect(() => {
     if (profile) {
@@ -142,11 +161,18 @@ export function ProfileSettings() {
       setValue('last_name', profile.last_name || '');
       setValue('middle_name', profile.middle_name || '');
       setValue('suffix', profile.suffix || '');
-      setValue('age', profile.age || undefined);
       setValue('gender', profile.gender || '');
       setValue('occupation', profile.occupation || '');
       setValue('bio', profile.bio || '');
       setValue('phone_number', profile.phone_number || '');
+
+      if (profile.date_of_birth) {
+        const dob = new Date(profile.date_of_birth);
+        setSelectedDate(dob);
+        setValue('date_of_birth', format(dob, 'MM/dd/yyyy'));
+      }
+
+      setAvatarUrl(profile.avatar_url);
 
       const addr = profile.full_legal_address as USAddress | null;
       if (addr) {
@@ -163,27 +189,83 @@ export function ProfileSettings() {
     }
   }, [profile, setValue]);
 
-  const onSubmit = async (data: ProfileFormData) => {
-    const { street1, street2, city, state, zip, phone_number, ...rest } = data;
+  const handleDateSelect = (date: Date | undefined) => {
+    setSelectedDate(date);
+    if (date) {
+      setValue('date_of_birth', format(date, 'MM/dd/yyyy'), { shouldValidate: true });
+    }
+  };
 
-    // Build address object only if any field is filled
-    const hasAddress = street1 || city || state || zip;
-    const full_legal_address: USAddress | null = hasAddress ? {
-      street1: street1 || '',
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Error', description: 'Please select an image file', variant: 'destructive' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'Error', description: 'Image must be under 5MB', variant: 'destructive' });
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${user.id}/avatar.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      const urlWithCacheBust = `${publicUrl}?t=${Date.now()}`;
+      setAvatarUrl(urlWithCacheBust);
+      await updateProfile({ avatar_url: publicUrl } as any);
+      toast({ title: 'Success', description: 'Profile photo updated' });
+    } catch (error) {
+      console.error('Avatar upload error:', error);
+      toast({ title: 'Error', description: 'Failed to upload photo', variant: 'destructive' });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const onSubmit = async (data: ProfileFormData) => {
+    const { street1, street2, city, state, zip, phone_number, date_of_birth, email, ...rest } = data;
+
+    const full_legal_address: USAddress = {
+      street1: street1,
       street2: street2 || '',
-      city: city || '',
-      state: state || '',
-      zip: zip || '',
-    } : null;
+      city: city,
+      state: state,
+      zip: zip,
+    };
+
+    // Convert MM/DD/YYYY to ISO date string for DB
+    let isoDate: string | null = null;
+    if (date_of_birth) {
+      const parsed = parse(date_of_birth, 'MM/dd/yyyy', new Date());
+      isoDate = format(parsed, 'yyyy-MM-dd');
+    }
 
     await updateProfile({
       ...rest,
-      phone_number: phone_number || null,
+      phone_number: phone_number,
+      date_of_birth: isoDate,
       full_legal_address,
       interests,
       health_goals: healthGoals,
       activity_preferences: activityPreferences
-    });
+    } as any);
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -212,16 +294,45 @@ export function ProfileSettings() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {/* Profile Photo */}
+      <div className="flex items-center gap-4">
+        <Avatar className="w-20 h-20">
+          <AvatarImage src={avatarUrl || ''} />
+          <AvatarFallback className="text-lg">
+            {profile?.first_name?.[0]}{profile?.last_name?.[0]}
+          </AvatarFallback>
+        </Avatar>
+        <div className="space-y-2">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleAvatarUpload}
+            className="hidden"
+            id="avatar-upload"
+            disabled={uploadingAvatar}
+          />
+          <Label htmlFor="avatar-upload" className="cursor-pointer">
+            <Button variant="outline" size="sm" asChild disabled={uploadingAvatar}>
+              <span className="flex items-center gap-2">
+                <Upload className="w-4 h-4" />
+                {uploadingAvatar ? 'Uploading...' : 'Upload Photo'}
+              </span>
+            </Button>
+          </Label>
+          <p className="text-xs text-muted-foreground">JPG, PNG. Max 5MB.</p>
+        </div>
+      </div>
+
       {/* Basic Information */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="first_name">First Name</Label>
+          <Label htmlFor="first_name">First Name <span className="text-destructive">*</span></Label>
           <Input id="first_name" {...register('first_name')} className="w-full" />
           {errors.first_name && <p className="text-sm text-destructive">{errors.first_name.message}</p>}
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="last_name">Last Name</Label>
+          <Label htmlFor="last_name">Last Name <span className="text-destructive">*</span></Label>
           <Input id="last_name" {...register('last_name')} className="w-full" />
           {errors.last_name && <p className="text-sm text-destructive">{errors.last_name.message}</p>}
         </div>
@@ -236,10 +347,52 @@ export function ProfileSettings() {
           <Input id="suffix" {...register('suffix')} className="w-full" placeholder="Jr., Sr., III, etc." />
         </div>
 
+        {/* Date of Birth */}
         <div className="space-y-2">
-          <Label htmlFor="age">Age</Label>
-          <Input id="age" type="number" {...register('age', { valueAsNumber: true })} className="w-full" />
-          {errors.age && <p className="text-sm text-destructive">{errors.age.message}</p>}
+          <Label>Date of Birth <span className="text-destructive">*</span></Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !selectedDate && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {selectedDate ? format(selectedDate, 'MM/dd/yyyy') : <span>MM/DD/YYYY</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={handleDateSelect}
+                disabled={(date) =>
+                  date > new Date() || date < new Date("1900-01-01")
+                }
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+                captionLayout="dropdown-buttons"
+                fromYear={1900}
+                toYear={new Date().getFullYear()}
+              />
+            </PopoverContent>
+          </Popover>
+          {errors.date_of_birth && <p className="text-sm text-destructive">{errors.date_of_birth.message}</p>}
+        </div>
+
+        {/* Email (read-only from auth) */}
+        <div className="space-y-2">
+          <Label htmlFor="email">Email <span className="text-destructive">*</span></Label>
+          <Input
+            id="email"
+            type="email"
+            value={userEmail}
+            readOnly
+            className="w-full bg-muted cursor-not-allowed"
+          />
+          <p className="text-xs text-muted-foreground">Email is managed through your account settings</p>
         </div>
 
         <div className="space-y-2">
@@ -257,9 +410,9 @@ export function ProfileSettings() {
           </Select>
         </div>
 
-        {/* Phone Number — US Format */}
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="phone_number">Phone Number</Label>
+        {/* Phone Number */}
+        <div className="space-y-2">
+          <Label htmlFor="phone_number">Phone Number <span className="text-destructive">*</span></Label>
           <Input
             id="phone_number"
             {...register('phone_number')}
@@ -286,7 +439,7 @@ export function ProfileSettings() {
       {/* Mailing Address — USPS Format */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <Label className="text-base font-semibold">Mailing Address</Label>
+          <Label className="text-base font-semibold">Mailing Address <span className="text-destructive">*</span></Label>
           {addressValidation.message && (
             <div className={`flex items-center gap-1 text-xs ${addressValidation.valid ? 'text-green-600' : 'text-amber-600'}`}>
               {addressValidation.valid
@@ -300,7 +453,7 @@ export function ProfileSettings() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="street1">Street Address Line 1</Label>
+            <Label htmlFor="street1">Street Address Line 1 <span className="text-destructive">*</span></Label>
             <Input
               id="street1"
               {...register('street1')}
@@ -308,6 +461,7 @@ export function ProfileSettings() {
               className="w-full"
               maxLength={100}
             />
+            {errors.street1 && <p className="text-sm text-destructive">{errors.street1.message}</p>}
           </div>
 
           <div className="space-y-2 md:col-span-2">
@@ -322,7 +476,7 @@ export function ProfileSettings() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="city">City</Label>
+            <Label htmlFor="city">City <span className="text-destructive">*</span></Label>
             <Input
               id="city"
               {...register('city')}
@@ -330,11 +484,12 @@ export function ProfileSettings() {
               className="w-full"
               maxLength={60}
             />
+            {errors.city && <p className="text-sm text-destructive">{errors.city.message}</p>}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="state">State</Label>
-            <Select onValueChange={(value) => setValue('state', value)} defaultValue={
+            <Label htmlFor="state">State <span className="text-destructive">*</span></Label>
+            <Select onValueChange={(value) => setValue('state', value, { shouldValidate: true })} defaultValue={
               (profile?.full_legal_address as USAddress | null)?.state || undefined
             }>
               <SelectTrigger>
@@ -346,10 +501,11 @@ export function ProfileSettings() {
                 ))}
               </SelectContent>
             </Select>
+            {errors.state && <p className="text-sm text-destructive">{errors.state.message}</p>}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="zip">ZIP Code</Label>
+            <Label htmlFor="zip">ZIP Code <span className="text-destructive">*</span></Label>
             <Input
               id="zip"
               {...register('zip')}
