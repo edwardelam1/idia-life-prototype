@@ -66,7 +66,7 @@ export const useProfile = () => {
       if (profileError && profileError.code !== 'PGRST116') {
         console.error('Error loading profile:', profileError);
       } else if (profileData) {
-        setProfile(profileData);
+        setProfile(profileData as unknown as Profile);
       }
 
       // Load preferences
