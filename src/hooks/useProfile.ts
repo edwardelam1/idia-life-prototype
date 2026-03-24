@@ -104,7 +104,7 @@ export const useProfile = () => {
 
       if (error) throw error;
 
-      setProfile(data);
+      setProfile(data as unknown as Profile);
       toast({
         title: "Success",
         description: "Profile updated successfully"
