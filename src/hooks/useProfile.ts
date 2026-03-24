@@ -108,14 +108,17 @@ export const useProfile = () => {
 
       const { data, error } = await supabase
         .from('profiles')
-        .update(updates)
+        .update(updates as any)
         .eq('user_id', user.id)
         .select()
         .single();
 
       if (error) throw error;
 
-      setProfile(data);
+      setProfile({
+        ...data,
+        full_legal_address: data.full_legal_address as unknown as USAddress | null,
+      } as Profile);
       toast({
         title: "Success",
         description: "Profile updated successfully"
