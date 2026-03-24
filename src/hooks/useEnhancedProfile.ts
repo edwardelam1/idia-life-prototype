@@ -156,7 +156,7 @@ export const useEnhancedProfile = () => {
         setProfile({
           ...profile,
           ...updates,
-          ...data,
+          ...(data as any),
           email: profile.email,
           ai_assistant_name: profile.ai_assistant_name,
           account_type: profile.account_type
