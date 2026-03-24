@@ -2,6 +2,14 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+export interface USAddress {
+  street1: string;
+  street2?: string;
+  city: string;
+  state: string;
+  zip: string;
+}
+
 export interface Profile {
   id: string;
   user_id: string;
@@ -14,6 +22,8 @@ export interface Profile {
   location: string | null;
   occupation: string | null;
   bio: string | null;
+  phone_number: string | null;
+  full_legal_address: USAddress | null;
   interests: string[];
   health_goals: string[];
   activity_preferences: string[];
@@ -64,7 +74,10 @@ export const useProfile = () => {
       if (profileError && profileError.code !== 'PGRST116') {
         console.error('Error loading profile:', profileError);
       } else if (profileData) {
-        setProfile(profileData);
+        setProfile({
+          ...profileData,
+          full_legal_address: profileData.full_legal_address as unknown as USAddress | null,
+        } as Profile);
       }
 
       // Load preferences
@@ -95,14 +108,17 @@ export const useProfile = () => {
 
       const { data, error } = await supabase
         .from('profiles')
-        .update(updates)
+        .update(updates as any)
         .eq('user_id', user.id)
         .select()
         .single();
 
       if (error) throw error;
 
-      setProfile(data);
+      setProfile({
+        ...data,
+        full_legal_address: data.full_legal_address as unknown as USAddress | null,
+      } as Profile);
       toast({
         title: "Success",
         description: "Profile updated successfully"
