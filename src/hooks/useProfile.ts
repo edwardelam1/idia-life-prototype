@@ -12,6 +12,14 @@ export interface Profile {
   age: number | null;
   gender: string | null;
   location: string | null;
+  phone_number: string | null;
+  full_legal_address: {
+    street1?: string;
+    street2?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+  } | null;
   occupation: string | null;
   bio: string | null;
   interests: string[];

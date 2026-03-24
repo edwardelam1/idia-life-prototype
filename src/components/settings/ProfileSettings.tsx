@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X, Plus } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
+import { US_STATES, formatPhoneNumber, extractPhoneDigits } from '@/utils/usAddressValidation';
 
 const profileSchema = z.object({
   first_name: z.string().min(2, 'First name must be at least 2 characters'),
@@ -18,7 +19,14 @@ const profileSchema = z.object({
   suffix: z.string().optional(),
   age: z.number().min(13, 'Must be at least 13 years old').max(120, 'Invalid age').optional(),
   gender: z.string().optional(),
-  location: z.string().optional(),
+  phone_number: z.string()
+    .regex(/^\(\d{3}\) \d{3}-\d{4}$/, 'Phone must be in (XXX) XXX-XXXX format')
+    .or(z.literal('')),
+  street1: z.string().min(1, 'Street address is required').max(100),
+  street2: z.string().max(100).optional(),
+  city: z.string().min(1, 'City is required').max(50),
+  state: z.string().min(2, 'State is required'),
+  zip: z.string().regex(/^\d{5}(-\d{4})?$/, 'ZIP must be XXXXX or XXXXX-XXXX'),
   occupation: z.string().optional(),
   bio: z.string().max(500, 'Bio must be less than 500 characters').optional(),
 });
@@ -65,6 +73,13 @@ export function ProfileSettings() {
   const [healthGoals, setHealthGoals] = useState<string[]>([]);
   const [activityPreferences, setActivityPreferences] = useState<string[]>([]);
 
+  const phoneValue = watch('phone_number') || '';
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatPhoneNumber(e.target.value);
+    setValue('phone_number', formatted, { shouldValidate: true });
+  };
+
   useEffect(() => {
     if (profile) {
       setValue('first_name', profile.first_name || '');
@@ -73,7 +88,12 @@ export function ProfileSettings() {
       setValue('suffix', profile.suffix || '');
       setValue('age', profile.age || undefined);
       setValue('gender', profile.gender || '');
-      setValue('location', profile.location || '');
+      setValue('phone_number', profile.phone_number || '');
+      setValue('street1', profile.full_legal_address?.street1 || '');
+      setValue('street2', profile.full_legal_address?.street2 || '');
+      setValue('city', profile.full_legal_address?.city || '');
+      setValue('state', profile.full_legal_address?.state || '');
+      setValue('zip', profile.full_legal_address?.zip || '');
       setValue('occupation', profile.occupation || '');
       setValue('bio', profile.bio || '');
       setInterests(profile.interests || []);
@@ -83,8 +103,11 @@ export function ProfileSettings() {
   }, [profile, setValue]);
 
   const onSubmit = async (data: ProfileFormData) => {
+    const { street1, street2, city, state, zip, phone_number, ...rest } = data;
     await updateProfile({
-      ...data,
+      ...rest,
+      phone_number: phone_number || null,
+      full_legal_address: { street1, street2: street2 || '', city, state, zip },
       interests,
       health_goals: healthGoals,
       activity_preferences: activityPreferences
@@ -116,64 +139,35 @@ export function ProfileSettings() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="first_name">First Name</Label>
-          <Input
-            id="first_name"
-            {...register('first_name')}
-            className="w-full"
-          />
-          {errors.first_name && (
-            <p className="text-sm text-destructive">{errors.first_name.message}</p>
-          )}
+          <Input id="first_name" {...register('first_name')} className="w-full" />
+          {errors.first_name && <p className="text-sm text-destructive">{errors.first_name.message}</p>}
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="last_name">Last Name</Label>
-          <Input
-            id="last_name"
-            {...register('last_name')}
-            className="w-full"
-          />
-          {errors.last_name && (
-            <p className="text-sm text-destructive">{errors.last_name.message}</p>
-          )}
+          <Input id="last_name" {...register('last_name')} className="w-full" />
+          {errors.last_name && <p className="text-sm text-destructive">{errors.last_name.message}</p>}
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="middle_name">Middle Name</Label>
-          <Input
-            id="middle_name"
-            {...register('middle_name')}
-            className="w-full"
-            placeholder="Optional"
-          />
+          <Input id="middle_name" {...register('middle_name')} className="w-full" placeholder="Optional" />
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="suffix">Suffix</Label>
-          <Input
-            id="suffix"
-            {...register('suffix')}
-            className="w-full"
-            placeholder="Jr., Sr., III, etc."
-          />
+          <Input id="suffix" {...register('suffix')} className="w-full" placeholder="Jr., Sr., III, etc." />
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="age">Age</Label>
-          <Input
-            id="age"
-            type="number"
-            {...register('age', { valueAsNumber: true })}
-            className="w-full"
-          />
-          {errors.age && (
-            <p className="text-sm text-destructive">{errors.age.message}</p>
-          )}
+          <Input id="age" type="number" {...register('age', { valueAsNumber: true })} className="w-full" />
+          {errors.age && <p className="text-sm text-destructive">{errors.age.message}</p>}
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="gender">Gender</Label>
-          <Select onValueChange={(value) => setValue('gender', value)}>
+          <Select onValueChange={(value) => setValue('gender', value)} defaultValue={profile?.gender || undefined}>
             <SelectTrigger>
               <SelectValue placeholder="Select gender" />
             </SelectTrigger>
@@ -186,37 +180,77 @@ export function ProfileSettings() {
           </Select>
         </div>
 
+        {/* Phone Number */}
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="phone_number">Phone Number</Label>
+          <Input
+            id="phone_number"
+            type="tel"
+            value={phoneValue}
+            onChange={handlePhoneChange}
+            placeholder="(555) 123-4567"
+            className="w-full"
+            maxLength={14}
+          />
+          {errors.phone_number && <p className="text-sm text-destructive">{errors.phone_number.message}</p>}
+        </div>
+      </div>
+
+      {/* US Address */}
+      <div className="space-y-4">
+        <Label className="text-base font-semibold">Mailing Address</Label>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="street1">Street Address Line 1</Label>
+            <Input id="street1" {...register('street1')} placeholder="123 Main St" className="w-full" />
+            {errors.street1 && <p className="text-sm text-destructive">{errors.street1.message}</p>}
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="street2">Street Address Line 2</Label>
+            <Input id="street2" {...register('street2')} placeholder="Apt, Suite, Unit (optional)" className="w-full" />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="city">City</Label>
+            <Input id="city" {...register('city')} className="w-full" />
+            {errors.city && <p className="text-sm text-destructive">{errors.city.message}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="state">State</Label>
+            <Select onValueChange={(value) => setValue('state', value, { shouldValidate: true })} defaultValue={profile?.full_legal_address?.state || undefined}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select state" />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {US_STATES.map(s => (
+                  <SelectItem key={s.code} value={s.code}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.state && <p className="text-sm text-destructive">{errors.state.message}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="zip">ZIP Code</Label>
+            <Input id="zip" {...register('zip')} placeholder="12345" className="w-full" maxLength={10} />
+            {errors.zip && <p className="text-sm text-destructive">{errors.zip.message}</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* Occupation & Bio */}
+      <div className="grid grid-cols-1 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="location">Location</Label>
-          <Input
-            id="location"
-            {...register('location')}
-            placeholder="City, State/Country"
-            className="w-full"
-          />
-        </div>
-
-        <div className="space-y-2 md:col-span-2">
           <Label htmlFor="occupation">Occupation</Label>
-          <Input
-            id="occupation"
-            {...register('occupation')}
-            className="w-full"
-          />
+          <Input id="occupation" {...register('occupation')} className="w-full" />
         </div>
 
-        <div className="space-y-2 md:col-span-2">
+        <div className="space-y-2">
           <Label htmlFor="bio">Bio</Label>
-          <Textarea
-            id="bio"
-            {...register('bio')}
-            placeholder="Tell us about yourself..."
-            className="w-full"
-            rows={3}
-          />
-          {errors.bio && (
-            <p className="text-sm text-destructive">{errors.bio.message}</p>
-          )}
+          <Textarea id="bio" {...register('bio')} placeholder="Tell us about yourself..." className="w-full" rows={3} />
+          {errors.bio && <p className="text-sm text-destructive">{errors.bio.message}</p>}
         </div>
       </div>
 
@@ -234,13 +268,7 @@ export function ProfileSettings() {
               ))}
             </SelectContent>
           </Select>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => addItem(newInterest, setInterests, setNewInterest)}
-            disabled={!newInterest}
-          >
+          <Button type="button" variant="outline" size="sm" onClick={() => addItem(newInterest, setInterests, setNewInterest)} disabled={!newInterest}>
             <Plus className="w-4 h-4" />
           </Button>
         </div>
@@ -248,10 +276,7 @@ export function ProfileSettings() {
           {interests.map((interest, index) => (
             <Badge key={index} variant="secondary" className="flex items-center gap-1">
               {interest}
-              <X
-                className="w-3 h-3 cursor-pointer"
-                onClick={() => removeItem(index, setInterests)}
-              />
+              <X className="w-3 h-3 cursor-pointer" onClick={() => removeItem(index, setInterests)} />
             </Badge>
           ))}
         </div>
@@ -271,13 +296,7 @@ export function ProfileSettings() {
               ))}
             </SelectContent>
           </Select>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => addItem(newHealthGoal, setHealthGoals, setNewHealthGoal)}
-            disabled={!newHealthGoal}
-          >
+          <Button type="button" variant="outline" size="sm" onClick={() => addItem(newHealthGoal, setHealthGoals, setNewHealthGoal)} disabled={!newHealthGoal}>
             <Plus className="w-4 h-4" />
           </Button>
         </div>
@@ -285,10 +304,7 @@ export function ProfileSettings() {
           {healthGoals.map((goal, index) => (
             <Badge key={index} variant="secondary" className="flex items-center gap-1">
               {goal}
-              <X
-                className="w-3 h-3 cursor-pointer"
-                onClick={() => removeItem(index, setHealthGoals)}
-              />
+              <X className="w-3 h-3 cursor-pointer" onClick={() => removeItem(index, setHealthGoals)} />
             </Badge>
           ))}
         </div>
@@ -308,13 +324,7 @@ export function ProfileSettings() {
               ))}
             </SelectContent>
           </Select>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => addItem(newActivityPref, setActivityPreferences, setNewActivityPref)}
-            disabled={!newActivityPref}
-          >
+          <Button type="button" variant="outline" size="sm" onClick={() => addItem(newActivityPref, setActivityPreferences, setNewActivityPref)} disabled={!newActivityPref}>
             <Plus className="w-4 h-4" />
           </Button>
         </div>
@@ -322,10 +332,7 @@ export function ProfileSettings() {
           {activityPreferences.map((pref, index) => (
             <Badge key={index} variant="secondary" className="flex items-center gap-1">
               {pref}
-              <X
-                className="w-3 h-3 cursor-pointer"
-                onClick={() => removeItem(index, setActivityPreferences)}
-              />
+              <X className="w-3 h-3 cursor-pointer" onClick={() => removeItem(index, setActivityPreferences)} />
             </Badge>
           ))}
         </div>
