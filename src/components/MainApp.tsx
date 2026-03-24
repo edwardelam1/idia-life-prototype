@@ -88,7 +88,7 @@ const MainApp = () => {
           </div>
         </div>
       </main>
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
+      <nav className="fixed bottom-0 left-0 right-0 bg-background border-t border-border z-50">
         <div className="max-w-4xl mx-auto px-2">
           <div className="flex justify-around py-2">
             {tabs.map((tab) => {
@@ -98,7 +98,7 @@ const MainApp = () => {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex flex-col items-center space-y-0.5 ${
-                    activeTab === tab.id ? 'text-primary' : 'text-gray-600'
+                    activeTab === tab.id ? 'text-primary' : 'text-muted-foreground'
                   }`}
                 >
                   <Icon className="w-5 h-5" />
