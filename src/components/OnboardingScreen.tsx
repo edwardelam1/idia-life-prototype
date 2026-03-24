@@ -57,7 +57,11 @@ const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
   const [state, setState] = useState('');
   const [zip, setZip] = useState('');
 
-  // Step 4 - Avatar
+  // Step 4 - SSN
+  const [ssn, setSSN] = useState('');
+  const [confirmSSN, setConfirmSSN] = useState('');
+
+  // Step 5 - Avatar
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
