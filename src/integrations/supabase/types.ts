@@ -621,7 +621,7 @@ export type Database = {
           data_source_count: number | null
           generation_type: string
           id: string
-          processing_duration: unknown | null
+          processing_duration: string | null
           quality_metrics: Json | null
         }
         Insert: {
@@ -630,7 +630,7 @@ export type Database = {
           data_source_count?: number | null
           generation_type: string
           id?: string
-          processing_duration?: unknown | null
+          processing_duration?: string | null
           quality_metrics?: Json | null
         }
         Update: {
@@ -639,7 +639,7 @@ export type Database = {
           data_source_count?: number | null
           generation_type?: string
           id?: string
-          processing_duration?: unknown | null
+          processing_duration?: string | null
           quality_metrics?: Json | null
         }
         Relationships: [
@@ -2699,7 +2699,7 @@ export type Database = {
           agreed_at: string | null
           agreement_type: string
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           user_agent: string | null
           user_id: string
           version: string
@@ -2708,7 +2708,7 @@ export type Database = {
           agreed_at?: string | null
           agreement_type: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           user_agent?: string | null
           user_id: string
           version: string
@@ -2717,7 +2717,7 @@ export type Database = {
           agreed_at?: string | null
           agreement_type?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           user_agent?: string | null
           user_id?: string
           version?: string
@@ -3729,6 +3729,7 @@ export type Database = {
           created_at: string | null
           date_of_birth: string | null
           display_name: string | null
+          document_type: string | null
           ein: string | null
           first_name: string | null
           full_legal_address: Json | null
@@ -3739,7 +3740,11 @@ export type Database = {
           is_501c3_verified: boolean | null
           is_seed_backed_up: boolean | null
           kyc_status: string | null
+          kyc_submitted_at: string | null
+          kyc_tier: number
+          kyc_verified_at: string | null
           last_name: string | null
+          liveness_verified: boolean
           location: string | null
           middle_name: string | null
           motivational_phase: string | null
@@ -3749,6 +3754,8 @@ export type Database = {
           quiet_time_enabled: boolean | null
           quiet_time_end: string | null
           quiet_time_start: string | null
+          ssn_hash: string | null
+          ssn_last_four: string | null
           ssn_last4: string | null
           suffix: string | null
           trust_score: number | null
@@ -3768,6 +3775,7 @@ export type Database = {
           created_at?: string | null
           date_of_birth?: string | null
           display_name?: string | null
+          document_type?: string | null
           ein?: string | null
           first_name?: string | null
           full_legal_address?: Json | null
@@ -3778,7 +3786,11 @@ export type Database = {
           is_501c3_verified?: boolean | null
           is_seed_backed_up?: boolean | null
           kyc_status?: string | null
+          kyc_submitted_at?: string | null
+          kyc_tier?: number
+          kyc_verified_at?: string | null
           last_name?: string | null
+          liveness_verified?: boolean
           location?: string | null
           middle_name?: string | null
           motivational_phase?: string | null
@@ -3788,6 +3800,8 @@ export type Database = {
           quiet_time_enabled?: boolean | null
           quiet_time_end?: string | null
           quiet_time_start?: string | null
+          ssn_hash?: string | null
+          ssn_last_four?: string | null
           ssn_last4?: string | null
           suffix?: string | null
           trust_score?: number | null
@@ -3807,6 +3821,7 @@ export type Database = {
           created_at?: string | null
           date_of_birth?: string | null
           display_name?: string | null
+          document_type?: string | null
           ein?: string | null
           first_name?: string | null
           full_legal_address?: Json | null
@@ -3817,7 +3832,11 @@ export type Database = {
           is_501c3_verified?: boolean | null
           is_seed_backed_up?: boolean | null
           kyc_status?: string | null
+          kyc_submitted_at?: string | null
+          kyc_tier?: number
+          kyc_verified_at?: string | null
           last_name?: string | null
+          liveness_verified?: boolean
           location?: string | null
           middle_name?: string | null
           motivational_phase?: string | null
@@ -3827,6 +3846,8 @@ export type Database = {
           quiet_time_enabled?: boolean | null
           quiet_time_end?: string | null
           quiet_time_start?: string | null
+          ssn_hash?: string | null
+          ssn_last_four?: string | null
           ssn_last4?: string | null
           suffix?: string | null
           trust_score?: number | null
@@ -6016,7 +6037,7 @@ export type Database = {
         Returns: number
       }
       check_health_data_pipeline_status: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           completed_records: number
           failed_records: number
@@ -6028,7 +6049,7 @@ export type Database = {
         }[]
       }
       check_pipeline_health: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           processed_raw_data: number
           processing_raw_data: number
@@ -6043,14 +6064,8 @@ export type Database = {
         Args: { p_recorded_at: string; p_step_count: number; p_user_id: string }
         Returns: boolean
       }
-      cleanup_orphaned_queue_items: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      generate_pseudonym: {
-        Args: { input_text: string }
-        Returns: string
-      }
+      cleanup_orphaned_queue_items: { Args: never; Returns: number }
+      generate_pseudonym: { Args: { input_text: string }; Returns: string }
       get_all_user_health_data: {
         Args: { p_user_id: string }
         Returns: {
@@ -6085,21 +6100,21 @@ export type Database = {
         }[]
       }
       process_backlog_data: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           error_count: number
           processed_count: number
         }[]
       }
       process_stuck_raw_data: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           error_count: number
           processed_count: number
         }[]
       }
       process_synapse_backlog: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           bundles_generated: number
           processed_business_queue: number
@@ -6108,17 +6123,23 @@ export type Database = {
         }[]
       }
       recover_all_stuck_health_data: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           failed_count: number
           recovered_count: number
         }[]
       }
       recover_stuck_health_data: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           error_count: number
           recovered_count: number
+        }[]
+      }
+      trigger_daily_apple_health_sync: {
+        Args: never
+        Returns: {
+          request_id: number
         }[]
       }
       update_raw_health_data_status: {
