@@ -174,6 +174,23 @@ const EnhancedProfileSettings: React.FC = () => {
                 <p className="text-sm font-medium">***-**-{profile.ssn_last4}</p>
               </div>
             )}
+            {profile.phone_number && (
+              <div>
+                <Label>Phone Number (Read-only)</Label>
+                <p className="text-sm font-medium">{profile.phone_number}</p>
+              </div>
+            )}
+            {profile.full_legal_address && (
+              <div className="md:col-span-2">
+                <Label>Mailing Address (Read-only)</Label>
+                <p className="text-sm font-medium">
+                  {(profile.full_legal_address as any)?.street1}
+                  {(profile.full_legal_address as any)?.street2 && `, ${(profile.full_legal_address as any).street2}`}
+                  <br />
+                  {(profile.full_legal_address as any)?.city}, {(profile.full_legal_address as any)?.state} {(profile.full_legal_address as any)?.zip}
+                </p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

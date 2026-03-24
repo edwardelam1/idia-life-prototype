@@ -21,9 +21,9 @@ export interface EnhancedProfile {
   ai_assistant_name: string;
   created_at: string;
   updated_at: string;
-  // Optional KYC fields for future enhancement
   kyc_status?: string;
   ssn_last4?: string;
+  full_legal_address?: Record<string, any> | null;
 }
 
 export interface WalletData {
@@ -156,7 +156,7 @@ export const useEnhancedProfile = () => {
         setProfile({
           ...profile,
           ...updates,
-          ...data,
+          ...(data as any),
           email: profile.email,
           ai_assistant_name: profile.ai_assistant_name,
           account_type: profile.account_type

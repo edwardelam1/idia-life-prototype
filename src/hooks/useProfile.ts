@@ -12,6 +12,8 @@ export interface Profile {
   age: number | null;
   gender: string | null;
   location: string | null;
+  phone_number: string | null;
+  full_legal_address: Record<string, string> | null;
   occupation: string | null;
   bio: string | null;
   interests: string[];
@@ -64,7 +66,7 @@ export const useProfile = () => {
       if (profileError && profileError.code !== 'PGRST116') {
         console.error('Error loading profile:', profileError);
       } else if (profileData) {
-        setProfile(profileData);
+        setProfile(profileData as unknown as Profile);
       }
 
       // Load preferences
@@ -102,7 +104,7 @@ export const useProfile = () => {
 
       if (error) throw error;
 
-      setProfile(data);
+      setProfile(data as unknown as Profile);
       toast({
         title: "Success",
         description: "Profile updated successfully"
