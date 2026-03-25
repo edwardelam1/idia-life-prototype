@@ -152,7 +152,7 @@ export function ProfileSettings() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="last_name">Last Name</Label>
+          <Label htmlFor="last_name">Last Name *</Label>
           <Input id="last_name" {...register('last_name')} className="w-full" />
           {errors.last_name && <p className="text-sm text-destructive">{errors.last_name.message}</p>}
         </div>
