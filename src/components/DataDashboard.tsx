@@ -10,7 +10,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import AppleHealthModal from './AppleHealthModal';
-import StravaConnectionModal from './StravaConnectionModal'; // Assuming this exists
+import StravaConnectionModal from './StravaConnectionModal';
+import FordConnectionModal from './FordConnectionModal';
 
 
 const DataDashboard = () => {
