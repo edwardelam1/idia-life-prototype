@@ -20,6 +20,7 @@ const DataDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
   const [showStravaModal, setShowStravaModal] = useState(false);
+  const [showFordModal, setShowFordModal] = useState(false);
   const [virtuousImpacts, setVirtuousImpacts] = useState<string[]>([]);
   
   const [lastSyncStatus, setLastSyncStatus] = useState<string>('unknown');
