@@ -192,9 +192,17 @@ const DataDashboard = () => {
   };
 
   const handleStravaComplete = async () => {
-    console.log("DEBUG_PARENT: handleStravaComplete called. Setting setShowStravaModal(false).");
-    setShowStravaModal(false); // This closes the modal
+    setShowStravaModal(false);
+    try {
+      await fetchConnections();
+      triggerFriendForDataEvent();
+    } catch (error) {
+      console.error('Error refreshing connections:', error);
+    }
+  };
 
+  const handleFordComplete = async () => {
+    setShowFordModal(false);
     try {
       await fetchConnections();
       triggerFriendForDataEvent();
