@@ -362,6 +362,8 @@ const DataDashboard = () => {
                     setShowAppleHealthModal(true);
                   } else if (connection.connection_type === 'strava') {
                     setShowStravaModal(true);
+                  } else if (connection.connection_type === 'ford') {
+                    setShowFordModal(true);
                   }
                 }}
               >
