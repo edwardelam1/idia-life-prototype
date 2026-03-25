@@ -110,10 +110,11 @@ export function ProfileSettings() {
   }, [profile, setValue]);
 
   const onSubmit = async (data: ProfileFormData) => {
-    const { street1, street2, city, state, zip, phone_number, ...rest } = data;
+    const { street1, street2, city, state, zip, phone_number, date_of_birth, ...rest } = data;
     await updateProfile({
       ...rest,
-      phone_number: phone_number || null,
+      date_of_birth: format(date_of_birth, 'yyyy-MM-dd'),
+      phone_number,
       full_legal_address: { street1, street2: street2 || '', city, state, zip },
       interests,
       health_goals: healthGoals,
