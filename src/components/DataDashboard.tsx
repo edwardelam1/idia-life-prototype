@@ -293,7 +293,7 @@ const DataDashboard = () => {
       {/* Available Data Sources - Only show unconnected sources */}
       <div className="space-y-4">
         <h2 className="text-xl font-bold text-gray-900">Available Data Sources</h2>
-        {!getConnectionStatus('apple_health') || !getConnectionStatus('strava') ? (
+        {!getConnectionStatus('apple_health') || !getConnectionStatus('strava') || !getConnectionStatus('ford') ? (
           <div className="flex justify-center space-x-8">
             {!getConnectionStatus('apple_health') && (
               <div
@@ -322,6 +322,18 @@ const DataDashboard = () => {
                     className="w-full h-full object-contain p-2"
                   />
                 </div>
+              </div>
+            )}
+
+            {!getConnectionStatus('ford') && (
+              <div
+                className="relative cursor-pointer group"
+                onClick={() => setShowFordModal(true)}
+              >
+                <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105 flex items-center justify-center">
+                  <span className="text-2xl">🚗</span>
+                </div>
+                <p className="text-xs text-center mt-1 text-muted-foreground">Ford</p>
               </div>
             )}
           </div>
