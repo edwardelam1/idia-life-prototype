@@ -77,6 +77,7 @@ export function ProfileSettings() {
   const [activityPreferences, setActivityPreferences] = useState<string[]>([]);
 
   const phoneValue = watch('phone_number') || '';
+  const dobValue = watch('date_of_birth');
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatPhoneNumber(e.target.value);
@@ -89,7 +90,10 @@ export function ProfileSettings() {
       setValue('last_name', profile.last_name || '');
       setValue('middle_name', profile.middle_name || '');
       setValue('suffix', profile.suffix || '');
-      setValue('age', profile.age || undefined);
+      if (profile.date_of_birth) {
+        const parsed = new Date(profile.date_of_birth);
+        if (isValid(parsed)) setValue('date_of_birth', parsed);
+      }
       setValue('gender', profile.gender || '');
       setValue('phone_number', profile.phone_number || '');
       setValue('street1', profile.full_legal_address?.street1 || '');
