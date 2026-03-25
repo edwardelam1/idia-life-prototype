@@ -351,9 +351,7 @@ const DataDashboard = () => {
               >
                 <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border-2 border-green-500 transition-all group-hover:shadow-md group-hover:scale-105">
                   {connection.connection_type === "ford" ? (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-2xl">🚗</span>
-                    </div>
+                    <img src={fordLogo} alt="Ford" className="w-full h-full object-contain p-1" />
                   ) : (
                     <img
                       src={
