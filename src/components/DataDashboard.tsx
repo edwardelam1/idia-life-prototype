@@ -10,7 +10,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import AppleHealthModal from './AppleHealthModal';
-import StravaConnectionModal from './StravaConnectionModal'; // Assuming this exists
+import StravaConnectionModal from './StravaConnectionModal';
+import FordConnectionModal from './FordConnectionModal';
 
 
 const DataDashboard = () => {
@@ -19,6 +20,7 @@ const DataDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
   const [showStravaModal, setShowStravaModal] = useState(false);
+  const [showFordModal, setShowFordModal] = useState(false);
   const [virtuousImpacts, setVirtuousImpacts] = useState<string[]>([]);
   
   const [lastSyncStatus, setLastSyncStatus] = useState<string>('unknown');
@@ -190,9 +192,17 @@ const DataDashboard = () => {
   };
 
   const handleStravaComplete = async () => {
-    console.log("DEBUG_PARENT: handleStravaComplete called. Setting setShowStravaModal(false).");
-    setShowStravaModal(false); // This closes the modal
+    setShowStravaModal(false);
+    try {
+      await fetchConnections();
+      triggerFriendForDataEvent();
+    } catch (error) {
+      console.error('Error refreshing connections:', error);
+    }
+  };
 
+  const handleFordComplete = async () => {
+    setShowFordModal(false);
     try {
       await fetchConnections();
       triggerFriendForDataEvent();
@@ -283,7 +293,7 @@ const DataDashboard = () => {
       {/* Available Data Sources - Only show unconnected sources */}
       <div className="space-y-4">
         <h2 className="text-xl font-bold text-gray-900">Available Data Sources</h2>
-        {!getConnectionStatus('apple_health') || !getConnectionStatus('strava') ? (
+        {!getConnectionStatus('apple_health') || !getConnectionStatus('strava') || !getConnectionStatus('ford') ? (
           <div className="flex justify-center space-x-8">
             {!getConnectionStatus('apple_health') && (
               <div
@@ -314,6 +324,18 @@ const DataDashboard = () => {
                 </div>
               </div>
             )}
+
+            {!getConnectionStatus('ford') && (
+              <div
+                className="relative cursor-pointer group"
+                onClick={() => setShowFordModal(true)}
+              >
+                <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105 flex items-center justify-center">
+                  <span className="text-2xl">🚗</span>
+                </div>
+                <p className="text-xs text-center mt-1 text-muted-foreground">Ford</p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="text-center py-8 text-gray-500">
@@ -340,15 +362,23 @@ const DataDashboard = () => {
                     setShowAppleHealthModal(true);
                   } else if (connection.connection_type === 'strava') {
                     setShowStravaModal(true);
+                  } else if (connection.connection_type === 'ford') {
+                    setShowFordModal(true);
                   }
                 }}
               >
-                <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border-2 border-green-500 transition-all group-hover:shadow-md group-hover:scale-105">
-                  <img
-                    src={connection.connection_type === 'apple_health' ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"}
-                    alt={connection.connection_type}
-                    className="w-full h-full object-contain p-2"
-                  />
+              <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border-2 border-green-500 transition-all group-hover:shadow-md group-hover:scale-105">
+                  {connection.connection_type === 'ford' ? (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-2xl">🚗</span>
+                    </div>
+                  ) : (
+                    <img
+                      src={connection.connection_type === 'apple_health' ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"}
+                      alt={connection.connection_type}
+                      className="w-full h-full object-contain p-2"
+                    />
+                  )}
                 </div>
                 <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white">
                   <CheckCircle className="w-3 h-3 text-white" />
@@ -378,6 +408,14 @@ const DataDashboard = () => {
         onClose={() => setShowStravaModal(false)}
         onComplete={handleStravaComplete}
         existingConnection={getConnectionStatus('strava')}
+        onDisconnect={fetchConnections}
+      />
+
+      <FordConnectionModal
+        isOpen={showFordModal}
+        onClose={() => setShowFordModal(false)}
+        onComplete={handleFordComplete}
+        existingConnection={getConnectionStatus('ford')}
         onDisconnect={fetchConnections}
       />
 
