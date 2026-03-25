@@ -411,6 +411,14 @@ const DataDashboard = () => {
         onDisconnect={fetchConnections}
       />
 
+      <FordConnectionModal
+        isOpen={showFordModal}
+        onClose={() => setShowFordModal(false)}
+        onComplete={handleFordComplete}
+        existingConnection={getConnectionStatus('ford')}
+        onDisconnect={fetchConnections}
+      />
+
     </div>
   );
 };
