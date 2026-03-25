@@ -21,11 +21,10 @@ const profileSchema = z.object({
   last_name: z.string().min(2, 'Last name must be at least 2 characters'),
   middle_name: z.string().optional(),
   suffix: z.string().optional(),
-  age: z.number().min(13, 'Must be at least 13 years old').max(120, 'Invalid age').optional(),
+  date_of_birth: z.date({ required_error: 'Date of birth is required' }),
   gender: z.string().optional(),
   phone_number: z.string()
-    .regex(/^\(\d{3}\) \d{3}-\d{4}$/, 'Phone must be in (XXX) XXX-XXXX format')
-    .or(z.literal('')),
+    .regex(/^\(\d{3}\) \d{3}-\d{4}$/, 'Phone must be in (XXX) XXX-XXXX format'),
   street1: z.string().min(1, 'Street address is required').max(100),
   street2: z.string().max(100).optional(),
   city: z.string().min(1, 'City is required').max(50),
