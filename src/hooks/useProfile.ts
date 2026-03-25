@@ -9,7 +9,7 @@ export interface Profile {
   last_name: string | null;
   middle_name: string | null;
   suffix: string | null;
-  age: number | null;
+  date_of_birth: string | null;
   gender: string | null;
   location: string | null;
   phone_number: string | null;

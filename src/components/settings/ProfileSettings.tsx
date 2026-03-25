@@ -216,7 +216,7 @@ export function ProfileSettings() {
 
         {/* Phone Number */}
         <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="phone_number">Phone Number</Label>
+          <Label htmlFor="phone_number">Phone Number *</Label>
           <Input
             id="phone_number"
             type="tel"
