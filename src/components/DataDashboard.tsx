@@ -365,12 +365,18 @@ const DataDashboard = () => {
                   }
                 }}
               >
-                <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border-2 border-green-500 transition-all group-hover:shadow-md group-hover:scale-105">
-                  <img
-                    src={connection.connection_type === 'apple_health' ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"}
-                    alt={connection.connection_type}
-                    className="w-full h-full object-contain p-2"
-                  />
+              <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border-2 border-green-500 transition-all group-hover:shadow-md group-hover:scale-105">
+                  {connection.connection_type === 'ford' ? (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-2xl">🚗</span>
+                    </div>
+                  ) : (
+                    <img
+                      src={connection.connection_type === 'apple_health' ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"}
+                      alt={connection.connection_type}
+                      className="w-full h-full object-contain p-2"
+                    />
+                  )}
                 </div>
                 <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white">
                   <CheckCircle className="w-3 h-3 text-white" />
