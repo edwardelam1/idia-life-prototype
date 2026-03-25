@@ -1,18 +1,12 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import {
-  Activity,
-  CheckCircle,
-  DollarSign,
-  Zap
-} from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import AppleHealthModal from './AppleHealthModal';
-import StravaConnectionModal from './StravaConnectionModal';
-import FordConnectionModal from './FordConnectionModal';
-
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Activity, CheckCircle, DollarSign, Zap } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import AppleHealthModal from "./AppleHealthModal";
+import StravaConnectionModal from "./StravaConnectionModal";
+import FordConnectionModal from "./FordConnectionModal";
 
 const DataDashboard = () => {
   const [connections, setConnections] = useState<any[]>([]);
@@ -22,13 +16,15 @@ const DataDashboard = () => {
   const [showStravaModal, setShowStravaModal] = useState(false);
   const [showFordModal, setShowFordModal] = useState(false);
   const [virtuousImpacts, setVirtuousImpacts] = useState<string[]>([]);
-  
-  const [lastSyncStatus, setLastSyncStatus] = useState<string>('unknown');
+
+  const [lastSyncStatus, setLastSyncStatus] = useState<string>("unknown");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) {
         setCurrentUserId(user.id);
       }
@@ -49,37 +45,24 @@ const DataDashboard = () => {
     if (!currentUserId) return;
 
     try {
-      const [
-        pipelineHealthResult,
-        connectionsResult,
-        walletResult,
-        recentDataResult
-      ] = await Promise.allSettled([
-        supabase.functions.invoke('pipeline-diagnostics'),
+      const [pipelineHealthResult, connectionsResult, walletResult, recentDataResult] = await Promise.allSettled([
+        supabase.functions.invoke("pipeline-diagnostics"),
+        supabase.from("data_connections").select("*").eq("user_id", currentUserId).eq("is_active", true),
+        supabase.from("user_wallets").select("*").eq("user_id", currentUserId).maybeSingle(),
         supabase
-          .from('data_connections')
-          .select('*')
-          .eq('user_id', currentUserId)
-          .eq('is_active', true),
-        supabase
-          .from('user_wallets')
-          .select('*')
-          .eq('user_id', currentUserId)
-          .maybeSingle(),
-        supabase
-          .from('raw_health_data')
-          .select('created_at')
-          .eq('user_id', currentUserId)
-          .order('created_at', { ascending: false })
-          .limit(1)
+          .from("raw_health_data")
+          .select("created_at")
+          .eq("user_id", currentUserId)
+          .order("created_at", { ascending: false })
+          .limit(1),
       ]);
 
-      if (pipelineHealthResult.status === 'rejected') {
-        console.warn('Pipeline health check failed:', pipelineHealthResult.reason);
+      if (pipelineHealthResult.status === "rejected") {
+        console.warn("Pipeline health check failed:", pipelineHealthResult.reason);
       }
 
-      if (connectionsResult.status === 'rejected') {
-        console.error('Error fetching connections:', connectionsResult.reason);
+      if (connectionsResult.status === "rejected") {
+        console.error("Error fetching connections:", connectionsResult.reason);
         setConnections([]);
         setTotalEarnings(0);
         setLoading(false);
@@ -89,40 +72,40 @@ const DataDashboard = () => {
       const connectionsData = connectionsResult.value.data || [];
 
       let totalEarned = 0;
-      if (walletResult.status === 'fulfilled') {
+      if (walletResult.status === "fulfilled") {
         totalEarned = walletResult.value.data?.total_earned || 0;
       } else {
-        console.error('Error fetching wallet:', walletResult.reason);
+        console.error("Error fetching wallet:", walletResult.reason);
       }
 
       // Check last sync status
-      if (recentDataResult.status === 'fulfilled' && recentDataResult.value.data?.length > 0) {
+      if (recentDataResult.status === "fulfilled" && recentDataResult.value.data?.length > 0) {
         const lastDataTime = new Date(recentDataResult.value.data[0].created_at);
         const hoursSinceLastData = (Date.now() - lastDataTime.getTime()) / (1000 * 60 * 60);
 
         if (hoursSinceLastData > 24) {
-          setLastSyncStatus('stale');
+          setLastSyncStatus("stale");
         } else if (hoursSinceLastData > 6) {
-          setLastSyncStatus('delayed');
+          setLastSyncStatus("delayed");
         } else {
-          setLastSyncStatus('recent');
+          setLastSyncStatus("recent");
         }
       } else {
-        setLastSyncStatus('no_data');
+        setLastSyncStatus("no_data");
       }
 
       setConnections(connectionsData);
       setTotalEarnings(totalEarned);
 
       if (connectionsData.length > 0) {
-        fetchVirtuousImpacts().catch(error => {
-          console.error('Non-critical: Virtuous impacts fetch failed:', error);
+        fetchVirtuousImpacts().catch((error) => {
+          console.error("Non-critical: Virtuous impacts fetch failed:", error);
         });
       }
 
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching connections:', error);
+      console.error("Error fetching connections:", error);
       setConnections([]);
       setTotalEarnings(0);
       setLoading(false);
@@ -131,17 +114,17 @@ const DataDashboard = () => {
 
   const fetchVirtuousImpacts = async () => {
     const fallbackImpacts = [
-      'Your anonymized activity improved heart health model accuracy',
-      'Contributed to real-time wellness trend analysis',
-      'Enhanced data quality for community research'
+      "Your anonymized activity improved heart health model accuracy",
+      "Contributed to real-time wellness trend analysis",
+      "Enhanced data quality for community research",
     ];
     try {
-      const { data, error } = await supabase.functions.invoke('generate-virtuous-cycle-impacts', {
-        body: { user_id: currentUserId }
+      const { data, error } = await supabase.functions.invoke("generate-virtuous-cycle-impacts", {
+        body: { user_id: currentUserId },
       });
 
       if (error) {
-        console.error('Error fetching virtuous impacts:', error);
+        console.error("Error fetching virtuous impacts:", error);
         setVirtuousImpacts(fallbackImpacts);
         return;
       }
@@ -152,27 +135,36 @@ const DataDashboard = () => {
         setVirtuousImpacts(fallbackImpacts);
       }
     } catch (error) {
-      console.error('Error fetching virtuous impacts:', error);
+      console.error("Error fetching virtuous impacts:", error);
       setVirtuousImpacts(fallbackImpacts);
     }
   };
 
   const triggerFriendForDataEvent = () => {
-    window.dispatchEvent(new CustomEvent('showFriend', {
-      detail: { trigger: 'data' }
-    }));
+    window.dispatchEvent(
+      new CustomEvent("showFriend", {
+        detail: { trigger: "data" },
+      }),
+    );
   };
-
 
   const getSyncStatusBadge = () => {
     switch (lastSyncStatus) {
-      case 'recent':
-        return <Badge variant="secondary" className="bg-green-100 text-green-800">Synced Recently</Badge>;
-      case 'delayed':
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Sync Delayed</Badge>;
-      case 'stale':
+      case "recent":
+        return (
+          <Badge variant="secondary" className="bg-green-100 text-green-800">
+            Synced Recently
+          </Badge>
+        );
+      case "delayed":
+        return (
+          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+            Sync Delayed
+          </Badge>
+        );
+      case "stale":
         return null;
-      case 'no_data':
+      case "no_data":
         return <Badge variant="outline">No Data Found</Badge>;
       default:
         return <Badge variant="outline">Checking...</Badge>;
@@ -187,7 +179,7 @@ const DataDashboard = () => {
       await fetchConnections();
       triggerFriendForDataEvent();
     } catch (error) {
-      console.error('Error refreshing connections:', error);
+      console.error("Error refreshing connections:", error);
     }
   };
 
@@ -197,7 +189,7 @@ const DataDashboard = () => {
       await fetchConnections();
       triggerFriendForDataEvent();
     } catch (error) {
-      console.error('Error refreshing connections:', error);
+      console.error("Error refreshing connections:", error);
     }
   };
 
@@ -207,12 +199,12 @@ const DataDashboard = () => {
       await fetchConnections();
       triggerFriendForDataEvent();
     } catch (error) {
-      console.error('Error refreshing connections:', error);
+      console.error("Error refreshing connections:", error);
     }
   };
 
   const getConnectionStatus = (connectionType: string) => {
-    return connections.find(conn => conn.connection_type === connectionType);
+    return connections.find((conn) => conn.connection_type === connectionType);
   };
 
   if (loading) {
@@ -230,9 +222,7 @@ const DataDashboard = () => {
   }
 
   return (
-      <div className="space-y-4">
-      
-      
+    <div className="space-y-4">
       {/* Data Earnings Summary with Sync Status */}
       <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white">
         <CardContent className="p-4">
@@ -244,7 +234,9 @@ const DataDashboard = () => {
               </div>
               <p className="text-3xl font-bold">${totalEarnings.toFixed(2)} IDIA-USD</p>
               <p className="text-sm text-teal-100 mt-1">
-                {connections.length > 0 ? 'Earnings from connected data sources' : 'Start earning by connecting data sources'}
+                {connections.length > 0
+                  ? "Earnings from connected data sources"
+                  : "Start earning by connecting data sources"}
               </p>
             </div>
             <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
@@ -253,7 +245,6 @@ const DataDashboard = () => {
           </div>
         </CardContent>
       </Card>
-
 
       {/* Virtuous Cycle Report */}
       {connections.length > 0 && (
@@ -265,7 +256,7 @@ const DataDashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-              <div className="space-y-3">
+            <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">Your data helped improve:</span>
                 <Badge variant="secondary">Live Research Impact</Badge>
@@ -293,13 +284,10 @@ const DataDashboard = () => {
       {/* Available Data Sources - Only show unconnected sources */}
       <div className="space-y-4">
         <h2 className="text-xl font-bold text-gray-900">Available Data Sources</h2>
-        {!getConnectionStatus('apple_health') || !getConnectionStatus('strava') || !getConnectionStatus('ford') ? (
+        {!getConnectionStatus("apple_health") || !getConnectionStatus("strava") || !getConnectionStatus("ford") ? (
           <div className="flex justify-center space-x-8">
-            {!getConnectionStatus('apple_health') && (
-              <div
-                className="relative cursor-pointer group"
-                onClick={() => setShowAppleHealthModal(true)}
-              >
+            {!getConnectionStatus("apple_health") && (
+              <div className="relative cursor-pointer group" onClick={() => setShowAppleHealthModal(true)}>
                 <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
                   <img
                     src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
@@ -310,11 +298,8 @@ const DataDashboard = () => {
               </div>
             )}
 
-            {!getConnectionStatus('strava') && (
-              <div
-                className="relative cursor-pointer group"
-                onClick={() => setShowStravaModal(true)}
-              >
+            {!getConnectionStatus("strava") && (
+              <div className="relative cursor-pointer group" onClick={() => setShowStravaModal(true)}>
                 <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
                   <img
                     src="/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"
@@ -325,13 +310,12 @@ const DataDashboard = () => {
               </div>
             )}
 
-            {!getConnectionStatus('ford') && (
-              <div
-                className="relative cursor-pointer group"
-                onClick={() => setShowFordModal(true)}
-              >
+            {!getConnectionStatus("ford") && (
+              <div className="relative cursor-pointer group" onClick={() => setShowFordModal(true)}>
                 <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105 flex items-center justify-center">
-                  <span className="text-2xl">🚗</span>
+                  <span className="text-2xl">
+                    https://substackcdn.com/image/fetch/$s_!RhKG!,f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F7ec0a402-7e25-4ae6-b31f-7551df762938_1200x1200.jpeg
+                  </span>
                 </div>
                 <p className="text-xs text-center mt-1 text-muted-foreground">Ford</p>
               </div>
@@ -358,23 +342,27 @@ const DataDashboard = () => {
                 key={connection.id}
                 className="relative cursor-pointer group"
                 onClick={() => {
-                  if (connection.connection_type === 'apple_health') {
+                  if (connection.connection_type === "apple_health") {
                     setShowAppleHealthModal(true);
-                  } else if (connection.connection_type === 'strava') {
+                  } else if (connection.connection_type === "strava") {
                     setShowStravaModal(true);
-                  } else if (connection.connection_type === 'ford') {
+                  } else if (connection.connection_type === "ford") {
                     setShowFordModal(true);
                   }
                 }}
               >
-              <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border-2 border-green-500 transition-all group-hover:shadow-md group-hover:scale-105">
-                  {connection.connection_type === 'ford' ? (
+                <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border-2 border-green-500 transition-all group-hover:shadow-md group-hover:scale-105">
+                  {connection.connection_type === "ford" ? (
                     <div className="w-full h-full flex items-center justify-center">
                       <span className="text-2xl">🚗</span>
                     </div>
                   ) : (
                     <img
-                      src={connection.connection_type === 'apple_health' ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"}
+                      src={
+                        connection.connection_type === "apple_health"
+                          ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
+                          : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"
+                      }
                       alt={connection.connection_type}
                       className="w-full h-full object-contain p-2"
                     />
@@ -399,7 +387,7 @@ const DataDashboard = () => {
         isOpen={showAppleHealthModal}
         onClose={() => setShowAppleHealthModal(false)}
         onComplete={handleAppleHealthComplete}
-        existingConnection={getConnectionStatus('apple_health')}
+        existingConnection={getConnectionStatus("apple_health")}
         onDisconnect={fetchConnections}
       />
 
@@ -407,7 +395,7 @@ const DataDashboard = () => {
         isOpen={showStravaModal}
         onClose={() => setShowStravaModal(false)}
         onComplete={handleStravaComplete}
-        existingConnection={getConnectionStatus('strava')}
+        existingConnection={getConnectionStatus("strava")}
         onDisconnect={fetchConnections}
       />
 
@@ -415,10 +403,9 @@ const DataDashboard = () => {
         isOpen={showFordModal}
         onClose={() => setShowFordModal(false)}
         onComplete={handleFordComplete}
-        existingConnection={getConnectionStatus('ford')}
+        existingConnection={getConnectionStatus("ford")}
         onDisconnect={fetchConnections}
       />
-
     </div>
   );
 };
