@@ -146,7 +146,7 @@ export function ProfileSettings() {
       {/* Basic Information */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="first_name">First Name</Label>
+          <Label htmlFor="first_name">First Name *</Label>
           <Input id="first_name" {...register('first_name')} className="w-full" />
           {errors.first_name && <p className="text-sm text-destructive">{errors.first_name.message}</p>}
         </div>
