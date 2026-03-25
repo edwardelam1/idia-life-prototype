@@ -2,13 +2,17 @@ import { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { format, parse, isValid } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, CalendarIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useProfile } from '@/hooks/useProfile';
 import { US_STATES, formatPhoneNumber, extractPhoneDigits } from '@/utils/usAddressValidation';
 
@@ -17,11 +21,10 @@ const profileSchema = z.object({
   last_name: z.string().min(2, 'Last name must be at least 2 characters'),
   middle_name: z.string().optional(),
   suffix: z.string().optional(),
-  age: z.number().min(13, 'Must be at least 13 years old').max(120, 'Invalid age').optional(),
+  date_of_birth: z.date({ required_error: 'Date of birth is required' }),
   gender: z.string().optional(),
   phone_number: z.string()
-    .regex(/^\(\d{3}\) \d{3}-\d{4}$/, 'Phone must be in (XXX) XXX-XXXX format')
-    .or(z.literal('')),
+    .regex(/^\(\d{3}\) \d{3}-\d{4}$/, 'Phone must be in (XXX) XXX-XXXX format'),
   street1: z.string().min(1, 'Street address is required').max(100),
   street2: z.string().max(100).optional(),
   city: z.string().min(1, 'City is required').max(50),
@@ -74,6 +77,7 @@ export function ProfileSettings() {
   const [activityPreferences, setActivityPreferences] = useState<string[]>([]);
 
   const phoneValue = watch('phone_number') || '';
+  const dobValue = watch('date_of_birth');
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatPhoneNumber(e.target.value);
@@ -86,7 +90,10 @@ export function ProfileSettings() {
       setValue('last_name', profile.last_name || '');
       setValue('middle_name', profile.middle_name || '');
       setValue('suffix', profile.suffix || '');
-      setValue('age', profile.age || undefined);
+      if (profile.date_of_birth) {
+        const parsed = new Date(profile.date_of_birth);
+        if (isValid(parsed)) setValue('date_of_birth', parsed);
+      }
       setValue('gender', profile.gender || '');
       setValue('phone_number', profile.phone_number || '');
       setValue('street1', profile.full_legal_address?.street1 || '');
@@ -103,10 +110,11 @@ export function ProfileSettings() {
   }, [profile, setValue]);
 
   const onSubmit = async (data: ProfileFormData) => {
-    const { street1, street2, city, state, zip, phone_number, ...rest } = data;
+    const { street1, street2, city, state, zip, phone_number, date_of_birth, ...rest } = data;
     await updateProfile({
       ...rest,
-      phone_number: phone_number || null,
+      date_of_birth: format(date_of_birth, 'yyyy-MM-dd'),
+      phone_number,
       full_legal_address: { street1, street2: street2 || '', city, state, zip },
       interests,
       health_goals: healthGoals,
@@ -138,13 +146,13 @@ export function ProfileSettings() {
       {/* Basic Information */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="first_name">First Name</Label>
+          <Label htmlFor="first_name">First Name *</Label>
           <Input id="first_name" {...register('first_name')} className="w-full" />
           {errors.first_name && <p className="text-sm text-destructive">{errors.first_name.message}</p>}
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="last_name">Last Name</Label>
+          <Label htmlFor="last_name">Last Name *</Label>
           <Input id="last_name" {...register('last_name')} className="w-full" />
           {errors.last_name && <p className="text-sm text-destructive">{errors.last_name.message}</p>}
         </div>
@@ -160,9 +168,35 @@ export function ProfileSettings() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="age">Age</Label>
-          <Input id="age" type="number" {...register('age', { valueAsNumber: true })} className="w-full" />
-          {errors.age && <p className="text-sm text-destructive">{errors.age.message}</p>}
+          <Label>Date of Birth *</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !dobValue && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dobValue ? format(dobValue, "MM/dd/yyyy") : <span>MM/DD/YYYY</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={dobValue}
+                onSelect={(date) => date && setValue('date_of_birth', date, { shouldValidate: true })}
+                disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+                captionLayout="dropdown-buttons"
+                fromYear={1900}
+                toYear={new Date().getFullYear()}
+              />
+            </PopoverContent>
+          </Popover>
+          {errors.date_of_birth && <p className="text-sm text-destructive">{errors.date_of_birth.message}</p>}
         </div>
 
         <div className="space-y-2">
@@ -182,7 +216,7 @@ export function ProfileSettings() {
 
         {/* Phone Number */}
         <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="phone_number">Phone Number</Label>
+          <Label htmlFor="phone_number">Phone Number *</Label>
           <Input
             id="phone_number"
             type="tel"
