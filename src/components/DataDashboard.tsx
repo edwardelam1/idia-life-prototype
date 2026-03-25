@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import AppleHealthModal from "./AppleHealthModal";
 import StravaConnectionModal from "./StravaConnectionModal";
 import FordConnectionModal from "./FordConnectionModal";
+import fordLogo from "@/assets/ford-logo.png";
 
 const DataDashboard = () => {
   const [connections, setConnections] = useState<any[]>([]);
@@ -312,10 +313,8 @@ const DataDashboard = () => {
 
             {!getConnectionStatus("ford") && (
               <div className="relative cursor-pointer group" onClick={() => setShowFordModal(true)}>
-                <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105 flex items-center justify-center">
-                  <span className="text-2xl">
-                    https://substackcdn.com/image/fetch/$s_!RhKG!,f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F7ec0a402-7e25-4ae6-b31f-7551df762938_1200x1200.jpeg
-                  </span>
+                <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
+                  <img src={fordLogo} alt="Ford" className="w-full h-full object-contain p-1" />
                 </div>
                 <p className="text-xs text-center mt-1 text-muted-foreground">Ford</p>
               </div>
@@ -353,9 +352,7 @@ const DataDashboard = () => {
               >
                 <div className="w-16 h-16 rounded-lg overflow-hidden bg-white shadow-sm border-2 border-green-500 transition-all group-hover:shadow-md group-hover:scale-105">
                   {connection.connection_type === "ford" ? (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-2xl">🚗</span>
-                    </div>
+                    <img src={fordLogo} alt="Ford" className="w-full h-full object-contain p-1" />
                   ) : (
                     <img
                       src={
