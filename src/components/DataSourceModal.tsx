@@ -104,6 +104,22 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
           setErrorMessage("Google Fit requires OAuth authorization. Please contact support.");
           return;
         }
+      } else if (sourceName.includes('ford')) {
+        // Ford - initiate OAuth flow
+        const { data, error } = await supabase.functions.invoke('ford-auth-url', {
+          body: { userId }
+        });
+        
+        if (error) {
+          setErrorMessage("Failed to connect to FordConnect. Please try again.");
+          return;
+        }
+        
+        if (data?.oauthUrl) {
+          window.open(data.oauthUrl, '_blank');
+          setErrorMessage("Please complete Ford authorization in the new window.");
+          return;
+        }
       } else {
         // For other sources, indicate they need real integration
         setErrorMessage(`${source.name} integration requires additional setup. Live data connections only.`);
