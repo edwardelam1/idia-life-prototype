@@ -22,6 +22,7 @@ const MainApp = () => {
     { id: 'social', label: 'Social', icon: Users, component: EnhancedSocialScreen },
     { id: 'shop', label: 'Shop', icon: ShoppingBag, component: ShopScreen },
     { id: 'vote', label: 'Vote', icon: Vote, component: GovernanceScreen },
+    { id: 'pro', label: 'Pro', icon: Crown, component: GovernanceScreen },
   ];
 
   // Handle social tab selection
