@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Wallet, Database, Users, ShoppingBag, Vote } from 'lucide-react';
+import { Wallet, Database, Users, ShoppingBag, Vote, Crown } from 'lucide-react';
 import WalletDashboard from './WalletDashboard';
 import EnhancedWalletDashboard from './enhanced/EnhancedWalletDashboard';
 import DataDashboard from './DataDashboard';
@@ -22,6 +22,7 @@ const MainApp = () => {
     { id: 'social', label: 'Social', icon: Users, component: EnhancedSocialScreen },
     { id: 'shop', label: 'Shop', icon: ShoppingBag, component: ShopScreen },
     { id: 'vote', label: 'Vote', icon: Vote, component: GovernanceScreen },
+    { id: 'pro', label: 'Pro', icon: Crown, component: GovernanceScreen },
   ];
 
   // Handle social tab selection
