@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Wallet, Database, Users, ShoppingBag, Vote } from 'lucide-react';
+import { Wallet, Database, Users, ShoppingBag, Vote, Crown } from 'lucide-react';
 import WalletDashboard from './WalletDashboard';
 import EnhancedWalletDashboard from './enhanced/EnhancedWalletDashboard';
 import DataDashboard from './DataDashboard';
