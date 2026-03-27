@@ -8,6 +8,7 @@ import SocialScreen from './SocialScreen';
 import EnhancedSocialScreen from './enhanced/EnhancedSocialScreen';
 import ShopScreen from './ShopScreen';
 import GovernanceScreen from './GovernanceScreen';
+import ProScreen from './pro/ProScreen';
 import Header from './Header';
 import FriendAssistant from './FriendAssistant';
 
@@ -22,7 +23,7 @@ const MainApp = () => {
     { id: 'social', label: 'Social', icon: Users, component: EnhancedSocialScreen },
     { id: 'shop', label: 'Shop', icon: ShoppingBag, component: ShopScreen },
     { id: 'vote', label: 'Vote', icon: Vote, component: GovernanceScreen },
-    { id: 'pro', label: 'Pro', icon: Crown, component: GovernanceScreen },
+    { id: 'pro', label: 'Pro', icon: Crown, component: ProScreen },
   ];
 
   // Handle social tab selection
