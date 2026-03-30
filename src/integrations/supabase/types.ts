@@ -5312,6 +5312,42 @@ export type Database = {
           },
         ]
       }
+      synapse_credit_ledger: {
+        Row: {
+          amount: number
+          balance_after: number
+          created_at: string | null
+          description: string | null
+          entry_type: string
+          id: string
+          metadata: Json | null
+          reference_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          balance_after?: number
+          created_at?: string | null
+          description?: string | null
+          entry_type: string
+          id?: string
+          metadata?: Json | null
+          reference_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          created_at?: string | null
+          description?: string | null
+          entry_type?: string
+          id?: string
+          metadata?: Json | null
+          reference_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       sync_logs: {
         Row: {
           created_at: string
@@ -5592,6 +5628,42 @@ export type Database = {
           },
         ]
       }
+      user_api_keys: {
+        Row: {
+          created_at: string | null
+          id: string
+          key_hash: string
+          key_name: string
+          key_prefix: string
+          last_used_at: string | null
+          status: string
+          total_calls: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          key_hash: string
+          key_name: string
+          key_prefix: string
+          last_used_at?: string | null
+          status?: string
+          total_calls?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          key_hash?: string
+          key_name?: string
+          key_prefix?: string
+          last_used_at?: string | null
+          status?: string
+          total_calls?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_consents: {
         Row: {
           consent_type: string
@@ -5668,6 +5740,72 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      user_invoices: {
+        Row: {
+          amount: number
+          created_at: string | null
+          id: string
+          invoice_number: string
+          pdf_url: string | null
+          period: string
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          id?: string
+          invoice_number: string
+          pdf_url?: string | null
+          period: string
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          id?: string
+          invoice_number?: string
+          pdf_url?: string | null
+          period?: string
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_payment_methods: {
+        Row: {
+          created_at: string | null
+          display_label: string
+          id: string
+          identifier: string | null
+          is_default: boolean | null
+          metadata: Json | null
+          method_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          display_label: string
+          id?: string
+          identifier?: string | null
+          is_default?: boolean | null
+          metadata?: Json | null
+          method_type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          display_label?: string
+          id?: string
+          identifier?: string | null
+          is_default?: boolean | null
+          metadata?: Json | null
+          method_type?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_permission_overrides: {
         Row: {
