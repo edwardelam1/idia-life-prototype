@@ -1,21 +1,10 @@
+# Fix Authentication & Password Reset Issues
 
+## Problems Identified
 
-# Replace IDIA Life Logo Everywhere
-
-## What
-Copy the uploaded polished logo to `src/assets/IDIA_Life_Logo_Polished.png` and `public/images/IDIA_Life_Logo_Polished.png`, then replace every reference to the old logo (`/lovable-uploads/a1fcabab-f9bb-4a81-9b30-10d1aab93545.png`).
-
-## Files to Change
-
-1. **Copy uploaded image** to:
-   - `src/assets/IDIA_Life_Logo_Polished.png` (for React component imports)
-   - `public/images/IDIA_Life_Logo_Polished.png` (for favicon and HTML meta tags)
-
-2. **`src/components/FlashingSplashScreen.tsx`** — Import from `@/assets/IDIA_Life_Logo_Polished.png`, replace the `src` on the logo `<img>`.
-
-3. **`src/components/LandingScreen.tsx`** — Same import and replacement.
-
-4. **`src/components/Header.tsx`** — Same import and replacement.
-
-5. **`index.html`** — Update favicon `href` to `/images/IDIA_Life_Logo_Polished.png`. (OG/Twitter meta images already use the polished logo via external URL, no change needed.)
-
+1. **"Load failed" on account creation**: The `signUp` call uses `emailRedirectTo: window.location.origin` which triggers a network request to the redirect URL during signup. In the preview sandbox, this fetch can fail, producing "Load failed." The account gets created in Supabase but the error surfaces in the UI.
+2. **Login fails after signup**: Supabase requires email confirmation by default. The account exists but is unconfirmed, so `signInWithPassword` returns "Invalid login credentials." The signup flow should tell the user to confirm their email first, but the error message is misleading.
+3. **Password reset security hole (critical)**: The reset-password edge function builds a broken `redirectTo` URL (`[https://zxyngqciipcvveigrzqt.lovableproject.com/auth?mode](https://zxyngqciipcvveigrzqt.lovableproject.com/auth?mode)  
+  
+Ensure users cannot access their account without authentication. There's no reason I could get to the wallet without verifying the email and setting a new password
+  &nbsp;
