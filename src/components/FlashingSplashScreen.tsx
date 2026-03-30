@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import polishedLogo from '@/assets/IDIA_Life_Logo_Polished.png';
 
 interface FlashingSplashScreenProps {
   onComplete: () => void;
@@ -42,7 +43,7 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
       {/* Logo */}
       <div className="absolute top-8 left-1/2 transform -translate-x-1/2 z-20">
         <img 
-          src="/lovable-uploads/a1fcabab-f9bb-4a81-9b30-10d1aab93545.png" 
+          src={polishedLogo} 
           alt="IDIA Life Logo" 
           className="w-16 h-16 rounded-2xl shadow-lg"
         />

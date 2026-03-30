@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import polishedLogo from '@/assets/IDIA_Life_Logo_Polished.png';
 
 interface LandingScreenProps {
   onSignUp: () => void;
@@ -45,7 +46,7 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
       {/* Logo */}
       <div className="absolute top-8 left-1/2 transform -translate-x-1/2 z-20">
         <img 
-          src="/lovable-uploads/a1fcabab-f9bb-4a81-9b30-10d1aab93545.png" 
+          src={polishedLogo} 
           alt="IDIA Life Logo" 
           className="w-16 h-16 rounded-2xl shadow-lg"
         />
