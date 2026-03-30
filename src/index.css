@@ -183,6 +183,11 @@ All colors MUST be HSL.
     touch-action: manipulation;
   }
 
+  html, body {
+    overscroll-behavior: none;
+    height: 100%;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-size: var(--font-size);

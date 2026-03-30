@@ -37,7 +37,7 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   }, [onComplete, animationSteps.length]);
 
   return (
-    <div className={`fixed inset-0 bg-gradient-to-br from-slate-900 to-slate-800 z-50 transition-opacity duration-1000 ${
+    <div className={`fixed inset-0 bg-gradient-to-br from-slate-900 to-slate-800 z-50 overflow-hidden touch-none transition-opacity duration-1000 ${
       isVisible ? 'opacity-100' : 'opacity-0'
     }`}>
       {/* Logo */}

@@ -42,7 +42,7 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-900 to-slate-800 text-white relative overflow-hidden">
+    <div className="fixed inset-0 flex flex-col bg-gradient-to-br from-slate-900 to-slate-800 text-white overflow-hidden touch-none">
       {/* Logo */}
       <div className="absolute top-8 left-1/2 transform -translate-x-1/2 z-20">
         <img 
@@ -53,7 +53,7 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
       </div>
 
       {/* Carousel Container */}
-      <div className="flex-1 relative overflow-hidden">
+      <div className="flex-1 relative overflow-hidden touch-none">
         <div 
           className="flex transition-transform duration-500 ease-in-out h-full"
           style={{ transform: `translateX(-${currentSlide * 100}%)` }}
