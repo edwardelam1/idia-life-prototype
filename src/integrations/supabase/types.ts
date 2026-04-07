@@ -1631,6 +1631,35 @@ export type Database = {
         }
         Relationships: []
       }
+      device_routing: {
+        Row: {
+          created_at: string | null
+          device_os: string | null
+          platform_guid: string
+          push_token: string
+        }
+        Insert: {
+          created_at?: string | null
+          device_os?: string | null
+          platform_guid: string
+          push_token: string
+        }
+        Update: {
+          created_at?: string | null
+          device_os?: string | null
+          platform_guid?: string
+          push_token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_routing_platform_guid_fkey"
+            columns: ["platform_guid"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["platform_guid"]
+          },
+        ]
+      }
       economic_impact_metrics: {
         Row: {
           business_id: string | null
@@ -2290,6 +2319,39 @@ export type Database = {
           recorded_at?: string | null
           step_count?: number | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      hub_synapse_ledger: {
+        Row: {
+          amount_credits: number
+          created_at: string
+          entry_type: string
+          id: string
+          metadata: Json | null
+          reference_id: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          amount_credits?: number
+          created_at?: string
+          entry_type: string
+          id?: string
+          metadata?: Json | null
+          reference_id?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          amount_credits?: number
+          created_at?: string
+          entry_type?: string
+          id?: string
+          metadata?: Json | null
+          reference_id?: string | null
+          status?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -3719,20 +3781,15 @@ export type Database = {
         Row: {
           account_type: string | null
           activity_preferences: string[] | null
-          address: Json | null
           age: number | null
           ai_assistant_name: string | null
-          aliases: string[] | null
           available_credit_line: number | null
           avatar_url: string | null
           bio: string | null
           created_at: string | null
-          date_of_birth: string | null
           display_name: string | null
           document_type: string | null
           ein: string | null
-          first_name: string | null
-          full_legal_address: Json | null
           gender: string | null
           health_goals: string[] | null
           id: string
@@ -3743,21 +3800,14 @@ export type Database = {
           kyc_submitted_at: string | null
           kyc_tier: number
           kyc_verified_at: string | null
-          last_name: string | null
           liveness_verified: boolean
           location: string | null
-          middle_name: string | null
           motivational_phase: string | null
           occupation: string | null
-          phone: string | null
-          phone_number: string | null
+          platform_guid: string
           quiet_time_enabled: boolean | null
           quiet_time_end: string | null
           quiet_time_start: string | null
-          ssn_hash: string | null
-          ssn_last_four: string | null
-          ssn_last4: string | null
-          suffix: string | null
           trust_score: number | null
           updated_at: string | null
           user_id: string
@@ -3765,20 +3815,15 @@ export type Database = {
         Insert: {
           account_type?: string | null
           activity_preferences?: string[] | null
-          address?: Json | null
           age?: number | null
           ai_assistant_name?: string | null
-          aliases?: string[] | null
           available_credit_line?: number | null
           avatar_url?: string | null
           bio?: string | null
           created_at?: string | null
-          date_of_birth?: string | null
           display_name?: string | null
           document_type?: string | null
           ein?: string | null
-          first_name?: string | null
-          full_legal_address?: Json | null
           gender?: string | null
           health_goals?: string[] | null
           id?: string
@@ -3789,21 +3834,14 @@ export type Database = {
           kyc_submitted_at?: string | null
           kyc_tier?: number
           kyc_verified_at?: string | null
-          last_name?: string | null
           liveness_verified?: boolean
           location?: string | null
-          middle_name?: string | null
           motivational_phase?: string | null
           occupation?: string | null
-          phone?: string | null
-          phone_number?: string | null
+          platform_guid?: string
           quiet_time_enabled?: boolean | null
           quiet_time_end?: string | null
           quiet_time_start?: string | null
-          ssn_hash?: string | null
-          ssn_last_four?: string | null
-          ssn_last4?: string | null
-          suffix?: string | null
           trust_score?: number | null
           updated_at?: string | null
           user_id: string
@@ -3811,20 +3849,15 @@ export type Database = {
         Update: {
           account_type?: string | null
           activity_preferences?: string[] | null
-          address?: Json | null
           age?: number | null
           ai_assistant_name?: string | null
-          aliases?: string[] | null
           available_credit_line?: number | null
           avatar_url?: string | null
           bio?: string | null
           created_at?: string | null
-          date_of_birth?: string | null
           display_name?: string | null
           document_type?: string | null
           ein?: string | null
-          first_name?: string | null
-          full_legal_address?: Json | null
           gender?: string | null
           health_goals?: string[] | null
           id?: string
@@ -3835,21 +3868,14 @@ export type Database = {
           kyc_submitted_at?: string | null
           kyc_tier?: number
           kyc_verified_at?: string | null
-          last_name?: string | null
           liveness_verified?: boolean
           location?: string | null
-          middle_name?: string | null
           motivational_phase?: string | null
           occupation?: string | null
-          phone?: string | null
-          phone_number?: string | null
+          platform_guid?: string
           quiet_time_enabled?: boolean | null
           quiet_time_end?: string | null
           quiet_time_start?: string | null
-          ssn_hash?: string | null
-          ssn_last_four?: string | null
-          ssn_last4?: string | null
-          suffix?: string | null
           trust_score?: number | null
           updated_at?: string | null
           user_id?: string
@@ -5315,35 +5341,65 @@ export type Database = {
       synapse_credit_ledger: {
         Row: {
           amount: number
+          amount_idia_beta: number | null
           balance_after: number
+          balance_idia_beta: number | null
+          circle_transfer_id: string | null
           created_at: string | null
           description: string | null
+          destination_wallet: string | null
           entry_type: string
+          flare_tx_hash: string | null
           id: string
           metadata: Json | null
           reference_id: string | null
+          status: Database["public"]["Enums"]["idia_transaction_status"] | null
+          transaction_id: string | null
+          transaction_type:
+            | Database["public"]["Enums"]["idia_transaction_type"]
+            | null
           user_id: string
         }
         Insert: {
           amount: number
+          amount_idia_beta?: number | null
           balance_after?: number
+          balance_idia_beta?: number | null
+          circle_transfer_id?: string | null
           created_at?: string | null
           description?: string | null
+          destination_wallet?: string | null
           entry_type: string
+          flare_tx_hash?: string | null
           id?: string
           metadata?: Json | null
           reference_id?: string | null
+          status?: Database["public"]["Enums"]["idia_transaction_status"] | null
+          transaction_id?: string | null
+          transaction_type?:
+            | Database["public"]["Enums"]["idia_transaction_type"]
+            | null
           user_id: string
         }
         Update: {
           amount?: number
+          amount_idia_beta?: number | null
           balance_after?: number
+          balance_idia_beta?: number | null
+          circle_transfer_id?: string | null
           created_at?: string | null
           description?: string | null
+          destination_wallet?: string | null
           entry_type?: string
+          flare_tx_hash?: string | null
           id?: string
           metadata?: Json | null
           reference_id?: string | null
+          status?: Database["public"]["Enums"]["idia_transaction_status"] | null
+          transaction_id?: string | null
+          transaction_type?:
+            | Database["public"]["Enums"]["idia_transaction_type"]
+            | null
           user_id?: string
         }
         Relationships: []
@@ -5625,6 +5681,38 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "business_locations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_aca_records: {
+        Row: {
+          aca_hash_key: string
+          consent_scope: string[]
+          created_at: string | null
+          id: string
+          platform_guid: string
+        }
+        Insert: {
+          aca_hash_key: string
+          consent_scope?: string[]
+          created_at?: string | null
+          id?: string
+          platform_guid: string
+        }
+        Update: {
+          aca_hash_key?: string
+          consent_scope?: string[]
+          created_at?: string | null
+          id?: string
+          platform_guid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_aca_records_platform_guid_fkey"
+            columns: ["platform_guid"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["platform_guid"]
           },
         ]
       }
@@ -5987,7 +6075,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          idia_usd_balance: number | null
+          idia_beta_balance: number | null
           total_earned: number | null
           updated_at: string
           user_id: string
@@ -5995,7 +6083,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
-          idia_usd_balance?: number | null
+          idia_beta_balance?: number | null
           total_earned?: number | null
           updated_at?: string
           user_id: string
@@ -6003,7 +6091,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
-          idia_usd_balance?: number | null
+          idia_beta_balance?: number | null
           total_earned?: number | null
           updated_at?: string
           user_id?: string
@@ -6015,8 +6103,8 @@ export type Database = {
           cash_balance: number | null
           created_at: string | null
           id: string
+          idia_beta_balance: number | null
           idia_token_balance: number | null
-          idia_usd_balance: number | null
           updated_at: string | null
           user_id: string
           wallet_address: string
@@ -6025,8 +6113,8 @@ export type Database = {
           cash_balance?: number | null
           created_at?: string | null
           id?: string
+          idia_beta_balance?: number | null
           idia_token_balance?: number | null
-          idia_usd_balance?: number | null
           updated_at?: string | null
           user_id: string
           wallet_address: string
@@ -6035,8 +6123,8 @@ export type Database = {
           cash_balance?: number | null
           created_at?: string | null
           id?: string
+          idia_beta_balance?: number | null
           idia_token_balance?: number | null
-          idia_usd_balance?: number | null
           updated_at?: string | null
           user_id?: string
           wallet_address?: string
@@ -6257,6 +6345,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_hub_balance: { Args: { uid: string }; Returns: number }
       get_user_business_access: {
         Args: { p_user_id: string }
         Returns: {
@@ -6335,6 +6424,13 @@ export type Database = {
       }
     }
     Enums: {
+      idia_transaction_status: "PENDING" | "SETTLED" | "FAILED"
+      idia_transaction_type:
+        | "DATA_SALE"
+        | "DEPOSIT"
+        | "WITHDRAWAL"
+        | "FEE"
+        | "REWARD"
       user_role: "owner" | "manager" | "employee" | "warehouse_associate"
     }
     CompositeTypes: {
@@ -6463,6 +6559,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      idia_transaction_status: ["PENDING", "SETTLED", "FAILED"],
+      idia_transaction_type: [
+        "DATA_SALE",
+        "DEPOSIT",
+        "WITHDRAWAL",
+        "FEE",
+        "REWARD",
+      ],
       user_role: ["owner", "manager", "employee", "warehouse_associate"],
     },
   },
