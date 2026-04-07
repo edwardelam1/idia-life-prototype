@@ -72,7 +72,7 @@ const WalletDashboard = () => {
 
       setBalances({
         cash: 0, // Still not implemented
-        idiaUsd: walletData?.idia_usd_balance || 0,
+        idiaUsd: walletData?.idia_beta_balance || 0,
         idiaToken: 0 // Still not implemented
       });
     } catch (error) {
