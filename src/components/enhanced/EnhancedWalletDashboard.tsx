@@ -194,7 +194,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                 </div>
                 <div className="text-center">
                   <p className="text-teal-100 text-xs font-medium">IDIA-BETA</p>
-                  <p className="text-xl font-bold">${walletBalance.idia_usd_balance.toFixed(2)}</p>
+                   <p className="text-xl font-bold">${walletBalance.idia_usd_balance.toFixed(2)}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-teal-100 text-xs font-medium">IDIA Token</p>
