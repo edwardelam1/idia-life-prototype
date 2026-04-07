@@ -72,7 +72,7 @@ const WalletDashboard = () => {
 
       setBalances({
         cash: 0, // Still not implemented
-        idiaUsd: walletData?.idia_usd_balance || 0,
+        idiaUsd: walletData?.idia_beta_balance || 0,
         idiaToken: 0 // Still not implemented
       });
     } catch (error) {
@@ -192,7 +192,7 @@ const WalletDashboard = () => {
               <p className="text-xl font-bold">${balances.cash.toFixed(2)}</p>
             </div>
             <div className="text-center">
-              <p className="text-teal-100 text-xs font-medium">IDIA-USD</p>
+              <p className="text-teal-100 text-xs font-medium">IDIA-BETA</p>
               <p className="text-xl font-bold">${balances.idiaUsd.toFixed(2)}</p>
             </div>
             <div className="text-center">
