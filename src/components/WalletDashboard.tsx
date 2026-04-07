@@ -192,7 +192,7 @@ const WalletDashboard = () => {
               <p className="text-xl font-bold">${balances.cash.toFixed(2)}</p>
             </div>
             <div className="text-center">
-              <p className="text-teal-100 text-xs font-medium">IDIA-USD</p>
+              <p className="text-teal-100 text-xs font-medium">IDIA-BETA</p>
               <p className="text-xl font-bold">${balances.idiaUsd.toFixed(2)}</p>
             </div>
             <div className="text-center">
