@@ -86,7 +86,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [requiresBiometric, setRequiresBiometric] = useState(false);
-  const { executeWithConsent } = useACA();
+  const { recordConsent } = useACA();
 
   useEffect(() => {
     const getSession = async () => {
@@ -258,16 +258,12 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setIsConnecting(true);
 
     try {
-      // 1. Push ACA-wrapped consent to health-data-bridge
-      await executeWithConsent(
-        'DATA_SOURCE_CONNECTION',
-        {
-          provider: 'apple_health',
-          selected_data_types: Array.from(selectedDataTypes),
-          user_id: currentUserId,
-        },
-        'health-data-bridge'
-      );
+      // 1. Record ACA consent locally (no edge function call needed for connection step)
+      await recordConsent('DATA_SOURCE_CONNECTION', {
+        provider: 'apple_health',
+        selected_data_types: Array.from(selectedDataTypes),
+        user_id: currentUserId,
+      });
 
       // 2. Upsert connection record
       const { error: connectionError } = await supabase
@@ -301,7 +297,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       setConnectionStatus("error");
       setIsConnecting(false);
     }
-  }, [currentUserId, authSession, syncHealthDataViaNativeApp, selectedDataTypes, executeWithConsent]);
+  }, [currentUserId, authSession, syncHealthDataViaNativeApp, selectedDataTypes, recordConsent]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

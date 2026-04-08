@@ -32,7 +32,7 @@ const SendRequestModal: React.FC<SendRequestModalProps> = ({ isOpen, onClose }) 
   const [note, setNote] = useState('');
   const [step, setStep] = useState<'form' | 'confirm' | 'biometric' | 'success'>('form');
   const { toast } = useToast();
-  const { executeWithConsent } = useACA();
+  const { recordConsent } = useACA();
 
   const handleSend = () => {
     if (!recipient || !amount) {
@@ -54,17 +54,14 @@ const SendRequestModal: React.FC<SendRequestModalProps> = ({ isOpen, onClose }) 
   // After biometric verification, execute ACA-wrapped transaction
   const handleBiometricVerified = async () => {
     try {
-      await executeWithConsent(
-        'FINANCIAL_TRANSACTION',
-        {
-          destination_wallet: recipient,
-          amount_idia_usd: Number(amount),
-          currency: 'IDIA_USD',
-          transaction_type: activeTab === 'send' ? 'P2P_TRANSFER' : 'P2P_REQUEST',
-          note: note || undefined,
-        },
-        'idia-synapse'
-      );
+      // Record the consent artifact first
+      await recordConsent('FINANCIAL_TRANSACTION', {
+        destination_wallet: recipient,
+        amount_idia_usd: Number(amount),
+        currency: 'IDIA_USD',
+        transaction_type: activeTab === 'send' ? 'P2P_TRANSFER' : 'P2P_REQUEST',
+        note: note || undefined,
+      });
 
       setStep('success');
       toast({
