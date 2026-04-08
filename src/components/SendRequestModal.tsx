@@ -296,12 +296,25 @@ const SendRequestModal: React.FC<SendRequestModalProps> = ({ isOpen, onClose }) 
     </div>
   );
 
+  const renderBiometric = () => (
+    <div className="space-y-4">
+      <div className="text-center mb-2">
+        <p className="text-sm text-muted-foreground">
+          Confirming transfer of <span className="font-bold text-foreground">${Number(amount).toFixed(2)}</span> to <span className="font-medium text-foreground">{recipient}</span>
+        </p>
+      </div>
+      <SovereignAuth onVerified={handleBiometricVerified} />
+    </div>
+  );
+
   const renderContent = () => {
     switch (step) {
       case 'form':
         return renderForm();
       case 'confirm':
         return renderConfirm();
+      case 'biometric':
+        return renderBiometric();
       case 'success':
         return renderSuccess();
       default:
