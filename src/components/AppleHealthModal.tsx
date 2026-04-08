@@ -324,10 +324,17 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             </div>
           )}
 
-          {connectionStatus === "idle" && !existingConnection && (
+          {requiresBiometric && connectionStatus === "idle" && (
+            <div className="py-4">
+              <SovereignAuth onVerified={handleBiometricVerified} />
+            </div>
+          )}
+
+          {connectionStatus === "idle" && !existingConnection && !requiresBiometric && (
             <>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 Connect your Apple Health data to earn rewards for your fitness activities and health metrics.
+                This action requires biometric verification to generate your immutable consent artifact.
               </p>
 
               <div className="space-y-2">
@@ -335,7 +342,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                 <div className="max-h-60 overflow-y-auto border p-2 rounded-md">
                   {Array.from(new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.category))).map((category) => (
                     <div key={category} className="mb-2">
-                      <h5 className="font-semibold text-xs text-gray-700 mt-1">{category}</h5>
+                      <h5 className="font-semibold text-xs text-muted-foreground mt-1">{category}</h5>
                       {ALL_HEALTH_DATA_TYPES.filter((d) => d.category === category).map((type) => (
                         <div key={type.id} className="flex items-center space-x-2 text-xs py-1">
                           <Checkbox
@@ -343,7 +350,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                             checked={selectedDataTypes.has(type.id)}
                             onCheckedChange={(checked: boolean) => handleCheckboxChange(type.id, checked)}
                           />
-                          <label htmlFor={type.id} className="text-gray-600 cursor-pointer">
+                          <label htmlFor={type.id} className="text-muted-foreground cursor-pointer">
                             {type.name}
                           </label>
                         </div>
@@ -351,13 +358,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-blue-600 mt-2">
+                <p className="text-xs text-primary mt-2">
                   All data is anonymized and encrypted for privacy protection
                 </p>
               </div>
 
-              <Button onClick={handleConnect} className="w-full" disabled={isConnecting || !currentUserId}>
-                {isConnecting ? "Connecting..." : "Connect Apple Health"}
+              <Button onClick={handleConnectClick} className="w-full" disabled={isConnecting || !currentUserId}>
+                {isConnecting ? "Connecting..." : "Authorize & Connect Apple Health"}
               </Button>
             </>
           )}
