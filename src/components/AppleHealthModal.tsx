@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import React from "react";
 import { eventTracker } from "@/utils/EventTracker";
+import SovereignAuth from "@/components/pro/SovereignAuth";
+import { useACA } from "@/hooks/useACA";
 
 interface AppleHealthModalProps {
   isOpen: boolean;
@@ -83,6 +85,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.id)),
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [requiresBiometric, setRequiresBiometric] = useState(false);
+  const { executeWithConsent } = useACA();
 
   useEffect(() => {
     const getSession = async () => {
@@ -237,24 +241,40 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     }
   }, [currentUserId, existingConnection, onDisconnect, onClose]);
 
-  const handleConnect = useCallback(async () => {
+  // Gate: user clicks Connect → show SovereignAuth biometric challenge
+  const handleConnectClick = useCallback(() => {
+    if (!currentUserId || !authSession) {
+      setErrorMessage("Please log in to connect Apple Health data.");
+      return;
+    }
+    setRequiresBiometric(true);
+  }, [currentUserId, authSession]);
+
+  // After biometric verification succeeds, execute ACA-wrapped connection
+  const handleBiometricVerified = useCallback(async () => {
+    setRequiresBiometric(false);
     setErrorMessage(null);
     setConnectionStatus("connecting");
     setIsConnecting(true);
 
-    if (!currentUserId || !authSession) {
-      setErrorMessage("Please log in to connect Apple Health data.");
-      setConnectionStatus("error");
-      setIsConnecting(false);
-      return;
-    }
-
     try {
-      const { data: connectionResult, error: connectionError } = await supabase
+      // 1. Push ACA-wrapped consent to health-data-bridge
+      await executeWithConsent(
+        'DATA_SOURCE_CONNECTION',
+        {
+          provider: 'apple_health',
+          selected_data_types: Array.from(selectedDataTypes),
+          user_id: currentUserId,
+        },
+        'health-data-bridge'
+      );
+
+      // 2. Upsert connection record
+      const { error: connectionError } = await supabase
         .from("data_connections")
         .upsert(
           {
-            user_id: currentUserId,
+            user_id: currentUserId!,
             connection_type: "apple_health",
             connection_name: "Apple Health",
             is_active: true,
@@ -274,13 +294,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         return;
       }
 
+      // 3. Trigger native iOS sync
       syncHealthDataViaNativeApp();
     } catch (error: any) {
       setErrorMessage(`Connection failed: ${error.message}`);
       setConnectionStatus("error");
       setIsConnecting(false);
     }
-  }, [currentUserId, authSession, syncHealthDataViaNativeApp, selectedDataTypes]);
+  }, [currentUserId, authSession, syncHealthDataViaNativeApp, selectedDataTypes, executeWithConsent]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -303,10 +324,17 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             </div>
           )}
 
-          {connectionStatus === "idle" && !existingConnection && (
+          {requiresBiometric && connectionStatus === "idle" && (
+            <div className="py-4">
+              <SovereignAuth onVerified={handleBiometricVerified} />
+            </div>
+          )}
+
+          {connectionStatus === "idle" && !existingConnection && !requiresBiometric && (
             <>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 Connect your Apple Health data to earn rewards for your fitness activities and health metrics.
+                This action requires biometric verification to generate your immutable consent artifact.
               </p>
 
               <div className="space-y-2">
@@ -314,7 +342,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                 <div className="max-h-60 overflow-y-auto border p-2 rounded-md">
                   {Array.from(new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.category))).map((category) => (
                     <div key={category} className="mb-2">
-                      <h5 className="font-semibold text-xs text-gray-700 mt-1">{category}</h5>
+                      <h5 className="font-semibold text-xs text-muted-foreground mt-1">{category}</h5>
                       {ALL_HEALTH_DATA_TYPES.filter((d) => d.category === category).map((type) => (
                         <div key={type.id} className="flex items-center space-x-2 text-xs py-1">
                           <Checkbox
@@ -322,7 +350,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                             checked={selectedDataTypes.has(type.id)}
                             onCheckedChange={(checked: boolean) => handleCheckboxChange(type.id, checked)}
                           />
-                          <label htmlFor={type.id} className="text-gray-600 cursor-pointer">
+                          <label htmlFor={type.id} className="text-muted-foreground cursor-pointer">
                             {type.name}
                           </label>
                         </div>
@@ -330,13 +358,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-blue-600 mt-2">
+                <p className="text-xs text-primary mt-2">
                   All data is anonymized and encrypted for privacy protection
                 </p>
               </div>
 
-              <Button onClick={handleConnect} className="w-full" disabled={isConnecting || !currentUserId}>
-                {isConnecting ? "Connecting..." : "Connect Apple Health"}
+              <Button onClick={handleConnectClick} className="w-full" disabled={isConnecting || !currentUserId}>
+                {isConnecting ? "Connecting..." : "Authorize & Connect Apple Health"}
               </Button>
             </>
           )}
