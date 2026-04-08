@@ -3,8 +3,6 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, DollarSign, Shield, Zap } from 'lucide-react';
-import SovereignAuth from '@/components/pro/SovereignAuth';
-import { useACA } from '@/hooks/useACA';
 
 interface NikeConnectionModalProps {
   isOpen: boolean;
@@ -14,24 +12,13 @@ interface NikeConnectionModalProps {
 
 const NikeConnectionModal = ({ isOpen, onClose, onConnect }: NikeConnectionModalProps) => {
   const [isConnecting, setIsConnecting] = useState(false);
-  const [requiresBiometric, setRequiresBiometric] = useState(false);
-  const { recordConsent } = useACA();
 
-  const handleConnectClick = () => {
-    setRequiresBiometric(true);
-  };
-
-  const handleBiometricVerified = async () => {
-    setRequiresBiometric(false);
+  const handleConnect = async () => {
     setIsConnecting(true);
-    try {
-      await recordConsent('DATA_SOURCE_CONNECTION', { provider: 'nike_run_club' });
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setIsConnecting(false);
-      onConnect();
-    } catch {
-      setIsConnecting(false);
-    }
+    // Simulate connection process
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    setIsConnecting(false);
+    onConnect();
   };
 
   return (
@@ -103,11 +90,6 @@ const NikeConnectionModal = ({ isOpen, onClose, onConnect }: NikeConnectionModal
             </ul>
           </div>
 
-          {requiresBiometric ? (
-            <div className="py-4">
-              <SovereignAuth onVerified={handleBiometricVerified} />
-            </div>
-          ) : (
           <div className="flex space-x-3">
             <Button 
               variant="outline" 
@@ -119,7 +101,7 @@ const NikeConnectionModal = ({ isOpen, onClose, onConnect }: NikeConnectionModal
             </Button>
             <Button 
               className="flex-1 bg-orange-500 hover:bg-orange-600" 
-              onClick={handleConnectClick}
+              onClick={handleConnect}
               disabled={isConnecting}
             >
               {isConnecting ? (
@@ -132,7 +114,6 @@ const NikeConnectionModal = ({ isOpen, onClose, onConnect }: NikeConnectionModal
               )}
             </Button>
           </div>
-          )}
         </div>
       </DialogContent>
     </Dialog>

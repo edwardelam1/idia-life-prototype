@@ -17,8 +17,6 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import SovereignAuth from '@/components/pro/SovereignAuth';
-import { useACA } from '@/hooks/useACA';
 
 interface SendRequestModalProps {
   isOpen: boolean;
@@ -30,9 +28,8 @@ const SendRequestModal: React.FC<SendRequestModalProps> = ({ isOpen, onClose }) 
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
-  const [step, setStep] = useState<'form' | 'confirm' | 'biometric' | 'success'>('form');
+  const [step, setStep] = useState<'form' | 'confirm' | 'success'>('form');
   const { toast } = useToast();
-  const { recordConsent } = useACA();
 
   const handleSend = () => {
     if (!recipient || !amount) {
@@ -46,36 +43,15 @@ const SendRequestModal: React.FC<SendRequestModalProps> = ({ isOpen, onClose }) 
     setStep('confirm');
   };
 
-  // User clicks confirm → trigger biometric challenge
   const handleConfirm = () => {
-    setStep('biometric');
-  };
-
-  // After biometric verification, execute ACA-wrapped transaction
-  const handleBiometricVerified = async () => {
-    try {
-      // Record the consent artifact first
-      await recordConsent('FINANCIAL_TRANSACTION', {
-        destination_wallet: recipient,
-        amount_idia_usd: Number(amount),
-        currency: 'IDIA_USD',
-        transaction_type: activeTab === 'send' ? 'P2P_TRANSFER' : 'P2P_REQUEST',
-        note: note || undefined,
-      });
-
+    // Simulate transaction processing
+    setTimeout(() => {
       setStep('success');
       toast({
         title: activeTab === 'send' ? "Money Sent!" : "Request Sent!",
         description: `Successfully ${activeTab === 'send' ? 'sent' : 'requested'} $${amount}`,
       });
-    } catch (error: any) {
-      toast({
-        title: "Transaction Failed",
-        description: error.message || "Failed to verify consent artifact.",
-        variant: "destructive"
-      });
-      setStep('confirm');
-    }
+    }, 1500);
   };
 
   const handleReset = () => {
@@ -293,25 +269,12 @@ const SendRequestModal: React.FC<SendRequestModalProps> = ({ isOpen, onClose }) 
     </div>
   );
 
-  const renderBiometric = () => (
-    <div className="space-y-4">
-      <div className="text-center mb-2">
-        <p className="text-sm text-muted-foreground">
-          Confirming transfer of <span className="font-bold text-foreground">${Number(amount).toFixed(2)}</span> to <span className="font-medium text-foreground">{recipient}</span>
-        </p>
-      </div>
-      <SovereignAuth onVerified={handleBiometricVerified} />
-    </div>
-  );
-
   const renderContent = () => {
     switch (step) {
       case 'form':
         return renderForm();
       case 'confirm':
         return renderConfirm();
-      case 'biometric':
-        return renderBiometric();
       case 'success':
         return renderSuccess();
       default:

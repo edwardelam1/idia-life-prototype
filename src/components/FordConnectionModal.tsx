@@ -14,8 +14,6 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { eventTracker } from '@/utils/EventTracker';
-import SovereignAuth from '@/components/pro/SovereignAuth';
-import { useACA } from '@/hooks/useACA';
 
 interface FordConnectionModalProps {
   isOpen: boolean;
@@ -29,9 +27,7 @@ const FordConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, 
   const [isConnecting, setIsConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [requiresBiometric, setRequiresBiometric] = useState(false);
   const { toast } = useToast();
-  const { recordConsent } = useACA();
 
   useEffect(() => {
     const getUser = async () => {
@@ -63,25 +59,16 @@ const FordConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, 
     }
   };
 
-  const handleConnectClick = () => {
+  const handleConnect = async () => {
     if (!currentUserId) {
       toast({ title: "Error", description: "Please log in to connect your Ford account.", variant: "destructive" });
       return;
     }
-    setRequiresBiometric(true);
-  };
 
-  const handleBiometricVerified = async () => {
-    setRequiresBiometric(false);
     eventTracker.trackFeatureUsage({ feature: 'ford_connection', action: 'connect_initiated', success: false });
     setIsConnecting(true);
 
     try {
-      // Record ACA consent before OAuth
-      await recordConsent('DATA_SOURCE_CONNECTION', {
-        provider: 'ford',
-        user_id: currentUserId,
-      });
       const { data: urlData, error: urlError } = await supabase.functions.invoke('ford-auth-url', {
         body: { userId: currentUserId }
       });
@@ -231,10 +218,6 @@ const FordConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, 
                 <Button variant="destructive" className="flex-1" onClick={handleDisconnect}>Disconnect</Button>
               </div>
             </div>
-          ) : requiresBiometric ? (
-            <div className="py-4">
-              <SovereignAuth onVerified={handleBiometricVerified} />
-            </div>
           ) : (
             <>
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
@@ -280,7 +263,7 @@ const FordConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, 
                 </Button>
                 <Button 
                   className="flex-1 bg-blue-600 hover:bg-blue-700" 
-                  onClick={handleConnectClick}
+                  onClick={handleConnect}
                   disabled={isConnecting}
                 >
                   {isConnecting ? (

@@ -1,71 +1,77 @@
 
 
-# Fix SovereignAuth + ACA Edge Function Error for Data Source Connections
+# Sovereign Onboarding, IDIA-BETA Rebrand & FBO Architecture
 
-## Root Cause
+## Overview
+This plan introduces a device-sovereign onboarding flow where PII never touches Supabase, renames IDIA-USD to IDIA-BETA across the UI, and stubs the FBO pass-through architecture.
 
-The error "Edge function returned a non-2xx status code" happens because `handleBiometricVerified` in `AppleHealthModal.tsx` calls:
+## 1. Install Capacitor Secure Storage Plugin
+- Run `npm install capacitor-secure-storage-plugin`
 
-```typescript
-await executeWithConsent('DATA_SOURCE_CONNECTION', { provider: 'apple_health', ... }, 'health-data-bridge');
-```
+## 2. Create Onboarding Page (`src/pages/Onboarding.tsx`)
+- Multi-step form: Name, Email, Phone (strict `xxx-xxx-xxxx` mask using regex `^\d{3}-\d{3}-\d{4}$`)
+- On submit:
+  1. Validate phone format strictly
+  2. Store PII locally via `SecureStoragePlugin.set({ key: 'user_pii_profile', ... })` — PII never sent to Supabase
+  3. Fetch `platform_guid` from profiles table (or user ID as fallback)
+  4. Generate SHA-256 ACA hash of consent payload
+  5. Insert ACA record to new `user_aca_records` table (hash only, no PII)
+  6. Call stubbed `sendToFBOProvider()` function (placeholder for Airwallex/Currencycloud)
+- Route: `/onboarding`, added to `App.tsx`
 
-The `health-data-bridge` edge function expects `{ user_id, health_data }` but receives `{ provider, selected_data_types, user_id, aca_context }`. Since `health_data` is missing, it returns HTTP 400.
+## 3. Database Migration
+- Create `user_aca_records` table:
+  ```sql
+  CREATE TABLE public.user_aca_records (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    platform_guid text NOT NULL,
+    aca_hash_key text NOT NULL,
+    consent_type text DEFAULT 'KYC_CONSENT',
+    created_at timestamptz DEFAULT now()
+  );
+  ALTER TABLE public.user_aca_records ENABLE ROW LEVEL SECURITY;
+  CREATE POLICY "Users can insert own ACA records" ON public.user_aca_records
+    FOR INSERT TO authenticated WITH CHECK (true);
+  CREATE POLICY "Users can view own ACA records" ON public.user_aca_records
+    FOR SELECT TO authenticated USING (true);
+  ```
+- Add `platform_guid` column to profiles if missing (or use `user_id` as the GUID)
 
-Additionally, `SovereignAuth` is a mock (`setTimeout`) — it needs to use the Web Authentication API for real biometric challenges on supported devices.
+## 4. Rename IDIA-USD → IDIA-BETA (UI Only)
+Keep database column `idia_usd_balance` unchanged. Update display labels in:
+- `src/components/WalletDashboard.tsx` — line 195: "IDIA-USD" → "IDIA-BETA"
+- `src/components/enhanced/EnhancedWalletDashboard.tsx` — line 196: "IDIA-USD" → "IDIA-BETA"
+- `src/hooks/useWalletBalance.ts` — interface comments (cosmetic)
+- `src/hooks/useEnhancedProfile.ts` — interface comments (cosmetic)
 
-## Changes
+## 5. Edge-Hydrated Notifications Utility (`src/utils/notificationHydrator.ts`)
+- Helper that reads PII from `SecureStoragePlugin.get({ key: 'user_pii_profile' })` and merges it with anonymous backend notification payloads
+- Used by notification listeners to display personalized messages locally without backend PII exposure
 
-### 1. Update SovereignAuth to use WebAuthn (`src/components/pro/SovereignAuth.tsx`)
+## 6. FBO Stub (`src/utils/fboProvider.ts`)
+- Exports `sendToFBOProvider(formData, acaHash)` as an async stub that logs and returns success
+- Ready to be swapped for real Airwallex/Currencycloud SDK calls later
 
-Replace the `setTimeout` mock with the Web Authentication API (`navigator.credentials.create`/`navigator.credentials.get`) using `authenticatorAttachment: 'platform'` which triggers Face ID on iOS, fingerprint on Android, and Windows Hello on desktop. Falls back gracefully to mock if WebAuthn is unavailable (e.g., older browsers or non-HTTPS).
+## 7. Route Guard Update (`src/pages/Index.tsx`)
+- After authentication, check if `user_pii_profile` exists in secure storage
+- If not, redirect to `/onboarding` before showing `MainApp`
 
-Device type recognition is automatic — WebAuthn uses whatever biometric the platform provides.
+## Technical Details
+- `capacitor-secure-storage-plugin` uses iOS Keychain / Android Keystore under the hood
+- In web preview mode, it falls back to encrypted localStorage — functional for dev/testing
+- The ACA hash is `SHA-256(platformGuid + consentType + timestamp)` providing an auditable consent anchor without storing PII server-side
+- No database column rename needed — avoids migration risk while achieving the branding change
 
-### 2. Add `recordConsent` method to `useACA` hook (`src/hooks/useACA.ts`)
-
-Add a new function that writes the ACA hash directly to the `user_aca_records` table instead of calling an edge function. This is for consent-only actions (like connecting a data source) that don't need to invoke a backend function.
-
-```typescript
-const recordConsent = async (actionType: ConsentActionType, payloadData: Record<string, any>) => {
-  const acaContext = createConsentWrapper(actionType, payloadData);
-  const hashInput = `${user.id}:${actionType}:${acaContext.timestamp}`;
-  const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(hashInput));
-  const acaHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2,'0')).join('');
-  
-  await supabase.from('user_aca_records').insert({
-    platform_guid: user.id,
-    aca_hash_key: acaHash,
-    consent_type: actionType,
-  });
-  return acaContext;
-};
-```
-
-### 3. Fix AppleHealthModal connection flow (`src/components/AppleHealthModal.tsx`)
-
-In `handleBiometricVerified`, replace the `executeWithConsent('...', '...', 'health-data-bridge')` call with `recordConsent('DATA_SOURCE_CONNECTION', {...})`. The `health-data-bridge` is only called later by the native iOS app when actual health data is being sent — not during the consent/connection step.
-
-### 4. Add SovereignAuth to other data source modals
-
-Update `StravaConnectionModal.tsx`, `FordConnectionModal.tsx`, and `DataSourceModal.tsx` to:
-- Import `SovereignAuth` and `useACA`
-- Gate the connect action behind biometric verification
-- Record the ACA consent before proceeding with OAuth/connection flows
-
-### 5. Fix `SendRequestModal.tsx` ACA call
-
-Same pattern — use `recordConsent` for the consent record, then call `idia-synapse` separately only if needed for the actual transaction processing.
-
-## Files Modified
-
-| File | Change |
+## Files Created/Modified
+| File | Action |
 |------|--------|
-| `src/components/pro/SovereignAuth.tsx` | WebAuthn biometric with platform fallback |
-| `src/hooks/useACA.ts` | Add `recordConsent` for direct DB ACA recording |
-| `src/components/AppleHealthModal.tsx` | Use `recordConsent` instead of `executeWithConsent` to `health-data-bridge` |
-| `src/components/StravaConnectionModal.tsx` | Add SovereignAuth gate + ACA consent |
-| `src/components/FordConnectionModal.tsx` | Add SovereignAuth gate + ACA consent |
-| `src/components/DataSourceModal.tsx` | Add SovereignAuth gate + ACA consent |
-| `src/components/SendRequestModal.tsx` | Fix ACA flow to separate consent from transaction |
+| `package.json` | Add `capacitor-secure-storage-plugin` |
+| `src/pages/Onboarding.tsx` | **Create** — sovereign onboarding form |
+| `src/utils/fboProvider.ts` | **Create** — FBO stub |
+| `src/utils/notificationHydrator.ts` | **Create** — edge-hydrated notification helper |
+| `src/App.tsx` | Add `/onboarding` route |
+| `src/pages/Index.tsx` | Add secure storage check before MainApp |
+| `src/components/WalletDashboard.tsx` | Rename label to IDIA-BETA |
+| `src/components/enhanced/EnhancedWalletDashboard.tsx` | Rename label to IDIA-BETA |
+| Migration SQL | Create `user_aca_records` table with RLS |
 

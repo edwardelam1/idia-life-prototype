@@ -12,8 +12,6 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { eventTracker } from '@/utils/EventTracker';
-import SovereignAuth from '@/components/pro/SovereignAuth';
-import { useACA } from '@/hooks/useACA';
 
 interface StravaConnectionModalProps {
   isOpen: boolean;
@@ -27,9 +25,7 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
   const [isConnecting, setIsConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [requiresBiometric, setRequiresBiometric] = useState(false);
   const { toast } = useToast();
-  const { recordConsent } = useACA();
 
   useEffect(() => {
     const getUser = async () => {
@@ -82,7 +78,7 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
     }
   };
 
-  const handleConnectClick = () => {
+  const handleConnect = async () => {
     if (!currentUserId) {
       toast({
         title: "Error",
@@ -91,11 +87,6 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
       });
       return;
     }
-    setRequiresBiometric(true);
-  };
-
-  const handleBiometricVerified = async () => {
-    setRequiresBiometric(false);
 
     // Track connection attempt through synapse
     eventTracker.trackFeatureUsage({
@@ -107,11 +98,6 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
     setIsConnecting(true);
 
     try {
-      // Record ACA consent before OAuth
-      await recordConsent('DATA_SOURCE_CONNECTION', {
-        provider: 'strava',
-        user_id: currentUserId,
-      });
       console.log('Starting Strava connection for user:', currentUserId);
       
       // Get OAuth URL from edge function with proper client ID
@@ -393,10 +379,6 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
                 </Button>
               </div>
             </div>
-          ) : requiresBiometric ? (
-            <div className="py-4">
-              <SovereignAuth onVerified={handleBiometricVerified} />
-            </div>
           ) : (
             <>
               <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
@@ -439,7 +421,7 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
                 </Button>
                 <Button 
                   className="flex-1 bg-orange-500 hover:bg-orange-600" 
-                  onClick={handleConnectClick}
+                  onClick={handleConnect}
                   disabled={isConnecting}
                 >
                   {isConnecting ? (

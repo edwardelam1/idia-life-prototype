@@ -16,8 +16,7 @@ import {
 } from 'lucide-react';
 
 import { supabase } from "@/integrations/supabase/client";
-import SovereignAuth from '@/components/pro/SovereignAuth';
-import { useACA } from '@/hooks/useACA';
+
 
 interface DataSourceModalProps {
   source: any;
@@ -31,22 +30,16 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
   const [consentGiven, setConsentGiven] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [requiresBiometric, setRequiresBiometric] = useState(false);
-  const { recordConsent } = useACA();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null); // State for error messages
 
   if (!source) return null;
 
-  const handleConnectClick = () => {
+  const handleConnect = async () => {
     if (!consentGiven) {
       setErrorMessage("Please give consent to connect.");
       return;
     }
-    setRequiresBiometric(true);
-  };
 
-  const handleBiometricVerified = async () => {
-    setRequiresBiometric(false);
     setIsConnecting(true);
     setErrorMessage(null);
 
@@ -60,12 +53,6 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
         return;
       }
       const userId = user.id;
-
-      // Record ACA consent
-      await recordConsent('DATA_SOURCE_CONNECTION', {
-        provider: source.name,
-        user_id: userId,
-      });
 
       // Route to appropriate live integration based on source type
       const sourceName = source.name.toLowerCase();
@@ -321,14 +308,7 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
             </div>
           </div>
 
-          {requiresBiometric && (
-            <div className="py-4">
-              <SovereignAuth onVerified={handleBiometricVerified} />
-            </div>
-          )}
-
           {/* Action Buttons */}
-          {!requiresBiometric && (
           <div className="flex space-x-3">
             <Button
               variant="outline"
@@ -340,7 +320,7 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
             </Button>
             <Button
               className="flex-1 bg-teal-500 hover:bg-teal-600"
-              onClick={handleConnectClick}
+              onClick={handleConnect}
               disabled={!consentGiven || isConnecting}
             >
               {isConnecting ? (
@@ -353,7 +333,6 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
               )}
             </Button>
           </div>
-          )}
         </div>
       </DialogContent>
     </Dialog>
