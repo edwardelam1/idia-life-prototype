@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import React from "react";
 import { eventTracker } from "@/utils/EventTracker";
+import SovereignAuth from "@/components/pro/SovereignAuth";
+import { useACA } from "@/hooks/useACA";
 
 interface AppleHealthModalProps {
   isOpen: boolean;
@@ -83,6 +85,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.id)),
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [requiresBiometric, setRequiresBiometric] = useState(false);
+  const { executeWithConsent } = useACA();
 
   useEffect(() => {
     const getSession = async () => {
