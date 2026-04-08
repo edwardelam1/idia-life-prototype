@@ -17,6 +17,8 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import SovereignAuth from '@/components/pro/SovereignAuth';
+import { useACA } from '@/hooks/useACA';
 
 interface SendRequestModalProps {
   isOpen: boolean;
@@ -28,8 +30,9 @@ const SendRequestModal: React.FC<SendRequestModalProps> = ({ isOpen, onClose }) 
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
-  const [step, setStep] = useState<'form' | 'confirm' | 'success'>('form');
+  const [step, setStep] = useState<'form' | 'confirm' | 'biometric' | 'success'>('form');
   const { toast } = useToast();
+  const { executeWithConsent } = useACA();
 
   const handleSend = () => {
     if (!recipient || !amount) {
@@ -43,15 +46,39 @@ const SendRequestModal: React.FC<SendRequestModalProps> = ({ isOpen, onClose }) 
     setStep('confirm');
   };
 
+  // User clicks confirm → trigger biometric challenge
   const handleConfirm = () => {
-    // Simulate transaction processing
-    setTimeout(() => {
+    setStep('biometric');
+  };
+
+  // After biometric verification, execute ACA-wrapped transaction
+  const handleBiometricVerified = async () => {
+    try {
+      await executeWithConsent(
+        'FINANCIAL_TRANSACTION',
+        {
+          destination_wallet: recipient,
+          amount_idia_usd: Number(amount),
+          currency: 'IDIA_USD',
+          transaction_type: activeTab === 'send' ? 'P2P_TRANSFER' : 'P2P_REQUEST',
+          note: note || undefined,
+        },
+        'idia-synapse'
+      );
+
       setStep('success');
       toast({
         title: activeTab === 'send' ? "Money Sent!" : "Request Sent!",
         description: `Successfully ${activeTab === 'send' ? 'sent' : 'requested'} $${amount}`,
       });
-    }, 1500);
+    } catch (error: any) {
+      toast({
+        title: "Transaction Failed",
+        description: error.message || "Failed to verify consent artifact.",
+        variant: "destructive"
+      });
+      setStep('confirm');
+    }
   };
 
   const handleReset = () => {
