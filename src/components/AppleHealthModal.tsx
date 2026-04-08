@@ -241,24 +241,40 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     }
   }, [currentUserId, existingConnection, onDisconnect, onClose]);
 
-  const handleConnect = useCallback(async () => {
+  // Gate: user clicks Connect → show SovereignAuth biometric challenge
+  const handleConnectClick = useCallback(() => {
+    if (!currentUserId || !authSession) {
+      setErrorMessage("Please log in to connect Apple Health data.");
+      return;
+    }
+    setRequiresBiometric(true);
+  }, [currentUserId, authSession]);
+
+  // After biometric verification succeeds, execute ACA-wrapped connection
+  const handleBiometricVerified = useCallback(async () => {
+    setRequiresBiometric(false);
     setErrorMessage(null);
     setConnectionStatus("connecting");
     setIsConnecting(true);
 
-    if (!currentUserId || !authSession) {
-      setErrorMessage("Please log in to connect Apple Health data.");
-      setConnectionStatus("error");
-      setIsConnecting(false);
-      return;
-    }
-
     try {
-      const { data: connectionResult, error: connectionError } = await supabase
+      // 1. Push ACA-wrapped consent to health-data-bridge
+      await executeWithConsent(
+        'DATA_SOURCE_CONNECTION',
+        {
+          provider: 'apple_health',
+          selected_data_types: Array.from(selectedDataTypes),
+          user_id: currentUserId,
+        },
+        'health-data-bridge'
+      );
+
+      // 2. Upsert connection record
+      const { error: connectionError } = await supabase
         .from("data_connections")
         .upsert(
           {
-            user_id: currentUserId,
+            user_id: currentUserId!,
             connection_type: "apple_health",
             connection_name: "Apple Health",
             is_active: true,
@@ -278,13 +294,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         return;
       }
 
+      // 3. Trigger native iOS sync
       syncHealthDataViaNativeApp();
     } catch (error: any) {
       setErrorMessage(`Connection failed: ${error.message}`);
       setConnectionStatus("error");
       setIsConnecting(false);
     }
-  }, [currentUserId, authSession, syncHealthDataViaNativeApp, selectedDataTypes]);
+  }, [currentUserId, authSession, syncHealthDataViaNativeApp, selectedDataTypes, executeWithConsent]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
