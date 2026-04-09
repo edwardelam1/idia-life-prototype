@@ -1,77 +1,29 @@
 
 
-# Sovereign Onboarding, IDIA-BETA Rebrand & FBO Architecture
+# Plan: Add Google Sign-In & Fix Payout Pipeline
 
-## Overview
-This plan introduces a device-sovereign onboarding flow where PII never touches Supabase, renames IDIA-USD to IDIA-BETA across the UI, and stubs the FBO pass-through architecture.
+## Investigation Findings
 
-## 1. Install Capacitor Secure Storage Plugin
-- Run `npm install capacitor-secure-storage-plugin`
+### Payout Pipeline Broken — Root Causes
 
-## 2. Create Onboarding Page (`src/pages/Onboarding.tsx`)
-- Multi-step form: Name, Email, Phone (strict `xxx-xxx-xxxx` mask using regex `^\d{3}-\d{3}-\d{4}$`)
-- On submit:
-  1. Validate phone format strictly
-  2. Store PII locally via `SecureStoragePlugin.set({ key: 'user_pii_profile', ... })` — PII never sent to Supabase
-  3. Fetch `platform_guid` from profiles table (or user ID as fallback)
-  4. Generate SHA-256 ACA hash of consent payload
-  5. Insert ACA record to new `user_aca_records` table (hash only, no PII)
-  6. Call stubbed `sendToFBOProvider()` function (placeholder for Airwallex/Currencycloud)
-- Route: `/onboarding`, added to `App.tsx`
+1. **`credit-user-wallet` references wrong table and column**: The function queries `user_wallets` table (line 34-38) but the actual table is `wallets`. It also uses `idia_usd_balance` (line 49, 55) but the column was renamed to `idia_beta_balance`. This means every wallet credit fails silently.
 
-## 3. Database Migration
-- Create `user_aca_records` table:
-  ```sql
-  CREATE TABLE public.user_aca_records (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    platform_guid text NOT NULL,
-    aca_hash_key text NOT NULL,
-    consent_type text DEFAULT 'KYC_CONSENT',
-    created_at timestamptz DEFAULT now()
-  );
-  ALTER TABLE public.user_aca_records ENABLE ROW LEVEL SECURITY;
-  CREATE POLICY "Users can insert own ACA records" ON public.user_aca_records
-    FOR INSERT TO authenticated WITH CHECK (true);
-  CREATE POLICY "Users can view own ACA records" ON public.user_aca_records
-    FOR SELECT TO authenticated USING (true);
-  ```
-- Add `platform_guid` column to profiles if missing (or use `user_id` as the GUID)
+2. **No new staged_data since March 27**: The last `staged_data` record is from March 27. Raw health data IS being ingested (most recent: April 9) and marked as `processed: true`, but the `anonymization-processor` edge function (called by idia-synapse) is failing or not creating `staged_data` rows.
 
-## 4. Rename IDIA-USD → IDIA-BETA (UI Only)
-Keep database column `idia_usd_balance` unchanged. Update display labels in:
-- `src/components/WalletDashboard.tsx` — line 195: "IDIA-USD" → "IDIA-BETA"
-- `src/components/enhanced/EnhancedWalletDashboard.tsx` — line 196: "IDIA-USD" → "IDIA-BETA"
-- `src/hooks/useWalletBalance.ts` — interface comments (cosmetic)
-- `src/hooks/useEnhancedProfile.ts` — interface comments (cosmetic)
+3. **JWS signature errors in idia-synapse**: The function receives orchestration calls but encounters `JWSError JWSInvalidSignature` and `CompactDecodeError` when making Supabase client calls. This suggests the `SUPABASE_SERVICE_ROLE_KEY` secret may be corrupted or the function is somehow receiving a malformed auth header.
 
-## 5. Edge-Hydrated Notifications Utility (`src/utils/notificationHydrator.ts`)
-- Helper that reads PII from `SecureStoragePlugin.get({ key: 'user_pii_profile' })` and merges it with anonymous backend notification payloads
-- Used by notification listeners to display personalized messages locally without backend PII exposure
+4. **health-data-bridge calls idia-synapse incorrectly**: The bridge invokes idia-synapse via `supabase.functions.invoke()` which passes the caller's auth context, but idia-synapse rejects non-orchestration calls with 400.
 
-## 6. FBO Stub (`src/utils/fboProvider.ts`)
-- Exports `sendToFBOProvider(formData, acaHash)` as an async stub that logs and returns success
-- Ready to be swapped for real Airwallex/Currencycloud SDK calls later
+### Wallets table is empty — no wallet rows exist for any user.
 
-## 7. Route Guard Update (`src/pages/Index.tsx`)
-- After authentication, check if `user_pii_profile` exists in secure storage
-- If not, redirect to `/onboarding` before showing `MainApp`
+---
 
-## Technical Details
-- `capacitor-secure-storage-plugin` uses iOS Keychain / Android Keystore under the hood
-- In web preview mode, it falls back to encrypted localStorage — functional for dev/testing
-- The ACA hash is `SHA-256(platformGuid + consentType + timestamp)` providing an auditable consent anchor without storing PII server-side
-- No database column rename needed — avoids migration risk while achieving the branding change
+## Changes
 
-## Files Created/Modified
-| File | Action |
-|------|--------|
-| `package.json` | Add `capacitor-secure-storage-plugin` |
-| `src/pages/Onboarding.tsx` | **Create** — sovereign onboarding form |
-| `src/utils/fboProvider.ts` | **Create** — FBO stub |
-| `src/utils/notificationHydrator.ts` | **Create** — edge-hydrated notification helper |
-| `src/App.tsx` | Add `/onboarding` route |
-| `src/pages/Index.tsx` | Add secure storage check before MainApp |
-| `src/components/WalletDashboard.tsx` | Rename label to IDIA-BETA |
-| `src/components/enhanced/EnhancedWalletDashboard.tsx` | Rename label to IDIA-BETA |
-| Migration SQL | Create `user_aca_records` table with RLS |
+### 1. Add Google Sign-In to Auth Page (`src/pages/Auth.tsx`)
+- Add a `handleGoogleSignIn` function using `supabase.auth.signInWithOAuth({ provider: 'google' })`
+- Add a Google sign-in button below the Apple sign-in button with the Google "G" SVG icon
+- Note: Google OAuth must be configured in the Supabase dashboard under Authentication > Providers
 
+### 2. Fix `credit-user-wallet` Edge Function
+- Change table
