@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format, parse, isValid } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -11,10 +11,12 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Plus, CalendarIcon } from 'lucide-react';
+import { X, Plus, CalendarIcon, Lock, Unlock, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useProfile } from '@/hooks/useProfile';
-import { US_STATES, formatPhoneNumber, extractPhoneDigits } from '@/utils/usAddressValidation';
+import { useSecureProfile, SecurePII } from '@/hooks/useSecureProfile';
+import { US_STATES, formatPhoneNumber } from '@/utils/usAddressValidation';
+import { useToast } from '@/hooks/use-toast';
 
 const profileSchema = z.object({
   first_name: z.string().min(2, 'First name must be at least 2 characters'),
@@ -25,6 +27,7 @@ const profileSchema = z.object({
   gender: z.string().optional(),
   phone_number: z.string()
     .regex(/^\(\d{3}\) \d{3}-\d{4}$/, 'Phone must be in (XXX) XXX-XXXX format'),
+  email: z.string().email('Invalid email address'),
   street1: z.string().min(1, 'Street address is required').max(100),
   street2: z.string().max(100).optional(),
   city: z.string().min(1, 'City is required').max(50),
@@ -57,7 +60,11 @@ const ACTIVITY_PREFERENCE_OPTIONS = [
 ];
 
 export function ProfileSettings() {
-  const { profile, loading, updating, updateProfile } = useProfile();
+  const { profile, loading: profileLoading, updating, updateProfile } = useProfile();
+  const { pii, loading: piiLoading, saving: piiSaving, save: savePII } = useSecureProfile();
+  const { toast } = useToast();
+
+  const [locked, setLocked] = useState(true);
   const [newInterest, setNewInterest] = useState('');
   const [newHealthGoal, setNewHealthGoal] = useState('');
   const [newActivityPref, setNewActivityPref] = useState('');
@@ -80,14 +87,32 @@ export function ProfileSettings() {
   const dobValue = watch('date_of_birth');
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (locked) return;
     const formatted = formatPhoneNumber(e.target.value);
     setValue('phone_number', formatted, { shouldValidate: true });
   };
 
+  // Hydrate form from Secure Enclave PII + Supabase profile
+  useEffect(() => {
+    if (pii) {
+      setValue('first_name', pii.first_name || '');
+      setValue('last_name', pii.last_name || '');
+      setValue('email', pii.email || '');
+      // Convert enclave phone format (xxx-xxx-xxxx) to form format ((xxx) xxx-xxxx)
+      if (pii.phone) {
+        const digits = pii.phone.replace(/\D/g, '');
+        if (digits.length === 10) {
+          setValue('phone_number', `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`);
+        } else {
+          setValue('phone_number', pii.phone);
+        }
+      }
+    }
+  }, [pii, setValue]);
+
   useEffect(() => {
     if (profile) {
-      setValue('first_name', profile.first_name || '');
-      setValue('last_name', profile.last_name || '');
+      // Only set non-PII fields from profile (PII comes from enclave above)
       setValue('middle_name', profile.middle_name || '');
       setValue('suffix', profile.suffix || '');
       if (profile.date_of_birth) {
@@ -95,7 +120,6 @@ export function ProfileSettings() {
         if (isValid(parsed)) setValue('date_of_birth', parsed);
       }
       setValue('gender', profile.gender || '');
-      setValue('phone_number', profile.phone_number || '');
       setValue('street1', profile.full_legal_address?.street1 || '');
       setValue('street2', profile.full_legal_address?.street2 || '');
       setValue('city', profile.full_legal_address?.city || '');
@@ -110,16 +134,37 @@ export function ProfileSettings() {
   }, [profile, setValue]);
 
   const onSubmit = async (data: ProfileFormData) => {
-    const { street1, street2, city, state, zip, phone_number, date_of_birth, ...rest } = data;
+    const { street1, street2, city, state, zip, phone_number, date_of_birth, first_name, last_name, email: formEmail, ...rest } = data;
+
+    // 1. Save PII fields to Secure Enclave (never to backend)
+    const digits = phone_number.replace(/\D/g, '');
+    const enclavePhone = `${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6)}`;
+    
+    const piiData: SecurePII = {
+      first_name,
+      last_name,
+      email: formEmail,
+      phone: enclavePhone,
+    };
+    await savePII(piiData);
+
+    // 2. Save non-PII fields to Supabase profile
     await updateProfile({
       ...rest,
       date_of_birth: format(date_of_birth, 'yyyy-MM-dd'),
-      phone_number,
+      phone_number: undefined, // NEVER send phone to backend
       full_legal_address: { street1, street2: street2 || '', city, state, zip },
       interests,
       health_goals: healthGoals,
-      activity_preferences: activityPreferences
+      activity_preferences: activityPreferences,
+    } as any);
+
+    toast({
+      title: 'Profile Saved',
+      description: 'PII updated in your device\'s Secure Enclave. Non-PII preferences saved.',
     });
+
+    setLocked(true);
   };
 
   const addItem = (item: string, setter: React.Dispatch<React.SetStateAction<string[]>>, resetValue: React.Dispatch<React.SetStateAction<string>>) => {
@@ -133,6 +178,8 @@ export function ProfileSettings() {
     setter(prev => prev.filter((_, i) => i !== index));
   };
 
+  const loading = profileLoading || piiLoading;
+
   if (loading) {
     return <div className="space-y-4 animate-pulse">
       <div className="h-10 bg-muted rounded"></div>
@@ -143,28 +190,67 @@ export function ProfileSettings() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      {/* Basic Information */}
+      {/* Lock/Unlock toggle */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {locked ? (
+            <Lock className="w-4 h-4 text-muted-foreground" />
+          ) : (
+            <Unlock className="w-4 h-4 text-primary" />
+          )}
+          <span className="text-sm text-muted-foreground">
+            {locked ? 'Profile is locked — tap to edit' : 'Editing — changes save to Secure Enclave'}
+          </span>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setLocked(!locked)}
+        >
+          {locked ? 'Unlock' : 'Lock'}
+        </Button>
+      </div>
+
+      {/* Legal Disclaimer */}
+      <div className="flex items-start gap-2 bg-destructive/5 border border-destructive/20 rounded-lg p-3">
+        <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+        <span className="text-xs text-muted-foreground">
+          <strong className="text-foreground">Legal Notice:</strong> You must provide truthful and accurate information. 
+          If any information is found to be fraudulent, IDIA reserves the right to take all actions 
+          permitted by law, up to and including permanent account termination and referral to 
+          appropriate authorities.
+        </span>
+      </div>
+
+      {/* Basic Information — PII fields from Secure Enclave */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="first_name">First Name *</Label>
-          <Input id="first_name" {...register('first_name')} className="w-full" />
+          <Input id="first_name" {...register('first_name')} className="w-full" disabled={locked} />
           {errors.first_name && <p className="text-sm text-destructive">{errors.first_name.message}</p>}
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="last_name">Last Name *</Label>
-          <Input id="last_name" {...register('last_name')} className="w-full" />
+          <Input id="last_name" {...register('last_name')} className="w-full" disabled={locked} />
           {errors.last_name && <p className="text-sm text-destructive">{errors.last_name.message}</p>}
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="middle_name">Middle Name</Label>
-          <Input id="middle_name" {...register('middle_name')} className="w-full" placeholder="Optional" />
+          <Input id="middle_name" {...register('middle_name')} className="w-full" placeholder="Optional" disabled={locked} />
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="suffix">Suffix</Label>
-          <Input id="suffix" {...register('suffix')} className="w-full" placeholder="Jr., Sr., III, etc." />
+          <Input id="suffix" {...register('suffix')} className="w-full" placeholder="Jr., Sr., III, etc." disabled={locked} />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="email">Email *</Label>
+          <Input id="email" type="email" {...register('email')} className="w-full" disabled={locked} />
+          {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
         </div>
 
         <div className="space-y-2">
@@ -173,6 +259,7 @@ export function ProfileSettings() {
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
+                disabled={locked}
                 className={cn(
                   "w-full justify-start text-left font-normal",
                   !dobValue && "text-muted-foreground"
@@ -201,7 +288,7 @@ export function ProfileSettings() {
 
         <div className="space-y-2">
           <Label htmlFor="gender">Gender</Label>
-          <Select onValueChange={(value) => setValue('gender', value)} defaultValue={profile?.gender || undefined}>
+          <Select onValueChange={(value) => setValue('gender', value)} defaultValue={profile?.gender || undefined} disabled={locked}>
             <SelectTrigger>
               <SelectValue placeholder="Select gender" />
             </SelectTrigger>
@@ -215,7 +302,7 @@ export function ProfileSettings() {
         </div>
 
         {/* Phone Number */}
-        <div className="space-y-2 md:col-span-2">
+        <div className="space-y-2">
           <Label htmlFor="phone_number">Phone Number *</Label>
           <Input
             id="phone_number"
@@ -225,6 +312,7 @@ export function ProfileSettings() {
             placeholder="(555) 123-4567"
             className="w-full"
             maxLength={14}
+            disabled={locked}
           />
           {errors.phone_number && <p className="text-sm text-destructive">{errors.phone_number.message}</p>}
         </div>
@@ -236,24 +324,24 @@ export function ProfileSettings() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2 md:col-span-2">
             <Label htmlFor="street1">Street Address Line 1</Label>
-            <Input id="street1" {...register('street1')} placeholder="123 Main St" className="w-full" />
+            <Input id="street1" {...register('street1')} placeholder="123 Main St" className="w-full" disabled={locked} />
             {errors.street1 && <p className="text-sm text-destructive">{errors.street1.message}</p>}
           </div>
 
           <div className="space-y-2 md:col-span-2">
             <Label htmlFor="street2">Street Address Line 2</Label>
-            <Input id="street2" {...register('street2')} placeholder="Apt, Suite, Unit (optional)" className="w-full" />
+            <Input id="street2" {...register('street2')} placeholder="Apt, Suite, Unit (optional)" className="w-full" disabled={locked} />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="city">City</Label>
-            <Input id="city" {...register('city')} className="w-full" />
+            <Input id="city" {...register('city')} className="w-full" disabled={locked} />
             {errors.city && <p className="text-sm text-destructive">{errors.city.message}</p>}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="state">State</Label>
-            <Select onValueChange={(value) => setValue('state', value, { shouldValidate: true })} defaultValue={profile?.full_legal_address?.state || undefined}>
+            <Select onValueChange={(value) => setValue('state', value, { shouldValidate: true })} defaultValue={profile?.full_legal_address?.state || undefined} disabled={locked}>
               <SelectTrigger>
                 <SelectValue placeholder="Select state" />
               </SelectTrigger>
@@ -268,7 +356,7 @@ export function ProfileSettings() {
 
           <div className="space-y-2">
             <Label htmlFor="zip">ZIP Code</Label>
-            <Input id="zip" {...register('zip')} placeholder="12345" className="w-full" maxLength={10} />
+            <Input id="zip" {...register('zip')} placeholder="12345" className="w-full" maxLength={10} disabled={locked} />
             {errors.zip && <p className="text-sm text-destructive">{errors.zip.message}</p>}
           </div>
         </div>
@@ -278,12 +366,12 @@ export function ProfileSettings() {
       <div className="grid grid-cols-1 gap-4">
         <div className="space-y-2">
           <Label htmlFor="occupation">Occupation</Label>
-          <Input id="occupation" {...register('occupation')} className="w-full" />
+          <Input id="occupation" {...register('occupation')} className="w-full" disabled={locked} />
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="bio">Bio</Label>
-          <Textarea id="bio" {...register('bio')} placeholder="Tell us about yourself..." className="w-full" rows={3} />
+          <Textarea id="bio" {...register('bio')} placeholder="Tell us about yourself..." className="w-full" rows={3} disabled={locked} />
           {errors.bio && <p className="text-sm text-destructive">{errors.bio.message}</p>}
         </div>
       </div>
@@ -292,7 +380,7 @@ export function ProfileSettings() {
       <div className="space-y-3">
         <Label>Interests</Label>
         <div className="flex gap-2">
-          <Select onValueChange={setNewInterest} value={newInterest}>
+          <Select onValueChange={setNewInterest} value={newInterest} disabled={locked}>
             <SelectTrigger className="flex-1">
               <SelectValue placeholder="Add an interest" />
             </SelectTrigger>
@@ -302,7 +390,7 @@ export function ProfileSettings() {
               ))}
             </SelectContent>
           </Select>
-          <Button type="button" variant="outline" size="sm" onClick={() => addItem(newInterest, setInterests, setNewInterest)} disabled={!newInterest}>
+          <Button type="button" variant="outline" size="sm" onClick={() => addItem(newInterest, setInterests, setNewInterest)} disabled={!newInterest || locked}>
             <Plus className="w-4 h-4" />
           </Button>
         </div>
@@ -310,7 +398,7 @@ export function ProfileSettings() {
           {interests.map((interest, index) => (
             <Badge key={index} variant="secondary" className="flex items-center gap-1">
               {interest}
-              <X className="w-3 h-3 cursor-pointer" onClick={() => removeItem(index, setInterests)} />
+              {!locked && <X className="w-3 h-3 cursor-pointer" onClick={() => removeItem(index, setInterests)} />}
             </Badge>
           ))}
         </div>
@@ -320,7 +408,7 @@ export function ProfileSettings() {
       <div className="space-y-3">
         <Label>Health Goals</Label>
         <div className="flex gap-2">
-          <Select onValueChange={setNewHealthGoal} value={newHealthGoal}>
+          <Select onValueChange={setNewHealthGoal} value={newHealthGoal} disabled={locked}>
             <SelectTrigger className="flex-1">
               <SelectValue placeholder="Add a health goal" />
             </SelectTrigger>
@@ -330,7 +418,7 @@ export function ProfileSettings() {
               ))}
             </SelectContent>
           </Select>
-          <Button type="button" variant="outline" size="sm" onClick={() => addItem(newHealthGoal, setHealthGoals, setNewHealthGoal)} disabled={!newHealthGoal}>
+          <Button type="button" variant="outline" size="sm" onClick={() => addItem(newHealthGoal, setHealthGoals, setNewHealthGoal)} disabled={!newHealthGoal || locked}>
             <Plus className="w-4 h-4" />
           </Button>
         </div>
@@ -338,7 +426,7 @@ export function ProfileSettings() {
           {healthGoals.map((goal, index) => (
             <Badge key={index} variant="secondary" className="flex items-center gap-1">
               {goal}
-              <X className="w-3 h-3 cursor-pointer" onClick={() => removeItem(index, setHealthGoals)} />
+              {!locked && <X className="w-3 h-3 cursor-pointer" onClick={() => removeItem(index, setHealthGoals)} />}
             </Badge>
           ))}
         </div>
@@ -348,7 +436,7 @@ export function ProfileSettings() {
       <div className="space-y-3">
         <Label>Activity Preferences</Label>
         <div className="flex gap-2">
-          <Select onValueChange={setNewActivityPref} value={newActivityPref}>
+          <Select onValueChange={setNewActivityPref} value={newActivityPref} disabled={locked}>
             <SelectTrigger className="flex-1">
               <SelectValue placeholder="Add activity preference" />
             </SelectTrigger>
@@ -358,7 +446,7 @@ export function ProfileSettings() {
               ))}
             </SelectContent>
           </Select>
-          <Button type="button" variant="outline" size="sm" onClick={() => addItem(newActivityPref, setActivityPreferences, setNewActivityPref)} disabled={!newActivityPref}>
+          <Button type="button" variant="outline" size="sm" onClick={() => addItem(newActivityPref, setActivityPreferences, setNewActivityPref)} disabled={!newActivityPref || locked}>
             <Plus className="w-4 h-4" />
           </Button>
         </div>
@@ -366,17 +454,19 @@ export function ProfileSettings() {
           {activityPreferences.map((pref, index) => (
             <Badge key={index} variant="secondary" className="flex items-center gap-1">
               {pref}
-              <X className="w-3 h-3 cursor-pointer" onClick={() => removeItem(index, setActivityPreferences)} />
+              {!locked && <X className="w-3 h-3 cursor-pointer" onClick={() => removeItem(index, setActivityPreferences)} />}
             </Badge>
           ))}
         </div>
       </div>
 
-      <div className="flex justify-end">
-        <Button type="submit" disabled={updating}>
-          {updating ? 'Saving...' : 'Save Changes'}
-        </Button>
-      </div>
+      {!locked && (
+        <div className="flex justify-end">
+          <Button type="submit" disabled={updating || piiSaving}>
+            {updating || piiSaving ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </div>
+      )}
     </form>
   );
 }

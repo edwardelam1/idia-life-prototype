@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Shield, Lock, CheckCircle2 } from 'lucide-react';
+import { Shield, Lock, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 /** SHA-256 helper */
@@ -34,23 +34,35 @@ const Onboarding = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState<'form' | 'success'>('form');
 
-  const isValid = name.trim().length > 0 && email.includes('@') && PHONE_REGEX.test(phone);
+  const isValid =
+    firstName.trim().length >= 2 &&
+    lastName.trim().length >= 2 &&
+    email.includes('@') &&
+    PHONE_REGEX.test(phone);
 
   const handleSubmit = async () => {
     if (!isValid) return;
     setSubmitting(true);
 
     try {
-      // 1. Store PII in device enclave — NEVER sent to Supabase
+      // 1. Store PII in device Secure Enclave — NEVER sent to Supabase
+      const piiPayload = {
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        email: email.trim(),
+        phone,
+      };
+
       await SecureStoragePlugin.set({
         key: 'user_pii_profile',
-        value: JSON.stringify({ name: name.trim(), email: email.trim(), phone }),
+        value: JSON.stringify(piiPayload),
       });
 
       // 2. Get platform_guid (fallback to user_id)
@@ -75,9 +87,15 @@ const Onboarding = () => {
         consent_type: 'KYC_CONSENT',
       });
 
-      // 5. Direct FBO KYC pass-through (stub)
+      // 5. Update display_name on profile (non-PII display value)
+      await supabase
+        .from('profiles')
+        .update({ display_name: `${firstName.trim()} ${lastName.trim()}` })
+        .eq('user_id', user.id);
+
+      // 6. Direct FBO KYC pass-through (stub)
       const fboResult = await sendToFBOProvider(
-        { name: name.trim(), email: email.trim(), phone },
+        { name: `${firstName.trim()} ${lastName.trim()}`, email: email.trim(), phone },
         acaHash
       );
 
@@ -143,21 +161,39 @@ const Onboarding = () => {
             </span>
           </div>
 
-          {/* Name */}
+          {/* First Name */}
           <div className="space-y-2">
-            <Label htmlFor="name">Full Name</Label>
+            <Label htmlFor="firstName">First Name *</Label>
             <Input
-              id="name"
-              placeholder="Jane Doe"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={100}
+              id="firstName"
+              placeholder="Jane"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              maxLength={50}
             />
+            {firstName.length > 0 && firstName.trim().length < 2 && (
+              <p className="text-xs text-destructive">First name must be at least 2 characters</p>
+            )}
+          </div>
+
+          {/* Last Name */}
+          <div className="space-y-2">
+            <Label htmlFor="lastName">Last Name *</Label>
+            <Input
+              id="lastName"
+              placeholder="Doe"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              maxLength={50}
+            />
+            {lastName.length > 0 && lastName.trim().length < 2 && (
+              <p className="text-xs text-destructive">Last name must be at least 2 characters</p>
+            )}
           </div>
 
           {/* Email */}
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Email *</Label>
             <Input
               id="email"
               type="email"
@@ -170,7 +206,7 @@ const Onboarding = () => {
 
           {/* Phone — strict xxx-xxx-xxxx */}
           <div className="space-y-2">
-            <Label htmlFor="phone">Phone (xxx-xxx-xxxx)</Label>
+            <Label htmlFor="phone">Phone (xxx-xxx-xxxx) *</Label>
             <Input
               id="phone"
               type="tel"
@@ -182,6 +218,17 @@ const Onboarding = () => {
             {phone.length > 0 && !PHONE_REGEX.test(phone) && (
               <p className="text-xs text-destructive">Format must be xxx-xxx-xxxx</p>
             )}
+          </div>
+
+          {/* Legal Disclaimer */}
+          <div className="flex items-start gap-2 bg-destructive/5 border border-destructive/20 rounded-lg p-3">
+            <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+            <span className="text-xs text-muted-foreground">
+              <strong className="text-foreground">Legal Notice:</strong> You must provide truthful and accurate information. 
+              If any information is found to be fraudulent, IDIA reserves the right to take all actions 
+              permitted by law, up to and including permanent account termination and referral to 
+              appropriate authorities.
+            </span>
           </div>
 
           <Button
