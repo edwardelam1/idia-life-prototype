@@ -27,7 +27,11 @@ serve(async (req) => {
       });
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      global: {
+        headers: { Authorization: `Bearer ${supabaseKey}` }
+      }
+    });
     const requestBody = await req.json();
     
     console.log('IDIA-Synapse: Full request body received:', JSON.stringify(requestBody, null, 2));
