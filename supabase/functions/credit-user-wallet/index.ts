@@ -13,10 +13,14 @@ serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      global: {
+        headers: { Authorization: `Bearer ${supabaseKey}` }
+      }
+    });
 
     const { user_id, reward_amount, staged_data_id } = await req.json();
 
@@ -27,46 +31,61 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Processing wallet credit: ${reward_amount} IDIA-USD for user ${user_id}`);
+    console.log(`Processing wallet credit: ${reward_amount} IDIA-BETA for user ${user_id}`);
 
-    // Begin transaction-like operations
-    // Get existing wallet (should exist due to trigger on user creation)
+    // Try to get existing wallet
     const { data: wallet, error: walletFetchError } = await supabase
-      .from('user_wallets')
+      .from('wallets')
       .select('*')
       .eq('user_id', user_id)
-      .single();
+      .maybeSingle();
 
-    if (walletFetchError) {
-      console.error('Error fetching wallet:', walletFetchError);
-      return new Response('Wallet not found', { 
-        status: 404, 
-        headers: corsHeaders 
-      });
+    let newBalance: number;
+
+    if (!wallet) {
+      // Create wallet if it doesn't exist
+      console.log(`No wallet found for user ${user_id}, creating one...`);
+      newBalance = parseFloat(reward_amount);
+      
+      const { error: createError } = await supabase
+        .from('wallets')
+        .insert({
+          user_id: user_id,
+          idia_beta_balance: newBalance,
+          cash_balance: 0,
+          idia_token_balance: 0,
+          wallet_address: `idia_${user_id.replace(/-/g, '').substring(0, 16)}`
+        });
+
+      if (createError) {
+        console.error('Failed to create wallet:', createError);
+        return new Response('Failed to create wallet', { 
+          status: 500, 
+          headers: corsHeaders 
+        });
+      }
+    } else {
+      // Update existing wallet balance
+      newBalance = parseFloat(wallet.idia_beta_balance || 0) + parseFloat(reward_amount);
+
+      const { error: updateError } = await supabase
+        .from('wallets')
+        .update({
+          idia_beta_balance: newBalance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user_id);
+
+      if (updateError) {
+        console.error('Failed to update wallet:', updateError);
+        return new Response('Failed to update wallet', { 
+          status: 500, 
+          headers: corsHeaders 
+        });
+      }
     }
 
-    // Update wallet balance - using correct column names from schema
-    const newBalance = parseFloat(wallet.idia_usd_balance || 0) + parseFloat(reward_amount);
-    const newTotalEarned = parseFloat(wallet.total_earned || 0) + parseFloat(reward_amount);
-
-    const { error: updateError } = await supabase
-      .from('user_wallets')
-      .update({
-        idia_usd_balance: newBalance,
-        total_earned: newTotalEarned,
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', user_id);
-
-    if (updateError) {
-      console.error('Failed to update wallet:', updateError);
-      return new Response('Failed to update wallet', { 
-        status: 500, 
-        headers: corsHeaders 
-      });
-    }
-
-    // Create transaction record - using correct schema
+    // Create transaction record
     const { data: transaction, error: transactionError } = await supabase
       .from('transactions')
       .insert({
@@ -81,17 +100,14 @@ serve(async (req) => {
 
     if (transactionError) {
       console.error('Failed to create transaction record:', transactionError);
-      // Don't fail the whole operation for transaction logging
     }
 
-    console.log(`Successfully credited ${reward_amount} IDIA-USD to user ${user_id}`);
-    console.log(`New balance: ${newBalance}, Total earned: ${newTotalEarned}`);
+    console.log(`Successfully credited ${reward_amount} IDIA-BETA to user ${user_id}. New balance: ${newBalance}`);
 
     return new Response(JSON.stringify({
       success: true,
       new_balance: newBalance,
       reward_amount: reward_amount,
-      total_earned: newTotalEarned,
       transaction_id: transaction?.id
     }), { 
       status: 200, 
