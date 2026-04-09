@@ -203,7 +203,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       const comprehensiveHealthRequest = {
         action: "comprehensive_health_sync",
         config: {
-          endpoint: "https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/health-data-bridge",
+          endpoint: "https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync",
           user_id: currentUserId,
           auth_token: authSession?.access_token,
         },
