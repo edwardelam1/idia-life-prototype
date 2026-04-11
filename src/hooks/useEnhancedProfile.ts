@@ -74,15 +74,16 @@ export const useEnhancedProfile = () => {
       if (profileError && profileError.code !== 'PGRST116') {
         console.error('Error loading profile:', profileError);
       } else if (profileData) {
+        const displayName = user.user_metadata?.display_name || user.user_metadata?.full_name || user.email || '';
         setProfile({
           id: profileData.id,
           user_id: profileData.user_id,
-          first_name: profileData.display_name?.split(' ')[0] ?? '',
-          last_name: profileData.display_name?.split(' ').slice(1).join(' ') ?? '',
+          first_name: user.user_metadata?.first_name || displayName.split(' ')[0] || '',
+          last_name: user.user_metadata?.last_name || displayName.split(' ').slice(1).join(' ') || '',
           email: user.email,
           ai_assistant_name: 'Friend',
           account_type: 'personal',
-          display_name: profileData.display_name ?? '',
+          display_name: displayName,
           avatar_url: null,
           phone_number: null,
           date_of_birth: null,
