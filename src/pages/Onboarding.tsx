@@ -87,11 +87,17 @@ const Onboarding = () => {
         consent_type: 'KYC_CONSENT',
       });
 
-      // 5. Update display_name on profile (non-PII display value)
-      await supabase
-        .from('profiles')
-        .update({ display_name: `${firstName.trim()} ${lastName.trim()}` })
-        .eq('user_id', user.id);
+      // 5. Push PII to auth.users.user_metadata for Hub bridge (NOT a public DB write)
+      const displayName = `${firstName.trim()} ${lastName.trim()}`;
+      await supabase.auth.updateUser({
+        data: {
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          full_name: displayName,
+          display_name: displayName,
+          pii_synced_at: new Date().toISOString(),
+        },
+      });
 
       // 6. Direct FBO KYC pass-through (stub)
       const fboResult = await sendToFBOProvider(

@@ -3677,7 +3677,6 @@ export type Database = {
           avatar_url: string | null
           bio: string | null
           created_at: string | null
-          display_name: string | null
           document_type: string | null
           ein: string | null
           gender: string | null
@@ -3711,7 +3710,6 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string | null
-          display_name?: string | null
           document_type?: string | null
           ein?: string | null
           gender?: string | null
@@ -3745,7 +3743,6 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string | null
-          display_name?: string | null
           document_type?: string | null
           ein?: string | null
           gender?: string | null
