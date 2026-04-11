@@ -146,7 +146,7 @@ export function ProfileSettings() {
       email: formEmail,
       phone: enclavePhone,
     };
-    await savePII(piiData);
+    await savePII(piiData); // Also syncs to auth.users.user_metadata via the hook
 
     // 2. Save non-PII fields to Supabase profile
     await updateProfile({
