@@ -99,5 +99,8 @@ verify_jwt = false
 [functions.process-pending-events]
 verify_jwt = false
 
+[functions.life-pii-bridge]
+verify_jwt = false
+
 [functions.test-reward-pipeline]
 verify_jwt = false
