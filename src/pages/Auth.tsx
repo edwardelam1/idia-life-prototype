@@ -173,10 +173,11 @@ const Auth = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4eW5ncWNpaXBjdnZlaWdyenF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEzMjIwNzYsImV4cCI6MjA2Njg5ODA3Nn0.w-fUxBsH8wZ5ewzQkGAO6sEooqPEYbYJI_vL5F36HSU`,
         },
-       body: JSON.stringify({
-         email: resetEmail,
-         redirectTo: "idialife://reset-password"
-       }),
+        body: JSON.stringify({
+          email: resetEmail,
+          redirectTo: "idialife://reset-password",
+        }),
+      });
 
       if (!response.ok) {
         throw new Error("Failed to send reset email");
