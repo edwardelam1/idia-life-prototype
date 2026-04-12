@@ -5,23 +5,27 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, KeyRound } from "lucide-react";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
-
-  // Look at the URL to decide if we should show Login or Sign Up first
   const defaultIsLogin = searchParams.get("mode") !== "signup";
-  const [isUpdatePasswordMode, setIsUpdatePasswordMode] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
+
+  // Standard Auth States
+  const [isLogin, setIsLogin] = useState(defaultIsLogin);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [resetEmail, setResetEmail] = useState("");
-  const [isLogin, setIsLogin] = useState(defaultIsLogin);
-  const [isResetMode, setIsResetMode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // OTP Password Reset States
+  const [isResetMode, setIsResetMode] = useState(false);
+  const [resetStep, setResetStep] = useState<"request" | "verify">("request");
+  const [resetEmail, setResetEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [isResetLoading, setIsResetLoading] = useState(false);
+
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -31,245 +35,204 @@ const Auth = () => {
       sessionStorage.setItem("return_to_hub", "true");
     }
 
-    // Check URL hash fallback for mobile deep links
-    const hash = window.location.hash;
-    if (hash && hash.includes("type=recovery")) {
-      setIsUpdatePasswordMode(true);
-    }
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY") {
-        // Intercept the redirect and show the new password form
-        setIsUpdatePasswordMode(true);
-      } else if (session && event !== "PASSWORD_RECOVERY" && !isUpdatePasswordMode) {
-        // Only redirect to home if we aren't currently trying to set a new password
+      // Only auto-redirect if they have a session AND they aren't in the middle of an OTP reset
+      if (session && !isResetMode) {
         navigate("/");
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, searchParams, isUpdatePasswordMode]);
+  }, [navigate, searchParams, isResetMode]);
 
-  const handleSetNewPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      // This is the Supabase command to update the user's password once the recovery link is clicked
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Password Updated!",
-        description: "Your password has been successfully set. You can now use it to log into IDIA Hub.",
-      });
-
-      setIsUpdatePasswordMode(false);
-      navigate("/"); // Send them into the app
-    } catch (error: any) {
-      toast({
-        title: "Failed to update password",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // ==========================================
+  // 1. STANDARD AUTH (LOGIN / SIGNUP / OAUTH)
+  // ==========================================
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        toast({
-          title: "Welcome back!",
-          description: "You've been signed in successfully.",
-        });
+        toast({ title: "Welcome back!", description: "You've been signed in successfully." });
       } else {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`,
-          },
+          options: { emailRedirectTo: `${window.location.origin}/` },
         });
         if (error) throw error;
-        toast({
-          title: "Account created!",
-          description: "Please check your email to verify your account.",
-        });
+        toast({ title: "Account created!", description: "Please check your email to verify your account." });
       }
     } catch (error: any) {
-      toast({
-        title: "Authentication failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Authentication failed", description: error.message, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  const handleOAuthSignIn = async (provider: "google" | "apple") => {
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/`,
-        },
+        provider,
+        options: { redirectTo: `${window.location.origin}/` },
       });
       if (error) throw error;
     } catch (error: any) {
-      toast({
-        title: "Google Sign In failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: `${provider} Sign In failed`, description: error.message, variant: "destructive" });
       setIsLoading(false);
     }
   };
 
-  const handleAppleSignIn = async () => {
-    setIsLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "apple",
-        options: {
-          redirectTo: `${window.location.origin}/`,
-        },
-      });
-      if (error) throw error;
-    } catch (error: any) {
-      toast({
-        title: "Apple Sign In failed",
-        description: error.message,
-        variant: "destructive",
-      });
-      setIsLoading(false);
-    }
-  };
+  // ==========================================
+  // 2. OTP PASSWORD RESET FLOW
+  // ==========================================
 
-  const handlePasswordReset = async (e: React.FormEvent) => {
+  // Step 1: Request the 6-Digit Code
+  const handleRequestOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsResetLoading(true);
 
     try {
-      // Call the reset-password edge function
-      const response = await fetch(`https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/reset-password`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4eW5ncWNpaXBjdnZlaWdyenF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEzMjIwNzYsImV4cCI6MjA2Njg5ODA3Nn0.w-fUxBsH8wZ5ewzQkGAO6sEooqPEYbYJI_vL5F36HSU`,
-        },
-        body: JSON.stringify({
-          email: resetEmail,
-          redirectTo: "idialife://reset-password",
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to send reset email");
-      }
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail);
+      if (error) throw error;
 
       toast({
-        title: "Reset email sent!",
-        description: "Please check your email for password reset instructions.",
+        title: "Code Sent!",
+        description: "Check your email for the 6-digit recovery code.",
       });
-
-      setIsResetMode(false);
-      setResetEmail("");
+      setResetStep("verify");
     } catch (error: any) {
-      toast({
-        title: "Reset failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Failed to send code", description: error.message, variant: "destructive" });
     } finally {
       setIsResetLoading(false);
     }
   };
-  if (isUpdatePasswordMode) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">Set New Password</CardTitle>
-            <p className="text-sm text-gray-600 text-center">
-              Enter a new password for your account. You can use this to log into IDIA Hub.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSetNewPassword} className="space-y-4">
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="New Password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="pl-10 pr-10"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 h-4 w-4 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? <EyeOff /> : <Eye />}
-                </button>
-              </div>
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Updating..." : "Update Password"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+
+  // Step 2: Verify Code and Set New Password
+  const handleVerifyAndReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsResetLoading(true);
+
+    try {
+      // 1. Verify the OTP code
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email: resetEmail,
+        token: otpCode,
+        type: "recovery",
+      });
+      if (verifyError) throw verifyError;
+
+      // 2. Update the password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (updateError) throw updateError;
+
+      toast({
+        title: "Password Updated!",
+        description: "Your password has been successfully changed. You can now log into IDIA Hub.",
+      });
+
+      // Reset states and exit reset mode
+      setResetStep("request");
+      setResetEmail("");
+      setOtpCode("");
+      setNewPassword("");
+      setIsResetMode(false);
+      navigate("/"); // Proceed into the app
+    } catch (error: any) {
+      toast({ title: "Reset failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsResetLoading(false);
+    }
+  };
+
+  // ==========================================
+  // RENDER: PASSWORD RESET UI
+  // ==========================================
   if (isResetMode) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <Card className="w-full max-w-md">
+        <Card className="w-full max-w-md animate-fade-in">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold text-center">Reset Password</CardTitle>
             <p className="text-sm text-gray-600 text-center">
-              Enter your email address and we'll send you a link to reset your password.
+              {resetStep === "request"
+                ? "Enter your email address and we'll send you a 6-digit code."
+                : "Enter the 6-digit code sent to your email and your new password."}
             </p>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handlePasswordReset} className="space-y-4">
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  type="email"
-                  placeholder="Enter your email"
-                  value={resetEmail}
-                  onChange={(e) => setResetEmail(e.target.value)}
-                  className="pl-10"
-                  required
-                />
-              </div>
-
-              <Button type="submit" className="w-full" disabled={isResetLoading}>
-                {isResetLoading ? "Sending..." : "Send Reset Link"}
-              </Button>
-            </form>
+            {resetStep === "request" ? (
+              <form onSubmit={handleRequestOTP} className="space-y-4">
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    type="email"
+                    placeholder="Enter your email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="pl-10"
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={isResetLoading}>
+                  {isResetLoading ? "Sending Code..." : "Send Reset Code"}
+                </Button>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyAndReset} className="space-y-4">
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    type="text"
+                    placeholder="6-Digit Code"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value)}
+                    className="pl-10 tracking-widest font-mono text-center"
+                    maxLength={6}
+                    required
+                  />
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="New Password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="pl-10 pr-10"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-3 h-4 w-4 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff /> : <Eye />}
+                  </button>
+                </div>
+                <Button type="submit" className="w-full" disabled={isResetLoading}>
+                  {isResetLoading ? "Updating..." : "Update Password"}
+                </Button>
+              </form>
+            )}
 
             <div className="mt-4 text-center">
-              <Button variant="link" onClick={() => setIsResetMode(false)} className="text-sm">
+              <Button
+                variant="link"
+                onClick={() => {
+                  setIsResetMode(false);
+                  setResetStep("request");
+                }}
+                className="text-sm"
+              >
                 Back to sign in
               </Button>
             </div>
@@ -279,9 +242,12 @@ const Auth = () => {
     );
   }
 
+  // ==========================================
+  // RENDER: STANDARD AUTH UI
+  // ==========================================
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md animate-fade-in">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">
             {isLogin ? "Welcome Back" : "Create Account"}
@@ -303,7 +269,6 @@ const Auth = () => {
                 required
               />
             </div>
-
             <div className="relative">
               <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
               <Input
@@ -322,7 +287,6 @@ const Auth = () => {
                 {showPassword ? <EyeOff /> : <Eye />}
               </button>
             </div>
-
             <Button type="submit" className="w-full" disabled={isLoading}>
               <User className="mr-2 h-4 w-4" />
               {isLoading ? (isLogin ? "Signing in..." : "Creating account...") : isLogin ? "Sign In" : "Sign Up"}
@@ -341,14 +305,23 @@ const Auth = () => {
           </div>
 
           <div className="space-y-2">
-            <Button variant="outline" className="w-full" onClick={handleAppleSignIn} disabled={isLoading}>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => handleOAuthSignIn("apple")}
+              disabled={isLoading}
+            >
               <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
               </svg>
               Sign in with Apple
             </Button>
-
-            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading}>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => handleOAuthSignIn("google")}
+              disabled={isLoading}
+            >
               <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
                 <path
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
