@@ -176,7 +176,7 @@ const Auth = () => {
        body: JSON.stringify({
          email: resetEmail,
          redirectTo: "idialife://reset-password"
-      });
+      }),
 
       if (!response.ok) {
         throw new Error("Failed to send reset email");
