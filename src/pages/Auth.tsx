@@ -99,6 +99,7 @@ const Auth = () => {
     setIsResetLoading(true);
 
     try {
+      // This natively tells Supabase to send the email without needing an Edge Function
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail);
       if (error) throw error;
 
@@ -120,7 +121,7 @@ const Auth = () => {
     setIsResetLoading(true);
 
     try {
-      // 1. Verify the OTP code
+      // 1. Verify the 6-digit OTP code
       const { error: verifyError } = await supabase.auth.verifyOtp({
         email: resetEmail,
         token: otpCode,
