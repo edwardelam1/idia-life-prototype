@@ -1,24 +1,15 @@
-
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Activity,
-  CheckCircle,
-  AlertTriangle,
-  RefreshCw,
-  TrendingUp,
-  Database
-} from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Activity, CheckCircle, AlertTriangle, RefreshCw, TrendingUp, Database } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PipelineHealth {
   total_raw_data: number;
   unprocessed_raw_data: number;
   processed_raw_data: number;
   total_staged_data: number;
-  unrewarded_staged_data: number;
   total_transactions: number;
 }
 
@@ -35,10 +26,10 @@ const PipelineHealthMonitor = () => {
 
   const fetchPipelineHealth = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('pipeline-diagnostics');
-      
+      const { data, error } = await supabase.functions.invoke("pipeline-diagnostics");
+
       if (error) {
-        console.error('Pipeline health check failed:', error);
+        console.error("Pipeline health check failed:", error);
         return;
       }
 
@@ -47,7 +38,7 @@ const PipelineHealthMonitor = () => {
         setLastUpdate(new Date());
       }
     } catch (error) {
-      console.error('Error fetching pipeline health:', error);
+      console.error("Error fetching pipeline health:", error);
     } finally {
       setLoading(false);
     }
@@ -55,22 +46,22 @@ const PipelineHealthMonitor = () => {
 
   const getHealthScore = () => {
     if (!health) return 0;
-    
+
     const totalData = health.total_raw_data;
     if (totalData === 0) return 100;
-    
+
     const processedRate = (health.processed_raw_data / totalData) * 100;
     const unprocessedPenalty = (health.unprocessed_raw_data / totalData) * 50;
-    
+
     return Math.max(0, Math.min(100, processedRate - unprocessedPenalty));
   };
 
   const getHealthStatus = () => {
     const score = getHealthScore();
-    if (score >= 90) return { status: 'excellent', color: 'text-green-600', bg: 'bg-green-100' };
-    if (score >= 70) return { status: 'good', color: 'text-blue-600', bg: 'bg-blue-100' };
-    if (score >= 50) return { status: 'fair', color: 'text-yellow-600', bg: 'bg-yellow-100' };
-    return { status: 'poor', color: 'text-red-600', bg: 'bg-red-100' };
+    if (score >= 90) return { status: "excellent", color: "text-green-600", bg: "bg-green-100" };
+    if (score >= 70) return { status: "good", color: "text-blue-600", bg: "bg-blue-100" };
+    if (score >= 50) return { status: "fair", color: "text-yellow-600", bg: "bg-yellow-100" };
+    return { status: "poor", color: "text-red-600", bg: "bg-red-100" };
   };
 
   if (loading) {
@@ -145,15 +136,11 @@ const PipelineHealthMonitor = () => {
               <span className="font-semibold text-orange-600">{health.unprocessed_raw_data}</span>
             </div>
           </div>
-          
+
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-600">Staged Data</span>
               <span className="font-semibold">{health.total_staged_data}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Unrewarded</span>
-              <span className="font-semibold text-red-600">{health.unrewarded_staged_data}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-600">Transactions</span>
@@ -172,9 +159,7 @@ const PipelineHealthMonitor = () => {
         {health.unprocessed_raw_data > 0 && (
           <div className="flex items-center space-x-2 p-3 bg-orange-50 rounded-lg">
             <AlertTriangle className="w-4 h-4 text-orange-600" />
-            <span className="text-sm text-orange-800">
-              {health.unprocessed_raw_data} items awaiting processing
-            </span>
+            <span className="text-sm text-orange-800">{health.unprocessed_raw_data} items awaiting processing</span>
           </div>
         )}
       </CardContent>
