@@ -50,7 +50,8 @@ const Auth = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, searchParams, isUpdatePasswordMode]);}, [navigate, searchParams]);
+  }, [navigate, searchParams, isUpdatePasswordMode]);
+
   const handleSetNewPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
