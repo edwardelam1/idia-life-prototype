@@ -12,7 +12,8 @@ const Auth = () => {
 
   // Look at the URL to decide if we should show Login or Sign Up first
   const defaultIsLogin = searchParams.get("mode") !== "signup";
-
+  const [isUpdatePasswordMode, setIsUpdatePasswordMode] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [resetEmail, setResetEmail] = useState("");
@@ -25,23 +26,60 @@ const Auth = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Catch the Hub breadcrumb so we know where to send them after Onboarding
     const returnTo = searchParams.get("return_to");
     if (returnTo === "hub") {
       sessionStorage.setItem("return_to_hub", "true");
     }
 
+    // Check URL hash fallback for mobile deep links
+    const hash = window.location.hash;
+    if (hash && hash.includes("type=recovery")) {
+      setIsUpdatePasswordMode(true);
+    }
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
+      if (event === "PASSWORD_RECOVERY") {
+        // Intercept the redirect and show the new password form
+        setIsUpdatePasswordMode(true);
+      } else if (session && event !== "PASSWORD_RECOVERY" && !isUpdatePasswordMode) {
+        // Only redirect to home if we aren't currently trying to set a new password
         navigate("/");
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, searchParams]);
+  }, [navigate, searchParams, isUpdatePasswordMode]);}, [navigate, searchParams]);
+  const handleSetNewPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
 
+    try {
+      // This is the Supabase command to update the user's password once the recovery link is clicked
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Password Updated!",
+        description: "Your password has been successfully set. You can now use it to log into IDIA Hub.",
+      });
+
+      setIsUpdatePasswordMode(false);
+      navigate("/"); // Send them into the app
+    } catch (error: any) {
+      toast({
+        title: "Failed to update password",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -158,7 +196,45 @@ const Auth = () => {
       setIsResetLoading(false);
     }
   };
-
+  if (isUpdatePasswordMode) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold text-center">Set New Password</CardTitle>
+            <p className="text-sm text-gray-600 text-center">
+              Enter a new password for your account. You can use this to log into IDIA Hub.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSetNewPassword} className="space-y-4">
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="New Password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="pl-10 pr-10"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-3 h-4 w-4 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff /> : <Eye />}
+                </button>
+              </div>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Updating..." : "Update Password"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   if (isResetMode) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
