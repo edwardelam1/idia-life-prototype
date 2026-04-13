@@ -54,7 +54,7 @@ export default function Settings() {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pt-[max(0.5rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
       <div className="container max-w-4xl mx-auto py-2 px-2">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mb-4">
