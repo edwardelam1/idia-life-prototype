@@ -42,7 +42,7 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-gradient-to-br from-slate-900 to-slate-800 text-white overflow-hidden touch-none">
+    <div className="fixed inset-0 flex flex-col bg-gradient-to-br from-slate-900 to-slate-800 text-white overflow-hidden touch-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       {/* Logo */}
       <div className="absolute top-8 left-1/2 transform -translate-x-1/2 z-20">
         <img 

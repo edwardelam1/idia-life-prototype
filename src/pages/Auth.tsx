@@ -159,7 +159,7 @@ const Auth = () => {
   // ==========================================
   if (isResetMode) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
         <Card className="w-full max-w-md animate-fade-in">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold text-center">Reset Password</CardTitle>
@@ -247,7 +247,7 @@ const Auth = () => {
   // RENDER: STANDARD AUTH UI
   // ==========================================
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
       <Card className="w-full max-w-md animate-fade-in">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">

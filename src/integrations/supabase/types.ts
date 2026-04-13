@@ -2212,39 +2212,6 @@ export type Database = {
         }
         Relationships: []
       }
-      hub_synapse_ledger: {
-        Row: {
-          amount_credits: number
-          created_at: string
-          entry_type: string
-          id: string
-          metadata: Json | null
-          reference_id: string | null
-          status: string
-          user_id: string
-        }
-        Insert: {
-          amount_credits?: number
-          created_at?: string
-          entry_type: string
-          id?: string
-          metadata?: Json | null
-          reference_id?: string | null
-          status?: string
-          user_id: string
-        }
-        Update: {
-          amount_credits?: number
-          created_at?: string
-          entry_type?: string
-          id?: string
-          metadata?: Json | null
-          reference_id?: string | null
-          status?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       idia_payments: {
         Row: {
           amount_idia_usd: number
@@ -4755,72 +4722,6 @@ export type Database = {
           pseudo_business_id?: string
           seasonal_trends?: Json | null
           transaction_patterns?: Json | null
-        }
-        Relationships: []
-      }
-      staged_data: {
-        Row: {
-          activity_type: string
-          anonymized_location_zone: string | null
-          average_heartrate: number | null
-          average_speed_mps: number | null
-          calories_burned: number | null
-          device_type: string | null
-          distance_meters: number | null
-          duration_seconds: number | null
-          effort_score: number | null
-          elevation_gain_meters: number | null
-          id: string
-          max_heartrate: number | null
-          max_speed_mps: number | null
-          processed_at: string
-          raw_data_id: string
-          reward_amount: number | null
-          reward_calculated: boolean | null
-          user_id: string
-          weather_conditions: Json | null
-        }
-        Insert: {
-          activity_type: string
-          anonymized_location_zone?: string | null
-          average_heartrate?: number | null
-          average_speed_mps?: number | null
-          calories_burned?: number | null
-          device_type?: string | null
-          distance_meters?: number | null
-          duration_seconds?: number | null
-          effort_score?: number | null
-          elevation_gain_meters?: number | null
-          id?: string
-          max_heartrate?: number | null
-          max_speed_mps?: number | null
-          processed_at?: string
-          raw_data_id: string
-          reward_amount?: number | null
-          reward_calculated?: boolean | null
-          user_id: string
-          weather_conditions?: Json | null
-        }
-        Update: {
-          activity_type?: string
-          anonymized_location_zone?: string | null
-          average_heartrate?: number | null
-          average_speed_mps?: number | null
-          calories_burned?: number | null
-          device_type?: string | null
-          distance_meters?: number | null
-          duration_seconds?: number | null
-          effort_score?: number | null
-          elevation_gain_meters?: number | null
-          id?: string
-          max_heartrate?: number | null
-          max_speed_mps?: number | null
-          processed_at?: string
-          raw_data_id?: string
-          reward_amount?: number | null
-          reward_calculated?: boolean | null
-          user_id?: string
-          weather_conditions?: Json | null
         }
         Relationships: []
       }
