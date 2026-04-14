@@ -189,7 +189,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     });
   }, []);
 
-  const syncHealthDataViaNativeApp = useCallback(() => {
+  const syncHealthDataViaNativeApp = useCallback((hash: string) => {
     const webkit = (window as any).webkit;
     if (webkit && webkit.messageHandlers && webkit.messageHandlers.syncHealthData) {
       const requestedTypesByCategory: { [key: string]: string[] } = {};
@@ -202,13 +202,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         }
       });
 
+      // DELT Protocol: Flat payload with mandatory ACA hash
       const comprehensiveHealthRequest = {
         action: "comprehensive_health_sync",
-        config: {
-          endpoint: "https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync",
-          user_id: currentUserId,
-          auth_token: authSession?.access_token,
-        },
+        user_id: currentUserId,
+        aca_hash: hash,
+        auth_token: authSession?.access_token,
+        endpoint: "https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync",
         requestedDataTypes: requestedTypesByCategory,
       };
 
