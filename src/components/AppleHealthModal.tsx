@@ -159,38 +159,58 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setIsConnecting(true);
     setConnectionStatus("connecting");
 
+    if (!currentUserId) {
+      setErrorMessage("User session not found.");
+      setConnectionStatus("error");
+      setIsConnecting(false);
+      return;
+    }
+
     try {
       // 1. Fetch Verified Anchor
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("platform_guid")
         .eq("user_id", currentUserId)
         .single();
 
-      if (!profile?.platform_guid) throw new Error("Profile not found.");
+      if (profileError || !profile?.platform_guid) {
+        throw new Error("Audit Anchor Missing: Please refresh your profile.");
+      }
 
-      // 2. Protocol Logic
+      // 2. Protocol Logic (Background)
       const { hash } = await generateACAHash(profile.platform_guid, "apple_health");
 
-      await supabase.from("user_aca_records").insert({
+      // 3. Log Audit Transaction
+      const { error: acaError } = await supabase.from("user_aca_records").insert({
         platform_guid: profile.platform_guid,
         aca_hash_key: hash,
         source_id: "apple_health",
       });
 
-      await supabase.from("data_connections").upsert(
-        {
-          user_id: currentUserId,
-          connection_type: "apple_health",
-          is_active: true,
-        },
-        { onConflict: "user_id,connection_type" },
-      );
+      if (acaError) throw new Error("Internal Audit Log failed.");
 
-      // 3. Trigger Bridge
+      // 4. FIX: Connection Upsert (Addressing TS2769)
+      // We explicitly define the values to match the table schema exactly
+      const connectionData = {
+        user_id: currentUserId,
+        connection_type: "apple_health",
+        connection_name: "Apple Health",
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error: upsertError } = await supabase.from("data_connections").upsert(connectionData, {
+        onConflict: "user_id,connection_type",
+      });
+
+      if (upsertError) throw upsertError;
+
+      // 5. Trigger Bridge with the ACA Hash
       syncHealthDataViaNativeApp(hash);
     } catch (error: any) {
-      setErrorMessage(error.message);
+      console.error("Connection Error:", error.message);
+      setErrorMessage(error.message || "An unexpected error occurred.");
       setConnectionStatus("error");
       setIsConnecting(false);
     }
