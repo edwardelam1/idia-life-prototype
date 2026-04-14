@@ -325,9 +325,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                   </Card>
                   <Card>
                     <CardContent className="p-3 text-center">
-                      <Heart className="w-5 h-5 text-red-500 mx-auto mb-1" />
-                      <div className="text-lg font-bold">{healthData.heartRate ? healthData.heartRate : "--"}</div>
-                      <div className="text-xs text-gray-500">Heart Rate</div>
+                      <Footprints className="w-5 h-5 text-blue-500 mx-auto mb-1" />
+                      <div className="text-lg font-bold">
+                        {/* 🚨 THE FIX: Explicitly check for undefined so 0 is allowed to render 🚨 */}
+                        {healthData.steps !== undefined && healthData.steps !== null
+                          ? healthData.steps.toLocaleString()
+                          : "--"}
+                      </div>
+                      <div className="text-xs text-gray-500">Steps</div>
                     </CardContent>
                   </Card>
                 </div>
