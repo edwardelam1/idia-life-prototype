@@ -6214,6 +6214,10 @@ export type Database = {
           role: Database["public"]["Enums"]["user_role"]
         }[]
       }
+      get_user_id_from_pseudonym: {
+        Args: { p_pseudo_id: string }
+        Returns: string
+      }
       process_backlog_data: {
         Args: never
         Returns: {
