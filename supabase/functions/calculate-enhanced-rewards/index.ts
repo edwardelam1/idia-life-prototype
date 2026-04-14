@@ -11,8 +11,7 @@ const corsHeaders = {
 // SPEC-AI.5.2 Constants — hardcoded per protocol spec
 const CREDIT_VALUE_USD = 0.75;
 const REVENUE_SHARE_PERCENT = 0.30;
-const MIN_REWARD = 0.05;
-const MAX_REWARD = 1.00;
+// NO CLAMP: Unlimited reward potential — data value is absolute
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -104,8 +103,8 @@ serve(async (req) => {
     }
 
     const weightCoefficient = (qualityScore + completenessScore) / 2;
-    const rawReward = baseShare * weightCoefficient;
-    const finalReward = Math.max(MIN_REWARD, Math.min(MAX_REWARD, rawReward));
+    // Pure weighted payout — no floor, no ceiling
+    const finalReward = baseShare * weightCoefficient;
 
     console.log(`[SPEC-AI.5.2] Weight: quality=${qualityScore}, completeness=${completenessScore}, coeff=${weightCoefficient.toFixed(4)}`);
     console.log(`[SPEC-AI.5.2] Reward: base=$${baseShare.toFixed(4)} × ${weightCoefficient.toFixed(4)} = $${finalReward.toFixed(4)}`);
