@@ -1,19 +1,9 @@
-import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import {
-  Shield,
-  DollarSign,
-  CheckCircle,
-  AlertCircle,
-  Lock,
-  Eye,
-  Users,
-  Zap,
-  FileKey
-} from 'lucide-react';
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Shield, DollarSign, CheckCircle, AlertCircle, Lock, Eye, Users, Zap, FileKey } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
 
@@ -36,7 +26,10 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
 
     try {
       // Get the authenticated user ID
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
       if (userError || !user) {
         setErrorMessage("Authentication failed. Please log in again.");
         setIsConnecting(false);
@@ -45,18 +38,16 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
       const userId = user.id;
 
       // 1. Mandatory ACA Hash Generation (DELT Protocol)
-      const sourceId = source.name.toLowerCase().replace(/\s+/g, '_');
-      const { hash, payload } = await generateACAHash(userId, sourceId, ['KYC_VAULT', 'WALLET_PROVISIONING']);
+      const sourceId = source.name.toLowerCase().replace(/\s+/g, "_");
+      const { hash, payload } = await generateACAHash(userId, sourceId, ["KYC_VAULT", "WALLET_PROVISIONING"]);
 
       // 2. Log Mandatory Transaction Record (Liability Shield)
-      const { error: acaError } = await supabase
-        .from('user_aca_records')
-        .insert({
-          platform_guid: userId,
-          aca_hash_key: hash,
-          source_id: sourceId,
-          consent_scope: payload.consent_scope as string[]
-        });
+      const { error: acaError } = await supabase.from("user_aca_records").insert({
+        platform_guid: userId,
+        aca_hash_key: hash,
+        source_id: sourceId,
+        consent_scope: payload.consent_scope as string[],
+      });
 
       if (acaError) {
         console.error("ACA Record Error:", acaError);
@@ -68,36 +59,49 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
       // 3. Route to appropriate live integration based on source type
       const sourceName = source.name.toLowerCase();
 
-      if (sourceName.includes('apple') || sourceName.includes('health')) {
-        const { error } = await supabase.functions.invoke('apple-health-sync', {
-          body: { user_id: userId, aca_hash: hash, apple_health_data: { message: "Apple Health requires iOS app integration" } }
+      if (sourceName.includes("apple") || sourceName.includes("health")) {
+        const { error } = await supabase.functions.invoke("apple-health-sync", {
+          body: {
+            user_id: userId,
+            aca_hash: hash,
+            apple_health_data: { message: "Apple Health requires iOS app integration" },
+          },
         });
         if (error) {
           setErrorMessage("Apple Health requires the iOS app to authorize HealthKit access.");
           return;
         }
-      } else if (sourceName.includes('strava')) {
-        const { data, error } = await supabase.functions.invoke('strava-auth-url', {
-          body: { userId, aca_hash: hash }
+      } else if (sourceName.includes("strava")) {
+        const { data, error } = await supabase.functions.invoke("strava-auth-url", {
+          body: { userId, aca_hash: hash },
         });
-        if (error) { setErrorMessage("Failed to connect to Strava. Please try again."); return; }
+        if (error) {
+          setErrorMessage("Failed to connect to Strava. Please try again.");
+          return;
+        }
         if (data?.oauthUrl) {
-          window.open(data.oauthUrl, '_blank');
+          window.open(data.oauthUrl, "_blank");
           setErrorMessage("Please complete Strava authorization in the new window.");
           return;
         }
-      } else if (sourceName.includes('google') || sourceName.includes('fit')) {
-        const { error } = await supabase.functions.invoke('google-fit-sync', {
-          body: { user_id: userId, aca_hash: hash, sync_type: 'manual' }
+      } else if (sourceName.includes("google") || sourceName.includes("fit")) {
+        const { error } = await supabase.functions.invoke("google-fit-sync", {
+          body: { user_id: userId, aca_hash: hash, sync_type: "manual" },
         });
-        if (error) { setErrorMessage("Google Fit requires OAuth authorization. Please contact support."); return; }
-      } else if (sourceName.includes('ford')) {
-        const { data, error } = await supabase.functions.invoke('ford-auth-url', {
-          body: { userId, aca_hash: hash }
+        if (error) {
+          setErrorMessage("Google Fit requires OAuth authorization. Please contact support.");
+          return;
+        }
+      } else if (sourceName.includes("ford")) {
+        const { data, error } = await supabase.functions.invoke("ford-auth-url", {
+          body: { userId, aca_hash: hash },
         });
-        if (error) { setErrorMessage("Failed to connect to FordConnect. Please try again."); return; }
+        if (error) {
+          setErrorMessage("Failed to connect to FordConnect. Please try again.");
+          return;
+        }
         if (data?.oauthUrl) {
-          window.open(data.oauthUrl, '_blank');
+          window.open(data.oauthUrl, "_blank");
           setErrorMessage("Please complete Ford authorization in the new window.");
           return;
         }
@@ -107,25 +111,22 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
       }
 
       // 4. Create data connection record
-      await supabase
-        .from('data_connections')
-        .upsert({
-          user_id: userId,
-          connection_type: sourceId,
-          connection_name: source.name,
-          is_active: true,
-          last_sync_at: new Date().toISOString()
-        });
+      await supabase.from("data_connections").upsert({
+        user_id: userId,
+        connection_type: sourceId,
+        connection_name: source.name,
+        is_active: true,
+        last_sync_at: new Date().toISOString(),
+      });
 
       setConnected(true);
       setTimeout(() => {
         onClose();
         setConnected(false);
       }, 2000);
-
     } catch (error: any) {
-      console.error("DELT Protocol Error:", error);
-      setErrorMessage(`Connection error: ${error.message || 'Please try again.'}`);
+      console.error("Consent Protocol Error:", error);
+      setErrorMessage(`Connection error: ${error.message || "Please try again."}`);
       setConnected(false);
     } finally {
       setIsConnecting(false);
@@ -136,10 +137,14 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
 
   const getPrivacyColor = (level: string) => {
     switch (level) {
-      case 'Very High': return 'text-green-600 bg-green-100';
-      case 'High': return 'text-green-600 bg-green-100';
-      case 'Medium': return 'text-yellow-600 bg-yellow-100';
-      default: return 'text-orange-600 bg-orange-100';
+      case "Very High":
+        return "text-green-600 bg-green-100";
+      case "High":
+        return "text-green-600 bg-green-100";
+      case "Medium":
+        return "text-yellow-600 bg-yellow-100";
+      default:
+        return "text-orange-600 bg-orange-100";
     }
   };
 
@@ -200,9 +205,7 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
               <Shield className="w-5 h-5 text-muted-foreground" />
               <span className="font-medium">Privacy Level</span>
             </div>
-            <Badge className={getPrivacyColor(source.privacyLevel)}>
-              {source.privacyLevel}
-            </Badge>
+            <Badge className={getPrivacyColor(source.privacyLevel)}>{source.privacyLevel}</Badge>
           </div>
 
           {/* Description */}
@@ -231,13 +234,11 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
             <div className="flex items-start space-x-3">
               <FileKey className="w-5 h-5 text-primary mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-foreground mb-1">
-                  DELT Protocol — Mandatory Audit
-                </p>
+                <p className="text-sm font-medium text-foreground mb-1">Consent Protocol — Mandatory Audit</p>
                 <p className="text-xs text-muted-foreground">
-                  Connecting generates a cryptographic Auditable Consent Artifact (ACA) anchored to your account.
-                  All data egress is logged with a SHA-256 hash for your transparency and legal protection.
-                  View your audit trail in the Transactions tab.
+                  Connecting generates a cryptographic Auditable Consent Artifact (ACA) anchored to your account. All
+                  data egress is logged with a SHA-256 hash for your transparency and legal protection. View your audit
+                  trail in the Transactions tab.
                 </p>
               </div>
             </div>
@@ -276,8 +277,8 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
               <div>
                 <p className="font-medium text-blue-900 mb-1">Who uses this data?</p>
                 <p className="text-sm text-blue-700">
-                  Verified research institutions, ethical AI companies, and academic studies
-                  focused on improving digital experiences and social good.
+                  Verified research institutions, ethical AI companies, and academic studies focused on improving
+                  digital experiences and social good.
                 </p>
               </div>
             </div>
@@ -285,26 +286,17 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
 
           {/* Action Buttons — No consent gate */}
           <div className="flex space-x-3">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={onClose}
-              disabled={isConnecting}
-            >
+            <Button variant="outline" className="flex-1" onClick={onClose} disabled={isConnecting}>
               Cancel
             </Button>
-            <Button
-              className="flex-1 bg-teal-500 hover:bg-teal-600"
-              onClick={handleConnect}
-              disabled={isConnecting}
-            >
+            <Button className="flex-1 bg-teal-500 hover:bg-teal-600" onClick={handleConnect} disabled={isConnecting}>
               {isConnecting ? (
                 <div className="flex items-center space-x-2">
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   <span>Connecting...</span>
                 </div>
               ) : (
-                'Connect & Start Earning'
+                "Connect & Start Earning"
               )}
             </Button>
           </div>
