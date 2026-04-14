@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import React from "react";
 import { eventTracker } from "@/utils/EventTracker";
+import { generateACAHash } from "@/utils/acaGenerator";
 
 interface AppleHealthModalProps {
   isOpen: boolean;
