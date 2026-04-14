@@ -24,10 +24,14 @@ serve(async (req) => {
 
     const rawBody = await req.json().catch(() => ({}));
 
-    // Fuzzy key matching
+    // Parse query params (native iOS bridge sends aca_hash as URL param)
+    const url = new URL(req.url);
+    const queryAcaHash = url.searchParams.get("aca_hash");
+
+    // Fuzzy key matching — prioritize query param from native bridge
     const userId = rawBody.user_id || rawBody.userId || rawBody.config?.user_id;
     const healthData = rawBody.apple_health_data || rawBody.healthData || rawBody.config?.apple_health_data;
-    const acaHash = rawBody.aca_hash || rawBody.acaHash;
+    const acaHash = queryAcaHash || rawBody.aca_hash || rawBody.acaHash;
     const automatedSync = rawBody.automated_sync || false;
     const forceRealDataOnly = rawBody.force_real_data_only || false;
 
