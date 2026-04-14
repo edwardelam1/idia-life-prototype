@@ -8,212 +8,170 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Get Apple JWT credentials for verification
-    const appleTeamId = Deno.env.get('APPLE_TEAM_ID');
-    const appleKeyId = Deno.env.get('APPLE_KEY_ID');
-    const applePrivateKey = Deno.env.get('APPLE_PRIVATE_KEY');
-    
-    if (!appleTeamId || !appleKeyId || !applePrivateKey) {
-      return new Response(JSON.stringify({
-        error: 'Apple credentials not configured. Please add APPLE_TEAM_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY to your Supabase secrets.'
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Verify JWT token from iOS app (optional - implement based on your security requirements)
-    const authHeader = req.headers.get('Authorization');
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.slice(7);
-      // Add JWT verification logic here if needed for additional security
-      console.log('Received JWT token for verification:', token.substring(0, 20) + '...');
-    }
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    
+
     if (!supabaseUrl || !supabaseKey) {
       throw new Error('Missing Supabase configuration');
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const requestBody = await req.json();
-    const { user_id, apple_health_data, automated_sync, connection_id } = requestBody;
-    
-    // Enhanced real data validation for automated sync
-    const { force_real_data_only = false } = requestBody;
-    
-    if (automated_sync || force_real_data_only) {
+    const rawBody = await req.json().catch(() => ({}));
+
+    // Fuzzy key matching to handle both flat and nested payloads
+    const userId = rawBody.user_id || rawBody.userId || rawBody.config?.user_id;
+    const healthData = rawBody.apple_health_data || rawBody.healthData || rawBody.config?.apple_health_data;
+    const acaHash = rawBody.aca_hash || rawBody.acaHash;
+    const automatedSync = rawBody.automated_sync || false;
+    const forceRealDataOnly = rawBody.force_real_data_only || false;
+
+    // DELT Protocol: Mandatory ACA verification gate
+    if (!userId) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Missing required field: user_id'
+      }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (!acaHash) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Missing required field: aca_hash. DELT Protocol requires a valid audit anchor.'
+      }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Verify ACA anchor exists in the audit log
+    const { data: acaRecord } = await supabase
+      .from('user_aca_records')
+      .select('id')
+      .eq('aca_hash_key', acaHash)
+      .eq('platform_guid', userId)
+      .single();
+
+    if (!acaRecord) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'DELT Protocol Verification Failed. No matching audit record found.'
+      }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    console.log('✅ DELT Protocol verified for user:', userId);
+
+    // Handle automated sync with no health data
+    if ((automatedSync || forceRealDataOnly) && (!healthData || (typeof healthData === 'object' && Object.keys(healthData).length === 0))) {
+      console.log('⚠️ No Apple Health data provided for automated sync');
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'No new health data available for sync',
+        processed_count: 0,
+        reason: 'no_data_provided'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (!healthData) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Missing required field: apple_health_data'
+      }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Filter simulated data for automated syncs
+    let processableData = healthData;
+    if (automatedSync || forceRealDataOnly) {
       console.log('🔍 Automated sync - validating data for real-only policy...');
-      
-      if (!apple_health_data || apple_health_data.length === 0) {
-        console.log('⚠️ No Apple Health data provided for automated sync');
-        return new Response(JSON.stringify({
-          success: true,
-          message: 'No new health data available for sync',
-          processed_count: 0,
-          reason: 'no_data_provided'
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // Filter out any simulated data from the payload
-      const originalCount = Object.keys(apple_health_data).reduce((total, key) => {
-        return total + (Array.isArray(apple_health_data[key]) ? apple_health_data[key].length : 0);
-      }, 0);
-
+      const filteredData: Record<string, unknown[]> = {};
       let hasSimulatedData = false;
-      const filteredData = {};
 
-      // Process each health data type
-      Object.keys(apple_health_data).forEach(dataType => {
-        if (Array.isArray(apple_health_data[dataType])) {
-          const realDataOnly = apple_health_data[dataType].filter(item => {
-            const isSimulated = item.simulated === true || 
-                               (item.metadata && item.metadata.simulated === true) ||
-                               (typeof item.value === 'object' && item.value?.simulated === true);
+      Object.keys(healthData).forEach((dataType: string) => {
+        if (Array.isArray(healthData[dataType])) {
+          const realDataOnly = healthData[dataType].filter((item: any) => {
+            const isSimulated = item.simulated === true ||
+              (item.metadata && item.metadata.simulated === true) ||
+              (typeof item.value === 'object' && item.value?.simulated === true);
             if (isSimulated) hasSimulatedData = true;
             return !isSimulated;
           });
-          
           if (realDataOnly.length > 0) {
             filteredData[dataType] = realDataOnly;
           }
         }
       });
 
-      const filteredCount = Object.keys(filteredData).reduce((total, key) => {
-        return total + (Array.isArray(filteredData[key]) ? filteredData[key].length : 0);
-      }, 0);
-
+      const filteredCount = Object.values(filteredData).reduce((t, arr) => t + arr.length, 0);
       if (filteredCount === 0) {
-        console.log('⚠️ All provided data was simulated - skipping automated sync');
+        console.log('⚠️ All provided data was simulated - skipping');
         return new Response(JSON.stringify({
           success: true,
           message: 'Automated sync completed - only simulated data was filtered out',
           processed_count: 0,
           skipped_simulated: true,
-          original_count: originalCount
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      // Update apple_health_data to only include real data
-      requestBody.apple_health_data = filteredData;
-      console.log(`✅ Automated sync processing ${filteredCount} real health data records (filtered ${originalCount - filteredCount} simulated)`);
+      processableData = filteredData;
+      console.log(`✅ Processing ${filteredCount} real health data records`);
     }
 
-    if (!user_id || !apple_health_data) {
-      throw new Error('Missing required fields: user_id and apple_health_data');
-    }
+    console.log('Processing Apple Health data for user:', userId);
+    console.log('Data types received:', Object.keys(processableData));
 
-    console.log('Processing Apple Health data for user:', user_id);
-    console.log('Apple Health data structure received:', Object.keys(apple_health_data));
-    console.log('Detailed data types with counts:');
-    
-    // Log detailed information about what data was received
-    Object.keys(apple_health_data).forEach(key => {
-      const data = apple_health_data[key];
-      if (Array.isArray(data)) {
-        console.log(`  ${key}: ${data.length} records`);
-        if (data.length > 0) {
-          console.log(`    Sample record structure: ${Object.keys(data[0]).join(', ')}`);
-        }
-      } else if (data && typeof data === 'object') {
-        console.log(`  ${key}: Single object with keys: ${Object.keys(data).join(', ')}`);
-      } else {
-        console.log(`  ${key}: ${typeof data} - ${data}`);
-      }
-    });
-
-    // Update user connection status in data_connections table
+    // Update connection status
     await supabase
       .from('data_connections')
       .upsert({
-        user_id: user_id,
+        user_id: userId,
         connection_type: 'apple_health',
         connection_name: 'Apple Health',
         is_active: true,
         last_sync_at: new Date().toISOString()
       });
 
-    // Process comprehensive Apple HealthKit data
-    const processedData = [];
+    // Process health data
+    const processedData: any[] = [];
 
-    // Define all supported HealthKit data types
     const healthDataTypes = [
-      // Basic Activity Data
       'steps', 'distanceWalkingRunning', 'distanceCycling', 'flightsClimbed',
       'activeEnergyBurned', 'restingEnergyBurned', 'exerciseTime',
-      
-      // Heart & Vitals
-      'heartRate', 'heartRateVariability', 'bloodOxygenSaturation', 
+      'heartRate', 'heartRateVariability', 'bloodOxygenSaturation',
       'bloodPressureSystolic', 'bloodPressureDiastolic', 'respiratoryRate',
       'bodyTemperature', 'electrocardiogram', 'vo2Max',
-      
-      // Body Measurements
-      'height', 'weight', 'bodyMassIndex', 'bodyFatPercentage', 
+      'height', 'weight', 'bodyMassIndex', 'bodyFatPercentage',
       'leanBodyMass', 'waistCircumference',
-      
-      // Nutrition
       'dietaryEnergyConsumed', 'totalFat', 'saturatedFat', 'polyunsaturatedFat',
       'monounsaturatedFat', 'carbohydrates', 'fiber', 'sugar', 'protein',
       'water', 'caffeine', 'sodium', 'potassium', 'vitaminC', 'vitaminD',
       'calcium', 'iron',
-      
-      // Sleep Data
       'sleep', 'timeInBed', 'timeAsleep', 'sleepAnalysis',
-      
-      // Activity & Mobility
-      'walkingSpeed', 'stepLength', 'walkingAsymmetryPercentage',
-      'doubleSupportTime',
-      
-      // Reproductive Health
+      'walkingSpeed', 'stepLength', 'walkingAsymmetryPercentage', 'doubleSupportTime',
       'menstrualFlow', 'cervicalMucusQuality', 'ovulationTestResult',
       'sexualActivity', 'basalBodyTemperature',
-      
-      // Mindfulness & Mental Health
       'mindfulSession', 'moodScore', 'stateOfMind',
-      
-      // Symptoms
       'symptoms',
-      
-      // Clinical Records
       'clinicalRecords', 'allergies', 'conditions', 'immunizations',
       'labResults', 'medications', 'procedures',
-      
-      // Medication Tracking
       'medicationDoseEvents'
     ];
 
-    console.log('Processing comprehensive Apple HealthKit data...');
-    
-    // Process each data type
     for (const dataType of healthDataTypes) {
-      if (apple_health_data[dataType]) {
+      if (processableData[dataType]) {
         try {
-          console.log(`Processing ${dataType} data`);
-          
-          // Handle both single objects and arrays
-          const dataArray = Array.isArray(apple_health_data[dataType]) 
-            ? apple_health_data[dataType] 
-            : [apple_health_data[dataType]];
-          
+          const dataArray = Array.isArray(processableData[dataType])
+            ? processableData[dataType]
+            : [processableData[dataType]];
+
           for (const record of dataArray) {
-            const healthRecord = {
-              user_id: user_id,
+            const healthRecord: any = {
+              user_id: userId,
               device_type: 'Apple Health',
               raw_payload: {
-                dataType: dataType,
+                dataType,
                 value: record.value || record,
                 unit: record.unit || null,
                 startDate: record.startDate || record.date,
@@ -221,14 +179,12 @@ serve(async (req) => {
                 sourceBundle: record.sourceBundle || 'com.apple.health',
                 sourceName: record.sourceName || 'Apple Health',
                 metadata: record.metadata || {},
-                // Include original record for full data preservation
                 originalRecord: record
               },
               recorded_at: record.startDate || record.date || new Date().toISOString(),
               processed: false
             };
 
-            // Add step count for steps data type
             if (dataType === 'steps' && record.value) {
               healthRecord.step_count = parseInt(record.value);
             }
@@ -240,62 +196,57 @@ serve(async (req) => {
               .single();
 
             if (!rawError && rawData) {
-              processedData.push({ 
-                type: dataType, 
+              processedData.push({
+                type: dataType,
                 id: rawData.id,
                 value: record.value,
-                recordedAt: record.startDate || record.date 
+                recordedAt: record.startDate || record.date
               });
             } else {
-              console.error(`Error inserting ${dataType} data:`, rawError);
+              console.error(`Error inserting ${dataType}:`, rawError);
             }
           }
         } catch (error) {
           console.error(`Error processing ${dataType}:`, error);
-          // Continue processing other data types
         }
       }
     }
 
-    // Process workout data separately (complex structure)
-    if (apple_health_data.workouts && Array.isArray(apple_health_data.workouts)) {
-      console.log(`Processing ${apple_health_data.workouts.length} workout records`);
-      
-      for (const workout of apple_health_data.workouts) {
+    // Process workouts
+    if (processableData.workouts && Array.isArray(processableData.workouts)) {
+      for (const workout of processableData.workouts) {
         try {
-          const workoutRecord = {
-            user_id: user_id,
-            device_type: 'Apple Health',
-            raw_payload: {
-              dataType: 'workout',
-              workoutActivityType: workout.workoutActivityType,
-              duration: workout.duration,
-              totalEnergyBurned: workout.totalEnergyBurned,
-              totalDistance: workout.totalDistance,
-              startDate: workout.startDate,
-              endDate: workout.endDate,
-              sourceBundle: workout.sourceBundle || 'com.apple.health',
-              heartRateSamples: workout.heartRateSamples || [],
-              route: workout.route || null,
-              metadata: workout.metadata || {},
-              originalRecord: workout
-            },
-            recorded_at: workout.startDate,
-            processed: false
-          };
-
           const { data: rawData, error: rawError } = await supabase
             .from('raw_health_data')
-            .insert(workoutRecord)
+            .insert({
+              user_id: userId,
+              device_type: 'Apple Health',
+              raw_payload: {
+                dataType: 'workout',
+                workoutActivityType: workout.workoutActivityType,
+                duration: workout.duration,
+                totalEnergyBurned: workout.totalEnergyBurned,
+                totalDistance: workout.totalDistance,
+                startDate: workout.startDate,
+                endDate: workout.endDate,
+                sourceBundle: workout.sourceBundle || 'com.apple.health',
+                heartRateSamples: workout.heartRateSamples || [],
+                route: workout.route || null,
+                metadata: workout.metadata || {},
+                originalRecord: workout
+              },
+              recorded_at: workout.startDate,
+              processed: false
+            })
             .select('id')
             .single();
 
           if (!rawError && rawData) {
-            processedData.push({ 
-              type: 'workout', 
+            processedData.push({
+              type: 'workout',
               id: rawData.id,
               activityType: workout.workoutActivityType,
-              duration: workout.duration 
+              duration: workout.duration
             });
           }
         } catch (error) {
@@ -304,12 +255,13 @@ serve(async (req) => {
       }
     }
 
-    console.log('Successfully processed Apple Health data:', processedData);
+    console.log(`✅ Processed ${processedData.length} health records with DELT anchor: ${acaHash.substring(0, 12)}...`);
 
     return new Response(JSON.stringify({
       success: true,
       message: 'Apple Health data synced successfully',
       processed_data: processedData,
+      delt_anchor: acaHash.substring(0, 12),
       sync_timestamp: new Date().toISOString()
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

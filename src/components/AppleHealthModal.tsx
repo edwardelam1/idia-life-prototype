@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import React from "react";
 import { eventTracker } from "@/utils/EventTracker";
+import { generateACAHash } from "@/utils/acaGenerator";
 
 interface AppleHealthModalProps {
   isOpen: boolean;
@@ -79,6 +80,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   const [connectionStatus, setConnectionStatus] = useState<"idle" | "connecting" | "connected" | "error">("idle");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [authSession, setAuthSession] = useState<any>(null);
+  const [acaHash, setAcaHash] = useState<string | null>(null);
   const [selectedDataTypes, setSelectedDataTypes] = useState<Set<string>>(
     new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.id)),
   );
@@ -187,7 +189,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     });
   }, []);
 
-  const syncHealthDataViaNativeApp = useCallback(() => {
+  const syncHealthDataViaNativeApp = useCallback((hash: string) => {
     const webkit = (window as any).webkit;
     if (webkit && webkit.messageHandlers && webkit.messageHandlers.syncHealthData) {
       const requestedTypesByCategory: { [key: string]: string[] } = {};
@@ -200,13 +202,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         }
       });
 
+      // DELT Protocol: Flat payload with mandatory ACA hash
       const comprehensiveHealthRequest = {
         action: "comprehensive_health_sync",
-        config: {
-          endpoint: "https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync",
-          user_id: currentUserId,
-          auth_token: authSession?.access_token,
-        },
+        user_id: currentUserId,
+        aca_hash: hash,
+        auth_token: authSession?.access_token,
+        endpoint: "https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync",
         requestedDataTypes: requestedTypesByCategory,
       };
 
@@ -250,7 +252,28 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     }
 
     try {
-      const { data: connectionResult, error: connectionError } = await supabase
+      // Step 1: Mandatory DELT Protocol — generate ACA hash
+      const { hash, payload } = await generateACAHash(currentUserId, 'apple_health', ['KYC_VAULT', 'WALLET_PROVISIONING']);
+
+      // Step 2: Log mandatory audit record
+      const { error: acaError } = await supabase
+        .from('user_aca_records')
+        .insert([{
+          platform_guid: currentUserId,
+          aca_hash_key: hash,
+          source_id: 'apple_health',
+          consent_scope: payload.consent_scope as string[],
+        }]);
+
+      if (acaError) {
+        throw new Error(`DELT Protocol audit failed: ${acaError.message}`);
+      }
+
+      // Store hash for native bridge
+      setAcaHash(hash);
+
+      // Step 3: Upsert connection record
+      const { error: connectionError } = await supabase
         .from("data_connections")
         .upsert(
           {
@@ -274,7 +297,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         return;
       }
 
-      syncHealthDataViaNativeApp();
+      // Step 4: Trigger native bridge with ACA hash
+      syncHealthDataViaNativeApp(hash);
     } catch (error: any) {
       setErrorMessage(`Connection failed: ${error.message}`);
       setConnectionStatus("error");
