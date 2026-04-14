@@ -87,6 +87,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         );
       }
 
+      // 🚨 UI Data Mapping Fix 🚨
       let displayData: any = {};
       if (serverResponse?.processed_data && Array.isArray(serverResponse.processed_data)) {
         serverResponse.processed_data.forEach((item: any) => {
@@ -149,6 +150,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         const comprehensiveHealthRequest = {
           action: "comprehensive_health_sync",
           config: {
+            // 🚨 NUCLEAR BYPASS: Forces hash into URL 🚨
             endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash=${hash}`,
             user_id: currentUserId,
             auth_token: authSession?.access_token,
@@ -183,11 +185,17 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
       const { hash } = await generateACAHash(profile.platform_guid, "apple_health");
 
-      await supabase.from("user_aca_records").insert({
+      // 🚨 EXPLICIT ERROR CATCHING FOR ACA HASH 🚨
+      const { error: acaError } = await supabase.from("user_aca_records").insert({
         platform_guid: profile.platform_guid,
         aca_hash_key: hash,
         source_id: "apple_health",
       });
+
+      if (acaError) {
+        console.error("ACA Hash Insert Failed:", acaError);
+        throw new Error(`Audit Log Error: ${acaError.message}`);
+      }
 
       syncHealthDataViaNativeApp(hash);
     } catch (error: any) {
