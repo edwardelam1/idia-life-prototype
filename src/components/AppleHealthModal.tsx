@@ -59,7 +59,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     (window as any).onHealthDataSyncComplete = async (serverResponse: any) => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
-      // 🚨 PESSIMISTIC UPDATE: Only marked active upon 200 OK 🚨
+      // 🚨 PESSIMISTIC UPDATE: Only marked active upon 200 OK
       if (currentUserIdRef.current) {
         await supabase.from("data_connections").upsert(
           {
@@ -73,8 +73,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         );
       }
 
-      const data = serverResponse?.health_data || serverResponse || {};
-      setHealthData(data);
+      // 🚨 THE FIX: Map the Edge Function array back to the UI format 🚨
+      let displayData: any = {};
+
+      if (serverResponse?.processed_data && Array.isArray(serverResponse.processed_data)) {
+        serverResponse.processed_data.forEach((item: any) => {
+          if (item.type === "steps" || item.type === "stepCount") displayData.steps = item.value;
+          if (item.type === "heartRate") displayData.heartRate = item.value;
+          if (item.type === "activeEnergyBurned" || item.type === "calories") displayData.calories = item.value;
+          if (item.type === "sleepAnalysis" || item.type === "sleepHours") displayData.sleepHours = item.value;
+        });
+      } else {
+        displayData = serverResponse?.health_data || serverResponse || {};
+      }
+
+      setHealthData(displayData);
       setConnectionStatus("connected");
       setIsConnecting(false);
     };
