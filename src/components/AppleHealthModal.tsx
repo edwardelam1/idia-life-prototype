@@ -49,7 +49,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.id)),
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const getSession = async () => {
@@ -64,17 +66,47 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     getSession();
   }, []);
 
+  // Keep the Ref synced with state for use in global callbacks
   useEffect(() => {
-    (window as any).onHealthDataSyncComplete = (serverResponse: any) => {
+    currentUserIdRef.current = currentUserId;
+  }, [currentUserId]);
+
+  useEffect(() => {
+    (window as any).onHealthDataSyncComplete = async (serverResponse: any) => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+
+      // 🚨 PESSIMISTIC FIX: Only update database to 'active' ON SUCCESS
+      if (currentUserIdRef.current) {
+        await supabase.from("data_connections").upsert(
+          {
+            user_id: currentUserIdRef.current,
+            connection_type: "apple_health",
+            connection_name: "Apple Health",
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,connection_type" },
+        );
+      }
+
       const data = serverResponse?.health_data || serverResponse || {};
       setHealthData(data);
       setConnectionStatus("connected");
       setIsConnecting(false);
     };
 
-    (window as any).onHealthDataSyncError = (errorMsg: string) => {
+    (window as any).onHealthDataSyncError = async (errorMsg: string) => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+
+      // 🚨 PESSIMISTIC FIX: Ensure database marks connection as failed/inactive
+      if (currentUserIdRef.current) {
+        await supabase
+          .from("data_connections")
+          .update({ is_active: false })
+          .eq("user_id", currentUserIdRef.current)
+          .eq("connection_type", "apple_health");
+      }
+
       setErrorMessage(`Sync Error: ${errorMsg}`);
       setConnectionStatus("error");
       setIsConnecting(false);
@@ -106,16 +138,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           setIsConnecting(false);
         }, 15000);
 
-        // HYBRID PAYLOAD: Satisfies Swift 'config' requirement AND Edge Function top-level mapping
+        // HYBRID PAYLOAD: Binds aca_hash tightly into the config object for Swift
         const comprehensiveHealthRequest = {
           action: "comprehensive_health_sync",
-          user_id: currentUserId,
-          aca_hash: hash,
           config: {
             endpoint: "https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync",
             user_id: currentUserId,
             auth_token: authSession?.access_token,
-            aca_hash: hash,
+            aca_hash: hash, // Crucial for DELT Protocol
           },
           requestedDataTypes: requestedTypesByCategory,
         };
@@ -136,7 +166,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setConnectionStatus("connecting");
 
     try {
-      // 1. Database Anchor Check
       const { data: profile } = await supabase
         .from("profiles")
         .select("platform_guid")
@@ -145,26 +174,18 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
       if (!profile?.platform_guid) throw new Error("Profile anchor missing.");
 
-      // 2. DELT Protocol Background Execution
       const { hash } = await generateACAHash(profile.platform_guid, "apple_health");
 
-      await supabase.from("user_aca_records").insert({
+      const { error: acaError } = await supabase.from("user_aca_records").insert({
         platform_guid: profile.platform_guid,
         aca_hash_key: hash,
         source_id: "apple_health",
       });
 
-      await supabase.from("data_connections").upsert(
-        {
-          user_id: currentUserId,
-          connection_type: "apple_health",
-          connection_name: "Apple Health",
-          is_active: true,
-        },
-        { onConflict: "user_id,connection_type" },
-      );
+      if (acaError) throw new Error("Audit log failed.");
 
-      // 3. Trigger Bridge
+      // 🚨 REMOVED PREMATURE CONNECTION UPSERT HERE 🚨
+
       syncHealthDataViaNativeApp(hash);
     } catch (error: any) {
       setErrorMessage(error.message);
@@ -213,7 +234,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             </div>
           )}
 
-          {/* VIEW: NOT CONNECTED */}
           {connectionStatus === "idle" && !existingConnection && (
             <>
               <p className="text-sm text-gray-600">Sync your health metrics to earn rewards.</p>
@@ -242,7 +262,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             </>
           )}
 
-          {/* VIEW: ALREADY CONNECTED (Fixes the Blank Screen) */}
           {existingConnection && connectionStatus === "idle" && (
             <div className="space-y-4 text-center py-6">
               <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
@@ -261,7 +280,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             </div>
           )}
 
-          {/* VIEW: CONNECTING */}
           {connectionStatus === "connecting" && (
             <div className="text-center py-10">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
@@ -269,7 +287,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             </div>
           )}
 
-          {/* VIEW: SUCCESS */}
           {connectionStatus === "connected" && (
             <div className="space-y-4 py-4">
               <div className="text-center">
@@ -300,7 +317,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             </div>
           )}
 
-          {/* VIEW: ERROR */}
           {connectionStatus === "error" && (
             <div className="text-center py-4">
               <Button variant="outline" onClick={() => setConnectionStatus("idle")} className="w-full">
