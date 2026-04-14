@@ -11,8 +11,7 @@ const corsHeaders = {
 // SPEC-AI.5.2 Constants — hardcoded per protocol spec
 const CREDIT_VALUE_USD = 0.75;
 const REVENUE_SHARE_PERCENT = 0.30;
-const MIN_REWARD = 0.05;
-const MAX_REWARD = 1.00;
+// NO CLAMP: Unlimited reward potential — data value is absolute
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
