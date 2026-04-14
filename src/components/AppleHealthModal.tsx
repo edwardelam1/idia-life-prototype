@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Activity, Heart, Footprints, Zap } from "lucide-react";
+import { Activity, Heart, Footprints, Zap, Flame } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import React from "react";
@@ -16,7 +16,6 @@ interface AppleHealthModalProps {
   onDisconnect?: () => void;
 }
 
-// 🚨 RESTORED: The full list of 19 data points 🚨
 const ALL_HEALTH_DATA_TYPES = [
   { id: "HKQuantityTypeIdentifierStepCount", name: "Steps", category: "Activity" },
   { id: "HKQuantityTypeIdentifierDistanceWalkingRunning", name: "Distance (Walking/Running)", category: "Activity" },
@@ -49,15 +48,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.id)),
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [syncCount, setSyncCount] = useState(0);
 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const getSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setCurrentUserId(session.user.id);
         setAuthSession(session);
@@ -87,22 +85,24 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         );
       }
 
-      // 🚨 FIX: Strict mapping of the Edge Function response array to the UI 🚨
-      let displayData: any = {};
+      // Map edge function response to display data
+      const displayData: any = {};
+      const count = serverResponse?.processed_count || 0;
+      setSyncCount(count);
 
       if (serverResponse?.processed_data && Array.isArray(serverResponse.processed_data)) {
         serverResponse.processed_data.forEach((item: any) => {
-          // If value is missing or undefined, default to 0 so we don't show "Mock" or NaN
-          const safeValue = item.value !== undefined ? item.value : 0;
-
-          if (item.type === "steps" || item.type === "stepCount") displayData.steps = safeValue;
-          if (item.type === "heartRate") displayData.heartRate = safeValue;
-          if (item.type === "activeEnergyBurned" || item.type === "calories") displayData.calories = safeValue;
-          if (item.type === "sleepAnalysis" || item.type === "sleepHours") displayData.sleepHours = safeValue;
+          const val = item.value !== undefined ? item.value : 0;
+          if (item.type === "steps" || item.type === "stepCount") displayData.steps = val;
+          if (item.type === "heartRate") displayData.heartRate = val;
+          if (item.type === "activeEnergyBurned" || item.type === "calories") displayData.calories = val;
+          if (item.type === "sleepAnalysis" || item.type === "sleepHours") displayData.sleepHours = val;
         });
       } else {
-        // Fallback if the edge function returns a flat object
-        displayData = serverResponse?.health_data || serverResponse || {};
+        const fallback = serverResponse?.health_data || serverResponse || {};
+        if (fallback.steps) displayData.steps = fallback.steps;
+        if (fallback.heartRate) displayData.heartRate = fallback.heartRate;
+        if (fallback.calories) displayData.calories = fallback.calories;
       }
 
       setHealthData(displayData);
@@ -112,7 +112,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
     (window as any).onHealthDataSyncError = async (errorMsg: string) => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
       if (currentUserIdRef.current) {
         await supabase
           .from("data_connections")
@@ -120,7 +119,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           .eq("user_id", currentUserIdRef.current)
           .eq("connection_type", "apple_health");
       }
-
       setErrorMessage(`Sync Error: ${errorMsg}`);
       setConnectionStatus("error");
       setIsConnecting(false);
@@ -152,7 +150,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           setIsConnecting(false);
         }, 15000);
 
-        const comprehensiveHealthRequest = {
+        webkit.messageHandlers.syncHealthData.postMessage({
           action: "comprehensive_health_sync",
           config: {
             endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash=${hash}`,
@@ -161,9 +159,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             aca_hash: hash,
           },
           requestedDataTypes: requestedTypesByCategory,
-        };
-
-        webkit.messageHandlers.syncHealthData.postMessage(comprehensiveHealthRequest);
+        });
       } else {
         setErrorMessage("Please launch from the IDIA iOS App.");
         setConnectionStatus("error");
@@ -250,12 +246,11 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
           {connectionStatus === "idle" && !existingConnection && (
             <>
-              <p className="text-sm text-gray-600">Select the health metrics you wish to sync.</p>
-
-              <div className="max-h-60 overflow-y-auto border p-2 rounded-md bg-gray-50/50 mb-4">
+              <p className="text-sm text-muted-foreground">Select the health metrics you wish to sync.</p>
+              <div className="max-h-60 overflow-y-auto border p-2 rounded-md bg-muted/30 mb-4">
                 {Array.from(new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.category))).map((category) => (
                   <div key={category} className="mb-2">
-                    <h5 className="font-semibold text-xs text-gray-700 mt-1">{category}</h5>
+                    <h5 className="font-semibold text-xs text-muted-foreground mt-1">{category}</h5>
                     {ALL_HEALTH_DATA_TYPES.filter((d) => d.category === category).map((type) => (
                       <div key={type.id} className="flex items-center space-x-2 text-xs py-1">
                         <Checkbox
@@ -263,7 +258,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                           checked={selectedDataTypes.has(type.id)}
                           onCheckedChange={(checked) => handleCheckboxChange(type.id, !!checked)}
                         />
-                        <label htmlFor={type.id} className="text-gray-600 cursor-pointer">
+                        <label htmlFor={type.id} className="text-muted-foreground cursor-pointer">
                           {type.name}
                         </label>
                       </div>
@@ -271,7 +266,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                   </div>
                 ))}
               </div>
-
               <Button onClick={handleConnect} className="w-full" disabled={isConnecting}>
                 {isConnecting ? "Connecting..." : "Connect Apple Health"}
               </Button>
@@ -284,14 +278,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                 <Zap className="w-6 h-6 text-green-600" />
               </div>
               <h3 className="font-medium text-green-800">Apple Health Connected</h3>
-              <p className="text-sm text-gray-600">Your metrics are actively syncing to your vault.</p>
+              <p className="text-sm text-muted-foreground">Your metrics are actively syncing to your vault.</p>
               <div className="flex space-x-3 mt-4">
-                <Button variant="outline" className="flex-1" onClick={onClose}>
-                  Close
-                </Button>
-                <Button variant="destructive" className="flex-1" onClick={handleDisconnect}>
-                  Disconnect
-                </Button>
+                <Button variant="outline" className="flex-1" onClick={onClose}>Close</Button>
+                <Button variant="destructive" className="flex-1" onClick={handleDisconnect}>Disconnect</Button>
               </div>
             </div>
           )}
@@ -299,7 +289,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           {connectionStatus === "connecting" && (
             <div className="text-center py-10">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-sm text-gray-600">Establishing Liability Shield...</p>
+              <p className="text-sm text-muted-foreground">Establishing Liability Shield...</p>
             </div>
           )}
 
@@ -310,36 +300,42 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                   <Zap className="w-6 h-6 text-green-600" />
                 </div>
                 <h3 className="font-medium text-green-800 text-lg">Sync Complete!</h3>
+                {syncCount > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">{syncCount} records synced</p>
+                )}
               </div>
               {healthData && (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <Card>
                     <CardContent className="p-3 text-center">
                       <Footprints className="w-5 h-5 text-blue-500 mx-auto mb-1" />
-                      {/* Only render if > 0 so we don't show blank zeros if empty */}
                       <div className="text-lg font-bold">
                         {healthData.steps ? healthData.steps.toLocaleString() : "--"}
                       </div>
-                      <div className="text-xs text-gray-500">Steps</div>
+                      <div className="text-xs text-muted-foreground">Steps</div>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="p-3 text-center">
-                      <Footprints className="w-5 h-5 text-blue-500 mx-auto mb-1" />
+                      <Heart className="w-5 h-5 text-red-500 mx-auto mb-1" />
                       <div className="text-lg font-bold">
-                        {/* 🚨 THE FIX: Explicitly check for undefined so 0 is allowed to render 🚨 */}
-                        {healthData.steps !== undefined && healthData.steps !== null
-                          ? healthData.steps.toLocaleString()
-                          : "--"}
+                        {healthData.heartRate || "--"}
                       </div>
-                      <div className="text-xs text-gray-500">Steps</div>
+                      <div className="text-xs text-muted-foreground">BPM</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-3 text-center">
+                      <Flame className="w-5 h-5 text-orange-500 mx-auto mb-1" />
+                      <div className="text-lg font-bold">
+                        {healthData.calories ? Math.round(healthData.calories).toLocaleString() : "--"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Cal</div>
                     </CardContent>
                   </Card>
                 </div>
               )}
-              <Button onClick={onComplete} className="w-full">
-                Done
-              </Button>
+              <Button onClick={onComplete} className="w-full">Done</Button>
             </div>
           )}
 

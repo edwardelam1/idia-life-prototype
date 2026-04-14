@@ -72,17 +72,11 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
       const sourceName = source.name.toLowerCase();
 
       if (sourceName.includes("apple") || sourceName.includes("health")) {
-        const { error } = await supabase.functions.invoke("apple-health-sync", {
-          body: {
-            user_id: userId,
-            aca_hash: hash,
-            apple_health_data: { message: "Apple Health requires iOS app integration" },
-          },
-        });
-        if (error) {
-          setErrorMessage("Apple Health requires the iOS app to authorize HealthKit access.");
-          return;
-        }
+        // Apple Health must be connected through the dedicated AppleHealthModal / native iOS app
+        // Do NOT call apple-health-sync with placeholder data — it will fail ACA verification
+        setErrorMessage("Apple Health requires the IDIA iOS app. Please use the Apple Health card on the Data screen to connect.");
+        setIsConnecting(false);
+        return;
       } else if (sourceName.includes("strava")) {
         const { data, error } = await supabase.functions.invoke("strava-auth-url", {
           body: { userId, aca_hash: hash },
