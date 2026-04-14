@@ -17,6 +17,7 @@ interface AppleHealthModalProps {
   onDisconnect?: () => void;
 }
 
+// Full Type List for Native Handling
 const ALL_HEALTH_DATA_TYPES = [
   { id: "HKQuantityTypeIdentifierStepCount", name: "Steps", category: "Activity" },
   { id: "HKQuantityTypeIdentifierDistanceWalkingRunning", name: "Distance (Walking/Running)", category: "Activity" },
@@ -71,10 +72,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.id)),
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize Session
   useEffect(() => {
     const getSession = async () => {
       const {
@@ -88,34 +87,26 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     getSession();
   }, []);
 
-  // Native App Response Listeners
   useEffect(() => {
     (window as any).onHealthDataSyncComplete = (serverResponse: any) => {
-      console.log("✅ Native Bridge: Sync Complete Received");
+      console.log("✅ Native Bridge: Callback Received");
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
       const data = serverResponse?.health_data || serverResponse || {};
       setHealthData(data);
       setConnectionStatus("connected");
       setIsConnecting(false);
-
-      eventTracker.trackFeatureUsage({
-        feature: "apple_health_connection",
-        action: "sync_completed",
-        success: true,
-      });
     };
 
     (window as any).onHealthDataSyncError = (errorMsg: string) => {
-      console.error("❌ Native Bridge Error:", errorMsg);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
       setErrorMessage(`HealthKit Sync Error: ${errorMsg}`);
       setConnectionStatus("error");
       setIsConnecting(false);
     };
 
     return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
       (window as any).onHealthDataSyncComplete = undefined;
       (window as any).onHealthDataSyncError = undefined;
     };
@@ -134,26 +125,28 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           }
         });
 
-        // Start Timeout Guard before sending message
+        // START TIMEOUT GUARD
         timeoutRef.current = setTimeout(() => {
-          setErrorMessage("Native bridge timeout. Ensure you are using the IDIA iOS App.");
+          setErrorMessage("Native bridge timeout. Check permissions.");
           setConnectionStatus("error");
           setIsConnecting(false);
         }, 15000);
 
+        // SWIFT-COMPATIBLE PAYLOAD
         const comprehensiveHealthRequest = {
           action: "comprehensive_health_sync",
-          user_id: currentUserId,
-          aca_hash: hash,
-          auth_token: authSession?.access_token,
-          endpoint: "https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync",
+          config: {
+            endpoint: "https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync",
+            user_id: currentUserId,
+            auth_token: authSession?.access_token,
+            aca_hash: hash, // For Edge Function internal check
+          },
           requestedDataTypes: requestedTypesByCategory,
         };
 
-        console.log("🚀 Relaying to Native Bridge with ACA Anchor:", hash);
         webkit.messageHandlers.syncHealthData.postMessage(comprehensiveHealthRequest);
       } else {
-        setErrorMessage("Bridge unavailable. Please launch from the native iOS wrapper.");
+        setErrorMessage("Please launch from the IDIA iOS App.");
         setConnectionStatus("error");
         setIsConnecting(false);
       }
@@ -167,46 +160,36 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setConnectionStatus("connecting");
 
     try {
-      // 1. Fetch the Anchor (Direct DB check to avoid stale state)
-      const { data: profile, error: profileError } = await supabase
+      // 1. Fetch Verified Anchor
+      const { data: profile } = await supabase
         .from("profiles")
         .select("platform_guid")
         .eq("user_id", currentUserId)
         .single();
 
-      if (profileError || !profile?.platform_guid) {
-        throw new Error("Audit Anchor Missing: Please refresh or re-login.");
-      }
+      if (!profile?.platform_guid) throw new Error("Profile not found.");
 
-      // 2. Generate Protocol Hash
-      const { hash, payload } = await generateACAHash(profile.platform_guid, "apple_health");
+      // 2. Protocol Logic
+      const { hash } = await generateACAHash(profile.platform_guid, "apple_health");
 
-      // 3. Log Audit Transaction (Internal Mechanism)
-      const { error: acaError } = await supabase.from("user_aca_records").insert({
+      await supabase.from("user_aca_records").insert({
         platform_guid: profile.platform_guid,
         aca_hash_key: hash,
         source_id: "apple_health",
-        consent_scope: payload.consent_scope,
       });
 
-      if (acaError) throw new Error("DELT Protocol: Audit log failed.");
-
-      // 4. Update Connection State
       await supabase.from("data_connections").upsert(
         {
           user_id: currentUserId,
           connection_type: "apple_health",
-          connection_name: "Apple Health",
           is_active: true,
-          updated_at: new Date().toISOString(),
         },
         { onConflict: "user_id,connection_type" },
       );
 
-      // 5. Trigger Native Sync
+      // 3. Trigger Bridge
       syncHealthDataViaNativeApp(hash);
     } catch (error: any) {
-      console.error("Sync Initialization Failed:", error.message);
       setErrorMessage(error.message);
       setConnectionStatus("error");
       setIsConnecting(false);
@@ -219,18 +202,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       isChecked ? newSet.add(id) : newSet.delete(id);
       return newSet;
     });
-  };
-
-  const handleDisconnect = async () => {
-    if (!currentUserId || !existingConnection) return;
-    try {
-      await supabase.from("data_connections").update({ is_active: false }).eq("id", existingConnection.id);
-
-      onDisconnect?.();
-      onClose();
-    } catch (error) {
-      console.error("Disconnect failed:", error);
-    }
   };
 
   return (
@@ -250,16 +221,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         <div className="space-y-4">
           {errorMessage && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-sm text-red-600">{errorMessage}</p>
+              <p className="text-sm text-red-600 font-medium">{errorMessage}</p>
             </div>
           )}
 
           {connectionStatus === "idle" && !existingConnection && (
             <>
-              <p className="text-sm text-gray-600">
-                Connect your Apple Health data to earn rewards for your activities.
-              </p>
-              <div className="max-h-60 overflow-y-auto border p-2 rounded-md">
+              <p className="text-sm text-gray-600">Connect your health data to earn rewards.</p>
+              <div className="max-h-60 overflow-y-auto border p-2 rounded-md bg-gray-50/50">
                 {Array.from(new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.category))).map((category) => (
                   <div key={category} className="mb-2">
                     <h5 className="font-semibold text-xs text-gray-700 mt-1">{category}</h5>
@@ -284,27 +253,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             </>
           )}
 
-          {existingConnection && connectionStatus === "idle" && (
-            <div className="space-y-4 text-center">
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                <Zap className="w-6 h-6 text-green-600" />
-              </div>
-              <h3 className="font-medium text-green-800">Apple Health Connected</h3>
-              <div className="flex space-x-3">
-                <Button variant="outline" className="flex-1" onClick={onClose}>
-                  Close
-                </Button>
-                <Button variant="destructive" className="flex-1" onClick={handleDisconnect}>
-                  Disconnect
-                </Button>
-              </div>
-            </div>
-          )}
-
           {connectionStatus === "connecting" && (
             <div className="text-center py-6">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-sm text-gray-600">Syncing your health data...</p>
+              <p className="text-sm text-gray-600">Syncing with HealthKit...</p>
             </div>
           )}
 
@@ -314,7 +266,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
                   <Zap className="w-6 h-6 text-green-600" />
                 </div>
-                <h3 className="font-medium text-green-800">Successfully Connected!</h3>
+                <h3 className="font-medium text-green-800 text-lg">Connected!</h3>
               </div>
               {healthData && (
                 <div className="grid grid-cols-2 gap-3">
@@ -339,11 +291,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           )}
 
           {connectionStatus === "error" && (
-            <div className="text-center py-4">
-              <Button variant="outline" onClick={() => setConnectionStatus("idle")} className="w-full">
-                Retry Connection
-              </Button>
-            </div>
+            <Button variant="outline" onClick={() => setConnectionStatus("idle")} className="w-full">
+              Retry Connection
+            </Button>
           )}
         </div>
       </DialogContent>
