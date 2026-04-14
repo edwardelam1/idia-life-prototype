@@ -1601,6 +1601,51 @@ export type Database = {
           },
         ]
       }
+      egress_logs: {
+        Row: {
+          aca_record_references: string[]
+          batch_checksum: string
+          client_id: string
+          country_of_origin: string
+          created_at: string
+          data_payload_summary: Json | null
+          digiramp_anchor_id: string
+          egress_type: string
+          id: string
+          liability_token_hash: string
+          synapse_ledger_entry_id: string | null
+          user_id: string
+        }
+        Insert: {
+          aca_record_references?: string[]
+          batch_checksum: string
+          client_id: string
+          country_of_origin?: string
+          created_at?: string
+          data_payload_summary?: Json | null
+          digiramp_anchor_id: string
+          egress_type?: string
+          id?: string
+          liability_token_hash: string
+          synapse_ledger_entry_id?: string | null
+          user_id: string
+        }
+        Update: {
+          aca_record_references?: string[]
+          batch_checksum?: string
+          client_id?: string
+          country_of_origin?: string
+          created_at?: string
+          data_payload_summary?: Json | null
+          digiramp_anchor_id?: string
+          egress_type?: string
+          id?: string
+          liability_token_hash?: string
+          synapse_ledger_entry_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       employee_schedules: {
         Row: {
           created_at: string | null
@@ -5479,6 +5524,7 @@ export type Database = {
           created_at: string | null
           id: string
           platform_guid: string
+          source_id: string
         }
         Insert: {
           aca_hash_key: string
@@ -5486,6 +5532,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           platform_guid: string
+          source_id?: string
         }
         Update: {
           aca_hash_key?: string
@@ -5493,6 +5540,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           platform_guid?: string
+          source_id?: string
         }
         Relationships: [
           {
@@ -6134,6 +6182,7 @@ export type Database = {
         }[]
       }
       get_hub_balance: { Args: { uid: string }; Returns: number }
+      get_synapse_balance: { Args: { uid: string }; Returns: number }
       get_user_business_access: {
         Args: { p_user_id: string }
         Returns: {
