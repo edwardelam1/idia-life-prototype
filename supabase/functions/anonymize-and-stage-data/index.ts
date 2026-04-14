@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -44,9 +43,12 @@ serve(async (req) => {
 
     const activity = rawData.raw_data;
     
-    // Enhanced anonymization and extraction
+    // Generate pseudonym for anonymization
+    const pseudoUserId = await generatePseudonym(rawData.user_id);
+
+    // Enhanced anonymization and extraction into staged_health_data schema
     const anonymizedData = {
-      user_id: rawData.user_id,
+      pseudo_user_id: pseudoUserId,
       raw_data_id: rawData.id,
       activity_type: activity.type || 'Unknown',
       duration_seconds: activity.moving_time || activity.elapsed_time,
@@ -59,12 +61,15 @@ serve(async (req) => {
       effort_score: activity.suffer_score || calculateEffortScore(activity),
       anonymized_location_zone: anonymizeLocation(activity.start_latlng),
       weather_conditions: extractWeatherData(activity),
-      device_type: anonymizeDevice(activity.device_name)
+      device_type: anonymizeDevice(activity.device_name),
+      data_quality_score: calculateQuality(activity),
+      data_completeness_score: calculateCompleteness(activity),
+      processed_at: new Date().toISOString(),
     };
 
-    // Insert anonymized data into staged_data table
+    // Insert anonymized data into staged_health_data table
     const { data: stagedData, error: stageError } = await supabase
-      .from('staged_data')
+      .from('staged_health_data')
       .insert(anonymizedData)
       .select()
       .single();
@@ -123,23 +128,25 @@ serve(async (req) => {
   }
 })
 
-// Helper functions for data anonymization
+async function generatePseudonym(userId: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(userId + 'IDIA_SALT_2024');
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 function anonymizeLocation(startLatLng: [number, number] | null): string | null {
   if (!startLatLng || !Array.isArray(startLatLng) || startLatLng.length !== 2) {
     return null;
   }
-  
   const [lat, lng] = startLatLng;
-  
-  // Round to nearest 0.1 degree (~11km resolution) for privacy
   const roundedLat = Math.round(lat * 10) / 10;
   const roundedLng = Math.round(lng * 10) / 10;
-  
   return `${roundedLat},${roundedLng}`;
 }
 
 function extractWeatherData(activity: any): any | null {
-  // Extract only non-personal weather data if available
   if (activity.weather) {
     return {
       temperature: activity.weather.temperature,
@@ -153,25 +160,36 @@ function extractWeatherData(activity: any): any | null {
 
 function anonymizeDevice(deviceName: string | null): string | null {
   if (!deviceName) return null;
-  
-  // Generalize device types for privacy
   const deviceLower = deviceName.toLowerCase();
-  
   if (deviceLower.includes('garmin')) return 'GPS Watch';
   if (deviceLower.includes('apple') || deviceLower.includes('iphone')) return 'Smartphone';
   if (deviceLower.includes('fitbit')) return 'Fitness Tracker';
   if (deviceLower.includes('wahoo') || deviceLower.includes('polar')) return 'Heart Rate Monitor';
-  
   return 'Unknown Device';
 }
 
 function calculateEffortScore(activity: any): number | null {
-  // Enhanced effort calculation
   if (!activity.moving_time || !activity.distance) return null;
-  
-  const avgPace = activity.moving_time / (activity.distance / 1000); // minutes per km
+  const avgPace = activity.moving_time / (activity.distance / 1000);
   const elevationFactor = (activity.total_elevation_gain || 0) / 100;
   const heartRateFactor = activity.average_heartrate ? activity.average_heartrate / 180 : 0;
-  
   return Math.round((avgPace * 0.4) + (elevationFactor * 0.3) + (heartRateFactor * 0.3) * 100);
+}
+
+function calculateQuality(activity: any): number {
+  let score = 0.5;
+  if (activity.average_heartrate) score += 0.2;
+  if (activity.total_elevation_gain) score += 0.1;
+  if (activity.moving_time && activity.moving_time > 300) score += 0.1;
+  if (activity.distance && activity.distance > 0) score += 0.1;
+  return Math.min(score, 1.0);
+}
+
+function calculateCompleteness(activity: any): number {
+  let filled = 0;
+  const fields = ['distance', 'moving_time', 'average_heartrate', 'max_heartrate', 'total_elevation_gain', 'average_speed', 'max_speed', 'start_latlng', 'device_name'];
+  for (const f of fields) {
+    if (activity[f] != null) filled++;
+  }
+  return Math.min(filled / fields.length, 1.0);
 }

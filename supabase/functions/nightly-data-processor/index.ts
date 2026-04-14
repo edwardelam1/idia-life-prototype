@@ -23,10 +23,9 @@ serve(async (req) => {
     const todayNoon = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0);
     const yesterdayNoon = new Date(todayNoon.getTime() - 24 * 60 * 60 * 1000);
 
-    // Check for data tables that weren't updated since yesterday 12pm
-    // Process unprocessed staged_data entries (offline data)
+    // Process unprocessed staged_health_data entries (offline data)
     const { data: unprocessedData, error: fetchError } = await supabase
-      .from('staged_data')
+      .from('staged_health_data')
       .select('*')
       .or('reward_calculated.is.null,reward_calculated.eq.false')
       .lt('processed_at', yesterdayNoon.toISOString())
@@ -46,7 +45,6 @@ serve(async (req) => {
 
     for (const data of unprocessedData || []) {
       try {
-        // Process each staged data entry
         const { error: processError } = await supabase.functions.invoke(
           'process-staged-data',
           {
@@ -55,14 +53,14 @@ serve(async (req) => {
         );
 
         if (processError) {
-          console.error(`Failed to process staged data ${data.id}:`, processError);
+          console.error(`Failed to process staged health data ${data.id}:`, processError);
           errorCount++;
         } else {
           processedCount++;
-          console.log(`Successfully processed staged data ${data.id}`);
+          console.log(`Successfully processed staged health data ${data.id}`);
         }
       } catch (error) {
-        console.error(`Error processing staged data ${data.id}:`, error);
+        console.error(`Error processing staged health data ${data.id}:`, error);
         errorCount++;
       }
     }
@@ -87,10 +85,9 @@ serve(async (req) => {
     if (!healthFetchError && unprocessedHealthMetrics) {
       for (const metric of unprocessedHealthMetrics) {
         try {
-          // Convert health metrics to proper format for health-data-bridge
           const healthData = {
             steps: metric.step_count || 0,
-            heartRate: 70 + Math.floor(Math.random() * 20), // Simulated
+            heartRate: 70 + Math.floor(Math.random() * 20),
             activeMinutes: Math.floor((metric.step_count || 0) / 120),
             sleepHours: '7.5',
             calories: Math.floor((metric.step_count || 0) * 0.04),
@@ -98,7 +95,6 @@ serve(async (req) => {
             recorded_at: metric.recorded_at || metric.created_at
           };
 
-          // Use health-data-bridge for proper pipeline flow
           const { error: bridgeError } = await supabase.functions.invoke(
             'health-data-bridge',
             {
@@ -124,11 +120,9 @@ serve(async (req) => {
     if (!deviceFetchError && unprocessedDeviceEvents) {
       for (const event of unprocessedDeviceEvents) {
         try {
-          // Process health sync events
           if (event.event_type === 'health_sync' && event.json_payload && event.user_id) {
             const healthData = event.json_payload as any;
             
-            // Insert health metric if it doesn't exist
             const { error: healthInsertError } = await supabase
               .from('health_metrics')
               .insert({
@@ -144,7 +138,6 @@ serve(async (req) => {
             }
           }
 
-          // Mark event as processed
           await supabase
             .from('device_events')
             .update({ processed_at: new Date().toISOString() })
@@ -168,7 +161,6 @@ serve(async (req) => {
     if (!stravaFetchError && unprocessedStrava) {
       for (const stravaData of unprocessedStrava) {
         try {
-          // Re-trigger anonymization processing for offline Strava data
           const { error: anonError } = await supabase.functions.invoke(
             'anonymization-processor',
             {
@@ -183,7 +175,6 @@ serve(async (req) => {
             console.error(`Failed to process offline Strava data ${stravaData.id}:`, anonError);
           } else {
             console.log(`Successfully processed offline Strava data ${stravaData.id}`);
-            // Mark as processed
             await supabase
               .from('raw_strava_data')
               .update({ processed: true })
@@ -214,7 +205,7 @@ serve(async (req) => {
       success: true,
       processed_count: processedCount,
       error_count: errorCount,
-      total_staged_data: unprocessedData?.length || 0,
+      total_staged_health_data: unprocessedData?.length || 0,
       total_health_metrics: unprocessedHealthMetrics?.length || 0,
       total_device_events: unprocessedDeviceEvents?.length || 0,
       total_strava_data: unprocessedStrava?.length || 0,

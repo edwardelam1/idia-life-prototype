@@ -22,7 +22,7 @@ serve(async (req) => {
     let results = {
       processed_count: 0,
       reward_total: 0,
-      errors: []
+      errors: [] as string[]
     };
 
     // Get all recent processed health data since July 24th
@@ -39,48 +39,46 @@ serve(async (req) => {
 
     console.log(`Found ${recentData?.length || 0} processed health records since July 24th`);
 
-    // Process each record to create proper staged_data with health metrics
     for (const record of recentData || []) {
       try {
         console.log(`Processing record ${record.id} from ${record.recorded_at}`);
 
-        // Extract health metrics from raw_payload
         const payload = record.raw_payload || {};
         const stepCount = payload.value || payload.steps || record.step_count || 0;
-        const dataType = payload.dataType || 'steps';
 
-        // Create properly formatted staged_data using actual schema
+        // Generate pseudonym for anonymized staging
+        const encoder = new TextEncoder();
+        const data = encoder.encode(record.user_id + 'IDIA_SALT_2024');
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const pseudoUserId = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+        // Create properly formatted staged_health_data
         const rewardData = {
-          user_id: record.user_id,
+          pseudo_user_id: pseudoUserId,
           raw_data_id: record.id,
           activity_type: 'health_metrics',
           anonymized_location_zone: 'ZONE_RECOVERY',
           processed_at: new Date().toISOString(),
-          // Map to actual staged_data schema columns
           average_heartrate: payload.heartRate || null,
           duration_seconds: payload.exerciseTime ? (payload.exerciseTime * 60) : null,
           distance_meters: payload.distanceWalkingRunning || null,
-          elevation_gain_meters: null,
-          max_heartrate: null,
-          average_speed_mps: null,
-          max_speed_mps: null,
+          steps_count: stepCount,
           effort_score: stepCount > 5000 ? 85 : stepCount > 1000 ? 70 : 50,
           device_type: 'Apple Health',
-          weather_conditions: null,
+          data_quality_score: payload.heartRate ? 0.8 : 0.6,
+          data_completeness_score: 0.7,
           reward_calculated: false
         };
 
-        console.log(`Creating staged_data: steps=${stepCount}, type=${dataType}`);
-
-        // Insert into staged_data
         const { data: stagedData, error: stagedError } = await supabase
-          .from('staged_data')
+          .from('staged_health_data')
           .insert(rewardData)
           .select()
           .single();
 
         if (stagedError) {
-          console.error(`Failed to create staged_data for ${record.id}:`, stagedError);
+          console.error(`Failed to create staged_health_data for ${record.id}:`, stagedError);
           results.errors.push(`${record.id}: ${stagedError.message}`);
           continue;
         }

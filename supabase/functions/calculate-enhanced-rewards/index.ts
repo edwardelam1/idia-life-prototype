@@ -34,19 +34,19 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[SPEC-AI.5.2] Processing staged_data: ${staged_data_id}, credits_spent: ${credits_spent}`);
+    console.log(`[SPEC-AI.5.2] Processing staged_health_data: ${staged_data_id}, credits_spent: ${credits_spent}`);
 
-    // 1. Fetch staged data record
+    // 1. Fetch staged_health_data record (the REAL table)
     const { data: stagedData, error: fetchError } = await supabase
-      .from("staged_data")
+      .from("staged_health_data")
       .select("*")
       .eq("id", staged_data_id)
       .maybeSingle();
 
     if (fetchError || !stagedData) {
-      console.error("Staged data not found:", fetchError);
+      console.error("staged_health_data not found:", fetchError);
       return new Response(
-        JSON.stringify({ error: "Staged data not found" }),
+        JSON.stringify({ error: "Staged health data not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -75,7 +75,6 @@ serve(async (req) => {
     const baseShare = revenueSharePool / participantCount;
 
     // 4. Synapse Weighting — quality + completeness
-    //    Fall back to effort-based scoring for health data compatibility
     let qualityScore = stagedData.data_quality_score;
     let completenessScore = stagedData.data_completeness_score;
 
@@ -86,7 +85,6 @@ serve(async (req) => {
       const duration = stagedData.duration_seconds || 0;
       const distance = stagedData.distance_meters || 0;
 
-      // Derive completeness from effort
       completenessScore = 0.5;
       if (effortScore > 0) completenessScore = 0.7;
       if (effortScore > 70) completenessScore = 0.85;
@@ -95,7 +93,6 @@ serve(async (req) => {
       if (duration > 0) completenessScore = Math.min(1.0, completenessScore + 0.05);
       if (distance > 0) completenessScore = Math.min(1.0, completenessScore + 0.05);
 
-      // Derive quality from effort tiers
       qualityScore = 0.5;
       if (effortScore >= 85) qualityScore = 1.0;
       else if (effortScore >= 70) qualityScore = 0.8;
@@ -109,18 +106,17 @@ serve(async (req) => {
     console.log(`[SPEC-AI.5.2] Weight: quality=${qualityScore}, completeness=${completenessScore}, coeff=${weightCoefficient.toFixed(4)}`);
     console.log(`[SPEC-AI.5.2] Reward: base=$${baseShare.toFixed(4)} × ${weightCoefficient.toFixed(4)} = $${finalReward.toFixed(4)}`);
 
-    // 5. Audit — update staged_data with settlement result
+    // 5. Audit — update staged_health_data with settlement result
     const { error: updateError } = await supabase
-      .from("staged_data")
+      .from("staged_health_data")
       .update({
         reward_amount: finalReward,
         reward_calculated: true,
-        processed_at: new Date().toISOString(),
       })
       .eq("id", staged_data_id);
 
     if (updateError) {
-      console.error("Failed to update staged data:", updateError);
+      console.error("Failed to update staged_health_data:", updateError);
       return new Response(
         JSON.stringify({ error: "Failed to update reward" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

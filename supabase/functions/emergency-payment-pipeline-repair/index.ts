@@ -19,20 +19,12 @@ serve(async (req) => {
 
     console.log('Emergency Pipeline Repair: Starting payment pipeline recovery...');
 
-    // Get all processed raw health data that should have staged_data but don't
+    // Get all processed raw health data that should have staged_health_data but don't
     const { data: missingStaged, error: fetchError } = await supabase
       .from('raw_health_data')
-      .select(`
-        id,
-        user_id,
-        raw_payload,
-        step_count,
-        recorded_at,
-        created_at,
-        device_type
-      `)
+      .select(`id, user_id, raw_payload, step_count, recorded_at, created_at, device_type`)
       .eq('processed', true)
-      .is('user_id', 'not.null')
+      .not('user_id', 'is', null)
       .gte('created_at', '2024-07-28')
       .order('created_at', { ascending: true });
 
@@ -48,24 +40,22 @@ serve(async (req) => {
 
     let processedCount = 0;
     let errorCount = 0;
-    const processedRecords = [];
+    const processedRecords: any[] = [];
 
-    // Process each record
     for (const record of missingStaged || []) {
       try {
-        // Check if staged_data already exists for this raw_data_id
+        // Check if staged_health_data already exists for this raw_data_id
         const { data: existingStaged } = await supabase
-          .from('staged_data')
+          .from('staged_health_data')
           .select('id')
           .eq('raw_data_id', record.id)
           .maybeSingle();
 
         if (existingStaged) {
-          console.log(`Staged data already exists for raw_data_id: ${record.id}, skipping`);
+          console.log(`Staged health data already exists for raw_data_id: ${record.id}, skipping`);
           continue;
         }
 
-        // Extract data from raw_payload
         const payload = record.raw_payload || {};
         const stepCount = record.step_count || payload.steps || payload.stepCount || 0;
         const heartRate = payload.heart_rate || payload.heartRate || payload.averageHeartRate || null;
@@ -73,14 +63,20 @@ serve(async (req) => {
         const distance = payload.distance || payload.distance_meters || null;
         const calories = payload.calories || payload.activeEnergyBurned || null;
 
-        // Create staged_data entry for reward processing
+        // Generate pseudonym
+        const encoder = new TextEncoder();
+        const data = encoder.encode(record.user_id + 'IDIA_SALT_2024');
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const pseudoUserId = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
         const stagedData = {
-          user_id: record.user_id,
+          pseudo_user_id: pseudoUserId,
           raw_data_id: record.id,
           activity_type: 'health_metrics',
           anonymized_location_zone: 'ZONE_BACKLOG_REPAIR',
           processed_at: new Date().toISOString(),
-          step_count: stepCount,
+          steps_count: stepCount,
           average_heartrate: heartRate,
           duration_seconds: duration,
           distance_meters: distance,
@@ -88,20 +84,18 @@ serve(async (req) => {
           device_type: record.device_type || 'Apple Health',
           data_quality_score: heartRate ? 0.8 : 0.6,
           data_completeness_score: 0.7,
-          elevation_gain_meters: null,
-          weather_conditions: null
         };
 
-        console.log(`Creating staged_data for raw_data_id: ${record.id} with steps=${stepCount}, hr=${heartRate}`);
+        console.log(`Creating staged_health_data for raw_data_id: ${record.id} with steps=${stepCount}, hr=${heartRate}`);
 
         const { data: newStaged, error: stagedError } = await supabase
-          .from('staged_data')
+          .from('staged_health_data')
           .insert(stagedData)
           .select()
           .single();
 
         if (stagedError) {
-          console.error(`Failed to create staged_data for ${record.id}:`, stagedError);
+          console.error(`Failed to create staged_health_data for ${record.id}:`, stagedError);
           errorCount++;
           continue;
         }
@@ -122,21 +116,24 @@ serve(async (req) => {
           }
 
           // Credit user wallet
-          const { error: creditError } = await supabase.functions.invoke(
-            'credit-user-wallet',
-            {
-              body: {
-                user_id: record.user_id,
-                reward_amount: newStaged.reward_amount || 0.50,
-                staged_data_id: newStaged.id
+          const rewardAmount = rewardResult?.reward_amount || 0;
+          if (rewardAmount > 0) {
+            const { error: creditError } = await supabase.functions.invoke(
+              'credit-user-wallet',
+              {
+                body: {
+                  user_id: record.user_id,
+                  reward_amount: rewardAmount,
+                  staged_data_id: newStaged.id
+                }
               }
-            }
-          );
+            );
 
-          if (creditError) {
-            console.error(`Failed to credit wallet for ${record.user_id}:`, creditError);
-          } else {
-            console.log(`Wallet credited for user ${record.user_id}`);
+            if (creditError) {
+              console.error(`Failed to credit wallet for ${record.user_id}:`, creditError);
+            } else {
+              console.log(`Wallet credited for user ${record.user_id}`);
+            }
           }
 
         } catch (processError) {
@@ -158,7 +155,6 @@ serve(async (req) => {
       }
     }
 
-    // Final summary
     console.log(`Emergency Pipeline Repair Complete: ${processedCount} processed, ${errorCount} errors`);
 
     return new Response(JSON.stringify({
