@@ -2,11 +2,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Activity, Heart, Footprints, Moon, Zap } from "lucide-react";
+import { Activity, Heart, Footprints, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import React from "react";
-import { eventTracker } from "@/utils/EventTracker";
 import { generateACAHash } from "@/utils/acaGenerator";
 
 interface AppleHealthModalProps {
@@ -17,6 +16,7 @@ interface AppleHealthModalProps {
   onDisconnect?: () => void;
 }
 
+// 🚨 RESTORED: The full list of 19 data points 🚨
 const ALL_HEALTH_DATA_TYPES = [
   { id: "HKQuantityTypeIdentifierStepCount", name: "Steps", category: "Activity" },
   { id: "HKQuantityTypeIdentifierDistanceWalkingRunning", name: "Distance (Walking/Running)", category: "Activity" },
@@ -87,16 +87,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         );
       }
 
-      // 🚨 UI Data Mapping Fix 🚨
+      // 🚨 FIX: Strict mapping of the Edge Function response array to the UI 🚨
       let displayData: any = {};
+
       if (serverResponse?.processed_data && Array.isArray(serverResponse.processed_data)) {
         serverResponse.processed_data.forEach((item: any) => {
-          if (item.type === "steps" || item.type === "stepCount") displayData.steps = item.value;
-          if (item.type === "heartRate") displayData.heartRate = item.value;
-          if (item.type === "activeEnergyBurned" || item.type === "calories") displayData.calories = item.value;
-          if (item.type === "sleepAnalysis" || item.type === "sleepHours") displayData.sleepHours = item.value;
+          // If value is missing or undefined, default to 0 so we don't show "Mock" or NaN
+          const safeValue = item.value !== undefined ? item.value : 0;
+
+          if (item.type === "steps" || item.type === "stepCount") displayData.steps = safeValue;
+          if (item.type === "heartRate") displayData.heartRate = safeValue;
+          if (item.type === "activeEnergyBurned" || item.type === "calories") displayData.calories = safeValue;
+          if (item.type === "sleepAnalysis" || item.type === "sleepHours") displayData.sleepHours = safeValue;
         });
       } else {
+        // Fallback if the edge function returns a flat object
         displayData = serverResponse?.health_data || serverResponse || {};
       }
 
@@ -150,7 +155,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         const comprehensiveHealthRequest = {
           action: "comprehensive_health_sync",
           config: {
-            // 🚨 NUCLEAR BYPASS: Forces hash into URL 🚨
             endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash=${hash}`,
             user_id: currentUserId,
             auth_token: authSession?.access_token,
@@ -185,7 +189,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
       const { hash } = await generateACAHash(profile.platform_guid, "apple_health");
 
-      // 🚨 EXPLICIT ERROR CATCHING FOR ACA HASH 🚨
       const { error: acaError } = await supabase.from("user_aca_records").insert({
         platform_guid: profile.platform_guid,
         aca_hash_key: hash,
@@ -249,7 +252,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             <>
               <p className="text-sm text-gray-600">Select the health metrics you wish to sync.</p>
 
-              {/* 🚨 THE RESTORED CHECKBOXES 🚨 */}
               <div className="max-h-60 overflow-y-auto border p-2 rounded-md bg-gray-50/50 mb-4">
                 {Array.from(new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.category))).map((category) => (
                   <div key={category} className="mb-2">
@@ -314,13 +316,18 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                   <Card>
                     <CardContent className="p-3 text-center">
                       <Footprints className="w-5 h-5 text-blue-500 mx-auto mb-1" />
-                      <div className="text-lg font-bold">{healthData.steps?.toLocaleString() || 0}</div>
+                      {/* Only render if > 0 so we don't show blank zeros if empty */}
+                      <div className="text-lg font-bold">
+                        {healthData.steps ? healthData.steps.toLocaleString() : "--"}
+                      </div>
+                      <div className="text-xs text-gray-500">Steps</div>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="p-3 text-center">
                       <Heart className="w-5 h-5 text-red-500 mx-auto mb-1" />
-                      <div className="text-lg font-bold">{healthData.heartRate || 0}</div>
+                      <div className="text-lg font-bold">{healthData.heartRate ? healthData.heartRate : "--"}</div>
+                      <div className="text-xs text-gray-500">Heart Rate</div>
                     </CardContent>
                   </Card>
                 </div>
