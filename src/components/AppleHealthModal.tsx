@@ -262,7 +262,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           platform_guid: currentUserId,
           aca_hash_key: hash,
           source_id: 'apple_health',
-          consent_scope: payload.consent_scope,
+          consent_scope: payload.consent_scope as string[],
         }]);
 
       if (acaError) {
