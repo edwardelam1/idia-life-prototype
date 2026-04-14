@@ -258,12 +258,12 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       // Step 2: Log mandatory audit record
       const { error: acaError } = await supabase
         .from('user_aca_records')
-        .insert({
+        .insert([{
           platform_guid: currentUserId,
           aca_hash_key: hash,
           source_id: 'apple_health',
           consent_scope: payload.consent_scope,
-        });
+        }]);
 
       if (acaError) {
         throw new Error(`DELT Protocol audit failed: ${acaError.message}`);
@@ -298,7 +298,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       }
 
       // Step 4: Trigger native bridge with ACA hash
-      syncHealthDataViaNativeApp();
+      syncHealthDataViaNativeApp(hash);
     } catch (error: any) {
       setErrorMessage(`Connection failed: ${error.message}`);
       setConnectionStatus("error");
