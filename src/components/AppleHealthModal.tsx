@@ -20,11 +20,23 @@ interface AppleHealthModalProps {
 const ALL_HEALTH_DATA_TYPES = [
   { id: "HKQuantityTypeIdentifierStepCount", name: "Steps", category: "Activity" },
   { id: "HKQuantityTypeIdentifierDistanceWalkingRunning", name: "Distance (Walking/Running)", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierDistanceCycling", name: "Distance (Cycling)", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierFlightsClimbed", name: "Flights Climbed", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierActiveEnergyBurned", name: "Active Energy Burned", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierBasalEnergyBurned", name: "Basal Energy Burned", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierAppleExerciseTime", name: "Exercise Time", category: "Activity" },
   { id: "HKQuantityTypeIdentifierHeartRate", name: "Heart Rate", category: "Vitals" },
   { id: "HKQuantityTypeIdentifierRestingHeartRate", name: "Resting Heart Rate", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierOxygenSaturation", name: "Blood Oxygen", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierRespiratoryRate", name: "Respiratory Rate", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierVO2Max", name: "VO2 Max", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierHeight", name: "Height", category: "Body" },
   { id: "HKQuantityTypeIdentifierBodyMass", name: "Weight", category: "Body" },
+  { id: "HKQuantityTypeIdentifierBodyMassIndex", name: "BMI", category: "Body" },
+  { id: "HKQuantityTypeIdentifierBodyFatPercentage", name: "Body Fat %", category: "Body" },
+  { id: "HKQuantityTypeIdentifierDietaryEnergyConsumed", name: "Dietary Energy", category: "Nutrition" },
   { id: "HKCategoryTypeIdentifierMindfulSession", name: "Mindful Minutes", category: "Mindfulness" },
-  // ... (Full list from previous implementation)
+  { id: "HKWorkoutTypeIdentifier", name: "Workout Data", category: "Activity" },
 ];
 
 const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onDisconnect }: AppleHealthModalProps) => {
@@ -63,7 +75,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
     (window as any).onHealthDataSyncError = (errorMsg: string) => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      setErrorMessage(`HealthKit Sync Error: ${errorMsg}`);
+      setErrorMessage(`Sync Error: ${errorMsg}`);
       setConnectionStatus("error");
       setIsConnecting(false);
     };
@@ -89,13 +101,16 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         });
 
         timeoutRef.current = setTimeout(() => {
-          setErrorMessage("Connection timed out. Check device permissions.");
+          setErrorMessage("Native bridge timeout. Check permissions.");
           setConnectionStatus("error");
           setIsConnecting(false);
         }, 15000);
 
+        // HYBRID PAYLOAD: Satisfies Swift 'config' requirement AND Edge Function top-level mapping
         const comprehensiveHealthRequest = {
           action: "comprehensive_health_sync",
+          user_id: currentUserId,
+          aca_hash: hash,
           config: {
             endpoint: "https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync",
             user_id: currentUserId,
@@ -121,14 +136,16 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setConnectionStatus("connecting");
 
     try {
+      // 1. Database Anchor Check
       const { data: profile } = await supabase
         .from("profiles")
         .select("platform_guid")
         .eq("user_id", currentUserId)
         .single();
 
-      if (!profile?.platform_guid) throw new Error("Profile anchor not found.");
+      if (!profile?.platform_guid) throw new Error("Profile anchor missing.");
 
+      // 2. DELT Protocol Background Execution
       const { hash } = await generateACAHash(profile.platform_guid, "apple_health");
 
       await supabase.from("user_aca_records").insert({
@@ -137,13 +154,17 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         source_id: "apple_health",
       });
 
-      await supabase.from("data_connections").upsert({
-        user_id: currentUserId,
-        connection_type: "apple_health",
-        connection_name: "Apple Health",
-        is_active: true,
-      });
+      await supabase.from("data_connections").upsert(
+        {
+          user_id: currentUserId,
+          connection_type: "apple_health",
+          connection_name: "Apple Health",
+          is_active: true,
+        },
+        { onConflict: "user_id,connection_type" },
+      );
 
+      // 3. Trigger Bridge
       syncHealthDataViaNativeApp(hash);
     } catch (error: any) {
       setErrorMessage(error.message);
@@ -161,6 +182,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     } catch (e) {
       console.error(e);
     }
+  };
+
+  const handleCheckboxChange = (id: string, isChecked: boolean) => {
+    setSelectedDataTypes((prev) => {
+      const newSet = new Set(prev);
+      isChecked ? newSet.add(id) : newSet.delete(id);
+      return newSet;
+    });
   };
 
   return (
@@ -184,12 +213,28 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             </div>
           )}
 
-          {/* IDLE & NOT CONNECTED */}
+          {/* VIEW: NOT CONNECTED */}
           {connectionStatus === "idle" && !existingConnection && (
             <>
-              <p className="text-sm text-gray-600">Connect your health data to earn rewards.</p>
+              <p className="text-sm text-gray-600">Sync your health metrics to earn rewards.</p>
               <div className="max-h-60 overflow-y-auto border p-2 rounded-md bg-gray-50/50">
-                {/* ... (Checkbox list) ... */}
+                {Array.from(new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.category))).map((category) => (
+                  <div key={category} className="mb-2">
+                    <h5 className="font-semibold text-xs text-gray-700 mt-1">{category}</h5>
+                    {ALL_HEALTH_DATA_TYPES.filter((d) => d.category === category).map((type) => (
+                      <div key={type.id} className="flex items-center space-x-2 text-xs py-1">
+                        <Checkbox
+                          id={type.id}
+                          checked={selectedDataTypes.has(type.id)}
+                          onCheckedChange={(checked) => handleCheckboxChange(type.id, !!checked)}
+                        />
+                        <label htmlFor={type.id} className="text-gray-600 cursor-pointer">
+                          {type.name}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                ))}
               </div>
               <Button onClick={handleConnect} className="w-full" disabled={isConnecting}>
                 {isConnecting ? "Connecting..." : "Connect Apple Health"}
@@ -197,14 +242,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             </>
           )}
 
-          {/* IDLE & ALREADY CONNECTED (Fixes the Blank Screen) */}
+          {/* VIEW: ALREADY CONNECTED (Fixes the Blank Screen) */}
           {existingConnection && connectionStatus === "idle" && (
-            <div className="space-y-4 text-center py-4">
+            <div className="space-y-4 text-center py-6">
               <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
                 <Zap className="w-6 h-6 text-green-600" />
               </div>
               <h3 className="font-medium text-green-800">Apple Health Connected</h3>
-              <p className="text-sm text-gray-600">Your health metrics are actively syncing.</p>
+              <p className="text-sm text-gray-600">Your metrics are actively syncing to your vault.</p>
               <div className="flex space-x-3 mt-4">
                 <Button variant="outline" className="flex-1" onClick={onClose}>
                   Close
@@ -216,22 +261,22 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             </div>
           )}
 
-          {/* CONNECTING STATE */}
+          {/* VIEW: CONNECTING */}
           {connectionStatus === "connecting" && (
             <div className="text-center py-10">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-sm text-gray-600">Establishing secure connection...</p>
+              <p className="text-sm text-gray-600">Establishing Liability Shield...</p>
             </div>
           )}
 
-          {/* SUCCESS STATE */}
+          {/* VIEW: SUCCESS */}
           {connectionStatus === "connected" && (
             <div className="space-y-4 py-4">
               <div className="text-center">
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
                   <Zap className="w-6 h-6 text-green-600" />
                 </div>
-                <h3 className="font-medium text-green-800 text-lg">Sync Successful!</h3>
+                <h3 className="font-medium text-green-800 text-lg">Sync Complete!</h3>
               </div>
               {healthData && (
                 <div className="grid grid-cols-2 gap-3">
@@ -255,11 +300,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             </div>
           )}
 
-          {/* ERROR STATE */}
+          {/* VIEW: ERROR */}
           {connectionStatus === "error" && (
-            <Button variant="outline" onClick={() => setConnectionStatus("idle")} className="w-full">
-              Retry Connection
-            </Button>
+            <div className="text-center py-4">
+              <Button variant="outline" onClick={() => setConnectionStatus("idle")} className="w-full">
+                Retry Connection
+              </Button>
+            </div>
           )}
         </div>
       </DialogContent>
