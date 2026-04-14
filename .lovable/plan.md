@@ -1,38 +1,30 @@
 
+# Global Synapse Settlement Model (SPEC-AI.5.2)
 
-# Remap "My Data" Page to Cash Balance + Add cash_balance Column
+## Status: IMPLEMENTED
 
-## Problem
-The My Data page (DataDashboard) currently shows `total_earned` from `user_wallets` labeled as "IDIA-USD". The request is to remap this to show the `cash_balance` field instead, labeled as "Cash Account" with a USD icon. The `user_wallets` table currently lacks a `cash_balance` column.
+Three edge functions rewritten to implement the universal settlement engine.
 
-## Changes
+## Economics
 
-### 1. Database Migration
-Add `cash_balance` column to `user_wallets` table (defaulting to 0), mirroring the existing column on the `wallets` table.
+- **Credit Value**: $0.75 USD per Synapse credit
+- **Revenue Share**: 30% of total value goes to contributor pool
+- **Weighting**: `(quality + completeness) / 2` coefficient applied to base share
+- **Clamp**: min $0.05, max $1.00 per settlement
 
-```sql
-ALTER TABLE public.user_wallets ADD COLUMN cash_balance numeric DEFAULT 0 NOT NULL;
+## Pipeline Flow
+
+```
+Synapse Credit Consumed
+  → process-staged-data (orchestrator)
+    → calculate-enhanced-rewards (pool math + weighting)
+    → credit-user-wallet (FBO → user_wallets.cash_balance)
 ```
 
-### 2. `src/components/DataDashboard.tsx`
-- Change the wallet fetch to read `cash_balance` instead of `total_earned` for the summary card
-- Update label from `"Total Data Earnings"` / `"IDIA-USD"` to `"Cash Account"` / `"Available Cash"`
-- Replace the `DollarSign` icon styling context (keep icon, it's already USD-appropriate)
-- Update the display format from `$X.XX IDIA-USD` to `$X.XX USD`
+## Files
 
-### 3. `src/hooks/useWalletBalance.ts`
-- Map `cash_balance` from the DB column: `cash_balance: walletData.cash_balance || 0`
-- This feeds any component using the hook (including WalletDashboard's three-pillar view)
-
-### 4. `src/components/WalletDashboard.tsx`
-- Update `fetchBalances` to read from the `wallets` table (already does) — no change needed here since it already reads `cash_balance` from `wallets`
-- The three-pillar layout (Cash / IDIA-BETA / IDIA Token) remains intact
-
-## Summary
-
-| File | Change |
-|------|--------|
-| Migration SQL | Add `cash_balance` to `user_wallets` |
-| `src/components/DataDashboard.tsx` | Swap earning source to `cash_balance`, update labels to "Cash Account" / "USD" |
-| `src/hooks/useWalletBalance.ts` | Map `cash_balance` from DB column |
-
+| File | Role |
+|------|------|
+| `calculate-enhanced-rewards/index.ts` | Global Reward Engine: $0.75 × 30% pool → weighted distribution |
+| `credit-user-wallet/index.ts` | FBO Dissemination: credits `user_wallets.cash_balance` + `total_earned` |
+| `process-staged-data/index.ts` | Orchestrator: chains calculation → wallet credit |
