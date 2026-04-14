@@ -46,15 +46,31 @@ const DataDashboard = () => {
     if (!currentUserId) return;
     setAcaLoading(true);
     try {
+      // 1. Look up the profile's platform_guid (DELT Protocol Standard)
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("platform_guid")
+        .eq("user_id", currentUserId)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error("Error fetching profile for ACA records:", profileError);
+      }
+
+      // Fallback to user_id just in case the profile is incomplete
+      const guidToQuery = profile?.platform_guid || currentUserId;
+
+      // 2. Fetch the records using the correct GUID
       const { data, error } = await supabase
         .from("user_aca_records")
         .select("*")
-        .eq("platform_guid", currentUserId)
+        .eq("platform_guid", guidToQuery)
         .order("created_at", { ascending: false });
 
-      if (!error && data) setAcaRecords(data);
+      if (error) throw error;
+      if (data) setAcaRecords(data);
     } catch (err) {
-      console.error("Error fetching ACA records:", err);
+      console.error("Failed to fetch ACA records:", err);
     } finally {
       setAcaLoading(false);
     }

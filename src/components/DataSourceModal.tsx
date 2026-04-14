@@ -37,13 +37,25 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
       }
       const userId = user.id;
 
+      // Fetch the platform_guid to align with DELT Protocol
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("platform_guid")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error("Profile lookup error:", profileError);
+      }
+      const platformGuid = profile?.platform_guid || userId;
+
       // 1. Mandatory ACA Hash Generation (DELT Protocol)
       const sourceId = source.name.toLowerCase().replace(/\s+/g, "_");
-      const { hash, payload } = await generateACAHash(userId, sourceId, ["KYC_VAULT", "WALLET_PROVISIONING"]);
+      const { hash, payload } = await generateACAHash(platformGuid, sourceId, ["KYC_VAULT", "WALLET_PROVISIONING"]);
 
       // 2. Log Mandatory Transaction Record (Liability Shield)
       const { error: acaError } = await supabase.from("user_aca_records").insert({
-        platform_guid: userId,
+        platform_guid: platformGuid,
         aca_hash_key: hash,
         source_id: sourceId,
         consent_scope: payload.consent_scope as string[],
