@@ -124,7 +124,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         const comprehensiveHealthRequest = {
           action: "comprehensive_health_sync",
           config: {
-            endpoint: "https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync",
+            // 🚨 INJECT HASH INTO URL TO BYPASS JSON STRIPPING 🚨
+            endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash=${hash}`,
             user_id: currentUserId,
             auth_token: authSession?.access_token,
             aca_hash: hash,
