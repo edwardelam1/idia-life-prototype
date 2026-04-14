@@ -17,9 +17,9 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get the most recent staged_data record
+    // Get the most recent staged_health_data record that hasn't been rewarded
     const { data: stagedData, error: fetchError } = await supabase
-      .from('staged_data')
+      .from('staged_health_data')
       .select('*')
       .eq('reward_calculated', false)
       .order('processed_at', { ascending: false })
@@ -28,7 +28,7 @@ serve(async (req) => {
 
     if (fetchError || !stagedData) {
       return new Response(JSON.stringify({
-        error: 'No unrewarded staged data found',
+        error: 'No unrewarded staged health data found',
         details: fetchError
       }), { 
         status: 404, 
@@ -60,7 +60,7 @@ serve(async (req) => {
 
     // Check the result
     const { data: updatedData, error: checkError } = await supabase
-      .from('staged_data')
+      .from('staged_health_data')
       .select('*')
       .eq('id', stagedData.id)
       .single();
