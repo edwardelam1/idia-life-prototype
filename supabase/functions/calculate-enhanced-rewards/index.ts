@@ -103,8 +103,8 @@ serve(async (req) => {
     }
 
     const weightCoefficient = (qualityScore + completenessScore) / 2;
-    const rawReward = baseShare * weightCoefficient;
-    const finalReward = Math.max(MIN_REWARD, Math.min(MAX_REWARD, rawReward));
+    // Pure weighted payout — no floor, no ceiling
+    const finalReward = baseShare * weightCoefficient;
 
     console.log(`[SPEC-AI.5.2] Weight: quality=${qualityScore}, completeness=${completenessScore}, coeff=${weightCoefficient.toFixed(4)}`);
     console.log(`[SPEC-AI.5.2] Reward: base=$${baseShare.toFixed(4)} × ${weightCoefficient.toFixed(4)} = $${finalReward.toFixed(4)}`);
