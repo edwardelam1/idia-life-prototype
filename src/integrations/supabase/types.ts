@@ -6286,6 +6286,8 @@ export type Database = {
         | "WITHDRAWAL"
         | "FEE"
         | "REWARD"
+        | "settlement"
+        | "fbo_dissemination"
       user_role: "owner" | "manager" | "employee" | "warehouse_associate"
     }
     CompositeTypes: {
@@ -6421,6 +6423,8 @@ export const Constants = {
         "WITHDRAWAL",
         "FEE",
         "REWARD",
+        "settlement",
+        "fbo_dissemination",
       ],
       user_role: ["owner", "manager", "employee", "warehouse_associate"],
     },
