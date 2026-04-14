@@ -38,7 +38,7 @@ export const useWalletBalance = () => {
 
       if (walletData) {
         setBalance({
-          cash_balance: 0,
+          cash_balance: walletData.cash_balance || 0,
           idia_usd_balance: walletData.idia_beta_balance || 0,
           idia_token_balance: 0,
           total_earned: walletData.total_earned || 0

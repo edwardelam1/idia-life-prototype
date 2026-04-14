@@ -105,7 +105,7 @@ const DataDashboard = () => {
 
       const connectionsData = connectionsResult.value.data || [];
       let totalEarned = 0;
-      if (walletResult.status === "fulfilled") totalEarned = walletResult.value.data?.total_earned || 0;
+      if (walletResult.status === "fulfilled") totalEarned = walletResult.value.data?.cash_balance || 0;
 
       if (recentDataResult.status === "fulfilled" && recentDataResult.value.data?.length > 0) {
         const lastDataTime = new Date(recentDataResult.value.data[0].created_at);
@@ -236,13 +236,13 @@ const DataDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center space-x-2 mb-1">
-                <p className="text-teal-100">Total Data Earnings</p>
+                <p className="text-teal-100">Cash Account</p>
                 {getSyncStatusBadge()}
               </div>
-              <p className="text-3xl font-bold">${totalEarnings.toFixed(2)} IDIA-USD</p>
+              <p className="text-3xl font-bold">${totalEarnings.toFixed(2)} USD</p>
               <p className="text-sm text-teal-100 mt-1">
                 {connections.length > 0
-                  ? "Earnings from connected data sources"
+                  ? "Available cash from connected data sources"
                   : "Start earning by connecting data sources"}
               </p>
             </div>

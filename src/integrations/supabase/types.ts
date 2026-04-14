@@ -5924,6 +5924,7 @@ export type Database = {
       }
       user_wallets: {
         Row: {
+          cash_balance: number
           created_at: string
           id: string
           idia_beta_balance: number | null
@@ -5932,6 +5933,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          cash_balance?: number
           created_at?: string
           id?: string
           idia_beta_balance?: number | null
@@ -5940,6 +5942,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          cash_balance?: number
           created_at?: string
           id?: string
           idia_beta_balance?: number | null
