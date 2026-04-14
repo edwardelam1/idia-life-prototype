@@ -3023,7 +3023,6 @@ export type Database = {
           bundle_id: string
           bundle_version: number | null
           category: string
-          contacts_count: number | null
           created_at: string | null
           cross_platform_insights: Json | null
           data_fusion_level: string | null
@@ -3034,6 +3033,7 @@ export type Database = {
           is_active: boolean | null
           key_insights: string[] | null
           match_percentage: number | null
+          participant_count: number | null
           predictive_analytics: Json | null
           price: number
           suggested_filters: string[] | null
@@ -3046,7 +3046,6 @@ export type Database = {
           bundle_id?: string
           bundle_version?: number | null
           category: string
-          contacts_count?: number | null
           created_at?: string | null
           cross_platform_insights?: Json | null
           data_fusion_level?: string | null
@@ -3057,6 +3056,7 @@ export type Database = {
           is_active?: boolean | null
           key_insights?: string[] | null
           match_percentage?: number | null
+          participant_count?: number | null
           predictive_analytics?: Json | null
           price: number
           suggested_filters?: string[] | null
@@ -3069,7 +3069,6 @@ export type Database = {
           bundle_id?: string
           bundle_version?: number | null
           category?: string
-          contacts_count?: number | null
           created_at?: string | null
           cross_platform_insights?: Json | null
           data_fusion_level?: string | null
@@ -3080,6 +3079,7 @@ export type Database = {
           is_active?: boolean | null
           key_insights?: string[] | null
           match_percentage?: number | null
+          participant_count?: number | null
           predictive_analytics?: Json | null
           price?: number
           suggested_filters?: string[] | null
@@ -4839,6 +4839,8 @@ export type Database = {
           rem_duration_minutes: number | null
           respiratory_rate_per_min: number | null
           resting_heart_rate: number | null
+          reward_amount: number | null
+          reward_calculated: boolean | null
           saturated_fat_g: number | null
           sexual_activity: boolean | null
           sleep_duration: number | null
@@ -4932,6 +4934,8 @@ export type Database = {
           rem_duration_minutes?: number | null
           respiratory_rate_per_min?: number | null
           resting_heart_rate?: number | null
+          reward_amount?: number | null
+          reward_calculated?: boolean | null
           saturated_fat_g?: number | null
           sexual_activity?: boolean | null
           sleep_duration?: number | null
@@ -5025,6 +5029,8 @@ export type Database = {
           rem_duration_minutes?: number | null
           respiratory_rate_per_min?: number | null
           resting_heart_rate?: number | null
+          reward_amount?: number | null
+          reward_calculated?: boolean | null
           saturated_fat_g?: number | null
           sexual_activity?: boolean | null
           sleep_duration?: number | null
@@ -5067,8 +5073,11 @@ export type Database = {
           location_zone: string | null
           processed_at: string | null
           pseudo_user_id: string
+          reward_amount: number | null
+          reward_calculated: boolean | null
           session_duration: number | null
           social_interactions: Json | null
+          synapse_weight_coefficient: number | null
         }
         Insert: {
           activity_context?: Json | null
@@ -5084,8 +5093,11 @@ export type Database = {
           location_zone?: string | null
           processed_at?: string | null
           pseudo_user_id: string
+          reward_amount?: number | null
+          reward_calculated?: boolean | null
           session_duration?: number | null
           social_interactions?: Json | null
+          synapse_weight_coefficient?: number | null
         }
         Update: {
           activity_context?: Json | null
@@ -5101,8 +5113,11 @@ export type Database = {
           location_zone?: string | null
           processed_at?: string | null
           pseudo_user_id?: string
+          reward_amount?: number | null
+          reward_calculated?: boolean | null
           session_duration?: number | null
           social_interactions?: Json | null
+          synapse_weight_coefficient?: number | null
         }
         Relationships: []
       }
