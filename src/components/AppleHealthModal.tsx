@@ -42,6 +42,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   const [isConnecting, setIsConnecting] = useState(false);
   const [healthData, setHealthData] = useState<any>(null);
   const [connectionStatus, setConnectionStatus] = useState<"idle" | "connecting" | "connected" | "error">("idle");
+  const [justFinishedSync, setJustFinishedSync] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [authSession, setAuthSession] = useState<any>(null);
   const [selectedDataTypes, setSelectedDataTypes] = useState<Set<string>>(
