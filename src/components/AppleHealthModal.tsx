@@ -85,28 +85,52 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setConnectionStatus("connected");
         setIsConnecting(false);
 
-        // 🚨 THE FIX: Force the connection into the database so the Dashboard sees it
+        // 🚨 THE FIX: Safe database insert/update to avoid constraint errors
         const {
           data: { session },
         } = await supabase.auth.getSession();
 
         if (session?.user?.id) {
-          const { error: dbError } = await supabase.from("data_connections").upsert({
-            user_id: session.user.id,
-            connection_type: "apple_health",
-            connection_name: "Apple Health",
-            is_active: true,
-            last_sync_at: new Date().toISOString(),
-          });
+          try {
+            // 1. Check if an Apple Health connection already exists (even if inactive)
+            const { data: existingConn } = await supabase
+              .from("data_connections")
+              .select("id")
+              .eq("user_id", session.user.id)
+              .eq("connection_type", "apple_health")
+              .maybeSingle();
 
-          if (dbError) {
-            console.error("Database connection save failed:", dbError);
-            setErrorMessage("Database Error: Could not save connection.");
+            let dbError = null;
+
+            if (existingConn) {
+              // 2. If it exists, update it to be active
+              const { error } = await supabase
+                .from("data_connections")
+                .update({ is_active: true, last_sync_at: new Date().toISOString() })
+                .eq("id", existingConn.id);
+              dbError = error;
+            } else {
+              // 3. If it doesn't exist, insert a fresh record
+              const { error } = await supabase.from("data_connections").insert({
+                user_id: session.user.id,
+                connection_type: "apple_health",
+                connection_name: "Apple Health",
+                is_active: true,
+                last_sync_at: new Date().toISOString(),
+              });
+              dbError = error;
+            }
+
+            if (dbError) {
+              console.error("Database connection save failed:", dbError);
+              setErrorMessage("Database Error: Could not save connection.");
+            }
+          } catch (err) {
+            console.error("Unexpected DB error:", err);
           }
-        } else {
-          console.error("No active user session to save connection!");
         }
         // ------------------------------------------------------------------------
+
         const displayData: any = {};
         const count = serverResponse?.processed_count || 0;
         setSyncCount(count);
