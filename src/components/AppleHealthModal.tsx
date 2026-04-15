@@ -91,7 +91,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         } = await supabase.auth.getSession();
 
         if (session?.user?.id) {
-          const { error: dbError } = await supabase.from("data_connections").upsert(
+          // Use upsert with onConflict to handle existing records without error
+          await supabase.from("data_connections").upsert(
             {
               user_id: session.user.id,
               connection_type: "apple_health",
