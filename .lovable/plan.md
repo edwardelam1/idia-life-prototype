@@ -1,36 +1,53 @@
 
 
-# Fix: Apple Health Sync 400 Error
+# Fix: Apple Health Key Mismatch + Primitive Value Extraction + NaN Pipeline Crash
 
-## Root Cause
+## Root Cause (3 interlocking bugs)
 
-The native iOS bridge sends the `aca_hash` as a **URL query parameter** (`?aca_hash=xxx`), but `apple-health-sync` only reads from the JSON request body (`rawBody.aca_hash`). The hash is never found in the body, so the function returns `400: Missing required field: aca_hash`.
+1. **Key mismatch (silent skip)**: iOS bridge sends data keyed by Apple HealthKit identifiers (e.g. `HKQuantityTypeIdentifierStepCount`), but `apple-health-sync` only loops over internal keys (`steps`, `heartRate`). No keys match → nothing inserted → triggers never fire.
 
-Evidence: Two recent 400s in edge logs both show the hash in the URL:
-```
-POST | 400 | .../apple-health-sync?aca_hash=c421e9c4...
-POST | 400 | .../apple-health-sync?aca_hash=32129057...
-```
+2. **Primitive value extraction**: When data arrives as a raw number (e.g. `5000`) instead of `{value: 5000}`, `record.value` is `undefined` → frontend displays `--`.
 
-## Fix
+3. **NaN crash in comprehensive-apple-health-processor**: `parseInt(undefined)` → `NaN` → PostgreSQL rejects the insert → pipeline dies silently.
 
-**File: `supabase/functions/apple-health-sync/index.ts`**
+## Changes
 
-Add URL query parameter parsing at the top of the handler, before the `acaHash` assignment. Fall back to the body if not found in the URL:
+### 1. `supabase/functions/apple-health-sync/index.ts`
+- Add a `keyMapping` dictionary that maps all Apple HealthKit identifier strings to the internal keys the function already expects
+- Normalize incoming payload keys before the processing loop
+- Fix value extraction: use `record.value !== undefined ? record.value : record` so primitives are handled
+- Return `actualValue` in `processed_data` array so frontend gets real numbers
 
+### 2. `supabase/functions/comprehensive-apple-health-processor/index.ts`
+- In `mapAppleHealthDataToColumns`: wrap `record` so it's always an object with a `.value` property
+- Change all `record.value` checks to use the safe wrapper, preventing `parseInt(undefined)` → `NaN`
+
+### 3. Deploy both functions
+
+No database migration needed. No UI changes needed — the frontend already reads `processed_data[].value` correctly, it just never received a value.
+
+## Technical detail
+
+Key mapping (added to apple-health-sync):
 ```typescript
-const url = new URL(req.url);
-const queryAcaHash = url.searchParams.get("aca_hash");
-
-// Fuzzy key matching — prioritize query param from native bridge
-const acaHash = queryAcaHash || rawBody.aca_hash || rawBody.acaHash;
+const keyMapping: Record<string, string> = {
+  "HKQuantityTypeIdentifierStepCount": "steps",
+  "HKQuantityTypeIdentifierDistanceWalkingRunning": "distanceWalkingRunning",
+  "HKQuantityTypeIdentifierHeartRate": "heartRate",
+  "HKQuantityTypeIdentifierActiveEnergyBurned": "activeEnergyBurned",
+  // ... all 18 Apple HealthKit identifiers from the frontend
+};
 ```
 
-This is a one-line-scope change in the edge function. The rest of the pipeline (ACA verification, raw_health_data insertion, trigger chain) is unaffected.
+Safe value extraction (both functions):
+```typescript
+const actualValue = record.value !== undefined ? record.value : record;
+```
 
-## Files Modified
-
-| File | Change |
-|------|--------|
-| `supabase/functions/apple-health-sync/index.ts` | Parse `aca_hash` from URL query params, fall back to body |
+Safe record wrapping (comprehensive processor):
+```typescript
+const record = (typeof originalRecord === 'object' && originalRecord !== null)
+  ? originalRecord
+  : { value: originalRecord };
+```
 
