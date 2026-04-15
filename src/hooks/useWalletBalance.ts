@@ -49,7 +49,6 @@ export const useWalletBalance = () => {
     fetchBalance();
 
     // 2. FINANCIAL GRADE REAL-TIME SYNC
-    // This forces the UI to update the millisecond the Edge Function pays the user
     const channel = supabase
       .channel("schema-db-changes")
       .on(
@@ -61,12 +60,16 @@ export const useWalletBalance = () => {
         },
         (payload) => {
           console.log("Real-time wallet update received:", payload);
-          if (payload.new) {
+
+          // FIX: Safely cast payload.new so TypeScript knows the properties exist
+          if (payload.new && Object.keys(payload.new).length > 0) {
+            const newData = payload.new as Record<string, any>;
+
             setBalance({
-              cash_balance: payload.new.cash_balance || 0,
-              idia_usd_balance: payload.new.idia_beta_balance || 0,
+              cash_balance: newData.cash_balance || 0,
+              idia_usd_balance: newData.idia_beta_balance || 0,
               idia_token_balance: 0,
-              total_earned: payload.new.total_earned || 0,
+              total_earned: newData.total_earned || 0,
             });
           }
         },
