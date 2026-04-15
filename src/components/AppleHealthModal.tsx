@@ -55,7 +55,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
   useEffect(() => {
     const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (session?.user) {
         setCurrentUserId(session.user.id);
         setAuthSession(session);
@@ -90,24 +92,36 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       const count = serverResponse?.processed_count || 0;
       setSyncCount(count);
 
-      if (serverResponse?.processed_data && Array.isArray(serverResponse.processed_data)) {
+      // FIX 1: Prioritize the top-level variables we added to the Edge Function response
+      if (serverResponse?.steps !== undefined) displayData.steps = serverResponse.steps;
+      if (serverResponse?.heartRate !== undefined) displayData.heartRate = serverResponse.heartRate;
+      if (serverResponse?.calories !== undefined) displayData.calories = serverResponse.calories;
+
+      // FIX 2: Safely check BOTH item.type and item.dataType in the array fallback
+      if (
+        Object.keys(displayData).length === 0 &&
+        serverResponse?.processed_data &&
+        Array.isArray(serverResponse.processed_data)
+      ) {
         serverResponse.processed_data.forEach((item: any) => {
           const val = item.value !== undefined ? item.value : 0;
-          if (item.type === "steps" || item.type === "stepCount") displayData.steps = val;
-          if (item.type === "heartRate") displayData.heartRate = val;
-          if (item.type === "activeEnergyBurned" || item.type === "calories") displayData.calories = val;
-          if (item.type === "sleepAnalysis" || item.type === "sleepHours") displayData.sleepHours = val;
+          const dataType = item.type || item.dataType; // Solves the JSON mismatch
+
+          if (dataType === "steps" || dataType === "stepCount") displayData.steps = val;
+          if (dataType === "heartRate") displayData.heartRate = val;
+          if (dataType === "activeEnergyBurned" || dataType === "calories") displayData.calories = val;
+          if (dataType === "sleepAnalysis" || dataType === "sleepHours") displayData.sleepHours = val;
         });
-      } else {
-        const fallback = serverResponse?.health_data || serverResponse || {};
-        if (fallback.steps) displayData.steps = fallback.steps;
-        if (fallback.heartRate) displayData.heartRate = fallback.heartRate;
-        if (fallback.calories) displayData.calories = fallback.calories;
       }
 
       setHealthData(displayData);
       setConnectionStatus("connected");
       setIsConnecting(false);
+
+      // FIX 3: Automatically close the modal after 2.5 seconds
+      setTimeout(() => {
+        onComplete();
+      }, 2500);
     };
 
     (window as any).onHealthDataSyncError = async (errorMsg: string) => {
@@ -129,7 +143,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       (window as any).onHealthDataSyncComplete = undefined;
       (window as any).onHealthDataSyncError = undefined;
     };
-  }, []);
+  }, [onComplete]);
 
   const syncHealthDataViaNativeApp = useCallback(
     (hash: string) => {
@@ -280,8 +294,12 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               <h3 className="font-medium text-green-800">Apple Health Connected</h3>
               <p className="text-sm text-muted-foreground">Your metrics are actively syncing to your vault.</p>
               <div className="flex space-x-3 mt-4">
-                <Button variant="outline" className="flex-1" onClick={onClose}>Close</Button>
-                <Button variant="destructive" className="flex-1" onClick={handleDisconnect}>Disconnect</Button>
+                <Button variant="outline" className="flex-1" onClick={onClose}>
+                  Close
+                </Button>
+                <Button variant="destructive" className="flex-1" onClick={handleDisconnect}>
+                  Disconnect
+                </Button>
               </div>
             </div>
           )}
@@ -300,9 +318,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                   <Zap className="w-6 h-6 text-green-600" />
                 </div>
                 <h3 className="font-medium text-green-800 text-lg">Sync Complete!</h3>
-                {syncCount > 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">{syncCount} records synced</p>
-                )}
+                {syncCount > 0 && <p className="text-xs text-muted-foreground mt-1">{syncCount} records synced</p>}
               </div>
               {healthData && (
                 <div className="grid grid-cols-3 gap-3">
@@ -318,9 +334,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                   <Card>
                     <CardContent className="p-3 text-center">
                       <Heart className="w-5 h-5 text-red-500 mx-auto mb-1" />
-                      <div className="text-lg font-bold">
-                        {healthData.heartRate || "--"}
-                      </div>
+                      <div className="text-lg font-bold">{healthData.heartRate || "--"}</div>
                       <div className="text-xs text-muted-foreground">BPM</div>
                     </CardContent>
                   </Card>
@@ -335,7 +349,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                   </Card>
                 </div>
               )}
-              <Button onClick={onComplete} className="w-full">Done</Button>
+              <Button onClick={onComplete} className="w-full">
+                Done
+              </Button>
             </div>
           )}
 
