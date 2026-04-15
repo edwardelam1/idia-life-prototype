@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { Shield, DollarSign, CheckCircle, AlertCircle, Lock, Eye, Users, Zap, FileKey } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
+import { supabase } from "@/integrations/supabase/client";
 
 interface DataSourceModalProps {
   source: any;
