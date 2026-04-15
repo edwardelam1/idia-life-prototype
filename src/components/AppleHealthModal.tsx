@@ -85,7 +85,22 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setConnectionStatus("connected");
         setIsConnecting(false);
 
-        // --- DATA PARSING BLOCK (Shows the metrics on UI) ---
+        // 🚨 THE FIX: Force the connection into the database so the Dashboard sees it
+        if (currentUserIdRef.current) {
+          try {
+            await supabase.from("data_connections").upsert({
+              user_id: currentUserIdRef.current,
+              connection_type: "apple_health",
+              connection_name: "Apple Health",
+              is_active: true,
+              last_sync_at: new Date().toISOString(),
+            });
+          } catch (dbErr) {
+            console.error("Failed to save connection state:", dbErr);
+          }
+        }
+        // ------------------------------------------------------------------------
+
         const displayData: any = {};
         const count = serverResponse?.processed_count || 0;
         setSyncCount(count);
@@ -111,21 +126,12 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           }
         }
 
-        // Push the parsed data to the screen
         setHealthData(displayData);
-        // ---------------------------------------------------
 
         // Auto-close timer
         setTimeout(() => {
-          try {
-            callbacksRef.current.onClose();
-          } catch (err) {
-            console.error("onClose failed:", err);
-          }
-          try {
+          if (callbacksRef.current.onComplete) {
             callbacksRef.current.onComplete();
-          } catch (err) {
-            console.error("onComplete failed:", err);
           }
         }, 2500);
       } catch (err: any) {
