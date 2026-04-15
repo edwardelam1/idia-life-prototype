@@ -1,44 +1,25 @@
 
 
-# Fix: Apple Health Modal Silent Failure — Stale Callback References
+# Fix: Remove Blocking DB Upsert from `onHealthDataSyncComplete`
 
 ## Problem
 
-The `useEffect` that registers `window.onHealthDataSyncComplete` includes `onComplete` in its dependency array. When the parent re-renders during an active sync, React runs the cleanup function — deleting the bridge listener mid-flight. The iOS bridge calls `window.onHealthDataSyncComplete(...)` and hits `undefined`, silently failing. The modal stays stuck on "Connecting...".
+The frontend `onHealthDataSyncComplete` handler awaits a Supabase upsert to `data_connections` before updating the UI state and firing the close timer. If that DB call hangs or fails, the modal locks on "Connecting..." forever. The edge function already handles connection logging server-side, so this call is redundant.
 
-## Fix (3 surgical changes in `AppleHealthModal.tsx`)
+## Changes
 
-### 1. Add a `callbacksRef` (after line 51)
+**File: `src/components/AppleHealthModal.tsx`**
 
-Store `onComplete` and `onClose` in a ref so the listener always has the latest version without being a dependency:
+Replace the entire `onHealthDataSyncComplete` handler (lines 78-130) with the user's provided block:
 
-```typescript
-const callbacksRef = useRef({ onComplete, onClose });
-useEffect(() => {
-  callbacksRef.current = { onComplete, onClose };
-}, [onComplete, onClose]);
-```
+- Remove the `await supabase.from("data_connections").upsert(...)` block (lines 81-92)
+- Replace the old data-parsing logic with proper aggregation (summing steps/calories, averaging heart rate, guarding against `NaN`)
+- Set `connectionStatus` and `isConnecting` immediately at the top (before parsing) so the UI unlocks instantly
+- Add a new `justFinishedSync` state variable (needs to be declared near other state declarations)
+- Swap `onClose()` before `onComplete()` in the timeout so the modal disappears before the dashboard refreshes
+- Wrap both callbacks in try/catch for resilience
 
-### 2. Empty the dependency array (line 146)
+**State addition** (~line 53 area): `const [justFinishedSync, setJustFinishedSync] = useState(false);`
 
-Change `}, [onComplete]);` → `}, []);`
-
-This prevents the cleanup from ever running while the modal is mounted, keeping the bridge listener alive for the entire sync.
-
-### 3. Use the ref in the success handler (lines 122-124)
-
-```typescript
-setTimeout(() => {
-  callbacksRef.current.onComplete();
-  callbacksRef.current.onClose();
-}, 2500);
-```
-
-This ensures the modal both refreshes the parent data **and** closes itself after sync, using the latest callback references.
-
-## Files Modified
-
-| File | Change |
-|------|--------|
-| `src/components/AppleHealthModal.tsx` | Add `callbacksRef`, empty dependency array, use ref in setTimeout |
+No other files affected.
 
