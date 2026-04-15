@@ -49,6 +49,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [syncCount, setSyncCount] = useState(0);
+  const [justFinishedSync, setJustFinishedSync] = useState(false);
 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentUserIdRef = useRef<string | null>(null);
