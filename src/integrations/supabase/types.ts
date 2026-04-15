@@ -1842,6 +1842,39 @@ export type Database = {
           },
         ]
       }
+      fiat_ledger: {
+        Row: {
+          amount_usd: number
+          created_at: string
+          description: string | null
+          id: string
+          source: string | null
+          status: string | null
+          transaction_type: string
+          user_id: string
+        }
+        Insert: {
+          amount_usd: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          source?: string | null
+          status?: string | null
+          transaction_type: string
+          user_id: string
+        }
+        Update: {
+          amount_usd?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          source?: string | null
+          status?: string | null
+          transaction_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       franchise_agreements: {
         Row: {
           agreement_end_date: string | null
