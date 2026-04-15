@@ -92,7 +92,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
         if (session?.user?.id) {
           // Use upsert with onConflict to handle existing records without error
-          await supabase.from("data_connections").upsert(
+          const { error: dbError } = await supabase.from("data_connections").upsert(
             {
               user_id: session.user.id,
               connection_type: "apple_health",
@@ -100,12 +100,11 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               is_active: true,
               last_sync_at: new Date().toISOString(),
             },
-            { onConflict: "user_id,connection_type" }, // Tells Postgres to update if it exists
+            { onConflict: "user_id,connection_type" },
           );
 
           if (dbError) {
             console.error("Database connection save failed:", dbError);
-            // If the error is about a missing constraint, we use a fallback update
             await supabase
               .from("data_connections")
               .update({ is_active: true, last_sync_at: new Date().toISOString() })
