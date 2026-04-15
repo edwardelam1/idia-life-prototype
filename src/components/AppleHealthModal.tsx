@@ -85,22 +85,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setConnectionStatus("connected");
         setIsConnecting(false);
 
+        // --- DATA PARSING BLOCK (Shows the metrics on UI) ---
         const displayData: any = {};
-        setTimeout(() => {
-          try {
-            callbacksRef.current.onClose();
-          } catch (err) {
-            console.error("onClose failed:", err);
-          }
-          try {
-            callbacksRef.current.onComplete();
-          } catch (err) {
-            console.error("onComplete failed:", err);
-          }
-        }, 2500);
-
-      } catch (err: any) {
-        setErrorMessage(`Success Callback Error: ${err.message}`);
         const count = serverResponse?.processed_count || 0;
         setSyncCount(count);
 
@@ -125,7 +111,23 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           }
         }
 
+        // Push the parsed data to the screen
         setHealthData(displayData);
+        // ---------------------------------------------------
+
+        // Auto-close timer
+        setTimeout(() => {
+          try {
+            callbacksRef.current.onClose();
+          } catch (err) {
+            console.error("onClose failed:", err);
+          }
+          try {
+            callbacksRef.current.onComplete();
+          } catch (err) {
+            console.error("onComplete failed:", err);
+          }
+        }, 2500);
       } catch (err: any) {
         setErrorMessage(`Success Callback Error: ${err.message}`);
         setConnectionStatus("error");
