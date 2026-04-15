@@ -76,60 +76,42 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
   useEffect(() => {
     // 1. We create the handler as a named constant first
-    const syncCompleteHandler = async (rawResponse: any) => {
+    const syncCompleteHandler = async (serverResponse: any) => {
       try {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
-        const serverResponse = typeof rawResponse === "string" ? JSON.parse(rawResponse) : rawResponse;
-
         setConnectionStatus("connected");
         setIsConnecting(false);
+        setJustFinishedSync(true);
 
-        // 🚨 THE FIX: Safe database insert/update to avoid constraint errors
+        // 🚨 THE CRITICAL FIX: Explicitly handle the database conflict 🚨
         const {
           data: { session },
         } = await supabase.auth.getSession();
 
         if (session?.user?.id) {
-          try {
-            // 1. Check if an Apple Health connection already exists (even if inactive)
-            const { data: existingConn } = await supabase
+          const { error: dbError } = await supabase.from("data_connections").upsert(
+            {
+              user_id: session.user.id,
+              connection_type: "apple_health",
+              connection_name: "Apple Health",
+              is_active: true,
+              last_sync_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id,connection_type" }, // Tells Postgres to update if it exists
+          );
+
+          if (dbError) {
+            console.error("Database connection save failed:", dbError);
+            // If the error is about a missing constraint, we use a fallback update
+            await supabase
               .from("data_connections")
-              .select("id")
+              .update({ is_active: true, last_sync_at: new Date().toISOString() })
               .eq("user_id", session.user.id)
-              .eq("connection_type", "apple_health")
-              .maybeSingle();
-
-            let dbError = null;
-
-            if (existingConn) {
-              // 2. If it exists, update it to be active
-              const { error } = await supabase
-                .from("data_connections")
-                .update({ is_active: true, last_sync_at: new Date().toISOString() })
-                .eq("id", existingConn.id);
-              dbError = error;
-            } else {
-              // 3. If it doesn't exist, insert a fresh record
-              const { error } = await supabase.from("data_connections").insert({
-                user_id: session.user.id,
-                connection_type: "apple_health",
-                connection_name: "Apple Health",
-                is_active: true,
-                last_sync_at: new Date().toISOString(),
-              });
-              dbError = error;
-            }
-
-            if (dbError) {
-              console.error("Database connection save failed:", dbError);
-              setErrorMessage("Database Error: Could not save connection.");
-            }
-          } catch (err) {
-            console.error("Unexpected DB error:", err);
+              .eq("connection_type", "apple_health");
           }
         }
-        // ------------------------------------------------------------------------
+        // ----------------------------------------------------------------------
 
         const displayData: any = {};
         const count = serverResponse?.processed_count || 0;
