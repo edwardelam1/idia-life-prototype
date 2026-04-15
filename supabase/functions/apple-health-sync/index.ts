@@ -71,8 +71,31 @@ serve(async (req) => {
 
     // Fuzzy key matching — prioritize query param from native bridge
     const userId = rawBody.user_id || rawBody.userId || rawBody.config?.user_id;
-    const healthData = rawBody.apple_health_data || rawBody.healthData || rawBody.config?.apple_health_data;
     const acaHash = queryAcaHash || rawBody.aca_hash || rawBody.acaHash;
+
+    // Broad health data extraction — the iOS bridge may use various keys
+    let healthData = rawBody.apple_health_data || rawBody.healthData || rawBody.health_data
+      || rawBody.data || rawBody.samples || rawBody.config?.apple_health_data
+      || rawBody.config?.healthData || rawBody.config?.health_data;
+
+    // If no nested health data object found, check if health types are at the root level
+    // (e.g., the bridge sends { user_id, aca_hash, steps: [...], heartRate: [...] })
+    if (!healthData || (typeof healthData === "object" && Object.keys(healthData).length === 0)) {
+      const knownHealthKeys = Object.values(healthKitKeyMapping);
+      const allKnownKeys = [...Object.keys(healthKitKeyMapping), ...knownHealthKeys];
+      const rootHealthData: Record<string, any> = {};
+      for (const key of Object.keys(rawBody)) {
+        if (allKnownKeys.includes(key)) {
+          rootHealthData[key] = rawBody[key];
+        }
+      }
+      if (Object.keys(rootHealthData).length > 0) {
+        healthData = rootHealthData;
+      }
+    }
+
+    console.log("Raw body keys:", Object.keys(rawBody));
+    console.log("Health data source resolved:", healthData ? Object.keys(healthData).length + " keys" : "null");
     const automatedSync = rawBody.automated_sync || false;
     const forceRealDataOnly = rawBody.force_real_data_only || false;
 
