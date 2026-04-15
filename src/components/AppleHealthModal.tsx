@@ -62,26 +62,71 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     currentUserIdRef.current = currentUserId;
   }, [currentUserId]);
 
-  useEffect(() => {
-    (window as any).onHealthDataSyncComplete = async (serverResponse: any) => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  // Inside src/components/AppleHealthModal.tsx
+// Update the (window as any).onHealthDataSyncComplete function
 
-      // 1. Resolve Data Summary
-      const displayData: any = {};
-      const count = serverResponse?.processed_count || 0;
-      setSyncCount(count);
+useEffect(() => {
+  (window as any).onHealthDataSyncComplete = async (serverResponse: any) => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
-      if (serverResponse?.steps !== undefined) displayData.steps = serverResponse.steps;
-      if (serverResponse?.heartRate !== undefined) displayData.heartRate = serverResponse.heartRate;
-      if (serverResponse?.calories !== undefined) displayData.calories = serverResponse.calories;
+    // 1. Force the success state immediately to break the UI lock
+    setConnectionStatus("connected");
+    setIsConnecting(false);
+    setJustFinishedSync(true); 
 
-      setHealthData(displayData);
-      setConnectionStatus("connected");
-      setJustFinishedSync(true); // 🚨 GRADUATE THE VIEW
-      setIsConnecting(false);
+    const displayData: any = {};
+    const count = serverResponse?.processed_count || 0;
+    setSyncCount(count);
 
-      // Removed auto-close timeout to allow user to click 'Done' and trigger refresh
-    };
+    // 2. Safely parse the complex array returned by apple-health-sync
+    if (serverResponse?.processed_data && Array.isArray(serverResponse.processed_data)) {
+      // The edge function returns: { type: "steps", value: 4500, id: "..." }
+      
+      // Group and sum/average values for the display cards
+      let totalSteps = 0;
+      let totalCalories = 0;
+      let hrValues: number[] = [];
+
+      serverResponse.processed_data.forEach((item: any) => {
+        const val = item.value !== undefined ? Number(item.value) : 0;
+        if (isNaN(val)) return;
+
+        if (item.type === "steps" || item.type === "stepCount") {
+          totalSteps += val;
+        } else if (item.type === "heartRate") {
+          hrValues.push(val);
+        } else if (item.type === "activeEnergyBurned" || item.type === "calories") {
+          totalCalories += val;
+        }
+      });
+
+      if (totalSteps > 0) displayData.steps = totalSteps;
+      if (totalCalories > 0) displayData.calories = totalCalories;
+      if (hrValues.length > 0) {
+        displayData.heartRate = Math.round(hrValues.reduce((a, b) => a + b, 0) / hrValues.length);
+      }
+    }
+
+    setHealthData(displayData);
+
+    // 3. Ensure the DB connection record is logged locally
+    if (currentUserIdRef.current) {
+      await supabase.from("data_connections").upsert({
+        user_id: currentUserIdRef.current,
+        connection_type: "apple_health",
+        connection_name: "Apple Health",
+        is_active: true,
+        last_sync_at: new Date().toISOString(),
+      }, { onConflict: "user_id,connection_type" });
+    }
+
+    // 4. Auto-close mechanism to trigger parent dashboard refresh
+    setTimeout(() => {
+      onComplete(); // Refresh Dashboard UI
+      onClose();    // Dismiss Modal
+    }, 2500); 
+  };
+  // ... rest of useEffect
 
     (window as any).onHealthDataSyncError = async (errorMsg: string) => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -96,6 +141,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       (window as any).onHealthDataSyncError = undefined;
     };
   }, []);
+  }, [onComplete]);
 
   const syncHealthDataViaNativeApp = useCallback(
     (hash: string) => {
