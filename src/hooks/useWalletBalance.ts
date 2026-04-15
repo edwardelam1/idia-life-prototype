@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface WalletBalance {
   cash_balance: number;
@@ -13,60 +13,74 @@ export const useWalletBalance = () => {
     cash_balance: 0,
     idia_usd_balance: 0,
     idia_token_balance: 0,
-    total_earned: 0
+    total_earned: 0,
   });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchBalance();
-  }, []);
-
   const fetchBalance = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         setLoading(false);
         return;
       }
 
-      // Fetch from user_wallets table
-      const { data: walletData } = await supabase
-        .from('user_wallets')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      const { data: walletData } = await supabase.from("user_wallets").select("*").eq("user_id", user.id).maybeSingle();
 
       if (walletData) {
         setBalance({
           cash_balance: walletData.cash_balance || 0,
           idia_usd_balance: walletData.idia_beta_balance || 0,
           idia_token_balance: 0,
-          total_earned: walletData.total_earned || 0
-        });
-      } else {
-        // No wallet record found – default to zeros (no simulated data)
-        setBalance({
-          cash_balance: 0,
-          idia_usd_balance: 0,
-          idia_token_balance: 0,
-          total_earned: 0
+          total_earned: walletData.total_earned || 0,
         });
       }
     } catch (error) {
-      console.error('Error fetching wallet balance:', error);
+      console.error("Error fetching wallet balance:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const refreshBalance = () => {
-    setLoading(true);
+  useEffect(() => {
+    // 1. Fetch initial balance
     fetchBalance();
-  };
+
+    // 2. FINANCIAL GRADE REAL-TIME SYNC
+    // This forces the UI to update the millisecond the Edge Function pays the user
+    const channel = supabase
+      .channel("schema-db-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*", // Listen to all updates
+          schema: "public",
+          table: "user_wallets",
+        },
+        (payload) => {
+          console.log("Real-time wallet update received:", payload);
+          if (payload.new) {
+            setBalance({
+              cash_balance: payload.new.cash_balance || 0,
+              idia_usd_balance: payload.new.idia_beta_balance || 0,
+              idia_token_balance: 0,
+              total_earned: payload.new.total_earned || 0,
+            });
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   return {
     balance,
     loading,
-    refreshBalance
+    refreshBalance: fetchBalance,
   };
 };
