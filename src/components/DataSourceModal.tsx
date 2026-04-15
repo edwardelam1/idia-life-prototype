@@ -3,9 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Shield, DollarSign, CheckCircle, AlertCircle, Lock, Eye, Users, Zap, FileKey } from "lucide-react";
+import { Shield, DollarSign, CheckCircle, AlertCircle, Lock, Users, FileKey } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { generateACAHash } from "@/utils/acaGenerator";
 
 interface DataSourceModalProps {
   source: any;
@@ -20,36 +19,40 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
 
   if (!source) return null;
 
-  const handleConnect = async (sourceId: string, user: any) => {
-  try {
-    const { data: profile } = await supabase.from("profiles").select("platform_guid").eq("user_id", user.id).maybeSingle();
-    const platformGuid = profile?.platform_guid || user.id;
-    
-    const rawString = `${platformGuid}-${sourceId}-${Date.now()}`;
-    const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawString));
-    const acaHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-    
-    await supabase.from("user_aca_records").insert({
-      platform_guid: platformGuid,
-      aca_hash_key: acaHash
-    });
-    // Proceed with connection...
-  } catch (err) {
-    console.error("Connection error:", err);
-  }
-};
+  const handleConnect = async () => {
+    setIsConnecting(true);
+    setErrorMessage(null);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setErrorMessage("Please sign in first.");
+        setIsConnecting(false);
+        return;
+      }
+
+      const userId = user.id;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("platform_guid")
+        .eq("user_id", userId)
+        .maybeSingle();
+
       const platformGuid = profile?.platform_guid || userId;
 
-      // 1. Mandatory ACA Hash Generation (DELT Protocol)
+      // Mandatory ACA Hash Generation (DELT Protocol)
       const sourceId = source.name.toLowerCase().replace(/\s+/g, "_");
-      const { hash, payload } = await generateACAHash(platformGuid, sourceId, ["KYC_VAULT", "WALLET_PROVISIONING"]);
+      const rawString = `${platformGuid}-${sourceId}-${Date.now()}`;
+      const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawString));
+      const hash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-      // 2. Log Mandatory Transaction Record (Liability Shield)
+      // Log Mandatory Transaction Record (Liability Shield)
       const { error: acaError } = await supabase.from("user_aca_records").insert({
         platform_guid: platformGuid,
         aca_hash_key: hash,
         source_id: sourceId,
-        consent_scope: payload.consent_scope as string[],
+        consent_scope: ["KYC_VAULT", "WALLET_PROVISIONING"],
       });
 
       if (acaError) {
@@ -59,12 +62,10 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
         return;
       }
 
-      // 3. Route to appropriate live integration based on source type
+      // Route to appropriate live integration
       const sourceName = source.name.toLowerCase();
 
       if (sourceName.includes("apple") || sourceName.includes("health")) {
-        // Apple Health must be connected through the dedicated AppleHealthModal / native iOS app
-        // Do NOT call apple-health-sync with placeholder data — it will fail ACA verification
         setErrorMessage("Apple Health requires the IDIA iOS app. Please use the Apple Health card on the Data screen to connect.");
         setIsConnecting(false);
         return;
@@ -72,42 +73,44 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
         const { data, error } = await supabase.functions.invoke("strava-auth-url", {
           body: { userId, aca_hash: hash },
         });
-        if (error) {
+        if (error || !data?.oauthUrl) {
           setErrorMessage("Failed to connect to Strava. Please try again.");
+          setIsConnecting(false);
           return;
         }
-        if (data?.oauthUrl) {
-          window.open(data.oauthUrl, "_blank");
-          setErrorMessage("Please complete Strava authorization in the new window.");
-          return;
-        }
+        window.open(data.oauthUrl, "_blank");
+        setErrorMessage("Please complete Strava authorization in the new window.");
+        setIsConnecting(false);
+        return;
       } else if (sourceName.includes("google") || sourceName.includes("fit")) {
         const { error } = await supabase.functions.invoke("google-fit-sync", {
           body: { user_id: userId, aca_hash: hash, sync_type: "manual" },
         });
         if (error) {
           setErrorMessage("Google Fit requires OAuth authorization. Please contact support.");
+          setIsConnecting(false);
           return;
         }
       } else if (sourceName.includes("ford")) {
         const { data, error } = await supabase.functions.invoke("ford-auth-url", {
           body: { userId, aca_hash: hash },
         });
-        if (error) {
+        if (error || !data?.oauthUrl) {
           setErrorMessage("Failed to connect to FordConnect. Please try again.");
+          setIsConnecting(false);
           return;
         }
-        if (data?.oauthUrl) {
-          window.open(data.oauthUrl, "_blank");
-          setErrorMessage("Please complete Ford authorization in the new window.");
-          return;
-        }
+        window.open(data.oauthUrl, "_blank");
+        setErrorMessage("Please complete Ford authorization in the new window.");
+        setIsConnecting(false);
+        return;
       } else {
         setErrorMessage(`${source.name} integration requires additional setup. Live data connections only.`);
+        setIsConnecting(false);
         return;
       }
 
-      // 4. Create data connection record
+      // Create data connection record
       await supabase.from("data_connections").upsert({
         user_id: userId,
         connection_type: sourceId,
@@ -135,7 +138,6 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
   const getPrivacyColor = (level: string) => {
     switch (level) {
       case "Very High":
-        return "text-green-600 bg-green-100";
       case "High":
         return "text-green-600 bg-green-100";
       case "Medium":
@@ -211,22 +213,9 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
             <p className="text-sm text-muted-foreground">{source.description}</p>
           </div>
 
-          {/* Data Types */}
-          <div>
-            <h4 className="font-medium text-foreground mb-2">Data collected</h4>
-            <div className="space-y-2">
-              {source.dataTypes?.map((type: string, index: number) => (
-                <div key={index} className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  <span className="text-sm text-muted-foreground">{type}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
           <Separator />
 
-          {/* DELT Protocol Notice (Mandatory — No Toggle) */}
+          {/* DELT Protocol Notice */}
           <div className="bg-muted/50 border border-border p-4 rounded-lg">
             <div className="flex items-start space-x-3">
               <FileKey className="w-5 h-5 text-primary mt-0.5" />
@@ -256,14 +245,6 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
                 <CheckCircle className="w-4 h-4 text-green-500 mt-0.5" />
                 <span className="text-muted-foreground">No personal identifiers are included</span>
               </div>
-              <div className="flex items-start space-x-2">
-                <CheckCircle className="w-4 h-4 text-green-500 mt-0.5" />
-                <span className="text-muted-foreground">You can disconnect at any time</span>
-              </div>
-              <div className="flex items-start space-x-2">
-                <CheckCircle className="w-4 h-4 text-green-500 mt-0.5" />
-                <span className="text-muted-foreground">Full transparency on data usage</span>
-              </div>
             </div>
           </div>
 
@@ -281,7 +262,7 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
             </div>
           </div>
 
-          {/* Action Buttons — No consent gate */}
+          {/* Action Buttons */}
           <div className="flex space-x-3">
             <Button variant="outline" className="flex-1" onClick={onClose} disabled={isConnecting}>
               Cancel
