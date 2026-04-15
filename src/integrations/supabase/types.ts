@@ -4047,13 +4047,11 @@ export type Database = {
           next_retry_at: string | null
           processed: boolean | null
           processing_completed_at: string | null
-          processing_started_at: string | null
           processing_status: string | null
           raw_payload: Json
           recorded_at: string | null
           retry_count: number | null
           source: string | null
-          step_count: number | null
           user_id: string | null
         }
         Insert: {
@@ -4065,13 +4063,11 @@ export type Database = {
           next_retry_at?: string | null
           processed?: boolean | null
           processing_completed_at?: string | null
-          processing_started_at?: string | null
           processing_status?: string | null
           raw_payload: Json
           recorded_at?: string | null
           retry_count?: number | null
           source?: string | null
-          step_count?: number | null
           user_id?: string | null
         }
         Update: {
@@ -4083,13 +4079,11 @@ export type Database = {
           next_retry_at?: string | null
           processed?: boolean | null
           processing_completed_at?: string | null
-          processing_started_at?: string | null
           processing_status?: string | null
           raw_payload?: Json
           recorded_at?: string | null
           retry_count?: number | null
           source?: string | null
-          step_count?: number | null
           user_id?: string | null
         }
         Relationships: []
