@@ -133,12 +133,19 @@ function mapActivityType(dataType: string): string {
   return activityMap[dataType] || 'health_metric';
 }
 
-function mapAppleHealthDataToColumns(dataType: string, record: any, rawPayload: any): any {
+function mapAppleHealthDataToColumns(dataType: string, originalRecord: any, rawPayload: any): any {
   const mapped: any = {};
   
+  // Ensure record is always an object with a .value property
+  // This prevents parseInt(undefined) → NaN when raw primitives are passed
+  const record = (typeof originalRecord === 'object' && originalRecord !== null)
+    ? originalRecord
+    : { value: originalRecord };
+  
   // Basic activity metrics
-  if (dataType === 'steps' && record.value) {
-    mapped.steps_count = parseInt(record.value);
+  if (dataType === 'steps' && record.value !== undefined) {
+    const parsed = parseInt(String(record.value));
+    if (!isNaN(parsed)) mapped.steps_count = parsed;
   }
   
   if (dataType === 'distanceWalkingRunning' && record.value) {

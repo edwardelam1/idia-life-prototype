@@ -8,6 +8,47 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Map Apple HealthKit identifiers to internal schema keys
+const healthKitKeyMapping: Record<string, string> = {
+  "HKQuantityTypeIdentifierStepCount": "steps",
+  "HKQuantityTypeIdentifierDistanceWalkingRunning": "distanceWalkingRunning",
+  "HKQuantityTypeIdentifierDistanceCycling": "distanceCycling",
+  "HKQuantityTypeIdentifierFlightsClimbed": "flightsClimbed",
+  "HKQuantityTypeIdentifierActiveEnergyBurned": "activeEnergyBurned",
+  "HKQuantityTypeIdentifierBasalEnergyBurned": "restingEnergyBurned",
+  "HKQuantityTypeIdentifierAppleExerciseTime": "exerciseTime",
+  "HKQuantityTypeIdentifierHeartRate": "heartRate",
+  "HKQuantityTypeIdentifierHeartRateVariabilitySDNN": "heartRateVariability",
+  "HKQuantityTypeIdentifierOxygenSaturation": "bloodOxygenSaturation",
+  "HKQuantityTypeIdentifierBloodPressureSystolic": "bloodPressureSystolic",
+  "HKQuantityTypeIdentifierBloodPressureDiastolic": "bloodPressureDiastolic",
+  "HKQuantityTypeIdentifierRespiratoryRate": "respiratoryRate",
+  "HKQuantityTypeIdentifierBodyTemperature": "bodyTemperature",
+  "HKQuantityTypeIdentifierVO2Max": "vo2Max",
+  "HKQuantityTypeIdentifierHeight": "height",
+  "HKQuantityTypeIdentifierBodyMass": "weight",
+  "HKQuantityTypeIdentifierBodyMassIndex": "bodyMassIndex",
+  "HKQuantityTypeIdentifierBodyFatPercentage": "bodyFatPercentage",
+  "HKQuantityTypeIdentifierLeanBodyMass": "leanBodyMass",
+  "HKQuantityTypeIdentifierWaistCircumference": "waistCircumference",
+  "HKQuantityTypeIdentifierDietaryEnergyConsumed": "dietaryEnergyConsumed",
+  "HKQuantityTypeIdentifierDietaryFatTotal": "totalFat",
+  "HKQuantityTypeIdentifierDietaryFatSaturated": "saturatedFat",
+  "HKQuantityTypeIdentifierDietaryCarbohydrates": "carbohydrates",
+  "HKQuantityTypeIdentifierDietaryFiber": "fiber",
+  "HKQuantityTypeIdentifierDietarySugar": "sugar",
+  "HKQuantityTypeIdentifierDietaryProtein": "protein",
+  "HKQuantityTypeIdentifierDietaryWater": "water",
+  "HKQuantityTypeIdentifierDietaryCaffeine": "caffeine",
+  "HKQuantityTypeIdentifierWalkingSpeed": "walkingSpeed",
+  "HKQuantityTypeIdentifierWalkingStepLength": "stepLength",
+  "HKCategoryTypeIdentifierSleepAnalysis": "sleepAnalysis",
+  "HKCategoryTypeIdentifierMindfulSession": "mindfulSession",
+  "HKCategoryTypeIdentifierMenstrualFlow": "menstrualFlow",
+  "HKQuantityTypeIdentifierBasalBodyTemperature": "basalBodyTemperature",
+  "HKWorkoutTypeIdentifier": "workouts",
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -76,29 +117,43 @@ serve(async (req) => {
 
     console.log("✅ DELT Protocol verified for user:", userId, "platform_guid:", platformGuid);
 
+    // Normalize incoming payload keys — map Apple HealthKit identifiers to internal keys
+    let processableData: any = {};
+    if (healthData && typeof healthData === "object") {
+      Object.keys(healthData).forEach((key: string) => {
+        const normalizedKey = healthKitKeyMapping[key] || key;
+        processableData[normalizedKey] = healthData[key];
+      });
+    }
+
+    console.log("Normalized health data keys:", Object.keys(processableData));
+
     // Handle automated sync with no health data
-    if ((automatedSync || forceRealDataOnly) && (!healthData || (typeof healthData === "object" && Object.keys(healthData).length === 0))) {
+    if ((automatedSync || forceRealDataOnly) && Object.keys(processableData).length === 0) {
       return new Response(JSON.stringify({ success: true, message: "No new health data available for sync", processed_count: 0 }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    if (!healthData) {
+    if (Object.keys(processableData).length === 0) {
       return new Response(JSON.stringify({ success: false, error: "Missing required field: apple_health_data" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // Filter simulated data for automated syncs
-    let processableData = healthData;
     if (automatedSync || forceRealDataOnly) {
       const filteredData: Record<string, unknown[]> = {};
-      Object.keys(healthData).forEach((dataType: string) => {
-        if (Array.isArray(healthData[dataType])) {
-          const realOnly = healthData[dataType].filter((item: any) => {
+      Object.keys(processableData).forEach((dataType: string) => {
+        if (Array.isArray(processableData[dataType])) {
+          const realOnly = processableData[dataType].filter((item: any) => {
+            if (typeof item !== "object" || item === null) return true; // primitives are real
             return !(item.simulated === true || item.metadata?.simulated === true || (typeof item.value === "object" && item.value?.simulated === true));
           });
           if (realOnly.length > 0) filteredData[dataType] = realOnly;
+        } else {
+          // Non-array values (single records) — keep unless simulated
+          filteredData[dataType] = [processableData[dataType]];
         }
       });
       const filteredCount = Object.values(filteredData).reduce((t, arr) => t + arr.length, 0);
@@ -145,27 +200,33 @@ serve(async (req) => {
       try {
         const dataArray = Array.isArray(processableData[dataType]) ? processableData[dataType] : [processableData[dataType]];
         for (const record of dataArray) {
+          // Safely extract the value whether it's an object {value: X} or a raw primitive
+          const actualValue = (typeof record === "object" && record !== null && record.value !== undefined)
+            ? record.value
+            : record;
+
           const healthRecord: any = {
             user_id: userId,
             device_type: "Apple Health",
             raw_payload: {
               dataType,
-              value: record.value || record,
-              unit: record.unit || null,
-              startDate: record.startDate || record.date,
-              endDate: record.endDate || record.date,
-              sourceBundle: record.sourceBundle || "com.apple.health",
-              sourceName: record.sourceName || "Apple Health",
-              metadata: record.metadata || {},
-              originalRecord: record,
+              value: actualValue,
+              unit: (typeof record === "object" && record !== null) ? (record.unit || null) : null,
+              startDate: (typeof record === "object" && record !== null) ? (record.startDate || record.date) : null,
+              endDate: (typeof record === "object" && record !== null) ? (record.endDate || record.date) : null,
+              sourceBundle: (typeof record === "object" && record !== null) ? (record.sourceBundle || "com.apple.health") : "com.apple.health",
+              sourceName: (typeof record === "object" && record !== null) ? (record.sourceName || "Apple Health") : "Apple Health",
+              metadata: (typeof record === "object" && record !== null) ? (record.metadata || {}) : {},
+              originalRecord: typeof record === "object" ? record : { value: actualValue },
             },
-            recorded_at: record.startDate || record.date || new Date().toISOString(),
+            recorded_at: (typeof record === "object" && record !== null) ? (record.startDate || record.date || new Date().toISOString()) : new Date().toISOString(),
             processing_status: "pending",
             processed: false,
           };
 
-          if (dataType === "steps" && record.value) {
-            healthRecord.step_count = parseInt(record.value);
+          if (dataType === "steps" && actualValue !== undefined && actualValue !== null) {
+            const parsed = parseInt(String(actualValue));
+            if (!isNaN(parsed)) healthRecord.step_count = parsed;
           }
 
           const { data: rawData, error: rawError } = await supabase
@@ -178,8 +239,8 @@ serve(async (req) => {
             processedData.push({
               type: dataType,
               id: rawData.id,
-              value: record.value,
-              recordedAt: record.startDate || record.date,
+              value: actualValue,
+              recordedAt: (typeof record === "object" && record !== null) ? (record.startDate || record.date || new Date().toISOString()) : new Date().toISOString(),
             });
           } else {
             console.error(`Error inserting ${dataType}:`, rawError);
@@ -235,8 +296,6 @@ serve(async (req) => {
     }
 
     console.log(`✅ Processed ${processedData.length} health records with DELT anchor: ${acaHash.substring(0, 12)}...`);
-    // raw_health_data INSERT triggers idia-synapse → anonymization-processor → staged_health_data → process-staged-data → credit-user-wallet
-    // The pipeline is fully automated via DB triggers
 
     return new Response(JSON.stringify({
       success: true,
