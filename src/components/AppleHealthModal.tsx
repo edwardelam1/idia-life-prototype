@@ -86,21 +86,27 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setIsConnecting(false);
 
         // 🚨 THE FIX: Force the connection into the database so the Dashboard sees it
-        if (currentUserIdRef.current) {
-          try {
-            await supabase.from("data_connections").upsert({
-              user_id: currentUserIdRef.current,
-              connection_type: "apple_health",
-              connection_name: "Apple Health",
-              is_active: true,
-              last_sync_at: new Date().toISOString(),
-            });
-          } catch (dbErr) {
-            console.error("Failed to save connection state:", dbErr);
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session?.user?.id) {
+          const { error: dbError } = await supabase.from("data_connections").upsert({
+            user_id: session.user.id,
+            connection_type: "apple_health",
+            connection_name: "Apple Health",
+            is_active: true,
+            last_sync_at: new Date().toISOString(),
+          });
+
+          if (dbError) {
+            console.error("Database connection save failed:", dbError);
+            setErrorMessage("Database Error: Could not save connection.");
           }
+        } else {
+          console.error("No active user session to save connection!");
         }
         // ------------------------------------------------------------------------
-
         const displayData: any = {};
         const count = serverResponse?.processed_count || 0;
         setSyncCount(count);
