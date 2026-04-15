@@ -199,15 +199,16 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
       const { hash } = await generateACAHash(profile.platform_guid, "apple_health");
 
-      const { error: acaError } = await supabase.from("user_aca_records").insert({
+      const { error: acaError } = await supabase.from("user_aca_records").upsert({
         platform_guid: profile.platform_guid,
         aca_hash_key: hash,
         source_id: "apple_health",
-      });
+      }, { onConflict: "aca_hash_key" });
 
       if (acaError) {
-        console.error("ACA Hash Insert Failed:", acaError);
-        throw new Error(`Audit Log Error: ${acaError.message}`);
+        console.warn("ACA Hash Insert Warning (non-fatal):", acaError);
+        // Don't throw — the hash is unique per call, so conflicts are unlikely
+        // but we shouldn't block the sync over an audit log issue
       }
 
       syncHealthDataViaNativeApp(hash);
