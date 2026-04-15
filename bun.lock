@@ -521,7 +521,7 @@
 
     "caniuse-lite": ["caniuse-lite@1.0.30001669", "", {}, "sha512-DlWzFDJqstqtIVx1zeSpIMLjunf5SmwOw0N2Ck/QSQdS8PLS4+9HrLaYei4w8BIAL7IB/UEDu889d8vhCTPA0w=="],
 
-    "capacitor-secure-storage-plugin": ["capacitor-secure-storage-plugin@0.13.0", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/capacitor-secure-storage-plugin/-/capacitor-secure-storage-plugin-0.13.0.tgz", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-+rLC/9Z0LTaRRt6L6HjBwcDh5gqgI3NPmDSwo4hk41XQOy3EBrRo81VleIqFsowsMA3oMT+E59Bl8/HiWk0nhQ=="],
+    "capacitor-secure-storage-plugin": ["capacitor-secure-storage-plugin@0.13.0", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/capacitor-secure-storage-plugin/-/capacitor-secure-storage-plugin-0.13.0.tgz", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-+rLC/9Z0LTaRRt6L6HjBwcDh5gqgI3NPmDSwo4hk41XQOy3EBrRo81VleIqFsowsMA3oMT+E59Bl8/HiWk0nhQ=="],
 
     "chalk": ["chalk@4.1.2", "", { "dependencies": { "ansi-styles": "^4.1.0", "supports-color": "^7.1.0" } }, "sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA=="],
 
