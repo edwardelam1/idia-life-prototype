@@ -86,6 +86,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setIsConnecting(false);
 
         const displayData: any = {};
+        setTimeout(() => {
+          try {
+            callbacksRef.current.onClose();
+          } catch (err) {
+            console.error("onClose failed:", err);
+          }
+          try {
+            callbacksRef.current.onComplete();
+          } catch (err) {
+            console.error("onComplete failed:", err);
+          }
+        }, 2500);
+
+      } catch (err: any) {
+        setErrorMessage(`Success Callback Error: ${err.message}`);
         const count = serverResponse?.processed_count || 0;
         setSyncCount(count);
 
