@@ -2,12 +2,11 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Activity, Heart, Footprints, Zap, Flame, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Activity, Heart, Footprints, Zap, Flame } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import React from "react";
 import { generateACAHash } from "@/utils/acaGenerator";
-import { Badge } from "@/components/ui/badge";
 
 interface AppleHealthModalProps {
   isOpen: boolean;
@@ -18,17 +17,31 @@ interface AppleHealthModalProps {
 }
 
 const ALL_HEALTH_DATA_TYPES = [
-  { id: "steps", label: "Step Count", icon: Footprints, category: "Activity" },
-  { id: "heartRate", label: "Heart Rate", icon: Heart, category: "Vitals" },
-  { id: "activeEnergyBurned", label: "Calories", icon: Flame, category: "Activity" },
-  { id: "sleepAnalysis", label: "Sleep", icon: Zap, category: "Sleep" },
+  { id: "HKQuantityTypeIdentifierStepCount", name: "Steps", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierDistanceWalkingRunning", name: "Distance (Walking/Running)", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierDistanceCycling", name: "Distance (Cycling)", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierFlightsClimbed", name: "Flights Climbed", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierActiveEnergyBurned", name: "Active Energy Burned", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierBasalEnergyBurned", name: "Basal Energy Burned", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierAppleExerciseTime", name: "Exercise Time", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierHeartRate", name: "Heart Rate", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierRestingHeartRate", name: "Resting Heart Rate", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierOxygenSaturation", name: "Blood Oxygen", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierRespiratoryRate", name: "Respiratory Rate", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierVO2Max", name: "VO2 Max", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierHeight", name: "Height", category: "Body" },
+  { id: "HKQuantityTypeIdentifierBodyMass", name: "Weight", category: "Body" },
+  { id: "HKQuantityTypeIdentifierBodyMassIndex", name: "BMI", category: "Body" },
+  { id: "HKQuantityTypeIdentifierBodyFatPercentage", name: "Body Fat %", category: "Body" },
+  { id: "HKQuantityTypeIdentifierDietaryEnergyConsumed", name: "Dietary Energy", category: "Nutrition" },
+  { id: "HKCategoryTypeIdentifierMindfulSession", name: "Mindful Minutes", category: "Mindfulness" },
+  { id: "HKWorkoutTypeIdentifier", name: "Workout Data", category: "Activity" },
 ];
 
 const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onDisconnect }: AppleHealthModalProps) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [healthData, setHealthData] = useState<any>(null);
   const [connectionStatus, setConnectionStatus] = useState<"idle" | "connecting" | "connected" | "error">("idle");
-  const [justFinishedSync, setJustFinishedSync] = useState(false); // 🚨 Local state lock
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [authSession, setAuthSession] = useState<any>(null);
   const [selectedDataTypes, setSelectedDataTypes] = useState<Set<string>>(
@@ -74,25 +87,52 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         );
       }
 
+      // Map edge function response to display data
       const displayData: any = {};
       const count = serverResponse?.processed_count || 0;
       setSyncCount(count);
 
-      // Parse summaries
+      // FIX 1: Prioritize the top-level variables we added to the Edge Function response
       if (serverResponse?.steps !== undefined) displayData.steps = serverResponse.steps;
       if (serverResponse?.heartRate !== undefined) displayData.heartRate = serverResponse.heartRate;
       if (serverResponse?.calories !== undefined) displayData.calories = serverResponse.calories;
 
+      // FIX 2: Safely check BOTH item.type and item.dataType in the array fallback
+      if (
+        Object.keys(displayData).length === 0 &&
+        serverResponse?.processed_data &&
+        Array.isArray(serverResponse.processed_data)
+      ) {
+        serverResponse.processed_data.forEach((item: any) => {
+          const val = item.value !== undefined ? item.value : 0;
+          const dataType = item.type || item.dataType; // Solves the JSON mismatch
+
+          if (dataType === "steps" || dataType === "stepCount") displayData.steps = val;
+          if (dataType === "heartRate") displayData.heartRate = val;
+          if (dataType === "activeEnergyBurned" || dataType === "calories") displayData.calories = val;
+          if (dataType === "sleepAnalysis" || dataType === "sleepHours") displayData.sleepHours = val;
+        });
+      }
+
       setHealthData(displayData);
       setConnectionStatus("connected");
-      setJustFinishedSync(true); // 🚨 Lock the state locally
       setIsConnecting(false);
 
-      // Removed automatic onClose() call to prevent parent race condition
+      // FIX 3: Automatically close the modal after 2.5 seconds
+      setTimeout(() => {
+        onComplete();
+      }, 2500);
     };
 
     (window as any).onHealthDataSyncError = async (errorMsg: string) => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (currentUserIdRef.current) {
+        await supabase
+          .from("data_connections")
+          .update({ is_active: false })
+          .eq("user_id", currentUserIdRef.current)
+          .eq("connection_type", "apple_health");
+      }
       setErrorMessage(`Sync Error: ${errorMsg}`);
       setConnectionStatus("error");
       setIsConnecting(false);
@@ -103,7 +143,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       (window as any).onHealthDataSyncComplete = undefined;
       (window as any).onHealthDataSyncError = undefined;
     };
-  }, []);
+  }, [onComplete]);
 
   const syncHealthDataViaNativeApp = useCallback(
     (hash: string) => {
@@ -119,7 +159,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         });
 
         timeoutRef.current = setTimeout(() => {
-          setErrorMessage("Native bridge timeout.");
+          setErrorMessage("Native bridge timeout. Check permissions.");
           setConnectionStatus("error");
           setIsConnecting(false);
         }, 15000);
@@ -147,22 +187,29 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setErrorMessage(null);
     setIsConnecting(true);
     setConnectionStatus("connecting");
+
     try {
       const { data: profile } = await supabase
         .from("profiles")
         .select("platform_guid")
         .eq("user_id", currentUserId)
         .single();
+
       if (!profile?.platform_guid) throw new Error("Profile anchor missing.");
+
       const { hash } = await generateACAHash(profile.platform_guid, "apple_health");
-      await supabase.from("user_aca_records").upsert(
-        {
-          platform_guid: profile.platform_guid,
-          aca_hash_key: hash,
-          source_id: "apple_health",
-        },
-        { onConflict: "aca_hash_key" },
-      );
+
+      const { error: acaError } = await supabase.from("user_aca_records").upsert({
+        platform_guid: profile.platform_guid,
+        aca_hash_key: hash,
+        source_id: "apple_health",
+      }, { onConflict: "aca_hash_key" });
+
+      if (acaError) {
+        console.warn("ACA Hash Insert Warning (non-fatal):", acaError);
+        // Don't throw — the hash is unique per call, so conflicts are unlikely
+        // but we shouldn't block the sync over an audit log issue
+      }
 
       syncHealthDataViaNativeApp(hash);
     } catch (error: any) {
@@ -170,14 +217,26 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       setConnectionStatus("error");
       setIsConnecting(false);
     }
-  }, [currentUserId, syncHealthDataViaNativeApp]);
+  }, [currentUserId, authSession, syncHealthDataViaNativeApp]);
 
-  const handleFinalize = () => {
-    onComplete(); // Tells parent to refresh data
-    onClose(); // Closes the modal
+  const handleDisconnect = async () => {
+    if (!currentUserId || !existingConnection) return;
+    try {
+      await supabase.from("data_connections").update({ is_active: false }).eq("id", existingConnection.id);
+      onDisconnect?.();
+      onClose();
+    } catch (e) {
+      console.error(e);
+    }
   };
 
-  const isConnected = !!existingConnection || justFinishedSync;
+  const handleCheckboxChange = (id: string, isChecked: boolean) => {
+    setSelectedDataTypes((prev) => {
+      const newSet = new Set(prev);
+      isChecked ? newSet.add(id) : newSet.delete(id);
+      return newSet;
+    });
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -189,103 +248,118 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               alt="Apple Health"
               className="w-6 h-6"
             />
-            <span>{isConnected ? "Apple Health Linked" : "Connect Apple Health"}</span>
+            <span>{existingConnection ? "Apple Health" : "Connect Apple Health"}</span>
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          {isConnected ? (
-            <div className="space-y-4 animate-in fade-in zoom-in-95 duration-300">
-              <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-emerald-500 p-2 rounded-lg text-white">
-                    <CheckCircle2 size={20} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-emerald-900">Synapse Linked</p>
-                    <p className="text-xs text-emerald-700 font-mono uppercase">Identity Anchored</p>
-                  </div>
-                </div>
-                <Badge className="bg-emerald-500">ACTIVE</Badge>
-              </div>
+          {errorMessage && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-600 font-medium">{errorMessage}</p>
+            </div>
+          )}
 
+          {connectionStatus === "idle" && !existingConnection && (
+            <>
+              <p className="text-sm text-muted-foreground">Select the health metrics you wish to sync.</p>
+              <div className="max-h-60 overflow-y-auto border p-2 rounded-md bg-muted/30 mb-4">
+                {Array.from(new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.category))).map((category) => (
+                  <div key={category} className="mb-2">
+                    <h5 className="font-semibold text-xs text-muted-foreground mt-1">{category}</h5>
+                    {ALL_HEALTH_DATA_TYPES.filter((d) => d.category === category).map((type) => (
+                      <div key={type.id} className="flex items-center space-x-2 text-xs py-1">
+                        <Checkbox
+                          id={type.id}
+                          checked={selectedDataTypes.has(type.id)}
+                          onCheckedChange={(checked) => handleCheckboxChange(type.id, !!checked)}
+                        />
+                        <label htmlFor={type.id} className="text-muted-foreground cursor-pointer">
+                          {type.name}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              <Button onClick={handleConnect} className="w-full" disabled={isConnecting}>
+                {isConnecting ? "Connecting..." : "Connect Apple Health"}
+              </Button>
+            </>
+          )}
+
+          {existingConnection && connectionStatus === "idle" && (
+            <div className="space-y-4 text-center py-6">
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                <Zap className="w-6 h-6 text-green-600" />
+              </div>
+              <h3 className="font-medium text-green-800">Apple Health Connected</h3>
+              <p className="text-sm text-muted-foreground">Your metrics are actively syncing to your vault.</p>
+              <div className="flex space-x-3 mt-4">
+                <Button variant="outline" className="flex-1" onClick={onClose}>
+                  Close
+                </Button>
+                <Button variant="destructive" className="flex-1" onClick={handleDisconnect}>
+                  Disconnect
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {connectionStatus === "connecting" && (
+            <div className="text-center py-10">
+              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-sm text-muted-foreground">Establishing Liability Shield...</p>
+            </div>
+          )}
+
+          {connectionStatus === "connected" && (
+            <div className="space-y-4 py-4">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <Zap className="w-6 h-6 text-green-600" />
+                </div>
+                <h3 className="font-medium text-green-800 text-lg">Sync Complete!</h3>
+                {syncCount > 0 && <p className="text-xs text-muted-foreground mt-1">{syncCount} records synced</p>}
+              </div>
               {healthData && (
-                <div className="grid grid-cols-3 gap-2">
-                  <Card className="bg-slate-50/50 border-none">
+                <div className="grid grid-cols-3 gap-3">
+                  <Card>
                     <CardContent className="p-3 text-center">
-                      <Footprints className="h-4 w-4 mx-auto mb-1 text-primary" />
-                      <p className="text-lg font-bold">{healthData.steps || 0}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase">Steps</p>
+                      <Footprints className="w-5 h-5 text-blue-500 mx-auto mb-1" />
+                      <div className="text-lg font-bold">
+                        {healthData.steps ? healthData.steps.toLocaleString() : "--"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Steps</div>
                     </CardContent>
                   </Card>
-                  <Card className="bg-slate-50/50 border-none">
+                  <Card>
                     <CardContent className="p-3 text-center">
-                      <Heart className="h-4 w-4 mx-auto mb-1 text-red-500" />
-                      <p className="text-lg font-bold">{healthData.heartRate || "--"}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase">BPM</p>
+                      <Heart className="w-5 h-5 text-red-500 mx-auto mb-1" />
+                      <div className="text-lg font-bold">{healthData.heartRate || "--"}</div>
+                      <div className="text-xs text-muted-foreground">BPM</div>
                     </CardContent>
                   </Card>
-                  <Card className="bg-slate-50/50 border-none">
+                  <Card>
                     <CardContent className="p-3 text-center">
-                      <Flame className="h-4 w-4 mx-auto mb-1 text-orange-500" />
-                      <p className="text-lg font-bold">{healthData.calories || 0}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase">Kcal</p>
+                      <Flame className="w-5 h-5 text-orange-500 mx-auto mb-1" />
+                      <div className="text-lg font-bold">
+                        {healthData.calories ? Math.round(healthData.calories).toLocaleString() : "--"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Cal</div>
                     </CardContent>
                   </Card>
                 </div>
               )}
-
-              <Button onClick={handleFinalize} className="w-full h-12 rounded-xl text-lg font-bold">
+              <Button onClick={onComplete} className="w-full">
                 Done
               </Button>
             </div>
-          ) : connectionStatus === "error" ? (
-            <div className="space-y-3 py-4">
-              <div className="p-3 bg-red-50 border border-red-200 rounded-md flex items-start gap-2">
-                <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
-                <p className="text-sm text-red-600 font-medium">{errorMessage}</p>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Button variant="outline" onClick={() => setConnectionStatus("idle")} className="w-full">
-                  Retry Connection
-                </Button>
-                <Button variant="ghost" onClick={onClose} className="w-full text-slate-500">
-                  Close Terminal
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">Select health metrics to anchor to your Synapse profile:</p>
-              <div className="grid grid-cols-1 gap-2">
-                {ALL_HEALTH_DATA_TYPES.map((type) => (
-                  <div
-                    key={type.id}
-                    className="flex items-center space-x-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-                  >
-                    <Checkbox
-                      id={type.id}
-                      checked={selectedDataTypes.has(type.id)}
-                      onCheckedChange={(checked) => {
-                        const newSet = new Set(selectedDataTypes);
-                        if (checked) newSet.add(type.id);
-                        else newSet.delete(type.id);
-                        setSelectedDataTypes(newSet);
-                      }}
-                    />
-                    <label htmlFor={type.id} className="flex flex-1 items-center gap-3 cursor-pointer">
-                      <type.icon size={18} className="text-primary" />
-                      <span className="text-sm font-medium">{type.label}</span>
-                    </label>
-                  </div>
-                ))}
-              </div>
-              <Button
-                onClick={handleConnect}
-                disabled={isConnecting || selectedDataTypes.size === 0}
-                className="w-full h-12 rounded-xl font-bold"
-              >
-                {isConnecting ? "Establishing Bridge..." : "Initialize Identity Sync"}
+          )}
+
+          {connectionStatus === "error" && (
+            <div className="text-center py-4">
+              <Button variant="outline" onClick={() => setConnectionStatus("idle")} className="w-full">
+                Retry Connection
               </Button>
             </div>
           )}

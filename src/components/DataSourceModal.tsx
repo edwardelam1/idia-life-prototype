@@ -20,34 +20,45 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
   if (!source) return null;
 
   const handleConnect = async () => {
-    setIsConnecting(true);
-    setErrorMessage(null);
-
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setErrorMessage("Please sign in first.");
+      setIsConnecting(true);
+      setErrorMessage(null);
+
+      // 1. Get current authenticated user
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      const user = sessionData?.session?.user;
+
+      if (sessionError || !user) {
+        setErrorMessage("You must be logged in to connect a data source.");
         setIsConnecting(false);
         return;
       }
 
       const userId = user.id;
 
-      const { data: profile } = await supabase
+      // 2. Fetch the platform_guid to align with DELT Protocol
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("platform_guid")
         .eq("user_id", userId)
         .maybeSingle();
 
+      if (profileError) {
+        console.error("Profile lookup error:", profileError);
+      }
+
       const platformGuid = profile?.platform_guid || userId;
 
-      // Mandatory ACA Hash Generation (DELT Protocol)
+      // 3. Mandatory ACA Hash Generation (DELT Protocol)
       const sourceId = source.name.toLowerCase().replace(/\s+/g, "_");
-      const rawString = `${platformGuid}-${sourceId}-${Date.now()}`;
-      const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawString));
-      const hash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-      // Log Mandatory Transaction Record (Liability Shield)
+      const rawString = `${platformGuid}-${sourceId}-${Date.now()}`;
+      const hashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rawString));
+      const hash = Array.from(new Uint8Array(hashBuffer))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      // 4. Log Mandatory Transaction Record (Liability Shield)
       const { error: acaError } = await supabase.from("user_aca_records").insert({
         platform_guid: platformGuid,
         aca_hash_key: hash,
@@ -62,11 +73,13 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
         return;
       }
 
-      // Route to appropriate live integration
+      // 5. Route to appropriate live integration based on source type
       const sourceName = source.name.toLowerCase();
 
       if (sourceName.includes("apple") || sourceName.includes("health")) {
-        setErrorMessage("Apple Health requires the IDIA iOS app. Please use the Apple Health card on the Data screen to connect.");
+        setErrorMessage(
+          "Apple Health requires the IDIA iOS app. Please use the Apple Health card on the Data screen to connect.",
+        );
         setIsConnecting(false);
         return;
       } else if (sourceName.includes("strava")) {
@@ -110,7 +123,7 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
         return;
       }
 
-      // Create data connection record
+      // 6. Create data connection record
       await supabase.from("data_connections").upsert({
         user_id: userId,
         connection_type: sourceId,
@@ -138,6 +151,7 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
   const getPrivacyColor = (level: string) => {
     switch (level) {
       case "Very High":
+        return "text-green-600 bg-green-100";
       case "High":
         return "text-green-600 bg-green-100";
       case "Medium":
@@ -188,7 +202,6 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
             </div>
           )}
 
-          {/* Earnings Info */}
           <div className="bg-gradient-to-r from-teal-50 to-cyan-50 p-4 rounded-lg">
             <div className="flex items-center space-x-2 mb-2">
               <DollarSign className="w-5 h-5 text-teal-600" />
@@ -198,7 +211,6 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
             <p className="text-sm text-teal-700">Estimated monthly earnings</p>
           </div>
 
-          {/* Privacy Level */}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Shield className="w-5 h-5 text-muted-foreground" />
@@ -207,7 +219,6 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
             <Badge className={getPrivacyColor(source.privacyLevel)}>{source.privacyLevel}</Badge>
           </div>
 
-          {/* Description */}
           <div>
             <h4 className="font-medium text-foreground mb-2">How it works</h4>
             <p className="text-sm text-muted-foreground">{source.description}</p>
@@ -215,7 +226,6 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
 
           <Separator />
 
-          {/* DELT Protocol Notice */}
           <div className="bg-muted/50 border border-border p-4 rounded-lg">
             <div className="flex items-start space-x-3">
               <FileKey className="w-5 h-5 text-primary mt-0.5" />
@@ -230,7 +240,6 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
             </div>
           </div>
 
-          {/* Privacy Guarantees */}
           <div className="space-y-3">
             <h4 className="font-medium text-foreground flex items-center space-x-2">
               <Lock className="w-4 h-4" />
@@ -248,7 +257,6 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
             </div>
           </div>
 
-          {/* Usage Info */}
           <div className="bg-blue-50 p-4 rounded-lg">
             <div className="flex items-start space-x-2">
               <Users className="w-5 h-5 text-blue-600 mt-0.5" />
@@ -262,7 +270,6 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex space-x-3">
             <Button variant="outline" className="flex-1" onClick={onClose} disabled={isConnecting}>
               Cancel
