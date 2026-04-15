@@ -52,6 +52,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentUserIdRef = useRef<string | null>(null);
+  const callbacksRef = useRef({ onComplete, onClose });
+  useEffect(() => {
+    callbacksRef.current = { onComplete, onClose };
+  }, [onComplete, onClose]);
 
   useEffect(() => {
     const getSession = async () => {
@@ -120,7 +124,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
       // FIX 3: Automatically close the modal after 2.5 seconds
       setTimeout(() => {
-        onComplete();
+        callbacksRef.current.onComplete();
+        callbacksRef.current.onClose();
       }, 2500);
     };
 
@@ -143,7 +148,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       (window as any).onHealthDataSyncComplete = undefined;
       (window as any).onHealthDataSyncError = undefined;
     };
-  }, [onComplete]);
+  }, []);
 
   const syncHealthDataViaNativeApp = useCallback(
     (hash: string) => {
