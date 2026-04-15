@@ -84,7 +84,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
         setConnectionStatus("connected");
         setIsConnecting(false);
-        setJustFinishedSync(true);
 
         const displayData: any = {};
         const count = serverResponse?.processed_count || 0;
