@@ -20,24 +20,24 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
 
   if (!source) return null;
 
-  const handleConnect = async (sourceId: string, user: any) => {
-  try {
-    const { data: profile } = await supabase.from("profiles").select("platform_guid").eq("user_id", user.id).maybeSingle();
-    const platformGuid = profile?.platform_guid || user.id;
-    
-    const rawString = `${platformGuid}-${sourceId}-${Date.now()}`;
-    const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawString));
-    const acaHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-    
-    await supabase.from("user_aca_records").insert({
-      platform_guid: platformGuid,
-      aca_hash_key: acaHash
-    });
-    // Proceed with connection...
-  } catch (err) {
-    console.error("Connection error:", err);
-  }
-};
+  const handleConnect = async () => {
+    setIsConnecting(true);
+    setErrorMessage(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        setErrorMessage("Please sign in first.");
+        setIsConnecting(false);
+        return;
+      }
+      const userId = session.user.id;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("platform_guid")
+        .eq("user_id", userId)
+        .maybeSingle();
       const platformGuid = profile?.platform_guid || userId;
 
       // 1. Mandatory ACA Hash Generation (DELT Protocol)
