@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import React from "react";
 import { generateACAHash } from "@/utils/acaGenerator";
+const [justFinishedSync, setJustFinishedSync] = useState(false);
 
 interface AppleHealthModalProps {
   isOpen: boolean;
@@ -51,21 +52,17 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, [currentUserId]);
 
   useEffect(() => {
-    (window as any).onHealthDataSyncComplete = async (serverResponse: any) => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  (window as any).onHealthDataSyncComplete = async (serverResponse: any) => {
+    // ... existing summary calculation logic ...
 
-      if (currentUserIdRef.current) {
-        await supabase.from("data_connections").upsert(
-          {
-            user_id: currentUserIdRef.current,
-            connection_type: "apple_health",
-            connection_name: "Apple Health",
-            is_active: true,
-            last_sync_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id,connection_type" },
-        );
-      }
+    setHealthData(displayData);
+    setConnectionStatus("connected");
+    setJustFinishedSync(true); // 🚨 LOCK THE STATE
+    setIsConnecting(false);
+
+    // REMOVE the automatic timeout. Let the user see the data and click "Done".
+  };
+}, [onComplete]);
 
       const displayData: any = {};
       const count = serverResponse?.processed_count || 0;
