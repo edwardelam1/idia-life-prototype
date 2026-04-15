@@ -85,13 +85,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setIsConnecting(false);
         setJustFinishedSync(true);
 
-        // 🚨 THE CRITICAL FIX: Explicitly handle the database conflict 🚨
+        // 🚨 THE DEFINITIVE FIX: Use upsert with an explicit conflict target
         const {
           data: { session },
         } = await supabase.auth.getSession();
 
         if (session?.user?.id) {
-          // Use upsert with onConflict to handle existing records without error
+          // This tells Postgres: "If you see a row for this user and this type, just update it."
           const { error: dbError } = await supabase.from("data_connections").upsert(
             {
               user_id: session.user.id,
@@ -100,11 +100,15 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               is_active: true,
               last_sync_at: new Date().toISOString(),
             },
-            { onConflict: "user_id,connection_type" },
+            {
+              onConflict: "user_id,connection_type",
+              ignoreDuplicates: false,
+            },
           );
 
           if (dbError) {
-            console.error("Database connection save failed:", dbError);
+            console.error("Connection sync failed:", dbError);
+            // Fallback: If upsert fails, try a direct update
             await supabase
               .from("data_connections")
               .update({ is_active: true, last_sync_at: new Date().toISOString() })
