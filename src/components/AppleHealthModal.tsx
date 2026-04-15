@@ -164,15 +164,18 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           setIsConnecting(false);
         }, 15000);
 
-        webkit.messageHandlers.syncHealthData.postMessage({
-          action: "comprehensive_health_sync",
-          config: {
-            endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash=${hash}`,
-            user_id: currentUserId,
-            auth_token: authSession?.access_token,
-            aca_hash: hash,
-          },
-          requestedDataTypes: requestedTypesByCategory,
+        // Replace lines 122-124 in AppleHealthModal.tsx
+webkit.messageHandlers.syncHealthData.postMessage({
+  action: "comprehensive_health_sync",
+  config: {
+    // 🚨 UPDATE: Use health-data-bridge for direct ingestion
+    endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/health-data-bridge?aca_hash=${hash}`,
+    user_id: currentUserId,
+    auth_token: authSession?.access_token,
+    aca_hash: hash,
+  },
+  requestedDataTypes: requestedTypesByCategory,
+});
         });
       } else {
         setErrorMessage("Please launch from the IDIA iOS App.");
