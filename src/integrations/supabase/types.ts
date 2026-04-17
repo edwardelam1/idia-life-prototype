@@ -1604,7 +1604,7 @@ export type Database = {
       egress_logs: {
         Row: {
           aca_record_references: string[]
-          batch_checksum: string
+          batch_checksum: string | null
           client_id: string
           country_of_origin: string
           created_at: string
@@ -1612,13 +1612,13 @@ export type Database = {
           digiramp_anchor_id: string
           egress_type: string
           id: string
-          liability_token_hash: string
+          liability_token_hash: string | null
           synapse_ledger_entry_id: string | null
           user_id: string
         }
         Insert: {
           aca_record_references?: string[]
-          batch_checksum: string
+          batch_checksum?: string | null
           client_id: string
           country_of_origin?: string
           created_at?: string
@@ -1626,13 +1626,13 @@ export type Database = {
           digiramp_anchor_id: string
           egress_type?: string
           id?: string
-          liability_token_hash: string
+          liability_token_hash?: string | null
           synapse_ledger_entry_id?: string | null
           user_id: string
         }
         Update: {
           aca_record_references?: string[]
-          batch_checksum?: string
+          batch_checksum?: string | null
           client_id?: string
           country_of_origin?: string
           created_at?: string
@@ -1640,7 +1640,7 @@ export type Database = {
           digiramp_anchor_id?: string
           egress_type?: string
           id?: string
-          liability_token_hash?: string
+          liability_token_hash?: string | null
           synapse_ledger_entry_id?: string | null
           user_id?: string
         }
@@ -4809,33 +4809,45 @@ export type Database = {
           activity_type: string
           created_at: string | null
           data_quality_score: number | null
-          entity_id: string
+          entity_id: string | null
           id: string
           payload: Json
           processed_at: string | null
+          pseudo_user_id: string | null
+          raw_data_id: string | null
+          reward_calculated: boolean | null
           synapse_weight_coefficient: number | null
+          user_id: string | null
         }
         Insert: {
           aca_hash_key?: string | null
           activity_type: string
           created_at?: string | null
           data_quality_score?: number | null
-          entity_id: string
+          entity_id?: string | null
           id?: string
           payload?: Json
           processed_at?: string | null
+          pseudo_user_id?: string | null
+          raw_data_id?: string | null
+          reward_calculated?: boolean | null
           synapse_weight_coefficient?: number | null
+          user_id?: string | null
         }
         Update: {
           aca_hash_key?: string | null
           activity_type?: string
           created_at?: string | null
           data_quality_score?: number | null
-          entity_id?: string
+          entity_id?: string | null
           id?: string
           payload?: Json
           processed_at?: string | null
+          pseudo_user_id?: string | null
+          raw_data_id?: string | null
+          reward_calculated?: boolean | null
           synapse_weight_coefficient?: number | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -4849,6 +4861,7 @@ export type Database = {
           event_type: string
           id: string
           processed_at: string | null
+          pseudo_user_id: string | null
           reward_amount: number | null
           reward_calculated: boolean | null
           session_duration: number | null
@@ -4864,6 +4877,7 @@ export type Database = {
           event_type: string
           id?: string
           processed_at?: string | null
+          pseudo_user_id?: string | null
           reward_amount?: number | null
           reward_calculated?: boolean | null
           session_duration?: number | null
@@ -4879,6 +4893,7 @@ export type Database = {
           event_type?: string
           id?: string
           processed_at?: string | null
+          pseudo_user_id?: string | null
           reward_amount?: number | null
           reward_calculated?: boolean | null
           session_duration?: number | null
@@ -4963,6 +4978,7 @@ export type Database = {
           description: string | null
           destination_wallet: string | null
           entry_type: string
+          fiat_balance: number | null
           flare_tx_hash: string | null
           id: string
           metadata: Json | null
@@ -4984,6 +5000,7 @@ export type Database = {
           description?: string | null
           destination_wallet?: string | null
           entry_type: string
+          fiat_balance?: number | null
           flare_tx_hash?: string | null
           id?: string
           metadata?: Json | null
@@ -5005,6 +5022,7 @@ export type Database = {
           description?: string | null
           destination_wallet?: string | null
           entry_type?: string
+          fiat_balance?: number | null
           flare_tx_hash?: string | null
           id?: string
           metadata?: Json | null
@@ -5108,6 +5126,7 @@ export type Database = {
           created_at: string
           description: string
           id: string
+          metadata: Json | null
           source: string | null
           status: string | null
           transaction_type: string
@@ -5118,6 +5137,7 @@ export type Database = {
           created_at?: string
           description: string
           id?: string
+          metadata?: Json | null
           source?: string | null
           status?: string | null
           transaction_type: string
@@ -5128,6 +5148,7 @@ export type Database = {
           created_at?: string
           description?: string
           id?: string
+          metadata?: Json | null
           source?: string | null
           status?: string | null
           transaction_type?: string
@@ -5476,6 +5497,24 @@ export type Database = {
           period?: string
           status?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      user_passkeys: {
+        Row: {
+          created_at: string | null
+          credential_id: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          credential_id: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          credential_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -5884,7 +5923,33 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      ai_audit_ledger: {
+        Row: {
+          activity_type: string | null
+          created_at: string | null
+          id: string | null
+          payload: Json | null
+          status: string | null
+          user_id: string | null
+        }
+        Insert: {
+          activity_type?: string | null
+          created_at?: string | null
+          id?: string | null
+          payload?: Json | null
+          status?: never
+          user_id?: string | null
+        }
+        Update: {
+          activity_type?: string | null
+          created_at?: string | null
+          id?: string | null
+          payload?: Json | null
+          status?: never
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       anonymize_location: {
@@ -5944,6 +6009,15 @@ export type Database = {
         Returns: boolean
       }
       cleanup_orphaned_queue_items: { Args: never; Returns: number }
+      distribute_data_royalty: {
+        Args: {
+          p_amount: number
+          p_description: string
+          p_metadata: Json
+          p_user_id: string
+        }
+        Returns: number
+      }
       generate_pseudonym: { Args: { input_text: string }; Returns: string }
       get_all_user_health_data: {
         Args: { p_user_id: string }
@@ -5987,6 +6061,17 @@ export type Database = {
       increment_wallet_cash: {
         Args: { p_amount: number; p_user_id: string }
         Returns: undefined
+      }
+      log_delt_egress: {
+        Args: {
+          p_aca_hash: string
+          p_client_id: string
+          p_egress_type: string
+          p_liability_hash: string
+          p_metadata: Json
+          p_user_id: string
+        }
+        Returns: string
       }
       process_backlog_data: {
         Args: never
@@ -6062,6 +6147,7 @@ export type Database = {
         | "REWARD"
         | "settlement"
         | "fbo_dissemination"
+        | "FREE_COMPUTE"
       user_role: "owner" | "manager" | "employee" | "warehouse_associate"
     }
     CompositeTypes: {
@@ -6199,6 +6285,7 @@ export const Constants = {
         "REWARD",
         "settlement",
         "fbo_dissemination",
+        "FREE_COMPUTE",
       ],
       user_role: ["owner", "manager", "employee", "warehouse_associate"],
     },
