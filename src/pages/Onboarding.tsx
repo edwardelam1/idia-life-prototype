@@ -65,22 +65,23 @@ const Onboarding = () => {
         value: JSON.stringify(piiPayload),
       });
 
-      // 2. Get platform_guid (fallback to user_id)
+      // 2. Source of truth: Auth User ID === Platform GUID === Pseudonym source
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('platform_guid')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      const platformGuid = user.id; // Strict: no fallback, no drift
 
-      const platformGuid = profile?.platform_guid ?? user.id;
+      // 2b. Defensive heal — force any drifted profile row back into alignment.
+      // (DB trigger also enforces this, but we belt-and-suspenders for legacy rows.)
+      await supabase
+        .from('profiles')
+        .update({ platform_guid: user.id })
+        .eq('user_id', user.id);
 
       // 3. Generate ACA consent hash
       const acaHash = await generateACA(platformGuid, 'KYC_CONSENT');
 
-      // 4. Save ACA hash to Supabase (proof of consent, no PII)
+      // 4. Save ACA hash to Supabase (proof of consent, NO PII)
       await supabase.from('user_aca_records').insert({
         platform_guid: platformGuid,
         aca_hash_key: acaHash,
