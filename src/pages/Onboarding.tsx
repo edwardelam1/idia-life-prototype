@@ -54,11 +54,8 @@ const Onboarding = () => {
           data: { session },
         } = await supabase.auth.getSession();
         if (session) {
-          toast({
-            title: "Identity Verified",
-            description: "Welcome back. Please complete your sovereign profile.",
-          });
-          navigate("/onboarding");
+          // Send returning users back through Index.tsx so it routes them by actual onboarding state
+          navigate("/");
         }
       }
     };
@@ -119,17 +116,7 @@ const Onboarding = () => {
         consent_type: "KYC_CONSENT",
       });
 
-      // 5. Push PII to auth.users.user_metadata for Hub bridge
-      const displayName = `${firstName.trim()} ${lastName.trim()}`;
-      await supabase.auth.updateUser({
-        data: {
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-          full_name: displayName,
-          display_name: displayName,
-          pii_synced_at: new Date().toISOString(),
-        },
-      });
+      // PII stays exclusively in the Secure Enclave — never synced to auth.user_metadata.
 
       // 6. Direct FBO KYC pass-through
       const fboResult = await sendToFBOProvider(

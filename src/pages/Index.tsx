@@ -11,10 +11,16 @@ const Index = () => {
   useEffect(() => {
     const checkState = async () => {
       try {
+        // Enforce a 2-second launch sequence so the branding screen is always visible
+        const launchDelay = new Promise((resolve) => setTimeout(resolve, 2000));
+
         // 1. Get current session
         const {
           data: { session },
         } = await supabase.auth.getSession();
+
+        // Wait for the launch delay to elapse before any navigation
+        await launchDelay;
 
         if (!session) {
           // If no session, they must authenticate first.
