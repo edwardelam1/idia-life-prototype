@@ -139,7 +139,7 @@ const Onboarding = () => {
       setStep("success");
       toast({
         title: "Identity Secured",
-        description: "Your data is stored on-device only. KYC submitted to FBO provider.",
+        description: "Identifiabile information never leaves this device",
       });
 
       setTimeout(() => navigate("/"), 1500);
@@ -179,9 +179,7 @@ const Onboarding = () => {
             <Shield className="w-6 h-6 text-primary" />
           </div>
           <CardTitle className="text-xl">Sovereign Onboarding</CardTitle>
-          <p className="text-muted-foreground text-sm">
-            Your identity stays on your device. We only store a consent hash.
-          </p>
+          <p className="text-muted-foreground text-sm">Your identity stays on your device.</p>
         </CardHeader>
 
         <CardContent className="space-y-5">
