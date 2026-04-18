@@ -3835,6 +3835,7 @@ export type Database = {
           interests: string[] | null
           is_501c3_verified: boolean | null
           is_seed_backed_up: boolean | null
+          is_sovereign: boolean | null
           kyc_status: string | null
           kyc_submitted_at: string | null
           kyc_tier: number
@@ -3843,6 +3844,7 @@ export type Database = {
           location: string | null
           motivational_phase: string | null
           occupation: string | null
+          onboarding_completed: boolean | null
           platform_guid: string
           quiet_time_enabled: boolean | null
           quiet_time_end: string | null
@@ -3868,6 +3870,7 @@ export type Database = {
           interests?: string[] | null
           is_501c3_verified?: boolean | null
           is_seed_backed_up?: boolean | null
+          is_sovereign?: boolean | null
           kyc_status?: string | null
           kyc_submitted_at?: string | null
           kyc_tier?: number
@@ -3876,6 +3879,7 @@ export type Database = {
           location?: string | null
           motivational_phase?: string | null
           occupation?: string | null
+          onboarding_completed?: boolean | null
           platform_guid?: string
           quiet_time_enabled?: boolean | null
           quiet_time_end?: string | null
@@ -3901,6 +3905,7 @@ export type Database = {
           interests?: string[] | null
           is_501c3_verified?: boolean | null
           is_seed_backed_up?: boolean | null
+          is_sovereign?: boolean | null
           kyc_status?: string | null
           kyc_submitted_at?: string | null
           kyc_tier?: number
@@ -3909,6 +3914,7 @@ export type Database = {
           location?: string | null
           motivational_phase?: string | null
           occupation?: string | null
+          onboarding_completed?: boolean | null
           platform_guid?: string
           quiet_time_enabled?: boolean | null
           quiet_time_end?: string | null
