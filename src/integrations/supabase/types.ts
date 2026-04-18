@@ -1276,7 +1276,7 @@ export type Database = {
         }
         Insert: {
           access_token?: string | null
-          connection_name: string
+          connection_name?: string
           connection_type: string
           created_at?: string
           id?: string
@@ -4962,12 +4962,14 @@ export type Database = {
           activity_type: string
           created_at: string | null
           data_quality_score: number | null
+          effort_score: number | null
           entity_id: string | null
           id: string
           payload: Json
           processed_at: string | null
           pseudo_user_id: string | null
           raw_data_id: string | null
+          reward_amount: number | null
           reward_calculated: boolean | null
           synapse_weight_coefficient: number | null
           user_id: string | null
@@ -4977,12 +4979,14 @@ export type Database = {
           activity_type: string
           created_at?: string | null
           data_quality_score?: number | null
+          effort_score?: number | null
           entity_id?: string | null
           id?: string
           payload?: Json
           processed_at?: string | null
           pseudo_user_id?: string | null
           raw_data_id?: string | null
+          reward_amount?: number | null
           reward_calculated?: boolean | null
           synapse_weight_coefficient?: number | null
           user_id?: string | null
@@ -4992,12 +4996,14 @@ export type Database = {
           activity_type?: string
           created_at?: string | null
           data_quality_score?: number | null
+          effort_score?: number | null
           entity_id?: string | null
           id?: string
           payload?: Json
           processed_at?: string | null
           pseudo_user_id?: string | null
           raw_data_id?: string | null
+          reward_amount?: number | null
           reward_calculated?: boolean | null
           synapse_weight_coefficient?: number | null
           user_id?: string | null
@@ -6157,26 +6163,23 @@ export type Database = {
       ai_audit_ledger: {
         Row: {
           activity_type: string | null
-          created_at: string | null
           id: string | null
-          payload: Json | null
-          status: string | null
+          processed_at: string | null
+          reward_amount: number | null
           user_id: string | null
         }
         Insert: {
           activity_type?: string | null
-          created_at?: string | null
           id?: string | null
-          payload?: Json | null
-          status?: never
+          processed_at?: string | null
+          reward_amount?: number | null
           user_id?: string | null
         }
         Update: {
           activity_type?: string | null
-          created_at?: string | null
           id?: string | null
-          payload?: Json | null
-          status?: never
+          processed_at?: string | null
+          reward_amount?: number | null
           user_id?: string | null
         }
         Relationships: []
