@@ -234,6 +234,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setConnectionStatus("connecting");
 
     try {
+      // Defensive identity heal: ensure platform_guid === user_id before DELT verification
+      await supabase.from("profiles").update({ platform_guid: currentUserId }).eq("user_id", currentUserId);
+
       const { data: profile } = await supabase
         .from("profiles")
         .select("platform_guid")
