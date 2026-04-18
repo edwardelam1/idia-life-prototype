@@ -146,6 +146,16 @@ const Onboarding = () => {
           navigate("/settings?tab=idia-profile");
         }
       }, 1500);
+    } catch (err: any) {
+      toast({
+        title: "Onboarding Failed",
+        description: err?.message ?? "Unable to secure identity. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (step === "success") {
     return (
