@@ -1,44 +1,53 @@
 
 
-# Fix: Apple Health Modal Silent Failure — Stale Callback References
+## Plan: Fix Apple Health Modal Data Display + Identity Verification
 
-## Problem
+### Problem Summary
 
-The `useEffect` that registers `window.onHealthDataSyncComplete` includes `onComplete` in its dependency array. When the parent re-renders during an active sync, React runs the cleanup function — deleting the bridge listener mid-flight. The iOS bridge calls `window.onHealthDataSyncComplete(...)` and hits `undefined`, silently failing. The modal stays stuck on "Connecting...".
+Three independent issues are causing the Apple Health Modal to show dashes ("—") on a fresh test account:
 
-## Fix (3 surgical changes in `AppleHealthModal.tsx`)
+1. **Key mismatch**: `AppleHealthModal.tsx` checks for UI-side strings that don't match the normalized keys returned by `apple-health-sync` (which uses `healthKitKeyMapping`).
+2. **Identity drift risk**: New accounts may hit `apple-health-sync` before `profiles.platform_guid` is verified to equal `user_id`, triggering a 403 "DELT Protocol Verification Failed".
+3. **Edge function logs show schema bugs** in `apple-health-sync` itself (numeric column receiving strings like `"iPhone"`, `net.http_post` signature mismatch) — but those are separate downstream bugs and out of scope for this fix.
 
-### 1. Add a `callbacksRef` (after line 51)
+### Investigation Notes
 
-Store `onComplete` and `onClose` in a ref so the listener always has the latest version without being a dependency:
+- `AppleHealthModal.tsx` `syncCompleteHandler` aggregates `processed_data[].type` against UI strings.
+- `apple-health-sync/index.ts` emits records with `type` set to mapped keys: `steps`, `heartRate`, `activeEnergyBurned`, `sleepHours`, `calories`.
+- Identity migration already ran (`enforce_platform_guid_equals_user_id` trigger + backfill), so existing rows are healed. Only risk is a brand-new signup whose `handle_new_user_genesis()` insert raced ahead of the modal — defensive heal in `Onboarding.tsx` already covers this.
+
+### Changes
+
+**1. `src/components/AppleHealthModal.tsx` — align aggregation keys with server**
+
+In `syncCompleteHandler`, update the `processed_data.forEach` block so the `item.type` checks match the exact normalized keys emitted by `apple-health-sync`:
+
+- `steps` → totalSteps
+- `heartRate` → hrValues
+- `activeEnergyBurned` → totalCalories (also accept `calories` as fallback for older payloads)
+- `sleepHours` → sleepHours (if displayed)
+
+Keep the existing fallback `Number(item.value)` parse + NaN guard.
+
+**2. Defensive identity check before native bridge call**
+
+In `handleConnect` (before generating the ACA hash and calling `syncHealthDataViaNativeApp`), add a one-line defensive upsert to guarantee `profiles.platform_guid === user.id` for the current session. This prevents the 403 on accounts where the `handle_new_user_genesis` trigger hasn't fully settled:
 
 ```typescript
-const callbacksRef = useRef({ onComplete, onClose });
-useEffect(() => {
-  callbacksRef.current = { onComplete, onClose };
-}, [onComplete, onClose]);
+await supabase.from('profiles')
+  .update({ platform_guid: session.user.id })
+  .eq('user_id', session.user.id);
 ```
 
-### 2. Empty the dependency array (line 146)
+This is a no-op when the trigger already enforced identity, and a heal when it didn't.
 
-Change `}, [onComplete]);` → `}, []);`
+### Out of Scope (Separate Bugs)
 
-This prevents the cleanup from ever running while the modal is mounted, keeping the bridge listener alive for the entire sync.
+The edge function logs reveal `apple-health-sync` itself has broken inserts (`numeric` columns receiving strings, `net.http_post` signature errors). These are downstream of the modal fix and require a separate pass on the edge function — not part of this change.
 
-### 3. Use the ref in the success handler (lines 122-124)
-
-```typescript
-setTimeout(() => {
-  callbacksRef.current.onComplete();
-  callbacksRef.current.onClose();
-}, 2500);
-```
-
-This ensures the modal both refreshes the parent data **and** closes itself after sync, using the latest callback references.
-
-## Files Modified
+### Files Modified
 
 | File | Change |
 |------|--------|
-| `src/components/AppleHealthModal.tsx` | Add `callbacksRef`, empty dependency array, use ref in setTimeout |
+| `src/components/AppleHealthModal.tsx` | Align `processed_data` key matching with server's `healthKitKeyMapping`; add defensive `platform_guid` heal before bridge call |
 
