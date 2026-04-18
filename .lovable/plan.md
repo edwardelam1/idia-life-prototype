@@ -1,44 +1,78 @@
 
 
-# Fix: Apple Health Modal Silent Failure — Stale Callback References
+# Fix: 404 Routing + ACA Architecture (DB-Propagated)
 
-## Problem
+## Problems Identified
 
-The `useEffect` that registers `window.onHealthDataSyncComplete` includes `onComplete` in its dependency array. When the parent re-renders during an active sync, React runs the cleanup function — deleting the bridge listener mid-flight. The iOS bridge calls `window.onHealthDataSyncComplete(...)` and hits `undefined`, silently failing. The modal stays stuck on "Connecting...".
+### 1. **404 on `/dashboard`** (current route in viewport)
+`App.tsx` only defines `/`, `/auth`, `/onboarding`, `/settings`. Any deep link like `/dashboard` hits the `*` catch-all `NotFound`. The "main app" lives at `/` (rendered by `Index.tsx` → `MainApp`), so `/dashboard` was never wired.
 
-## Fix (3 surgical changes in `AppleHealthModal.tsx`)
+### 2. **Onboarding flow ordering is correct in code, but fragile**
+- OAuth (`Auth.tsx`) → redirects to `/`
+- `Index.tsx` checks session, then checks SecureStorage for `user_pii_profile` → if missing, redirects to `/onboarding`
+- This is correct, BUT `/onboarding` is publicly reachable without an auth check, so a deep-linked user with no session sees a broken page.
 
-### 1. Add a `callbacksRef` (after line 51)
+### 3. **ACA Architecture — DB does NOT propagate, UI is doing all the work**
+Audited DB state for `user_aca_records`:
+- **RLS is DISABLED** (`relrowsecurity = false`) — table is wide open
+- Only ONE policy exists, a SELECT policy, and it has a hardcoded user UUID `217c6224-...` as a backdoor — **this is a critical security leak**
+- **No INSERT policy** exists (irrelevant since RLS is off, but required once we enable it)
+- **No triggers** on the table — no propagation, no lineage registration, no liability shield logging
+- Frontend (`Onboarding.tsx`, `DataSourceModal.tsx`, `AppleHealthModal.tsx`) generates the hash AND inserts the row, with no DB-side enrichment
 
-Store `onComplete` and `onClose` in a ref so the listener always has the latest version without being a dependency:
+The new architecture: **UI generates the ACA hash** (proof-of-consent at the source), **DB propagates** by:
+1. Auto-stamping `source_id`/`consent_scope` defaults if omitted
+2. Firing the existing `register_aca_in_library()` trigger to insert into `data_lineage_index`
+3. Enforcing `platform_guid = auth.uid()` via RLS
 
-```typescript
-const callbacksRef = useRef({ onComplete, onClose });
-useEffect(() => {
-  callbacksRef.current = { onComplete, onClose };
-}, [onComplete, onClose]);
+## Fix Plan
+
+### A. Routing (`src/App.tsx`)
+Add a `/dashboard` route that renders `Index` (same gate logic as `/`). This makes the app resilient to deep links and matches user expectation.
+
+```tsx
+<Route path="/" element={<Index />} />
+<Route path="/dashboard" element={<Index />} />
 ```
 
-### 2. Empty the dependency array (line 146)
+### B. Auth → Onboarding ordering (`src/pages/Index.tsx`)
+Already correct: OAuth lands at `/`, `Index` gates on session → PII → MainApp. No change needed beyond confirming `Auth.tsx` redirect is `/` (it is).
 
-Change `}, [onComplete]);` → `}, []);`
+Add an auth guard to `/onboarding` so an unauthenticated direct hit redirects to `/auth` instead of erroring on `supabase.auth.getUser()`.
 
-This prevents the cleanup from ever running while the modal is mounted, keeping the bridge listener alive for the entire sync.
+### C. ACA Architecture — DB Migration (production-grade)
+Single migration that:
 
-### 3. Use the ref in the success handler (lines 122-124)
+1. **Drop the leaky SELECT policy** with the hardcoded UUID backdoor
+2. **Enable RLS** on `user_aca_records`
+3. **Create proper RLS policies**:
+   - SELECT: `auth.uid() = platform_guid`
+   - INSERT: `WITH CHECK (auth.uid() = platform_guid)` — user can only log consent for themselves
+4. **Attach `register_aca_in_library()` trigger** to `user_aca_records` AFTER INSERT — propagates the ACA hash into `data_lineage_index` (the propagation the user described)
+5. **Add a BEFORE INSERT trigger** that defaults `source_id` to `consent_type` if NULL/`'unknown'` and stamps `created_at`
 
-```typescript
-setTimeout(() => {
-  callbacksRef.current.onComplete();
-  callbacksRef.current.onClose();
-}, 2500);
-```
-
-This ensures the modal both refreshes the parent data **and** closes itself after sync, using the latest callback references.
+### D. Frontend cleanup (`src/pages/Onboarding.tsx`)
+- Capture and surface the ACA insert error (currently silently ignored with no `error` destructure)
+- Pass `source_id: 'sovereign_onboarding'` so lineage is meaningful
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `src/components/AppleHealthModal.tsx` | Add `callbacksRef`, empty dependency array, use ref in setTimeout |
+| `src/App.tsx` | Add `/dashboard` route → `Index` |
+| `src/pages/Onboarding.tsx` | Capture ACA error, pass `source_id` |
+| `src/pages/Index.tsx` *(optional)* | No change — gate logic is correct |
+| New migration | Drop leaky policy, enable RLS, add SELECT/INSERT policies, attach lineage propagation trigger |
+
+## Out of Scope
+- PII storage rules (already correct: device-only + `user_metadata`)
+- Identity unification (already enforced by prior `enforce_platform_guid_equals_user_id` trigger)
+- Edge functions (no changes needed; lineage propagation is now DB-side)
+
+## Why This Is Production MVP Grade
+- Removes a hardcoded user-ID backdoor in RLS (security-critical)
+- Enables RLS on a previously unprotected table
+- Moves propagation responsibility to the DB (single source of truth, can't be bypassed by a buggy client)
+- Deep-link resilient routing
+- Zero PII enters the public schema (constraint preserved)
 
