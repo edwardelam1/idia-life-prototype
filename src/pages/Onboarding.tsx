@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Shield, Lock, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { App } from "@capacitor/app";
 
 /** SHA-256 helper */
 async function generateACA(platformGuid: string, consentType: string): Promise<string> {
@@ -43,32 +42,35 @@ const Onboarding = () => {
   const [step, setStep] = useState<"form" | "success">("form");
 
   useEffect(() => {
-    // 🔗 Deep Link Listener: Handle return from email verification
-    const setupDeepLinkListener = async () => {
-      App.addListener("appUrlOpen", async (event: any) => {
-        const url = new URL(event.url);
-        const hash = url.hash;
+    // 🔗 No-Nonsense Deep Link Listener: Handles return from email verification via Custom URL Scheme
+    const handleUrlCapture = async () => {
+      const url = new URL(window.location.href);
+      const hash = url.hash;
+      const searchParams = url.searchParams;
 
-        if (hash && (hash.includes("access_token") || hash.includes("type=signup"))) {
-          const {
-            data: { session },
-            error,
-          } = await supabase.auth.getSession();
-          if (session) {
-            toast({
-              title: "Email Verified",
-              description: "Welcome back. Please complete your sovereign profile.",
-            });
-            navigate("/onboarding");
-          }
+      // Capture session if user returns from com.thebigidia.app://onboarding
+      if (hash.includes("access_token") || searchParams.has("access_token") || hash.includes("type=signup")) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session) {
+          toast({
+            title: "Identity Verified",
+            description: "Welcome back. Please complete your sovereign profile.",
+          });
+          navigate("/onboarding");
         }
-      });
+      }
     };
 
-    setupDeepLinkListener();
+    // Listen for focus to catch the return from the mobile email client
+    window.addEventListener("focus", handleUrlCapture);
+
+    // Check immediately on mount
+    handleUrlCapture();
 
     return () => {
-      App.removeAllListeners();
+      window.removeEventListener("focus", handleUrlCapture);
     };
   }, [navigate, toast]);
 
@@ -93,7 +95,7 @@ const Onboarding = () => {
         value: JSON.stringify(piiPayload),
       });
 
-      // 2. Source of truth: Auth User ID === Platform GUID === Pseudonym source
+      // 2. Source of truth: Auth User ID === Platform GUID
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -101,7 +103,7 @@ const Onboarding = () => {
 
       const platformGuid = user.id;
 
-      // 2b. Defensive heal — force any drifted profile row back into alignment.
+      // 2b. Defensive heal — force profile row into alignment.
       await supabase.from("profiles").update({ platform_guid: user.id }).eq("user_id", user.id);
 
       // 3. Generate ACA consent hash
@@ -126,7 +128,7 @@ const Onboarding = () => {
         },
       });
 
-      // 6. Direct FBO KYC pass-through (stub)
+      // 6. Direct FBO KYC pass-through
       const fboResult = await sendToFBOProvider(
         { name: `${firstName.trim()} ${lastName.trim()}`, email: email.trim(), phone },
         acaHash,
@@ -139,7 +141,7 @@ const Onboarding = () => {
       setStep("success");
       toast({
         title: "Identity Secured",
-        description: "Identifiabile information never leaves this device",
+        description: "Your data is stored on-device only. KYC submitted to FBO provider.",
       });
 
       setTimeout(() => navigate("/"), 1500);
@@ -157,7 +159,7 @@ const Onboarding = () => {
 
   if (step === "success") {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md text-center">
           <CardContent className="pt-8 pb-8 space-y-4">
             <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto" />
@@ -172,14 +174,16 @@ const Onboarding = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-2">
           <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
             <Shield className="w-6 h-6 text-primary" />
           </div>
           <CardTitle className="text-xl">Sovereign Onboarding</CardTitle>
-          <p className="text-muted-foreground text-sm">Your identity stays on your device.</p>
+          <p className="text-muted-foreground text-sm">
+            Your identity stays on your device. We only store a consent hash.
+          </p>
         </CardHeader>
 
         <CardContent className="space-y-5">
@@ -192,30 +196,12 @@ const Onboarding = () => {
 
           <div className="space-y-2">
             <Label htmlFor="firstName">First Name *</Label>
-            <Input
-              id="firstName"
-              placeholder="Jane"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              maxLength={50}
-            />
-            {firstName.length > 0 && firstName.trim().length < 2 && (
-              <p className="text-xs text-destructive">First name must be at least 2 characters</p>
-            )}
+            <Input id="firstName" placeholder="Jane" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="lastName">Last Name *</Label>
-            <Input
-              id="lastName"
-              placeholder="Doe"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              maxLength={50}
-            />
-            {lastName.length > 0 && lastName.trim().length < 2 && (
-              <p className="text-xs text-destructive">Last name must be at least 2 characters</p>
-            )}
+            <Input id="lastName" placeholder="Doe" value={lastName} onChange={(e) => setLastName(e.target.value)} />
           </div>
 
           <div className="space-y-2">
@@ -226,7 +212,6 @@ const Onboarding = () => {
               placeholder="jane@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              maxLength={255}
             />
           </div>
 
@@ -238,20 +223,14 @@ const Onboarding = () => {
               placeholder="555-123-4567"
               value={phone}
               onChange={(e) => setPhone(formatPhone(e.target.value))}
-              maxLength={12}
             />
-            {phone.length > 0 && !PHONE_REGEX.test(phone) && (
-              <p className="text-xs text-destructive">Format must be xxx-xxx-xxxx</p>
-            )}
           </div>
 
           <div className="flex items-start gap-2 bg-destructive/5 border border-destructive/20 rounded-lg p-3">
             <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
             <span className="text-xs text-muted-foreground">
-              <strong className="text-foreground">Legal Notice:</strong> You must provide truthful and accurate
-              information. If any information is found to be fraudulent, IDIA reserves the right to take all actions
-              permitted by law, up to and including permanent account termination and referral to appropriate
-              authorities.
+              <strong className="text-foreground">Legal Notice:</strong> You must provide accurate information.
+              Fraudulent entries may result in account termination.
             </span>
           </div>
 
