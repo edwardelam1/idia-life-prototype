@@ -48,7 +48,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.id)),
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [syncCount, setSyncCount] = useState(0);
+  const [syncCount, setSyncCount] = useState<number | string>(0);
 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -173,50 +173,47 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     };
   }, []);
 
-  const startServerPolling = useCallback((syncStartedAt: Date) => {
-    if (!currentUserId) return;
-    let elapsed = 0;
-    const maxMs = 20000;
-    const intervalMs = 2000;
+  const startServerPolling = useCallback(
+    (targetHash: string) => {
+      if (!currentUserId) return;
+      let elapsed = 0;
+      const maxMs = 20000;
+      const intervalMs = 2000;
 
-    pollIntervalRef.current = setInterval(async () => {
-      elapsed += intervalMs;
-      try {
-        const { data } = await supabase
-          .from("data_connections")
-          .select("id, last_sync_at")
-          .eq("user_id", currentUserId)
-          .eq("connection_type", "apple_health")
-          .eq("is_active", true)
-          .order("last_sync_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+      // We poll the ACA record. If the hash exists, the Edge Function successfully started processing.
+      // This perfectly bypasses the time-drift issue and race conditions.
+      pollIntervalRef.current = setInterval(async () => {
+        elapsed += intervalMs;
+        try {
+          const { data } = await supabase
+            .from("user_aca_records")
+            .select("id")
+            .eq("aca_hash_key", targetHash)
+            .maybeSingle();
 
-        if (
-          data?.last_sync_at &&
-          new Date(data.last_sync_at).getTime() > syncStartedAt.getTime() &&
-          !completedRef.current
-        ) {
-          const handler = (window as any).__appleHealthSyncCompleteHandler;
-          if (handler) {
-            handler({ processed_count: 0, processed_data: [], _verified_via: "server_poll" });
+          if (data?.id && !completedRef.current) {
+            console.log("Fallback Polling Success: Edge Function verified via ACA Hash.");
+            const handler = (window as any).__appleHealthSyncCompleteHandler;
+            if (handler) {
+              handler({ processed_count: "Verified Server-Side", processed_data: [], _verified_via: "server_poll" });
+            }
           }
+        } catch (e) {
+          console.warn("Poll error:", e);
         }
-      } catch (e) {
-        console.warn("Poll error:", e);
-      }
 
-      if (elapsed >= maxMs && pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-    }, intervalMs);
-  }, [currentUserId]);
+        if (elapsed >= maxMs && pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+      }, intervalMs);
+    },
+    [currentUserId],
+  );
 
   const syncHealthDataViaNativeApp = useCallback(
     (hash: string) => {
       const webkit = (window as any).webkit;
-      const syncStartedAt = new Date();
 
       if (webkit?.messageHandlers?.syncHealthData) {
         const requestedTypesByCategory: { [key: string]: string[] } = {};
@@ -247,8 +244,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           requestedDataTypes: requestedTypesByCategory,
         });
 
-        // Start server-side polling fallback in parallel
-        startServerPolling(syncStartedAt);
+        // Start server-side polling fallback targeting the explicit cryptographic hash
+        startServerPolling(hash);
       } else {
         setErrorMessage("Please launch from the IDIA iOS App.");
         setConnectionStatus("error");
@@ -387,9 +384,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                   <Zap className="w-6 h-6 text-green-600" />
                 </div>
                 <h3 className="font-medium text-green-800 text-lg">Sync Complete!</h3>
-                {syncCount > 0 && <p className="text-xs text-muted-foreground mt-1">{syncCount} records synced</p>}
+                {syncCount !== 0 && <p className="text-xs text-muted-foreground mt-1">{syncCount} records synced</p>}
               </div>
-              {healthData && (
+              {healthData && Object.keys(healthData).length > 0 && (
                 <div className="grid grid-cols-3 gap-3">
                   <Card>
                     <CardContent className="p-3 text-center">
