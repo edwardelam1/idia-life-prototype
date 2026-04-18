@@ -380,11 +380,11 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                 ))}
               </div>
               <div className="flex space-x-2">
-                <Button variant="outline" className="flex-1" onClick={closeAndReset}>
-                  Cancel
-                </Button>
                 <Button onClick={handleConnect} className="flex-1" disabled={isConnecting}>
                   {isConnecting ? "Connecting..." : "Connect"}
+                </Button>
+                <Button variant="outline" className="flex-1" onClick={closeAndReset}>
+                  Cancel
                 </Button>
               </div>
             </>
