@@ -149,42 +149,12 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         return;
       }
 
-      // ---- Register session-gated native callbacks ----
-      (window as any).onHealthDataSyncComplete = async (serverResponse: any) => {
+      // ---- Register session-gated native callbacks (background sync enrichment only) ----
+      (window as any).onHealthDataSyncComplete = (serverResponse: any) => {
         // Reject stale callbacks
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
 
         try {
-          clearAllTimers();
-          setConnectionStatus("connected");
-          setIsConnecting(false);
-
-          const {
-            data: { session },
-          } = await supabase.auth.getSession();
-
-          if (session?.user?.id) {
-            const { error: dbError } = await supabase.from("data_connections").upsert(
-              {
-                user_id: session.user.id,
-                connection_type: "apple_health",
-                connection_name: "Apple Health",
-                is_active: true,
-                last_sync_at: new Date().toISOString(),
-              },
-              { onConflict: "user_id,connection_type", ignoreDuplicates: false },
-            );
-            if (dbError) {
-              await supabase
-                .from("data_connections")
-                .update({ is_active: true, last_sync_at: new Date().toISOString() })
-                .eq("user_id", session.user.id)
-                .eq("connection_type", "apple_health");
-            }
-          }
-
-          if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
-
           const displayData: any = {};
           const count = serverResponse?.processed_count || 0;
           setSyncCount(count);
@@ -207,48 +177,30 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             }
           }
           setHealthData(displayData);
-          setConnectedThisSession(true);
 
-          // Notify parent so it refetches connections/ACA records,
-          // but DO NOT auto-close — the user dismisses the modal manually.
+          // Refetch parent state with real synced data
           try {
             onCompleteRef.current?.();
           } catch (notifyErr) {
             console.warn("onComplete notify failed (non-fatal):", notifyErr);
           }
         } catch (err: any) {
-          if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
-          setErrorMessage(`Success Callback Error: ${err.message}`);
-          setConnectionStatus("error");
-          setIsConnecting(false);
+          console.warn("Background sync enrichment failed (non-fatal):", err);
         }
       };
 
-      (window as any).onHealthDataSyncError = async (errorMsg: string) => {
+      (window as any).onHealthDataSyncError = (errorMsg: string) => {
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
-        clearAllTimers();
-        if (currentUserId) {
-          await supabase
-            .from("data_connections")
-            .update({ is_active: false })
-            .eq("user_id", currentUserId)
-            .eq("connection_type", "apple_health");
+        // If we've already entered the connected view, do NOT tear it down — log and let user retry later.
+        if (connectionStatus === "connected" || connectedThisSession) {
+          console.warn("Background Apple Health sync error (non-fatal):", errorMsg);
+          return;
         }
-        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+        clearAllTimers();
         setErrorMessage(`Sync Error: ${errorMsg}`);
         setConnectionStatus("error");
         setIsConnecting(false);
       };
-
-      // Bridge timeout — first-run HealthKit auth + sequential queries for ~19 data
-      // types + edge function upload routinely takes 30–60s. 90s prevents false errors
-      // while still surfacing a true bridge stall.
-      bridgeTimeoutRef.current = setTimeout(() => {
-        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
-        setErrorMessage("Native bridge timeout. Check permissions.");
-        setConnectionStatus("error");
-        setIsConnecting(false);
-      }, 90000);
 
       const requestedTypesByCategory: { [key: string]: string[] } = {};
       ALL_HEALTH_DATA_TYPES.forEach((type) => {
@@ -260,15 +212,52 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       });
 
       // FLAT payload — iOS bridge contract
-      webkit.messageHandlers.syncHealthData.postMessage({
-        action: "comprehensive_health_sync",
-        endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash=${hash}`,
-        user_id: currentUserId,
-        auth_token: authSession?.access_token,
-        aca_hash: hash,
-        requestedDataTypes: requestedTypesByCategory,
-        sync_session_id: sessionId,
-      });
+      try {
+        webkit.messageHandlers.syncHealthData.postMessage({
+          action: "comprehensive_health_sync",
+          endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash=${hash}`,
+          user_id: currentUserId,
+          auth_token: authSession?.access_token,
+          aca_hash: hash,
+          requestedDataTypes: requestedTypesByCategory,
+          sync_session_id: sessionId,
+        });
+      } catch (postErr: any) {
+        setErrorMessage(`Native bridge dispatch failed: ${postErr?.message || postErr}`);
+        setConnectionStatus("error");
+        setIsConnecting(false);
+        return;
+      }
+
+      // Bridge dispatched successfully — connection is established.
+      // Mark connected immediately and let the full sync continue in the background.
+      // Optimistically write data_connections (server will also upsert).
+      if (currentUserId) {
+        supabase
+          .from("data_connections")
+          .upsert(
+            {
+              user_id: currentUserId,
+              connection_type: "apple_health",
+              connection_name: "Apple Health",
+              is_active: true,
+              last_sync_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id,connection_type", ignoreDuplicates: false },
+          )
+          .then(({ error }) => {
+            if (error) console.warn("Optimistic data_connections upsert warning:", error);
+          });
+      }
+
+      setConnectionStatus("connected");
+      setConnectedThisSession(true);
+      setIsConnecting(false);
+      try {
+        onCompleteRef.current?.();
+      } catch (notifyErr) {
+        console.warn("onComplete notify failed (non-fatal):", notifyErr);
+      }
     },
     [selectedDataTypes, currentUserId, authSession, clearAllTimers, closeAndReset],
   );
