@@ -24,8 +24,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/onboarding" element={<Onboarding />} />
 
-          {/* 🚨 THE MISSING LINK: Define the dashboard route explicitly */}
-          <Route path="/dashboard" element={<WalletDashboard />} />
+          {/* Dashboard route handled inside Index */}
 
           {/* Settings / Profile Path */}
           <Route path="/settings" element={<Settings />} />
