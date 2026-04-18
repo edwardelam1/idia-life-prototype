@@ -6,7 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
-import WalletDashboard from "./pages/walletdashboard"; // 🚨 ENSURE THIS IMPORT EXISTS
+import WalletDashboard from "./pages/WalletDashboard"; // 🚨 ENSURE THIS IMPORT EXISTS
 import Settings from "./pages/Settings";
 
 const queryClient = new QueryClient();
@@ -26,7 +26,7 @@ const App = () => (
           <Route path="/onboarding" element={<Onboarding />} />
 
           {/* 🚨 THE MISSING LINK: Define the dashboard route explicitly */}
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard" element={<WalletDashboard />} />
 
           {/* Settings / Profile Path */}
           <Route path="/settings" element={<Settings />} />
