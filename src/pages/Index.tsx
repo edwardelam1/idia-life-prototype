@@ -42,32 +42,35 @@ const Onboarding = () => {
   const [step, setStep] = useState<"form" | "success">("form");
 
   useEffect(() => {
-    // 🔗 Deep Link Listener: Handle return from email verification
-    const setupDeepLinkListener = async () => {
-      App.addListener("appUrlOpen", async (event: any) => {
-        const url = new URL(event.url);
-        const hash = url.hash;
+    // 🔗 No-Nonsense Deep Link Listener: Uses window state to avoid Capacitor build errors
+    const handleUrlCapture = async () => {
+      const url = new URL(window.location.href);
+      const hash = url.hash;
+      const searchParams = url.searchParams;
 
-        // Capture session if user is returning from a verification redirect
-        if (hash && (hash.includes("access_token") || hash.includes("type=signup"))) {
-          const {
-            data: { session },
-          } = await supabase.auth.getSession();
-          if (session) {
-            toast({
-              title: "Email Verified",
-              description: "Welcome back. Please complete your sovereign profile.",
-            });
-            navigate("/onboarding");
-          }
+      // Capture session if user returns from com.thebigidia.app://onboarding
+      if (hash.includes("access_token") || searchParams.has("access_token") || hash.includes("type=signup")) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session) {
+          toast({
+            title: "Identity Verified",
+            description: "Welcome back. Please complete your sovereign profile.",
+          });
+          navigate("/onboarding");
         }
-      });
+      }
     };
 
-    setupDeepLinkListener();
+    // Listen for focus to catch the return from the mobile email client
+    window.addEventListener("focus", handleUrlCapture);
+
+    // Check immediately on mount
+    handleUrlCapture();
 
     return () => {
-      App.removeAllListeners();
+      window.removeEventListener("focus", handleUrlCapture);
     };
   }, [navigate, toast]);
 
