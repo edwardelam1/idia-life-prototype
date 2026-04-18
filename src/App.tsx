@@ -7,9 +7,9 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 import Settings from "./pages/Settings";
+import WalletDashboard from "./components/WalletDashboard"; // 🛡️ Import existing component
 
 const queryClient = new QueryClient();
-
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -18,19 +18,14 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          {/* The Controller logic lives in Index */}
           <Route path="/" element={<Index />} />
-
-          {/* Auth & Onboarding Paths */}
           <Route path="/auth" element={<Auth />} />
           <Route path="/onboarding" element={<Onboarding />} />
 
-          {/* Dashboard route handled inside Index */}
+          {/* 🚨 THE FIX: Register the dashboard route specifically */}
+          <Route path="/dashboard" element={<WalletDashboard />} />
 
-          {/* Settings / Profile Path */}
           <Route path="/settings" element={<Settings />} />
-
-          {/* Catch-all: If a route is missing, send them back to Index to re-evaluate state */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
