@@ -2,10 +2,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Activity, Heart, Footprints, Zap, Flame } from "lucide-react";
+import { Heart, Footprints, Zap, Flame } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
-import React from "react";
 import { generateACAHash } from "@/utils/acaGenerator";
 
 interface AppleHealthModalProps {
@@ -38,11 +37,12 @@ const ALL_HEALTH_DATA_TYPES = [
   { id: "HKWorkoutTypeIdentifier", name: "Workout Data", category: "Activity" },
 ];
 
+type ConnectionStatus = "idle" | "connecting" | "connected" | "error";
+
 const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onDisconnect }: AppleHealthModalProps) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [healthData, setHealthData] = useState<any>(null);
-  const [connectionStatus, setConnectionStatus] = useState<"idle" | "connecting" | "connected" | "error">("idle");
-  const [justFinishedSync, setJustFinishedSync] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("idle");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [authSession, setAuthSession] = useState<any>(null);
   const [selectedDataTypes, setSelectedDataTypes] = useState<Set<string>>(
@@ -51,186 +51,232 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [syncCount, setSyncCount] = useState(0);
 
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const currentUserIdRef = useRef<string | null>(null);
-  const callbacksRef = useRef({ onComplete, onClose });
-  useEffect(() => {
-    callbacksRef.current = { onComplete, onClose };
-  }, [onComplete, onClose]);
+  // --- Lifecycle refs ---
+  const bridgeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoCloseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const syncSessionIdRef = useRef<string | null>(null);
+  const isMountedRef = useRef(true);
+  const onCloseRef = useRef(onClose);
+  const onCompleteRef = useRef(onComplete);
 
   useEffect(() => {
-    const getSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session?.user) {
+    onCloseRef.current = onClose;
+    onCompleteRef.current = onComplete;
+  }, [onClose, onComplete]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Load auth session once
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user && isMountedRef.current) {
         setCurrentUserId(session.user.id);
         setAuthSession(session);
       }
-    };
-    getSession();
+    });
   }, []);
 
+  const clearAllTimers = useCallback(() => {
+    if (bridgeTimeoutRef.current) {
+      clearTimeout(bridgeTimeoutRef.current);
+      bridgeTimeoutRef.current = null;
+    }
+    if (autoCloseTimeoutRef.current) {
+      clearTimeout(autoCloseTimeoutRef.current);
+      autoCloseTimeoutRef.current = null;
+    }
+  }, []);
+
+  const detachNativeCallbacks = useCallback(() => {
+    if ((window as any).onHealthDataSyncComplete) {
+      (window as any).onHealthDataSyncComplete = undefined;
+    }
+    if ((window as any).onHealthDataSyncError) {
+      (window as any).onHealthDataSyncError = undefined;
+    }
+  }, []);
+
+  // Single-path close + reset. Every exit route flows through this.
+  const closeAndReset = useCallback(() => {
+    clearAllTimers();
+    syncSessionIdRef.current = null; // invalidates any in-flight callbacks
+    detachNativeCallbacks();
+    setIsConnecting(false);
+    setConnectionStatus("idle");
+    setErrorMessage(null);
+    setHealthData(null);
+    setSyncCount(0);
+    onCloseRef.current?.();
+  }, [clearAllTimers, detachNativeCallbacks]);
+
+  // Reset state whenever the modal is closed externally
   useEffect(() => {
-    currentUserIdRef.current = currentUserId;
-  }, [currentUserId]);
-
-  useEffect(() => {
-    // 1. We create the handler as a named constant first
-    const syncCompleteHandler = async (serverResponse: any) => {
-      try {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
-        setConnectionStatus("connected");
-        setIsConnecting(false);
-        setJustFinishedSync(true);
-
-        // 🚨 THE DEFINITIVE FIX: Use upsert with an explicit conflict target
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (session?.user?.id) {
-          // This tells Postgres: "If you see a row for this user and this type, just update it."
-          const { error: dbError } = await supabase.from("data_connections").upsert(
-            {
-              user_id: session.user.id,
-              connection_type: "apple_health",
-              connection_name: "Apple Health",
-              is_active: true,
-              last_sync_at: new Date().toISOString(),
-            },
-            {
-              onConflict: "user_id,connection_type",
-              ignoreDuplicates: false,
-            },
-          );
-
-          if (dbError) {
-            console.error("Connection sync failed:", dbError);
-            // Fallback: If upsert fails, try a direct update
-            await supabase
-              .from("data_connections")
-              .update({ is_active: true, last_sync_at: new Date().toISOString() })
-              .eq("user_id", session.user.id)
-              .eq("connection_type", "apple_health");
-          }
-        }
-        // ----------------------------------------------------------------------
-
-        const displayData: any = {};
-        const count = serverResponse?.processed_count || 0;
-        setSyncCount(count);
-
-        if (serverResponse?.processed_data && Array.isArray(serverResponse.processed_data)) {
-          let totalSteps = 0;
-          let totalCalories = 0;
-          let hrValues: number[] = [];
-
-          serverResponse.processed_data.forEach((item: any) => {
-            const val = item.value !== undefined ? Number(item.value) : 0;
-            if (isNaN(val)) return;
-
-            if (item.type === "steps" || item.type === "stepCount") totalSteps += val;
-            else if (item.type === "heartRate") hrValues.push(val);
-            else if (item.type === "activeEnergyBurned" || item.type === "calories") totalCalories += val;
-          });
-
-          if (totalSteps > 0) displayData.steps = totalSteps;
-          if (totalCalories > 0) displayData.calories = totalCalories;
-          if (hrValues.length > 0) {
-            displayData.heartRate = Math.round(hrValues.reduce((a, b) => a + b, 0) / hrValues.length);
-          }
-        }
-
-        setHealthData(displayData);
-
-        // Auto-close timer
-        setTimeout(() => {
-          if (callbacksRef.current.onComplete) {
-            callbacksRef.current.onComplete();
-          }
-        }, 2500);
-      } catch (err: any) {
-        setErrorMessage(`Success Callback Error: ${err.message}`);
-        setConnectionStatus("error");
-        setIsConnecting(false);
-      }
-    };
-
-    // 2. We create the error handler
-    const syncErrorHandler = async (errorMsg: string) => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      if (currentUserIdRef.current) {
-        await supabase
-          .from("data_connections")
-          .update({ is_active: false })
-          .eq("user_id", currentUserIdRef.current)
-          .eq("connection_type", "apple_health");
-      }
-      setErrorMessage(`Sync Error: ${errorMsg}`);
-      setConnectionStatus("error");
+    if (!isOpen) {
+      clearAllTimers();
+      syncSessionIdRef.current = null;
+      detachNativeCallbacks();
       setIsConnecting(false);
-    };
+      setConnectionStatus("idle");
+      setErrorMessage(null);
+      setHealthData(null);
+      setSyncCount(0);
+    }
+  }, [isOpen, clearAllTimers, detachNativeCallbacks]);
 
-    // 3. Attach them to the window globally
-    (window as any).onHealthDataSyncComplete = syncCompleteHandler;
-    (window as any).onHealthDataSyncError = syncErrorHandler;
-
-    // 4. Bulletproof cleanup: Only clear the window if it matches THIS specific render's function
+  // Cleanup on unmount
+  useEffect(() => {
     return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      if ((window as any).onHealthDataSyncComplete === syncCompleteHandler) {
-        (window as any).onHealthDataSyncComplete = undefined;
-      }
-      if ((window as any).onHealthDataSyncError === syncErrorHandler) {
-        (window as any).onHealthDataSyncError = undefined;
-      }
+      clearAllTimers();
+      detachNativeCallbacks();
     };
-  }, []);
+  }, [clearAllTimers, detachNativeCallbacks]);
 
   const syncHealthDataViaNativeApp = useCallback(
-    (hash: string) => {
+    (hash: string, sessionId: string) => {
       const webkit = (window as any).webkit;
-      if (webkit?.messageHandlers?.syncHealthData) {
-        const requestedTypesByCategory: { [key: string]: string[] } = {};
-        ALL_HEALTH_DATA_TYPES.forEach((type) => {
-          if (selectedDataTypes.has(type.id)) {
-            const cat = type.category.toLowerCase();
-            if (!requestedTypesByCategory[cat]) requestedTypesByCategory[cat] = [];
-            requestedTypesByCategory[cat].push(type.id);
-          }
-        });
-
-        timeoutRef.current = setTimeout(() => {
-          setErrorMessage("Native bridge timeout. Check permissions.");
-          setConnectionStatus("error");
-          setIsConnecting(false);
-        }, 15000);
-
-        webkit.messageHandlers.syncHealthData.postMessage({
-          action: "comprehensive_health_sync",
-          config: {
-            endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash=${hash}`,
-            user_id: currentUserId,
-            auth_token: authSession?.access_token,
-            aca_hash: hash,
-          },
-          requestedDataTypes: requestedTypesByCategory,
-        });
-      } else {
+      if (!webkit?.messageHandlers?.syncHealthData) {
         setErrorMessage("Please launch from the IDIA iOS App.");
         setConnectionStatus("error");
         setIsConnecting(false);
+        return;
       }
+
+      // ---- Register session-gated native callbacks ----
+      (window as any).onHealthDataSyncComplete = async (serverResponse: any) => {
+        // Reject stale callbacks
+        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+
+        try {
+          clearAllTimers();
+          setConnectionStatus("connected");
+          setIsConnecting(false);
+
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+
+          if (session?.user?.id) {
+            const { error: dbError } = await supabase.from("data_connections").upsert(
+              {
+                user_id: session.user.id,
+                connection_type: "apple_health",
+                connection_name: "Apple Health",
+                is_active: true,
+                last_sync_at: new Date().toISOString(),
+              },
+              { onConflict: "user_id,connection_type", ignoreDuplicates: false },
+            );
+            if (dbError) {
+              await supabase
+                .from("data_connections")
+                .update({ is_active: true, last_sync_at: new Date().toISOString() })
+                .eq("user_id", session.user.id)
+                .eq("connection_type", "apple_health");
+            }
+          }
+
+          if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+
+          const displayData: any = {};
+          const count = serverResponse?.processed_count || 0;
+          setSyncCount(count);
+
+          if (Array.isArray(serverResponse?.processed_data)) {
+            let totalSteps = 0;
+            let totalCalories = 0;
+            const hrValues: number[] = [];
+            serverResponse.processed_data.forEach((item: any) => {
+              const val = item.value !== undefined ? Number(item.value) : 0;
+              if (isNaN(val)) return;
+              if (item.type === "steps" || item.type === "stepCount") totalSteps += val;
+              else if (item.type === "heartRate") hrValues.push(val);
+              else if (item.type === "activeEnergyBurned" || item.type === "calories") totalCalories += val;
+            });
+            if (totalSteps > 0) displayData.steps = totalSteps;
+            if (totalCalories > 0) displayData.calories = totalCalories;
+            if (hrValues.length > 0) {
+              displayData.heartRate = Math.round(hrValues.reduce((a, b) => a + b, 0) / hrValues.length);
+            }
+          }
+          setHealthData(displayData);
+
+          // Auto-close — gated by session id
+          autoCloseTimeoutRef.current = setTimeout(() => {
+            if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+            onCompleteRef.current?.();
+            closeAndReset();
+          }, 2500);
+        } catch (err: any) {
+          if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+          setErrorMessage(`Success Callback Error: ${err.message}`);
+          setConnectionStatus("error");
+          setIsConnecting(false);
+        }
+      };
+
+      (window as any).onHealthDataSyncError = async (errorMsg: string) => {
+        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+        clearAllTimers();
+        if (currentUserId) {
+          await supabase
+            .from("data_connections")
+            .update({ is_active: false })
+            .eq("user_id", currentUserId)
+            .eq("connection_type", "apple_health");
+        }
+        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+        setErrorMessage(`Sync Error: ${errorMsg}`);
+        setConnectionStatus("error");
+        setIsConnecting(false);
+      };
+
+      // Bridge timeout
+      bridgeTimeoutRef.current = setTimeout(() => {
+        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+        setErrorMessage("Native bridge timeout. Check permissions.");
+        setConnectionStatus("error");
+        setIsConnecting(false);
+      }, 15000);
+
+      const requestedTypesByCategory: { [key: string]: string[] } = {};
+      ALL_HEALTH_DATA_TYPES.forEach((type) => {
+        if (selectedDataTypes.has(type.id)) {
+          const cat = type.category.toLowerCase();
+          if (!requestedTypesByCategory[cat]) requestedTypesByCategory[cat] = [];
+          requestedTypesByCategory[cat].push(type.id);
+        }
+      });
+
+      // FLAT payload — iOS bridge contract
+      webkit.messageHandlers.syncHealthData.postMessage({
+        action: "comprehensive_health_sync",
+        endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash=${hash}`,
+        user_id: currentUserId,
+        auth_token: authSession?.access_token,
+        aca_hash: hash,
+        requestedDataTypes: requestedTypesByCategory,
+        sync_session_id: sessionId,
+      });
     },
-    [selectedDataTypes, currentUserId, authSession],
+    [selectedDataTypes, currentUserId, authSession, clearAllTimers, closeAndReset],
   );
 
   const handleConnect = useCallback(async () => {
     setErrorMessage(null);
     setIsConnecting(true);
     setConnectionStatus("connecting");
+
+    // Mint a new session id — invalidates any prior callbacks
+    const sessionId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`;
+    syncSessionIdRef.current = sessionId;
 
     try {
       const { data: profile } = await supabase
@@ -243,35 +289,35 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
       const { hash } = await generateACAHash(profile.platform_guid, "apple_health");
 
+      // DB trigger stamps source_id + lineage. UI only supplies the hash + anchor.
       const { error: acaError } = await supabase.from("user_aca_records").upsert(
         {
           platform_guid: profile.platform_guid,
           aca_hash_key: hash,
-          source_id: "apple_health",
         },
         { onConflict: "aca_hash_key" },
       );
 
       if (acaError) {
         console.warn("ACA Hash Insert Warning (non-fatal):", acaError);
-        // Don't throw — the hash is unique per call, so conflicts are unlikely
-        // but we shouldn't block the sync over an audit log issue
       }
 
-      syncHealthDataViaNativeApp(hash);
+      if (syncSessionIdRef.current !== sessionId) return; // user closed mid-flight
+      syncHealthDataViaNativeApp(hash, sessionId);
     } catch (error: any) {
+      if (syncSessionIdRef.current !== sessionId) return;
       setErrorMessage(error.message);
       setConnectionStatus("error");
       setIsConnecting(false);
     }
-  }, [currentUserId, authSession, syncHealthDataViaNativeApp]);
+  }, [currentUserId, syncHealthDataViaNativeApp]);
 
   const handleDisconnect = async () => {
     if (!currentUserId || !existingConnection) return;
     try {
       await supabase.from("data_connections").update({ is_active: false }).eq("id", existingConnection.id);
       onDisconnect?.();
-      onClose();
+      closeAndReset();
     } catch (e) {
       console.error(e);
     }
@@ -286,7 +332,12 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) closeAndReset();
+      }}
+    >
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
@@ -301,8 +352,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
         <div className="space-y-4">
           {errorMessage && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-sm text-red-600 font-medium">{errorMessage}</p>
+            <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+              <p className="text-sm text-destructive font-medium">{errorMessage}</p>
             </div>
           )}
 
@@ -328,9 +379,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                   </div>
                 ))}
               </div>
-              <Button onClick={handleConnect} className="w-full" disabled={isConnecting}>
-                {isConnecting ? "Connecting..." : "Connect Apple Health"}
-              </Button>
+              <div className="flex space-x-2">
+                <Button variant="outline" className="flex-1" onClick={closeAndReset}>
+                  Cancel
+                </Button>
+                <Button onClick={handleConnect} className="flex-1" disabled={isConnecting}>
+                  {isConnecting ? "Connecting..." : "Connect"}
+                </Button>
+              </div>
             </>
           )}
 
@@ -342,7 +398,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               <h3 className="font-medium text-green-800">Apple Health Connected</h3>
               <p className="text-sm text-muted-foreground">Your metrics are actively syncing to your vault.</p>
               <div className="flex space-x-3 mt-4">
-                <Button variant="outline" className="flex-1" onClick={onClose}>
+                <Button variant="outline" className="flex-1" onClick={closeAndReset}>
                   Close
                 </Button>
                 <Button variant="destructive" className="flex-1" onClick={handleDisconnect}>
@@ -356,16 +412,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             <div className="text-center py-10 space-y-4">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
               <p className="text-sm text-muted-foreground">Establishing Liability Shield...</p>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => {
-                  if (timeoutRef.current) clearTimeout(timeoutRef.current);
-                  setIsConnecting(false);
-                  setConnectionStatus("idle");
-                  onClose();
-                }}
-              >
+              <Button variant="outline" className="w-full" onClick={closeAndReset}>
                 Cancel
               </Button>
             </div>
@@ -411,8 +458,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               )}
               <Button
                 onClick={() => {
-                  onComplete();
-                  onClose();
+                  onCompleteRef.current?.();
+                  closeAndReset();
                 }}
                 className="w-full"
               >
@@ -422,9 +469,12 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           )}
 
           {connectionStatus === "error" && (
-            <div className="text-center py-4">
+            <div className="text-center py-4 space-y-2">
               <Button variant="outline" onClick={() => setConnectionStatus("idle")} className="w-full">
                 Retry Connection
+              </Button>
+              <Button variant="ghost" onClick={closeAndReset} className="w-full">
+                Close
               </Button>
             </div>
           )}
