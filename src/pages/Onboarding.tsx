@@ -82,11 +82,14 @@ const Onboarding = () => {
       const acaHash = await generateACA(platformGuid, 'KYC_CONSENT');
 
       // 4. Save ACA hash to Supabase (proof of consent, NO PII)
-      await supabase.from('user_aca_records').insert({
+      // DB triggers auto-stamp source_id and propagate to data_lineage_index.
+      const { error: acaError } = await supabase.from('user_aca_records').insert({
         platform_guid: platformGuid,
         aca_hash_key: acaHash,
         consent_type: 'KYC_CONSENT',
+        source_id: 'sovereign_onboarding',
       });
+      if (acaError) throw new Error(`ACA consent record failed: ${acaError.message}`);
 
       // 5. Push PII to auth.users.user_metadata for Hub bridge (NOT a public DB write)
       const displayName = `${firstName.trim()} ${lastName.trim()}`;
