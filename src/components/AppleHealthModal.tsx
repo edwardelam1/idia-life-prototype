@@ -262,6 +262,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setErrorMessage(null);
     setIsConnecting(true);
     setConnectionStatus("connecting");
+    completedRef.current = false;
 
     try {
       await supabase.from("profiles").update({ platform_guid: currentUserId }).eq("user_id", currentUserId);
