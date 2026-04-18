@@ -1,246 +1,69 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
 import { supabase } from "@/integrations/supabase/client";
-import { sendToFBOProvider } from "@/utils/fboProvider";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Shield, Lock, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-/** SHA-256 helper */
-async function generateACA(platformGuid: string, consentType: string): Promise<string> {
-  const timestamp = Date.now().toString();
-  const data = new TextEncoder().encode(platformGuid + consentType + timestamp);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-/** Format phone as xxx-xxx-xxxx while typing */
-function formatPhone(value: string): string {
-  const digits = value.replace(/\D/g, "").slice(0, 10);
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
-}
-
-const PHONE_REGEX = /^\d{3}-\d{3}-\d{4}$/;
-
-const Onboarding = () => {
+const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [step, setStep] = useState<"form" | "success">("form");
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // 🔗 No-Nonsense Deep Link Listener: Uses window state to avoid Capacitor build errors
-    const handleUrlCapture = async () => {
-      const url = new URL(window.location.href);
-      const hash = url.hash;
-      const searchParams = url.searchParams;
-
-      // Capture session if user returns from com.thebigidia.app://onboarding
-      if (hash.includes("access_token") || searchParams.has("access_token") || hash.includes("type=signup")) {
+    const checkState = async () => {
+      try {
+        // 1. Get current session
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        if (session) {
-          toast({
-            title: "Identity Verified",
-            description: "Welcome back. Please complete your sovereign profile.",
-          });
-          navigate("/onboarding");
+
+        if (!session) {
+          // If no session, they must authenticate first.
+          // Do NOT show onboarding yet.
+          navigate("/auth");
+          return;
         }
+
+        // 2. Session exists, check database for onboarding status
+        const { data: profile, error } = await supabase
+          .from("profiles")
+          .select("onboarding_completed")
+          .eq("user_id", session.user.id)
+          .single();
+
+        if (error) throw error;
+
+        if (!profile?.onboarding_completed) {
+          // 3. User is real but has no Enclave data yet.
+          // Trigger the PII capture.
+          navigate("/onboarding");
+        } else {
+          // 4. Identity Verified & Sovereignty Established.
+          // Enter the IDIA System.
+          navigate("/dashboard");
+        }
+      } catch (err: any) {
+        console.error("Routing Error:", err.message);
+        // Fallback to auth if something breaks
+        navigate("/auth");
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    // Listen for focus to catch the return from the mobile email client
-    window.addEventListener("focus", handleUrlCapture);
+    checkState();
+  }, [navigate]);
 
-    // Check immediately on mount
-    handleUrlCapture();
-
-    return () => {
-      window.removeEventListener("focus", handleUrlCapture);
-    };
-  }, [navigate, toast]);
-
-  const isValid =
-    firstName.trim().length >= 2 && lastName.trim().length >= 2 && email.includes("@") && PHONE_REGEX.test(phone);
-
-  const handleSubmit = async () => {
-    if (!isValid) return;
-    setSubmitting(true);
-
-    try {
-      // 1. Store PII in device Secure Enclave — NEVER sent to Supabase
-      const piiPayload = {
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        email: email.trim(),
-        phone,
-      };
-
-      await SecureStoragePlugin.set({
-        key: "user_pii_profile",
-        value: JSON.stringify(piiPayload),
-      });
-
-      // 2. Source of truth: Auth User ID === Platform GUID
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const platformGuid = user.id;
-
-      // 2b. Defensive heal — force profile row into alignment.
-      await supabase.from("profiles").update({ platform_guid: user.id }).eq("user_id", user.id);
-
-      // 3. Generate ACA consent hash
-      const acaHash = await generateACA(platformGuid, "KYC_CONSENT");
-
-      // 4. Save ACA hash to Supabase (proof of consent, NO PII)
-      await supabase.from("user_aca_records").insert({
-        platform_guid: platformGuid,
-        aca_hash_key: acaHash,
-        consent_type: "KYC_CONSENT",
-      });
-
-      // 5. Push PII to auth.users.user_metadata for Hub bridge
-      const displayName = `${firstName.trim()} ${lastName.trim()}`;
-      await supabase.auth.updateUser({
-        data: {
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-          full_name: displayName,
-          display_name: displayName,
-          pii_synced_at: new Date().toISOString(),
-        },
-      });
-
-      // 6. Direct FBO KYC pass-through
-      const fboResult = await sendToFBOProvider(
-        { name: `${firstName.trim()} ${lastName.trim()}`, email: email.trim(), phone },
-        acaHash,
-      );
-
-      if (!fboResult.success) {
-        throw new Error(fboResult.message);
-      }
-
-      setStep("success");
-      toast({
-        title: "Identity Secured",
-        description: "Your data is stored on-device only. KYC submitted to FBO provider.",
-      });
-
-      setTimeout(() => navigate("/"), 1500);
-    } catch (err: unknown) {
-      console.error("[Onboarding] Error:", err);
-      toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : "Something went wrong.",
-        variant: "destructive",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  if (step === "success") {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md text-center">
-          <CardContent className="pt-8 pb-8 space-y-4">
-            <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto" />
-            <h2 className="text-xl font-bold text-foreground">Identity Secured</h2>
-            <p className="text-muted-foreground text-sm">
-              Your PII is encrypted on-device. A consent anchor has been recorded.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
+  // While checking, show a professional loading state
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-2">
-          <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-            <Shield className="w-6 h-6 text-primary" />
-          </div>
-          <CardTitle className="text-xl">Sovereign Onboarding</CardTitle>
-          <p className="text-muted-foreground text-sm">
-            Your identity stays on your device. We only store a consent hash.
-          </p>
-        </CardHeader>
-
-        <CardContent className="space-y-5">
-          <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-3">
-            <Lock className="w-4 h-4 text-muted-foreground shrink-0" />
-            <span className="text-xs text-muted-foreground">
-              PII is encrypted in your device's secure enclave — never sent to our servers.
-            </span>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="firstName">First Name *</Label>
-            <Input id="firstName" placeholder="Jane" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="lastName">Last Name *</Label>
-            <Input id="lastName" placeholder="Doe" value={lastName} onChange={(e) => setLastName(e.target.value)} />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="email">Email *</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="jane@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="phone">Phone (xxx-xxx-xxxx) *</Label>
-            <Input
-              id="phone"
-              type="tel"
-              placeholder="555-123-4567"
-              value={phone}
-              onChange={(e) => setPhone(formatPhone(e.target.value))}
-            />
-          </div>
-
-          <div className="flex items-start gap-2 bg-destructive/5 border border-destructive/20 rounded-lg p-3">
-            <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
-            <span className="text-xs text-muted-foreground">
-              <strong className="text-foreground">Legal Notice:</strong> You must provide accurate information.
-              Fraudulent entries may result in account termination.
-            </span>
-          </div>
-
-          <Button className="w-full" onClick={handleSubmit} disabled={!isValid || submitting}>
-            {submitting ? "Securing Identity..." : "Secure & Continue"}
-          </Button>
-        </CardContent>
-      </Card>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center space-y-4">
+        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm text-muted-foreground font-medium uppercase tracking-widest">
+          Initializing IDIA Protocol
+        </p>
+      </div>
     </div>
   );
 };
 
-export default Onboarding;
+export default Index;
