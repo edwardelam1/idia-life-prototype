@@ -199,8 +199,9 @@ serve(async (req) => {
       last_sync_at: new Date().toISOString(),
     }, { onConflict: "user_id,connection_type" });
 
-    // Process health data into raw_health_data (the canonical table)
+    // Process health data into raw_health_data (the canonical table) — BATCHED
     const processedData: any[] = [];
+    const recordsToInsert: any[] = [];
     const healthDataTypes = [
       "steps", "distanceWalkingRunning", "distanceCycling", "flightsClimbed",
       "activeEnergyBurned", "restingEnergyBurned", "exerciseTime",
@@ -220,101 +221,97 @@ serve(async (req) => {
 
     for (const dataType of healthDataTypes) {
       if (!processableData[dataType]) continue;
-      try {
-        const dataArray = Array.isArray(processableData[dataType]) ? processableData[dataType] : [processableData[dataType]];
-        for (const record of dataArray) {
-          // Safely extract the value whether it's an object {value: X} or a raw primitive
-          const actualValue = (typeof record === "object" && record !== null && record.value !== undefined)
-            ? record.value
-            : record;
+      const dataArray = Array.isArray(processableData[dataType]) ? processableData[dataType] : [processableData[dataType]];
+      for (const record of dataArray) {
+        const actualValue = (typeof record === "object" && record !== null && record.value !== undefined)
+          ? record.value
+          : record;
 
-          const healthRecord: any = {
-            user_id: userId,
-            device_type: "Apple Health",
-            raw_payload: {
-              dataType,
-              value: actualValue,
-              unit: (typeof record === "object" && record !== null) ? (record.unit || null) : null,
-              startDate: (typeof record === "object" && record !== null) ? (record.startDate || record.date) : null,
-              endDate: (typeof record === "object" && record !== null) ? (record.endDate || record.date) : null,
-              sourceBundle: (typeof record === "object" && record !== null) ? (record.sourceBundle || "com.apple.health") : "com.apple.health",
-              sourceName: (typeof record === "object" && record !== null) ? (record.sourceName || "Apple Health") : "Apple Health",
-              metadata: (typeof record === "object" && record !== null) ? (record.metadata || {}) : {},
-              originalRecord: typeof record === "object" ? record : { value: actualValue },
-            },
-            recorded_at: (typeof record === "object" && record !== null) ? (record.startDate || record.date || new Date().toISOString()) : new Date().toISOString(),
-            processing_status: "pending",
-            processed: false,
-          };
+        const healthRecord: any = {
+          user_id: userId,
+          device_type: "Apple Health",
+          raw_payload: {
+            dataType,
+            value: actualValue,
+            unit: (typeof record === "object" && record !== null) ? (record.unit || null) : null,
+            startDate: (typeof record === "object" && record !== null) ? (record.startDate || record.date) : null,
+            endDate: (typeof record === "object" && record !== null) ? (record.endDate || record.date) : null,
+            sourceBundle: (typeof record === "object" && record !== null) ? (record.sourceBundle || "com.apple.health") : "com.apple.health",
+            sourceName: (typeof record === "object" && record !== null) ? (record.sourceName || "Apple Health") : "Apple Health",
+            metadata: (typeof record === "object" && record !== null) ? (record.metadata || {}) : {},
+            originalRecord: typeof record === "object" ? record : { value: actualValue },
+          },
+          recorded_at: (typeof record === "object" && record !== null) ? (record.startDate || record.date || new Date().toISOString()) : new Date().toISOString(),
+          processing_status: "pending",
+          processed: false,
+        };
 
-          if (dataType === "steps" && actualValue !== undefined && actualValue !== null) {
-            const parsed = parseInt(String(actualValue));
-            if (!isNaN(parsed)) healthRecord.step_count = parsed;
-          }
-
-          const { data: rawData, error: rawError } = await supabase
-            .from("raw_health_data")
-            .insert(healthRecord)
-            .select("id")
-            .single();
-
-          if (!rawError && rawData) {
-            processedData.push({
-              type: dataType,
-              id: rawData.id,
-              value: actualValue,
-              recordedAt: (typeof record === "object" && record !== null) ? (record.startDate || record.date || new Date().toISOString()) : new Date().toISOString(),
-            });
-          } else {
-            console.error(`Error inserting ${dataType}:`, rawError);
-          }
+        if (dataType === "steps" && actualValue !== undefined && actualValue !== null) {
+          const parsed = parseInt(String(actualValue));
+          if (!isNaN(parsed)) healthRecord.step_count = parsed;
         }
-      } catch (error) {
-        console.error(`Error processing ${dataType}:`, error);
+
+        recordsToInsert.push({ __dataType: dataType, __actualValue: actualValue, __recordedAt: healthRecord.recorded_at, ...healthRecord });
       }
     }
 
-    // Process workouts
+    // Process workouts → batch
     if (processableData.workouts && Array.isArray(processableData.workouts)) {
       for (const workout of processableData.workouts) {
-        try {
-          const { data: rawData, error: rawError } = await supabase
-            .from("raw_health_data")
-            .insert({
-              user_id: userId,
-              device_type: "Apple Health",
-              raw_payload: {
-                dataType: "workout",
-                workoutActivityType: workout.workoutActivityType,
-                duration: workout.duration,
-                totalEnergyBurned: workout.totalEnergyBurned,
-                totalDistance: workout.totalDistance,
-                startDate: workout.startDate,
-                endDate: workout.endDate,
-                sourceBundle: workout.sourceBundle || "com.apple.health",
-                heartRateSamples: workout.heartRateSamples || [],
-                route: workout.route || null,
-                metadata: workout.metadata || {},
-                originalRecord: workout,
-              },
-              recorded_at: workout.startDate,
-              processing_status: "pending",
-              processed: false,
-            })
-            .select("id")
-            .single();
+        const rec = {
+          user_id: userId,
+          device_type: "Apple Health",
+          raw_payload: {
+            dataType: "workout",
+            workoutActivityType: workout.workoutActivityType,
+            duration: workout.duration,
+            totalEnergyBurned: workout.totalEnergyBurned,
+            totalDistance: workout.totalDistance,
+            startDate: workout.startDate,
+            endDate: workout.endDate,
+            sourceBundle: workout.sourceBundle || "com.apple.health",
+            heartRateSamples: workout.heartRateSamples || [],
+            route: workout.route || null,
+            metadata: workout.metadata || {},
+            originalRecord: workout,
+          },
+          recorded_at: workout.startDate,
+          processing_status: "pending",
+          processed: false,
+        };
+        recordsToInsert.push({ __dataType: "workout", __actualValue: workout.workoutActivityType, __recordedAt: workout.startDate, ...rec });
+      }
+    }
 
-          if (!rawError && rawData) {
-            processedData.push({
-              type: "workout",
-              id: rawData.id,
-              activityType: workout.workoutActivityType,
-              duration: workout.duration,
-            });
-          }
-        } catch (error) {
-          console.error("Error processing workout:", error);
+    // Bulk insert in chunks (Postgres handles ~1000 row inserts well; chunk at 500 to be safe)
+    const CHUNK_SIZE = 500;
+    for (let i = 0; i < recordsToInsert.length; i += CHUNK_SIZE) {
+      const chunk = recordsToInsert.slice(i, i + CHUNK_SIZE);
+      const cleanChunk = chunk.map(({ __dataType, __actualValue, __recordedAt, ...rest }) => rest);
+      try {
+        const { data: inserted, error: insertError } = await supabase
+          .from("raw_health_data")
+          .insert(cleanChunk)
+          .select("id");
+
+        if (insertError) {
+          console.error(`Batch insert error (chunk ${i / CHUNK_SIZE}):`, insertError);
+          continue;
         }
+
+        if (inserted) {
+          inserted.forEach((row: any, idx: number) => {
+            const meta = chunk[idx];
+            processedData.push({
+              type: meta.__dataType,
+              id: row.id,
+              value: meta.__actualValue,
+              recordedAt: meta.__recordedAt,
+            });
+          });
+        }
+      } catch (err) {
+        console.error(`Chunk ${i / CHUNK_SIZE} threw:`, err);
       }
     }
 
