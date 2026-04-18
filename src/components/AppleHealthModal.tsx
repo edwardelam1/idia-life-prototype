@@ -1,446 +1,443 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Activity, CheckCircle, DollarSign, Zap, FileKey } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Activity, Heart, Footprints, Zap, Flame } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import AppleHealthModal from "./AppleHealthModal";
-import StravaConnectionModal from "./StravaConnectionModal";
-import FordConnectionModal from "./FordConnectionModal";
-import fordLogo from "@/assets/ford-logo.png";
+import { Checkbox } from "@/components/ui/checkbox";
+import { generateACAHash } from "@/utils/acaGenerator";
 
-const DataDashboard = () => {
-  const [connections, setConnections] = useState<any[]>([]);
-  const [totalEarnings, setTotalEarnings] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
-  const [showStravaModal, setShowStravaModal] = useState(false);
-  const [showFordModal, setShowFordModal] = useState(false);
-  const [virtuousImpacts, setVirtuousImpacts] = useState<string[]>([]);
-  const [lastSyncStatus, setLastSyncStatus] = useState<string>("unknown");
+interface AppleHealthModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onComplete: () => void;
+  existingConnection?: any;
+  onDisconnect?: () => void;
+}
+
+const ALL_HEALTH_DATA_TYPES = [
+  { id: "HKQuantityTypeIdentifierStepCount", name: "Steps", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierDistanceWalkingRunning", name: "Distance (Walking/Running)", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierDistanceCycling", name: "Distance (Cycling)", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierFlightsClimbed", name: "Flights Climbed", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierActiveEnergyBurned", name: "Active Energy Burned", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierBasalEnergyBurned", name: "Basal Energy Burned", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierAppleExerciseTime", name: "Exercise Time", category: "Activity" },
+  { id: "HKQuantityTypeIdentifierHeartRate", name: "Heart Rate", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierRestingHeartRate", name: "Resting Heart Rate", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierOxygenSaturation", name: "Blood Oxygen", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierRespiratoryRate", name: "Respiratory Rate", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierVO2Max", name: "VO2 Max", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierHeight", name: "Height", category: "Body" },
+  { id: "HKQuantityTypeIdentifierBodyMass", name: "Weight", category: "Body" },
+  { id: "HKQuantityTypeIdentifierBodyMassIndex", name: "BMI", category: "Body" },
+  { id: "HKQuantityTypeIdentifierBodyFatPercentage", name: "Body Fat %", category: "Body" },
+  { id: "HKQuantityTypeIdentifierDietaryEnergyConsumed", name: "Dietary Energy", category: "Nutrition" },
+  { id: "HKCategoryTypeIdentifierMindfulSession", name: "Mindful Minutes", category: "Mindfulness" },
+  { id: "HKWorkoutTypeIdentifier", name: "Workout Data", category: "Activity" },
+];
+
+const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onDisconnect }: AppleHealthModalProps) => {
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [healthData, setHealthData] = useState<any>(null);
+  const [connectionStatus, setConnectionStatus] = useState<"idle" | "connecting" | "connected" | "error">("idle");
+  const [justFinishedSync, setJustFinishedSync] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [acaRecords, setAcaRecords] = useState<any[]>([]);
-  const [acaLoading, setAcaLoading] = useState(false);
+  const [authSession, setAuthSession] = useState<any>(null);
+  const [selectedDataTypes, setSelectedDataTypes] = useState<Set<string>>(
+    new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.id)),
+  );
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [syncCount, setSyncCount] = useState<number | string>(0);
+
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const completedRef = useRef(false);
+  const currentUserIdRef = useRef<string | null>(null);
+  const callbacksRef = useRef({ onComplete, onClose });
+
+  const clearAllTimers = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  };
 
   useEffect(() => {
-    const getUser = async () => {
+    callbacksRef.current = { onComplete, onClose };
+  }, [onComplete, onClose]);
+
+  useEffect(() => {
+    const getSession = async () => {
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) setCurrentUserId(user.id);
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.user) {
+        setCurrentUserId(session.user.id);
+        setAuthSession(session);
+      }
     };
-    getUser();
-    fetchConnections();
+    getSession();
   }, []);
 
   useEffect(() => {
-    if (currentUserId) {
-      fetchConnections();
-      fetchAcaRecords();
-    }
+    currentUserIdRef.current = currentUserId;
   }, [currentUserId]);
 
-  const fetchAcaRecords = async () => {
-    if (!currentUserId) return;
-    setAcaLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("user_aca_records")
-        .select("*")
-        .eq("platform_guid", currentUserId)
-        .order("created_at", { ascending: false });
+  useEffect(() => {
+    const syncCompleteHandler = async (serverResponse: any) => {
+      try {
+        if (completedRef.current) return;
+        completedRef.current = true;
+        clearAllTimers();
 
-      if (error) throw error;
-      if (data) setAcaRecords(data);
-    } catch (err) {
-      console.error("Failed to fetch ACA records:", err);
-    } finally {
-      setAcaLoading(false);
-    }
-  };
+        setConnectionStatus("connected");
+        setIsConnecting(false);
+        setJustFinishedSync(true);
 
-  const fetchConnections = async () => {
-    if (!currentUserId) return;
+        // 1. Safely parse the WebKit payload if iOS passed a string
+        let parsedPayload = serverResponse;
+        if (typeof serverResponse === "string") {
+          try {
+            parsedPayload = JSON.parse(serverResponse);
+          } catch (e) {
+            console.warn("Failed to parse native payload:", e);
+          }
+        }
 
-    try {
-      const [pipelineHealthResult, connectionsResult, walletResult, recentDataResult] = await Promise.allSettled([
-        supabase.functions.invoke("pipeline-diagnostics"),
-        supabase.from("data_connections").select("*").eq("user_id", currentUserId).eq("is_active", true),
-        supabase.from("user_wallets").select("*").eq("user_id", currentUserId).maybeSingle(),
-        supabase
-          .from("raw_health_data")
-          .select("created_at")
-          .eq("user_id", currentUserId)
-          .order("created_at", { ascending: false })
-          .limit(1),
-      ]);
+        // 2. Extract metrics safely (Zero database writes here)
+        const displayData: any = {};
+        const count = parsedPayload?.processed_count || 0;
+        setSyncCount(count);
 
-      if (pipelineHealthResult.status === "rejected")
-        console.warn("Pipeline health check failed:", pipelineHealthResult.reason);
+        if (parsedPayload?.processed_data && Array.isArray(parsedPayload.processed_data)) {
+          let totalSteps = 0;
+          let totalCalories = 0;
+          let hrValues: number[] = [];
 
-      if (connectionsResult.status === "rejected") {
-        console.error("Error fetching connections:", connectionsResult.reason);
-        setConnections([]);
-        setTotalEarnings(0);
-        setLoading(false);
-        return;
+          parsedPayload.processed_data.forEach((item: any) => {
+            const val = item.value !== undefined ? Number(item.value) : 0;
+            if (isNaN(val)) return;
+
+            if (item.type === "steps" || item.type === "stepCount") totalSteps += val;
+            else if (item.type === "heartRate") hrValues.push(val);
+            else if (item.type === "activeEnergyBurned" || item.type === "calories") totalCalories += val;
+          });
+
+          if (totalSteps > 0) displayData.steps = totalSteps;
+          if (totalCalories > 0) displayData.calories = totalCalories;
+          if (hrValues.length > 0) {
+            displayData.heartRate = Math.round(hrValues.reduce((a, b) => a + b, 0) / hrValues.length);
+          }
+        }
+
+        setHealthData(displayData);
+
+        // 3. Trigger the dashboard refresh
+        setTimeout(() => {
+          if (callbacksRef.current.onComplete) {
+            callbacksRef.current.onComplete();
+          }
+        }, 2500);
+      } catch (err: any) {
+        setErrorMessage(`Success Callback Error: ${err.message}`);
+        setConnectionStatus("error");
+        setIsConnecting(false);
       }
+    };
 
-      const connectionsData = connectionsResult.value.data || [];
-      let totalEarned = 0;
-      if (walletResult.status === "fulfilled") totalEarned = walletResult.value.data?.cash_balance || 0;
+    const syncErrorHandler = async (errorMsg: string) => {
+      if (completedRef.current) return;
+      clearAllTimers();
+      setErrorMessage(`Sync Error: ${errorMsg}`);
+      setConnectionStatus("error");
+      setIsConnecting(false);
+    };
 
-      if (recentDataResult.status === "fulfilled" && recentDataResult.value.data?.length > 0) {
-        const lastDataTime = new Date(recentDataResult.value.data[0].created_at);
-        const hoursSinceLastData = (Date.now() - lastDataTime.getTime()) / (1000 * 60 * 60);
-        if (hoursSinceLastData > 24) setLastSyncStatus("stale");
-        else if (hoursSinceLastData > 6) setLastSyncStatus("delayed");
-        else setLastSyncStatus("recent");
+    (window as any).onHealthDataSyncComplete = syncCompleteHandler;
+    (window as any).onHealthDataSyncError = syncErrorHandler;
+    (window as any).__appleHealthSyncCompleteHandler = syncCompleteHandler;
+
+    return () => {
+      clearAllTimers();
+      if ((window as any).onHealthDataSyncComplete === syncCompleteHandler) {
+        (window as any).onHealthDataSyncComplete = undefined;
+      }
+      if ((window as any).onHealthDataSyncError === syncErrorHandler) {
+        (window as any).onHealthDataSyncError = undefined;
+      }
+    };
+  }, []);
+
+  const startServerPolling = useCallback(
+    (targetHash: string) => {
+      if (!currentUserId) return;
+      let elapsed = 0;
+      const maxMs = 20000;
+      const intervalMs = 2000;
+
+      // We poll the ACA record. If the hash exists, the Edge Function successfully started processing.
+      // This perfectly bypasses the time-drift issue and race conditions.
+      pollIntervalRef.current = setInterval(async () => {
+        elapsed += intervalMs;
+        try {
+          const { data } = await supabase
+            .from("user_aca_records")
+            .select("id")
+            .eq("aca_hash_key", targetHash)
+            .maybeSingle();
+
+          if (data?.id && !completedRef.current) {
+            console.log("Fallback Polling Success: Edge Function verified via ACA Hash.");
+            const handler = (window as any).__appleHealthSyncCompleteHandler;
+            if (handler) {
+              handler({ processed_count: "Verified Server-Side", processed_data: [], _verified_via: "server_poll" });
+            }
+          }
+        } catch (e) {
+          console.warn("Poll error:", e);
+        }
+
+        if (elapsed >= maxMs && pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+      }, intervalMs);
+    },
+    [currentUserId],
+  );
+
+  const syncHealthDataViaNativeApp = useCallback(
+    (hash: string) => {
+      const webkit = (window as any).webkit;
+
+      if (webkit?.messageHandlers?.syncHealthData) {
+        const requestedTypesByCategory: { [key: string]: string[] } = {};
+        ALL_HEALTH_DATA_TYPES.forEach((type) => {
+          if (selectedDataTypes.has(type.id)) {
+            const cat = type.category.toLowerCase();
+            if (!requestedTypesByCategory[cat]) requestedTypesByCategory[cat] = [];
+            requestedTypesByCategory[cat].push(type.id);
+          }
+        });
+
+        timeoutRef.current = setTimeout(() => {
+          if (completedRef.current) return;
+          clearAllTimers();
+          setErrorMessage("Native bridge timeout. Check permissions.");
+          setConnectionStatus("error");
+          setIsConnecting(false);
+        }, 25000);
+
+        webkit.messageHandlers.syncHealthData.postMessage({
+          action: "comprehensive_health_sync",
+          config: {
+            endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash=${hash}`,
+            user_id: currentUserId,
+            auth_token: authSession?.access_token,
+            aca_hash: hash,
+          },
+          requestedDataTypes: requestedTypesByCategory,
+        });
+
+        // Start server-side polling fallback targeting the explicit cryptographic hash
+        startServerPolling(hash);
       } else {
-        setLastSyncStatus("no_data");
+        setErrorMessage("Please launch from the IDIA iOS App.");
+        setConnectionStatus("error");
+        setIsConnecting(false);
       }
+    },
+    [selectedDataTypes, currentUserId, authSession, startServerPolling],
+  );
 
-      setConnections(connectionsData);
-      setTotalEarnings(totalEarned);
+  const handleConnect = useCallback(async () => {
+    setErrorMessage(null);
+    setIsConnecting(true);
+    setConnectionStatus("connecting");
+    completedRef.current = false;
 
-      if (connectionsData.length > 0) {
-        fetchVirtuousImpacts().catch((error) => console.error("Non-critical: Virtuous impacts fetch failed:", error));
-      }
-      setLoading(false);
-    } catch (error) {
-      console.error("Error fetching connections:", error);
-      setConnections([]);
-      setTotalEarnings(0);
-      setLoading(false);
+    try {
+      await supabase.from("profiles").update({ platform_guid: currentUserId }).eq("user_id", currentUserId);
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("platform_guid")
+        .eq("user_id", currentUserId)
+        .single();
+
+      if (!profile?.platform_guid) throw new Error("Profile anchor missing.");
+
+      // 1. Generate the payload hash
+      const { hash } = await generateACAHash(profile.platform_guid, "apple_health", ["HEALTH_DATA_SYNC"]);
+
+      // 2. Hand it directly to the native bridge.
+      syncHealthDataViaNativeApp(hash);
+    } catch (error: any) {
+      setErrorMessage(error.message);
+      setConnectionStatus("error");
+      setIsConnecting(false);
+    }
+  }, [currentUserId, authSession, syncHealthDataViaNativeApp]);
+
+  const handleDisconnect = async () => {
+    if (!currentUserId || !existingConnection) return;
+    try {
+      await supabase.from("data_connections").update({ is_active: false }).eq("id", existingConnection.id);
+      onDisconnect?.();
+      onClose();
+    } catch (e) {
+      console.error(e);
     }
   };
 
-  const fetchVirtuousImpacts = async () => {
-    const fallbackImpacts = [
-      "Your anonymized activity improved heart health model accuracy",
-      "Contributed to real-time wellness trend analysis",
-      "Enhanced data quality for community research",
-    ];
-    try {
-      const { data, error } = await supabase.functions.invoke("generate-virtuous-cycle-impacts", {
-        body: { user_id: currentUserId },
-      });
-      if (error) {
-        setVirtuousImpacts(fallbackImpacts);
-        return;
-      }
-      setVirtuousImpacts(data?.impacts?.length ? data.impacts : fallbackImpacts);
-    } catch {
-      setVirtuousImpacts(fallbackImpacts);
-    }
+  const handleCheckboxChange = (id: string, isChecked: boolean) => {
+    setSelectedDataTypes((prev) => {
+      const newSet = new Set(prev);
+      isChecked ? newSet.add(id) : newSet.delete(id);
+      return newSet;
+    });
   };
-
-  const triggerFriendForDataEvent = () => {
-    window.dispatchEvent(new CustomEvent("showFriend", { detail: { trigger: "data" } }));
-  };
-
-  const getSyncStatusBadge = () => {
-    switch (lastSyncStatus) {
-      case "recent":
-        return (
-          <Badge variant="secondary" className="bg-green-100 text-green-800">
-            Synced Recently
-          </Badge>
-        );
-      case "delayed":
-        return (
-          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-            Sync Delayed
-          </Badge>
-        );
-      case "stale":
-        return null;
-      case "no_data":
-        return <Badge variant="outline">No Data Found</Badge>;
-      default:
-        return <Badge variant="outline">Checking...</Badge>;
-    }
-  };
-
-  const handleAppleHealthComplete = async () => {
-    setShowAppleHealthModal(false);
-    try {
-      await fetchConnections();
-      await fetchAcaRecords();
-      triggerFriendForDataEvent();
-    } catch {}
-  };
-
-  const handleStravaComplete = async () => {
-    setShowStravaModal(false);
-    try {
-      await fetchConnections();
-      await fetchAcaRecords();
-      triggerFriendForDataEvent();
-    } catch {}
-  };
-
-  const handleFordComplete = async () => {
-    setShowFordModal(false);
-    try {
-      await fetchConnections();
-      await fetchAcaRecords();
-      triggerFriendForDataEvent();
-    } catch {}
-  };
-
-  const getConnectionStatus = (connectionType: string) => {
-    return connections.find((conn) => conn.connection_type === connectionType);
-  };
-
-  const formatSourceName = (sourceId: string) => {
-    return sourceId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  };
-
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="animate-pulse">
-          <div className="h-32 bg-muted rounded-lg mb-6"></div>
-          <div className="space-y-3">
-            <div className="h-4 bg-muted rounded w-1/4"></div>
-            <div className="h-24 bg-muted rounded"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="space-y-4">
-      <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center space-x-2 mb-1">
-                <p className="text-teal-100">Cash Account</p>
-                {getSyncStatusBadge()}
-              </div>
-              <p className="text-3xl font-bold">${totalEarnings.toFixed(2)} USD</p>
-              <p className="text-sm text-teal-100 mt-1">
-                {connections.length > 0
-                  ? "Available cash from connected data sources"
-                  : "Start earning by connecting data sources"}
-              </p>
-            </div>
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-              <DollarSign className="w-8 h-8" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center space-x-2">
+            <img
+              src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
+              alt="Apple Health"
+              className="w-6 h-6"
+            />
+            <span>{existingConnection ? "Apple Health" : "Connect Apple Health"}</span>
+          </DialogTitle>
+        </DialogHeader>
 
-      <Tabs defaultValue="connections" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="connections">Connections</TabsTrigger>
-          <TabsTrigger value="audit" className="flex items-center gap-1">
-            <FileKey className="w-3 h-3" />
-            Transactions
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="connections" className="space-y-4">
-          {connections.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Zap className="w-5 h-5 text-yellow-500" />
-                  <span>Virtuous Cycle Impact</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Your data helped improve:</span>
-                    <Badge variant="secondary">Live Research Impact</Badge>
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    {virtuousImpacts.length > 0 ? (
-                      virtuousImpacts.map((impact, index) => (
-                        <p key={index} className="flex items-center space-x-2">
-                          <CheckCircle size={16} className="text-green-500 shrink-0" />
-                          <span>{impact}</span>
-                        </p>
-                      ))
-                    ) : (
-                      <p className="flex items-center space-x-2">
-                        <CheckCircle size={16} className="text-green-500 shrink-0" />
-                        <span>Generating live impact analysis...</span>
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        <div className="space-y-4">
+          {errorMessage && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-600 font-medium">{errorMessage}</p>
+            </div>
           )}
 
-          <div className="space-y-4">
-            <h2 className="text-xl font-bold text-foreground">Available Data Sources</h2>
-            {!getConnectionStatus("apple_health") || !getConnectionStatus("strava") || !getConnectionStatus("ford") ? (
-              <div className="flex justify-center space-x-8">
-                {!getConnectionStatus("apple_health") && (
-                  <div className="relative cursor-pointer group" onClick={() => setShowAppleHealthModal(true)}>
-                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
-                      <img
-                        src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
-                        alt="Apple Health"
-                        className="w-full h-full object-contain p-2"
-                      />
-                    </div>
-                  </div>
-                )}
-                {!getConnectionStatus("strava") && (
-                  <div className="relative cursor-pointer group" onClick={() => setShowStravaModal(true)}>
-                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
-                      <img
-                        src="/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"
-                        alt="Strava"
-                        className="w-full h-full object-contain p-2"
-                      />
-                    </div>
-                  </div>
-                )}
-                {!getConnectionStatus("ford") && (
-                  <div className="relative cursor-pointer group" onClick={() => setShowFordModal(true)}>
-                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
-                      <img src={fordLogo} alt="Ford" className="w-full h-full object-contain p-1" />
-                    </div>
-                    <p className="text-xs text-center mt-1 text-muted-foreground">Ford</p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">All available data sources connected</p>
-                <p className="text-xs">Manage your connections below</p>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            <h2 className="text-xl font-bold text-foreground">Connected Data Sources</h2>
-            {connections.length > 0 ? (
-              <div className="flex justify-center space-x-8">
-                {connections.map((connection) => (
-                  <div
-                    key={connection.id}
-                    className="relative cursor-pointer group"
-                    onClick={() => {
-                      if (connection.connection_type === "apple_health") setShowAppleHealthModal(true);
-                      else if (connection.connection_type === "strava") setShowStravaModal(true);
-                      else if (connection.connection_type === "ford") setShowFordModal(true);
-                    }}
-                  >
-                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border-2 border-green-500 transition-all group-hover:shadow-md group-hover:scale-105">
-                      {connection.connection_type === "ford" ? (
-                        <img src={fordLogo} alt="Ford" className="w-full h-full object-contain p-1" />
-                      ) : (
-                        <img
-                          src={
-                            connection.connection_type === "apple_health"
-                              ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
-                              : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"
-                          }
-                          alt={connection.connection_type}
-                          className="w-full h-full object-contain p-2"
+          {connectionStatus === "idle" && !existingConnection && (
+            <>
+              <p className="text-sm text-muted-foreground">Select the health metrics you wish to sync.</p>
+              <div className="max-h-60 overflow-y-auto border p-2 rounded-md bg-muted/30 mb-4">
+                {Array.from(new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.category))).map((category) => (
+                  <div key={category} className="mb-2">
+                    <h5 className="font-semibold text-xs text-muted-foreground mt-1">{category}</h5>
+                    {ALL_HEALTH_DATA_TYPES.filter((d) => d.category === category).map((type) => (
+                      <div key={type.id} className="flex items-center space-x-2 text-xs py-1">
+                        <Checkbox
+                          id={type.id}
+                          checked={selectedDataTypes.has(type.id)}
+                          onCheckedChange={(checked) => handleCheckboxChange(type.id, !!checked)}
                         />
-                      )}
-                    </div>
-                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background">
-                      <CheckCircle className="w-3 h-3 text-white" />
-                    </div>
+                        <label htmlFor={type.id} className="text-muted-foreground cursor-pointer">
+                          {type.name}
+                        </label>
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Activity className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No data sources connected yet</p>
-                <p className="text-xs">Click on an available source above to connect</p>
+              <Button onClick={handleConnect} className="w-full" disabled={isConnecting}>
+                {isConnecting ? "Connecting..." : "Connect Apple Health"}
+              </Button>
+            </>
+          )}
+
+          {existingConnection && connectionStatus === "idle" && (
+            <div className="space-y-4 text-center py-6">
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                <Zap className="w-6 h-6 text-green-600" />
               </div>
-            )}
-          </div>
-        </TabsContent>
+              <h3 className="font-medium text-green-800">Apple Health Connected</h3>
+              <p className="text-sm text-muted-foreground">Your metrics are actively syncing to your vault.</p>
+              <div className="flex space-x-3 mt-4">
+                <Button variant="outline" className="flex-1" onClick={onClose}>
+                  Close
+                </Button>
+                <Button variant="destructive" className="flex-1" onClick={handleDisconnect}>
+                  Disconnect
+                </Button>
+              </div>
+            </div>
+          )}
 
-        <TabsContent value="audit">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2 text-base">
-                <FileKey className="w-4 h-4" />
-                <span>Audit Log</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {acaLoading ? (
-                <div className="text-center py-8 text-muted-foreground text-sm">Loading audit records...</div>
-              ) : acaRecords.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <FileKey className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No audit records yet</p>
-                  <p className="text-xs">ACA hashes are generated when you connect a data source</p>
+          {connectionStatus === "connecting" && (
+            <div className="text-center py-10">
+              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-sm text-muted-foreground">Authorizing Data Payload...</p>
+            </div>
+          )}
+
+          {connectionStatus === "connected" && (
+            <div className="space-y-4 py-4">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <Zap className="w-6 h-6 text-green-600" />
                 </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Audit Action</TableHead>
-                      <TableHead>ACA Hash (Audit Key)</TableHead>
-                      <TableHead>Timestamp</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {acaRecords.map((record) => (
-                      <TableRow key={record.id}>
-                        <TableCell className="font-medium text-sm">
-                          {formatSourceName(record.consent_type || "System Verification")}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {record.aca_hash_key?.substring(0, 12)}...
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {new Date(record.created_at).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <h3 className="font-medium text-green-800 text-lg">Sync Complete!</h3>
+                {syncCount !== 0 && <p className="text-xs text-muted-foreground mt-1">{syncCount} records synced</p>}
+              </div>
+              {healthData && Object.keys(healthData).length > 0 && (
+                <div className="grid grid-cols-3 gap-3">
+                  <Card>
+                    <CardContent className="p-3 text-center">
+                      <Footprints className="w-5 h-5 text-blue-500 mx-auto mb-1" />
+                      <div className="text-lg font-bold">
+                        {healthData.steps ? healthData.steps.toLocaleString() : "--"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Steps</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-3 text-center">
+                      <Heart className="w-5 h-5 text-red-500 mx-auto mb-1" />
+                      <div className="text-lg font-bold">{healthData.heartRate || "--"}</div>
+                      <div className="text-xs text-muted-foreground">BPM</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-3 text-center">
+                      <Flame className="w-5 h-5 text-orange-500 mx-auto mb-1" />
+                      <div className="text-lg font-bold">
+                        {healthData.calories ? Math.round(healthData.calories).toLocaleString() : "--"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Cal</div>
+                    </CardContent>
+                  </Card>
+                </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              <Button
+                onClick={() => {
+                  onComplete();
+                  onClose();
+                }}
+                className="w-full"
+              >
+                Done
+              </Button>
+            </div>
+          )}
 
-      <AppleHealthModal
-        isOpen={showAppleHealthModal}
-        onClose={() => setShowAppleHealthModal(false)}
-        onComplete={handleAppleHealthComplete}
-        existingConnection={getConnectionStatus("apple_health")}
-        onDisconnect={fetchConnections}
-      />
-      <StravaConnectionModal
-        isOpen={showStravaModal}
-        onClose={() => setShowStravaModal(false)}
-        onComplete={handleStravaComplete}
-        existingConnection={getConnectionStatus("strava")}
-        onDisconnect={fetchConnections}
-      />
-      <FordConnectionModal
-        isOpen={showFordModal}
-        onClose={() => setShowFordModal(false)}
-        onComplete={handleFordComplete}
-        existingConnection={getConnectionStatus("ford")}
-        onDisconnect={fetchConnections}
-      />
-    </div>
+          {connectionStatus === "error" && (
+            <div className="text-center py-4">
+              <Button variant="outline" onClick={() => setConnectionStatus("idle")} className="w-full">
+                Retry Connection
+              </Button>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
-export default DataDashboard;
+export default AppleHealthModal;
