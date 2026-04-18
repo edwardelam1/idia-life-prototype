@@ -84,45 +84,27 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setIsConnecting(false);
         setJustFinishedSync(true);
 
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (session?.user?.id) {
-          const { error: dbError } = await supabase.from("data_connections").upsert(
-            {
-              user_id: session.user.id,
-              connection_type: "apple_health",
-              connection_name: "Apple Health",
-              is_active: true,
-              last_sync_at: new Date().toISOString(),
-            },
-            {
-              onConflict: "user_id,connection_type",
-              ignoreDuplicates: false,
-            },
-          );
-
-          if (dbError) {
-            console.error("Connection sync failed:", dbError);
-            await supabase
-              .from("data_connections")
-              .update({ is_active: true, last_sync_at: new Date().toISOString() })
-              .eq("user_id", session.user.id)
-              .eq("connection_type", "apple_health");
+        // 1. Safely parse the WebKit payload if iOS passed a string
+        let parsedPayload = serverResponse;
+        if (typeof serverResponse === "string") {
+          try {
+            parsedPayload = JSON.parse(serverResponse);
+          } catch (e) {
+            console.warn("Failed to parse native payload:", e);
           }
         }
 
+        // 2. Extract metrics safely (Zero database writes here)
         const displayData: any = {};
-        const count = serverResponse?.processed_count || 0;
+        const count = parsedPayload?.processed_count || 0;
         setSyncCount(count);
 
-        if (serverResponse?.processed_data && Array.isArray(serverResponse.processed_data)) {
+        if (parsedPayload?.processed_data && Array.isArray(parsedPayload.processed_data)) {
           let totalSteps = 0;
           let totalCalories = 0;
           let hrValues: number[] = [];
 
-          serverResponse.processed_data.forEach((item: any) => {
+          parsedPayload.processed_data.forEach((item: any) => {
             const val = item.value !== undefined ? Number(item.value) : 0;
             if (isNaN(val)) return;
 
@@ -140,6 +122,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
         setHealthData(displayData);
 
+        // 3. Trigger the dashboard refresh
         setTimeout(() => {
           if (callbacksRef.current.onComplete) {
             callbacksRef.current.onComplete();
@@ -154,13 +137,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
     const syncErrorHandler = async (errorMsg: string) => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      if (currentUserIdRef.current) {
-        await supabase
-          .from("data_connections")
-          .update({ is_active: false })
-          .eq("user_id", currentUserIdRef.current)
-          .eq("connection_type", "apple_health");
-      }
       setErrorMessage(`Sync Error: ${errorMsg}`);
       setConnectionStatus("error");
       setIsConnecting(false);
@@ -238,7 +214,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       const { hash } = await generateACAHash(profile.platform_guid, "apple_health", ["HEALTH_DATA_SYNC"]);
 
       // 2. Hand it directly to the native bridge.
-      // The Edge Function will handle the secure database insertion.
       syncHealthDataViaNativeApp(hash);
     } catch (error: any) {
       setErrorMessage(error.message);
