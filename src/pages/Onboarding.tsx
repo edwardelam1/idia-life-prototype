@@ -103,8 +103,11 @@ const Onboarding = () => {
 
       const platformGuid = user.id;
 
-      // 2b. Defensive heal — force profile row into alignment.
-      await supabase.from("profiles").update({ platform_guid: user.id }).eq("user_id", user.id);
+      // 2b. Defensive heal — pin platform_guid AND mark onboarding complete.
+      await supabase
+        .from("profiles")
+        .update({ platform_guid: user.id, onboarding_completed: true })
+        .eq("user_id", user.id);
 
       // 3. Generate ACA consent hash
       const acaHash = await generateACA(platformGuid, "KYC_CONSENT");
@@ -144,7 +147,7 @@ const Onboarding = () => {
         description: "Your data is stored on-device only. KYC submitted to FBO provider.",
       });
 
-      setTimeout(() => navigate("/"), 1500);
+      setTimeout(() => navigate("/settings?tab=idia-profile"), 1500);
     } catch (err: unknown) {
       console.error("[Onboarding] Error:", err);
       toast({
