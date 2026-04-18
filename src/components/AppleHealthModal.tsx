@@ -235,21 +235,11 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
       if (!profile?.platform_guid) throw new Error("Profile anchor missing.");
 
-      // ACA PIVOT: Generating hash for the specific data payload contribution
-      const { hash } = await generateACAHash(profile.platform_guid, "DATA_PAYLOAD_CONSENT");
+      // 1. Generate the payload hash
+      const { hash } = await generateACAHash(profile.platform_guid, "apple_health", ["HEALTH_DATA_SYNC"]);
 
-      // Audit Record: Proof of consent for this specific batch
-      const { error: acaError } = await supabase.from("user_aca_records").insert({
-        platform_guid: profile.platform_guid,
-        aca_hash_key: hash,
-        consent_type: "DATA_PAYLOAD_CONSENT",
-      });
-
-      if (acaError) {
-        console.warn("ACA Hash Audit Warning:", acaError);
-      }
-
-      // Final Handoff: The hash is now deterministic to the payload
+      // 2. Hand it directly to the native bridge.
+      // The Edge Function will handle the secure database insertion.
       syncHealthDataViaNativeApp(hash);
     } catch (error: any) {
       setErrorMessage(error.message);
