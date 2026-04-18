@@ -51,8 +51,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   const [syncCount, setSyncCount] = useState(0);
 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const completedRef = useRef(false);
   const currentUserIdRef = useRef<string | null>(null);
   const callbacksRef = useRef({ onComplete, onClose });
+
+  const clearAllTimers = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  };
 
   useEffect(() => {
     callbacksRef.current = { onComplete, onClose };
