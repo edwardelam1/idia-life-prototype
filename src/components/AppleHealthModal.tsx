@@ -50,6 +50,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [syncCount, setSyncCount] = useState(0);
+  const [connectedThisSession, setConnectedThisSession] = useState(false);
 
   // --- Lifecycle refs ---
   const bridgeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
