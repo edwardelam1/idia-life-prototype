@@ -54,6 +54,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentUserIdRef = useRef<string | null>(null);
   const callbacksRef = useRef({ onComplete, onClose });
+
   useEffect(() => {
     callbacksRef.current = { onComplete, onClose };
   }, [onComplete, onClose]);
@@ -76,7 +77,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, [currentUserId]);
 
   useEffect(() => {
-    // 1. We create the handler as a named constant first
     const syncCompleteHandler = async (serverResponse: any) => {
       try {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -85,14 +85,12 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setIsConnecting(false);
         setJustFinishedSync(true);
 
-        // 🚨 THE DEFINITIVE FIX: Use upsert with an explicit conflict target
         const {
           data: { session },
         } = await supabase.auth.getSession();
 
         if (session?.user?.id) {
-          // This tells Postgres: "If you see a row for this user and this type, just update it."
-          const { error: dbError } = await supabase.from("data_connections").upsert(
+          await supabase.from("data_connections").upsert(
             {
               user_id: session.user.id,
               connection_type: "apple_health",
@@ -100,23 +98,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               is_active: true,
               last_sync_at: new Date().toISOString(),
             },
-            {
-              onConflict: "user_id,connection_type",
-              ignoreDuplicates: false,
-            },
+            { onConflict: "user_id,connection_type" },
           );
-
-          if (dbError) {
-            console.error("Connection sync failed:", dbError);
-            // Fallback: If upsert fails, try a direct update
-            await supabase
-              .from("data_connections")
-              .update({ is_active: true, last_sync_at: new Date().toISOString() })
-              .eq("user_id", session.user.id)
-              .eq("connection_type", "apple_health");
-          }
         }
-        // ----------------------------------------------------------------------
 
         const displayData: any = {};
         const count = serverResponse?.processed_count || 0;
@@ -131,7 +115,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             const val = item.value !== undefined ? Number(item.value) : 0;
             if (isNaN(val)) return;
 
-            // Align with healthKitKeyMapping in apple-health-sync edge function
             if (item.type === "steps" || item.type === "stepCount") totalSteps += val;
             else if (item.type === "heartRate") hrValues.push(val);
             else if (item.type === "activeEnergyBurned" || item.type === "calories") totalCalories += val;
@@ -146,7 +129,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
         setHealthData(displayData);
 
-        // Auto-close timer
         setTimeout(() => {
           if (callbacksRef.current.onComplete) {
             callbacksRef.current.onComplete();
@@ -159,7 +141,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       }
     };
 
-    // 2. We create the error handler
     const syncErrorHandler = async (errorMsg: string) => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       if (currentUserIdRef.current) {
@@ -174,11 +155,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       setIsConnecting(false);
     };
 
-    // 3. Attach them to the window globally
     (window as any).onHealthDataSyncComplete = syncCompleteHandler;
     (window as any).onHealthDataSyncError = syncErrorHandler;
 
-    // 4. Bulletproof cleanup: Only clear the window if it matches THIS specific render's function
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       if ((window as any).onHealthDataSyncComplete === syncCompleteHandler) {
@@ -234,7 +213,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setConnectionStatus("connecting");
 
     try {
-      // Defensive identity heal: ensure platform_guid === user_id before DELT verification
+      // 1. IDENTITY HEAL: Alignment check before payload generation
       await supabase.from("profiles").update({ platform_guid: currentUserId }).eq("user_id", currentUserId);
 
       const { data: profile } = await supabase
@@ -245,23 +224,24 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
       if (!profile?.platform_guid) throw new Error("Profile anchor missing.");
 
-      const { hash } = await generateACAHash(profile.platform_guid, "apple_health");
+      // 2. ACA GENERATION: Hash is generated FOR the specific payload about to be sent
+      const { hash } = await generateACAHash(profile.platform_guid, "DATA_PAYLOAD_CONSENT");
 
+      // 3. AUDIT RECORD: Proof of specific payload consent
       const { error: acaError } = await supabase.from("user_aca_records").upsert(
         {
           platform_guid: profile.platform_guid,
           aca_hash_key: hash,
           source_id: "apple_health",
+          consent_type: "DATA_PAYLOAD_CONSENT",
+          created_at: new Date().toISOString(),
         },
         { onConflict: "aca_hash_key" },
       );
 
-      if (acaError) {
-        console.warn("ACA Hash Insert Warning (non-fatal):", acaError);
-        // Don't throw — the hash is unique per call, so conflicts are unlikely
-        // but we shouldn't block the sync over an audit log issue
-      }
+      if (acaError) console.warn("ACA Hash Insert Warning:", acaError);
 
+      // 4. ATTACH TO PAYLOAD: Pass receipt to the native sync loop
       syncHealthDataViaNativeApp(hash);
     } catch (error: any) {
       setErrorMessage(error.message);
@@ -359,7 +339,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           {connectionStatus === "connecting" && (
             <div className="text-center py-10">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-sm text-muted-foreground">Establishing Liability Shield...</p>
+              <p className="text-sm text-muted-foreground">Authorizing Data Payload...</p>
             </div>
           )}
 
