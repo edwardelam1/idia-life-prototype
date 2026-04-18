@@ -10,6 +10,7 @@ import Settings from "./pages/Settings";
 
 const queryClient = new QueryClient();
 
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
