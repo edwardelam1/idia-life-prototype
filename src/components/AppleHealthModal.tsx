@@ -173,9 +173,51 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     };
   }, []);
 
+  const startServerPolling = useCallback((syncStartedAt: Date) => {
+    if (!currentUserId) return;
+    let elapsed = 0;
+    const maxMs = 20000;
+    const intervalMs = 2000;
+
+    pollIntervalRef.current = setInterval(async () => {
+      elapsed += intervalMs;
+      try {
+        const { data } = await supabase
+          .from("data_connections")
+          .select("id, last_sync_at")
+          .eq("user_id", currentUserId)
+          .eq("connection_type", "apple_health")
+          .eq("is_active", true)
+          .order("last_sync_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (
+          data?.last_sync_at &&
+          new Date(data.last_sync_at).getTime() > syncStartedAt.getTime() &&
+          !completedRef.current
+        ) {
+          const handler = (window as any).__appleHealthSyncCompleteHandler;
+          if (handler) {
+            handler({ processed_count: 0, processed_data: [], _verified_via: "server_poll" });
+          }
+        }
+      } catch (e) {
+        console.warn("Poll error:", e);
+      }
+
+      if (elapsed >= maxMs && pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    }, intervalMs);
+  }, [currentUserId]);
+
   const syncHealthDataViaNativeApp = useCallback(
     (hash: string) => {
       const webkit = (window as any).webkit;
+      const syncStartedAt = new Date();
+
       if (webkit?.messageHandlers?.syncHealthData) {
         const requestedTypesByCategory: { [key: string]: string[] } = {};
         ALL_HEALTH_DATA_TYPES.forEach((type) => {
@@ -187,10 +229,12 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         });
 
         timeoutRef.current = setTimeout(() => {
+          if (completedRef.current) return;
+          clearAllTimers();
           setErrorMessage("Native bridge timeout. Check permissions.");
           setConnectionStatus("error");
           setIsConnecting(false);
-        }, 15000);
+        }, 25000);
 
         webkit.messageHandlers.syncHealthData.postMessage({
           action: "comprehensive_health_sync",
@@ -202,13 +246,16 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           },
           requestedDataTypes: requestedTypesByCategory,
         });
+
+        // Start server-side polling fallback in parallel
+        startServerPolling(syncStartedAt);
       } else {
         setErrorMessage("Please launch from the IDIA iOS App.");
         setConnectionStatus("error");
         setIsConnecting(false);
       }
     },
-    [selectedDataTypes, currentUserId, authSession],
+    [selectedDataTypes, currentUserId, authSession, startServerPolling],
   );
 
   const handleConnect = useCallback(async () => {
