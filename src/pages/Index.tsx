@@ -50,9 +50,16 @@ const Index = () => {
             window.location.href = "https://thebigidia.com/dashboard"; // Update to your exact Hub dashboard URL
           } else {
             // Enter the IDIA Life System
-            navigate("/dashboard");
+           navigate("/dashboard");
           }
         }
+      } catch (err) {
+        console.error("Index checkState error:", err);
+        navigate("/auth");
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
     checkState();
   }, [navigate]);
