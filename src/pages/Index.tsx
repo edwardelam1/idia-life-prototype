@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Shield, Lock, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { App } from "@capacitor/app";
 
 /** SHA-256 helper */
 async function generateACA(platformGuid: string, consentType: string): Promise<string> {
