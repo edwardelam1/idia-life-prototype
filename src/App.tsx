@@ -32,6 +32,7 @@ const App = () => (
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/" element={<Index />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/dashboard" element={<MainApp />} />
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
