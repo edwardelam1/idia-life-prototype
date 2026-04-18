@@ -131,21 +131,8 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)] overflow-hidden">
-      {/* 🌌 VANTABLACK BACKGROUND LAYER */}
-      <div
-        className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat scale-105"
-        style={{
-          backgroundImage:
-            "url('https://images.unsplash.com/photo-1614850523296-d8c1af93d400?q=80&w=2070&auto=format&fit=crop')",
-          filter: "brightness(0.2) contrast(1.1)",
-        }}
-      />
-
-      {/* 🌫️ SOVEREIGN OVERLAY */}
-      <div className="absolute inset-0 z-10 bg-gradient-to-b from-black/40 via-transparent to-black/90" />
-
-      <Card className="w-full max-w-md z-20 animate-fade-in bg-background/70 backdrop-blur-xl border-white/10 shadow-2xl">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
+      <Card className="w-full max-w-md animate-fade-in shadow-lg">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">
             {isResetMode ? "Reset Security" : isLogin ? "Hi!" : "Create Account"}
@@ -230,7 +217,7 @@ const Auth = () => {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 h-4 w-4 text-muted-foreground"
+                    className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground transition-colors"
                   >
                     {showPassword ? <EyeOff /> : <Eye />}
                   </button>
@@ -243,17 +230,17 @@ const Auth = () => {
 
               <div className="my-6 relative">
                 <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-white/10" />
+                  <span className="w-full border-t" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-transparent px-2 text-muted-foreground">Or</span>
+                  <span className="bg-background px-2 text-muted-foreground">Or</span>
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Button
                   variant="outline"
-                  className="w-full bg-white/5 border-white/10 hover:bg-white/10"
+                  className="w-full"
                   onClick={() => handleOAuthSignIn("apple")}
                   disabled={isLoading}
                 >
@@ -261,7 +248,7 @@ const Auth = () => {
                 </Button>
                 <Button
                   variant="outline"
-                  className="w-full bg-white/5 border-white/10 hover:bg-white/10"
+                  className="w-full"
                   onClick={() => handleOAuthSignIn("google")}
                   disabled={isLoading}
                 >
