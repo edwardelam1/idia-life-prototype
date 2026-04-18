@@ -114,8 +114,6 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
         last_sync_at: new Date().toISOString(),
       });
 
-      // Brief delay so DB commit is visible to subsequent reads, then show success state
-      await new Promise((r) => setTimeout(r, 300));
       setConnected(true);
       setTimeout(() => {
         onClose();

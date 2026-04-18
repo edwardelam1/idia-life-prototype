@@ -1,1 +1,0 @@
-ALTER TABLE public.user_aca_records ADD COLUMN IF NOT EXISTS consent_type TEXT;

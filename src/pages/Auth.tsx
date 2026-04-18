@@ -58,15 +58,12 @@ const Auth = () => {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        toast({ title: "Welcome to IDIA!", description: "You've have now entered the IDIA Protocol." });
+        toast({ title: "Welcome back!", description: "You've been signed in successfully." });
       } else {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: {
-            // Land on app root so Index.tsx runs the launch sequence and routes correctly
-            emailRedirectTo: "com.thebigidia.app://",
-          },
+          options: { emailRedirectTo: `${window.location.origin}/` },
         });
         if (error) throw error;
         toast({ title: "Account created!", description: "Please check your email to verify your account." });
@@ -253,9 +250,11 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
       <Card className="w-full max-w-md animate-fade-in">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">{isLogin ? "Hi!" : "Create Account"}</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">
+            {isLogin ? "Welcome Back" : "Create Account"}
+          </CardTitle>
           <p className="text-sm text-gray-600 text-center">
-            {isLogin ? "Sign in to your soveriegn account" : "Sign up to join the soveriegn!"}
+            {isLogin ? "Sign in to your account to continue" : "Sign up to get started with IDIA"}
           </p>
         </CardHeader>
         <CardContent>

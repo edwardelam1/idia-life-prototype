@@ -1,53 +1,35 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useEnhancedProfile } from '@/hooks/useEnhancedProfile';
-import { useSecureProfile } from '@/hooks/useSecureProfile';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import { Upload, Shield, CreditCard, Clock, Lock } from 'lucide-react';
+import { Upload, Shield, CreditCard, Clock, Bot } from 'lucide-react';
 
 const EnhancedProfileSettings: React.FC = () => {
-  const {
-    profile,
-    wallet,
-    interests,
-    availableInterests,
-    loading,
-    updating,
-    updateProfile,
-    updateInterests,
+  const { 
+    profile, 
+    wallet, 
+    interests, 
+    availableInterests, 
+    loading, 
+    updating, 
+    updateProfile, 
+    updateInterests, 
+    uploadAvatar 
   } = useEnhancedProfile();
+  
+  const [selectedInterests, setSelectedInterests] = useState<string[]>(
+    interests.map(i => i.id)
+  );
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
-  const { pii, loading: piiLoading } = useSecureProfile();
-  const { toast } = useToast();
-
-  const [selectedInterests, setSelectedInterests] = useState<string[]>(interests.map((i) => i.id));
-  const [authMeta, setAuthMeta] = useState<Record<string, any>>({});
-  const [displayName, setDisplayName] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState('');
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-
-  useEffect(() => {
-    setSelectedInterests(interests.map((i) => i.id));
-  }, [interests]);
-
-  // Pull display_name + avatar from auth.user_metadata (zero-PII rule on profiles)
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      const meta = user?.user_metadata || {};
-      setAuthMeta(meta);
-      setDisplayName(meta.display_name || meta.full_name || '');
-      setAvatarUrl(meta.avatar_url || '');
-    });
-  }, []);
-
-  if (loading || piiLoading) {
+  if (loading) {
     return (
       <div className="p-4">
         <div className="animate-pulse space-y-4">
@@ -67,67 +49,40 @@ const EnhancedProfileSettings: React.FC = () => {
     );
   }
 
-  // Enclave-first PII; fall back to auth metadata if enclave unavailable (web/non-iOS)
-  const enclaveAvailable = !!pii;
-  const firstName = pii?.first_name || authMeta.first_name || '';
-  const lastName = pii?.last_name || authMeta.last_name || '';
-  const emailValue = pii?.email || profile.email || '';
-  const phoneValue = pii?.phone || '';
-
-  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
-    setUploadingAvatar(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const ext = file.name.split('.').pop();
-      const path = `${user.id}/avatar-${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
-      if (upErr) throw upErr;
-
-      const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
-      const url = pub.publicUrl;
-
-      // Store in auth.user_metadata only — NOT in profiles
-      await supabase.auth.updateUser({ data: { avatar_url: url } });
-      setAvatarUrl(url);
-      toast({ title: 'Avatar updated', description: 'Saved to your sovereign identity.' });
-    } catch (err: any) {
-      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
-    } finally {
-      setUploadingAvatar(false);
+    if (file) {
+      setAvatarFile(file);
+      uploadAvatar(file);
     }
   };
 
-  const saveDisplayName = async () => {
-    await supabase.auth.updateUser({ data: { display_name: displayName } });
-    toast({ title: 'Display name saved' });
-  };
-
   const handleInterestToggle = (interestId: string) => {
-    setSelectedInterests((prev) =>
-      prev.includes(interestId) ? prev.filter((id) => id !== interestId) : [...prev, interestId],
+    setSelectedInterests(prev => 
+      prev.includes(interestId)
+        ? prev.filter(id => id !== interestId)
+        : [...prev, interestId]
     );
   };
 
-  const saveInterests = () => updateInterests(selectedInterests);
+  const saveInterests = () => {
+    updateInterests(selectedInterests);
+  };
 
   const getKycStatusBadge = (status: string) => {
-    const variants: Record<string, 'default' | 'secondary' | 'destructive'> = {
-      pending: 'secondary',
-      verified: 'default',
-      rejected: 'destructive',
+    const variants: Record<string, "default" | "secondary" | "destructive"> = {
+      pending: "secondary",
+      verified: "default",
+      rejected: "destructive"
     };
-    return <Badge variant={variants[status] || 'secondary'}>{status}</Badge>;
+    return <Badge variant={variants[status] || "secondary"}>{status}</Badge>;
   };
 
   const getAccountTypeBadge = (type: string) => {
     const labels: Record<string, string> = {
-      personal: 'Personal',
-      business: 'Business',
-      'non-profit': 'Non-Profit',
+      personal: "Personal",
+      business: "Business",
+      'non-profit': "Non-Profit"
     };
     return <Badge variant="outline">{labels[type] || type}</Badge>;
   };
@@ -135,25 +90,24 @@ const EnhancedProfileSettings: React.FC = () => {
   return (
     <div className="p-4 space-y-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Sovereign Profile</h1>
+        <h1 className="text-2xl font-bold">Enhanced Profile</h1>
         {getAccountTypeBadge(profile.account_type)}
       </div>
 
-      {/* Avatar + Display Name + AI Assistant */}
+      {/* Avatar & Basic Info */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Upload className="w-5 h-5" />
-            Identity
+            Profile Information
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
             <Avatar className="w-20 h-20">
-              <AvatarImage src={avatarUrl} />
+              <AvatarImage src={profile.avatar_url || ''} />
               <AvatarFallback>
-                {firstName?.[0]}
-                {lastName?.[0]}
+                {profile.first_name?.[0]}{profile.last_name?.[0]}
               </AvatarFallback>
             </Avatar>
             <div>
@@ -163,11 +117,11 @@ const EnhancedProfileSettings: React.FC = () => {
                 onChange={handleAvatarUpload}
                 className="hidden"
                 id="avatar-upload"
-                disabled={uploadingAvatar}
+                disabled={updating}
               />
               <Label htmlFor="avatar-upload" className="cursor-pointer">
-                <Button variant="outline" asChild disabled={uploadingAvatar}>
-                  <span>{uploadingAvatar ? 'Uploading...' : 'Change Avatar'}</span>
+                <Button variant="outline" asChild>
+                  <span>Change Avatar</span>
                 </Button>
               </Label>
             </div>
@@ -176,15 +130,12 @@ const EnhancedProfileSettings: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="display_name">Display Name</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="display_name"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  onBlur={saveDisplayName}
-                  placeholder="How others see you"
-                />
-              </div>
+              <Input
+                id="display_name"
+                value={profile.display_name || ''}
+                onChange={(e) => updateProfile({ display_name: e.target.value })}
+                placeholder="How others see you"
+              />
             </div>
             <div>
               <Label htmlFor="ai_assistant_name">AI Assistant Name</Label>
@@ -197,45 +148,54 @@ const EnhancedProfileSettings: React.FC = () => {
             </div>
           </div>
 
-          {/* PII from Secure Enclave — never stored in DB */}
-          <div className="p-4 bg-muted rounded-lg space-y-3">
-            <div className="flex items-center gap-2">
-              <Lock className="w-4 h-4 text-primary" />
-              <Badge variant="secondary" className="text-xs">
-                {enclaveAvailable ? 'Stored on-device only' : 'Re-run onboarding to secure'}
-              </Badge>
+          {/* Read-only KYC fields */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+            <div>
+              <Label>Legal Name (Read-only)</Label>
+              <p className="text-sm font-medium">
+                {profile.first_name} {profile.last_name}
+              </p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label>Email (Read-only)</Label>
+              <p className="text-sm font-medium">{profile.email}</p>
+            </div>
+            {profile.date_of_birth && (
               <div>
-                <Label className="text-xs text-muted-foreground">Legal Name</Label>
+                <Label>Date of Birth (Read-only)</Label>
                 <p className="text-sm font-medium">
-                  {firstName} {lastName}
+                  {new Date(profile.date_of_birth).toLocaleDateString()}
                 </p>
               </div>
+            )}
+            {profile.ssn_last4 && (
               <div>
-                <Label className="text-xs text-muted-foreground">Email</Label>
-                <p className="text-sm font-medium break-all">{emailValue}</p>
+                <Label>SSN Last 4 (Read-only)</Label>
+                <p className="text-sm font-medium">***-**-{profile.ssn_last4}</p>
               </div>
-              {phoneValue && (
-                <div>
-                  <Label className="text-xs text-muted-foreground">Phone</Label>
-                  <p className="text-sm font-medium">{phoneValue}</p>
-                </div>
-              )}
-              {profile.date_of_birth && (
-                <div>
-                  <Label className="text-xs text-muted-foreground">Date of Birth</Label>
-                  <p className="text-sm font-medium">
-                    {new Date(profile.date_of_birth).toLocaleDateString()}
-                  </p>
-                </div>
-              )}
-            </div>
+            )}
+            {profile.phone_number && (
+              <div>
+                <Label>Phone Number (Read-only)</Label>
+                <p className="text-sm font-medium">{profile.phone_number}</p>
+              </div>
+            )}
+            {profile.full_legal_address && (
+              <div className="md:col-span-2">
+                <Label>Mailing Address (Read-only)</Label>
+                <p className="text-sm font-medium">
+                  {(profile.full_legal_address as any)?.street1}
+                  {(profile.full_legal_address as any)?.street2 && `, ${(profile.full_legal_address as any).street2}`}
+                  <br />
+                  {(profile.full_legal_address as any)?.city}, {(profile.full_legal_address as any)?.state} {(profile.full_legal_address as any)?.zip}
+                </p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* KYC + Trust */}
+      {/* KYC Status & Trust Score */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
@@ -274,14 +234,16 @@ const EnhancedProfileSettings: React.FC = () => {
               </div>
               <div className="flex justify-between items-center">
                 <span>Credit Line:</span>
-                <span className="font-medium">${profile.available_credit_line || 0}</span>
+                <span className="font-medium">
+                  ${profile.available_credit_line || 0}
+                </span>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Wallet */}
+      {/* Wallet Information */}
       {wallet && (
         <Card>
           <CardHeader>
@@ -312,7 +274,7 @@ const EnhancedProfileSettings: React.FC = () => {
         </Card>
       )}
 
-      {/* Interests */}
+      {/* Interests Selection */}
       <Card>
         <CardHeader>
           <CardTitle>Your Interests</CardTitle>
@@ -322,7 +284,7 @@ const EnhancedProfileSettings: React.FC = () => {
             {availableInterests.map((interest) => (
               <Button
                 key={interest.id}
-                variant={selectedInterests.includes(interest.id) ? 'default' : 'outline'}
+                variant={selectedInterests.includes(interest.id) ? "default" : "outline"}
                 size="sm"
                 onClick={() => handleInterestToggle(interest.id)}
                 className="text-xs"
@@ -337,7 +299,7 @@ const EnhancedProfileSettings: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Quiet Time */}
+      {/* Quiet Time Settings */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -354,7 +316,7 @@ const EnhancedProfileSettings: React.FC = () => {
             />
             <Label htmlFor="quiet-time">Enable Quiet Time</Label>
           </div>
-
+          
           {profile.quiet_time_enabled && (
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -381,21 +343,23 @@ const EnhancedProfileSettings: React.FC = () => {
       </Card>
 
       {/* Account Management */}
-      {profile.account_type === 'personal' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Account Management</CardTitle>
-          </CardHeader>
-          <CardContent>
+      <Card>
+        <CardHeader>
+          <CardTitle>Account Management</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {profile.account_type === 'personal' && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 Want to upgrade your account for business features?
               </p>
-              <Button variant="outline">Upgrade to Business Account</Button>
+              <Button variant="outline">
+                Upgrade to Business Account
+              </Button>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

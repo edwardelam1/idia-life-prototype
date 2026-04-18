@@ -1,28 +1,28 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
-import { supabase } from "@/integrations/supabase/client";
-import { sendToFBOProvider } from "@/utils/fboProvider";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Shield, Lock, CheckCircle2, AlertTriangle } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { SecureStoragePlugin } from 'capacitor-secure-storage-plugin';
+import { supabase } from '@/integrations/supabase/client';
+import { sendToFBOProvider } from '@/utils/fboProvider';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Shield, Lock, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 /** SHA-256 helper */
 async function generateACA(platformGuid: string, consentType: string): Promise<string> {
   const timestamp = Date.now().toString();
   const data = new TextEncoder().encode(platformGuid + consentType + timestamp);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 /** Format phone as xxx-xxx-xxxx while typing */
 function formatPhone(value: string): string {
-  const digits = value.replace(/\D/g, "").slice(0, 10);
+  const digits = value.replace(/\D/g, '').slice(0, 10);
   if (digits.length <= 3) return digits;
   if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
   return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
@@ -34,45 +34,18 @@ const Onboarding = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [step, setStep] = useState<"form" | "success">("form");
-
-  useEffect(() => {
-    // 🔗 No-Nonsense Deep Link Listener: Handles return from email verification via Custom URL Scheme
-    const handleUrlCapture = async () => {
-      const url = new URL(window.location.href);
-      const hash = url.hash;
-      const searchParams = url.searchParams;
-
-      // Capture session if user returns from com.thebigidia.app://onboarding
-      if (hash.includes("access_token") || searchParams.has("access_token") || hash.includes("type=signup")) {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (session) {
-          // Send returning users back through Index.tsx so it routes them by actual onboarding state
-          navigate("/");
-        }
-      }
-    };
-
-    // Listen for focus to catch the return from the mobile email client
-    window.addEventListener("focus", handleUrlCapture);
-
-    // Check immediately on mount
-    handleUrlCapture();
-
-    return () => {
-      window.removeEventListener("focus", handleUrlCapture);
-    };
-  }, [navigate, toast]);
+  const [step, setStep] = useState<'form' | 'success'>('form');
 
   const isValid =
-    firstName.trim().length >= 2 && lastName.trim().length >= 2 && email.includes("@") && PHONE_REGEX.test(phone);
+    firstName.trim().length >= 2 &&
+    lastName.trim().length >= 2 &&
+    email.includes('@') &&
+    PHONE_REGEX.test(phone);
 
   const handleSubmit = async () => {
     if (!isValid) return;
@@ -88,78 +61,78 @@ const Onboarding = () => {
       };
 
       await SecureStoragePlugin.set({
-        key: "user_pii_profile",
+        key: 'user_pii_profile',
         value: JSON.stringify(piiPayload),
       });
 
-      // 2. Source of truth: Auth User ID === Platform GUID
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      // 2. Source of truth: Auth User ID === Platform GUID === Pseudonym source
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
 
-      const platformGuid = user.id;
+      const platformGuid = user.id; // Strict: no fallback, no drift
 
-      // 2b. Defensive heal — pin platform_guid AND mark onboarding complete.
+      // 2b. Defensive heal — force any drifted profile row back into alignment.
+      // (DB trigger also enforces this, but we belt-and-suspenders for legacy rows.)
       await supabase
-        .from("profiles")
-        .update({ platform_guid: user.id, onboarding_completed: true })
-        .eq("user_id", user.id);
+        .from('profiles')
+        .update({ platform_guid: user.id })
+        .eq('user_id', user.id);
 
       // 3. Generate ACA consent hash
-      const acaHash = await generateACA(platformGuid, "KYC_CONSENT");
+      const acaHash = await generateACA(platformGuid, 'KYC_CONSENT');
 
       // 4. Save ACA hash to Supabase (proof of consent, NO PII)
-      await supabase.from("user_aca_records").insert({
+      await supabase.from('user_aca_records').insert({
         platform_guid: platformGuid,
         aca_hash_key: acaHash,
-        consent_type: "KYC_CONSENT",
+        consent_type: 'KYC_CONSENT',
       });
 
-      // PII stays exclusively in the Secure Enclave — never synced to auth.user_metadata.
+      // 5. Push PII to auth.users.user_metadata for Hub bridge (NOT a public DB write)
+      const displayName = `${firstName.trim()} ${lastName.trim()}`;
+      await supabase.auth.updateUser({
+        data: {
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          full_name: displayName,
+          display_name: displayName,
+          pii_synced_at: new Date().toISOString(),
+        },
+      });
 
-      // 6. Direct FBO KYC pass-through
+      // 6. Direct FBO KYC pass-through (stub)
       const fboResult = await sendToFBOProvider(
         { name: `${firstName.trim()} ${lastName.trim()}`, email: email.trim(), phone },
-        acaHash,
+        acaHash
       );
 
       if (!fboResult.success) {
         throw new Error(fboResult.message);
       }
 
-      setStep("success");
+      setStep('success');
       toast({
-        title: "Identity Secured",
-        description: "Your data is stored on-device only. KYC submitted to FBO provider.",
+        title: 'Identity Secured',
+        description: 'Your data is stored on-device only. KYC submitted to FBO provider.',
       });
 
-      setTimeout(() => {
-        const isHubReturn = sessionStorage.getItem("return_to_hub");
-        
-        if (isHubReturn === "true") {
-          // Clean up the session and bounce them back to the SaaS platform
-          sessionStorage.removeItem("return_to_hub");
-          window.location.href = "https://thebigidia.com/dashboard"; // Update to your exact Hub dashboard URL
-        } else {
-          // Standard IDIA Life flow
-          navigate("/settings?tab=idia-profile");
-        }
-      }, 1500);
-    } catch (err: any) {
+      // Navigate to main app after short delay
+      setTimeout(() => navigate('/'), 1500);
+    } catch (err: unknown) {
+      console.error('[Onboarding] Error:', err);
       toast({
-        title: "Onboarding Failed",
-        description: err?.message ?? "Unable to secure identity. Please try again.",
-        variant: "destructive",
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Something went wrong.',
+        variant: 'destructive',
       });
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (step === "success") {
+  if (step === 'success') {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
         <Card className="w-full max-w-md text-center">
           <CardContent className="pt-8 pb-8 space-y-4">
             <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto" />
@@ -174,7 +147,7 @@ const Onboarding = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-2">
           <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -187,6 +160,7 @@ const Onboarding = () => {
         </CardHeader>
 
         <CardContent className="space-y-5">
+          {/* Privacy badge */}
           <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-3">
             <Lock className="w-4 h-4 text-muted-foreground shrink-0" />
             <span className="text-xs text-muted-foreground">
@@ -194,16 +168,37 @@ const Onboarding = () => {
             </span>
           </div>
 
+          {/* First Name */}
           <div className="space-y-2">
             <Label htmlFor="firstName">First Name *</Label>
-            <Input id="firstName" placeholder="Jane" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+            <Input
+              id="firstName"
+              placeholder="Jane"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              maxLength={50}
+            />
+            {firstName.length > 0 && firstName.trim().length < 2 && (
+              <p className="text-xs text-destructive">First name must be at least 2 characters</p>
+            )}
           </div>
 
+          {/* Last Name */}
           <div className="space-y-2">
             <Label htmlFor="lastName">Last Name *</Label>
-            <Input id="lastName" placeholder="Doe" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+            <Input
+              id="lastName"
+              placeholder="Doe"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              maxLength={50}
+            />
+            {lastName.length > 0 && lastName.trim().length < 2 && (
+              <p className="text-xs text-destructive">Last name must be at least 2 characters</p>
+            )}
           </div>
 
+          {/* Email */}
           <div className="space-y-2">
             <Label htmlFor="email">Email *</Label>
             <Input
@@ -212,9 +207,11 @@ const Onboarding = () => {
               placeholder="jane@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              maxLength={255}
             />
           </div>
 
+          {/* Phone — strict xxx-xxx-xxxx */}
           <div className="space-y-2">
             <Label htmlFor="phone">Phone (xxx-xxx-xxxx) *</Label>
             <Input
@@ -223,19 +220,30 @@ const Onboarding = () => {
               placeholder="555-123-4567"
               value={phone}
               onChange={(e) => setPhone(formatPhone(e.target.value))}
+              maxLength={12}
             />
+            {phone.length > 0 && !PHONE_REGEX.test(phone) && (
+              <p className="text-xs text-destructive">Format must be xxx-xxx-xxxx</p>
+            )}
           </div>
 
+          {/* Legal Disclaimer */}
           <div className="flex items-start gap-2 bg-destructive/5 border border-destructive/20 rounded-lg p-3">
             <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
             <span className="text-xs text-muted-foreground">
-              <strong className="text-foreground">Legal Notice:</strong> You must provide accurate information.
-              Fraudulent entries may result in account termination.
+              <strong className="text-foreground">Legal Notice:</strong> You must provide truthful and accurate information. 
+              If any information is found to be fraudulent, IDIA reserves the right to take all actions 
+              permitted by law, up to and including permanent account termination and referral to 
+              appropriate authorities.
             </span>
           </div>
 
-          <Button className="w-full" onClick={handleSubmit} disabled={!isValid || submitting}>
-            {submitting ? "Securing Identity..." : "Secure & Continue"}
+          <Button
+            className="w-full"
+            onClick={handleSubmit}
+            disabled={!isValid || submitting}
+          >
+            {submitting ? 'Securing Identity...' : 'Secure & Continue'}
           </Button>
         </CardContent>
       </Card>
