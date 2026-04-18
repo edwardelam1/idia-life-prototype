@@ -407,10 +407,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           {connectionStatus === "connecting" && (
             <div className="text-center py-10 space-y-4">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-sm text-muted-foreground">
-                Establishing Liability Shield... This can take up to a minute on first connect while iOS requests
-                HealthKit permissions and runs the initial sync.
-              </p>
               <Button variant="outline" className="w-full" onClick={closeAndReset}>
                 Cancel
               </Button>
