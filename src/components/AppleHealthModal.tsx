@@ -131,6 +131,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             const val = item.value !== undefined ? Number(item.value) : 0;
             if (isNaN(val)) return;
 
+            // Align with healthKitKeyMapping in apple-health-sync edge function
             if (item.type === "steps" || item.type === "stepCount") totalSteps += val;
             else if (item.type === "heartRate") hrValues.push(val);
             else if (item.type === "activeEnergyBurned" || item.type === "calories") totalCalories += val;
@@ -233,6 +234,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setConnectionStatus("connecting");
 
     try {
+      // Defensive identity heal: ensure platform_guid === user_id before DELT verification
+      await supabase.from("profiles").update({ platform_guid: currentUserId }).eq("user_id", currentUserId);
+
       const { data: profile } = await supabase
         .from("profiles")
         .select("platform_guid")
