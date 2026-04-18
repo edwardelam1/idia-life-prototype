@@ -1308,6 +1308,27 @@ export type Database = {
         }
         Relationships: []
       }
+      data_lineage_index: {
+        Row: {
+          aca_hash_key: string
+          created_at: string | null
+          data_category: string | null
+          source_table: string
+        }
+        Insert: {
+          aca_hash_key: string
+          created_at?: string | null
+          data_category?: string | null
+          source_table: string
+        }
+        Update: {
+          aca_hash_key?: string
+          created_at?: string | null
+          data_category?: string | null
+          source_table?: string
+        }
+        Relationships: []
+      }
       data_monetization: {
         Row: {
           business_id: string
@@ -1665,6 +1686,7 @@ export type Database = {
           manifest_hashes: string[] | null
           pseudo_user_id: string | null
           query_complexity: number | null
+          settlement_status: string | null
           staged_data_ids: string[] | null
           status: string | null
           synapse_ledger_entry_id: string | null
@@ -1689,6 +1711,7 @@ export type Database = {
           manifest_hashes?: string[] | null
           pseudo_user_id?: string | null
           query_complexity?: number | null
+          settlement_status?: string | null
           staged_data_ids?: string[] | null
           status?: string | null
           synapse_ledger_entry_id?: string | null
@@ -1713,6 +1736,7 @@ export type Database = {
           manifest_hashes?: string[] | null
           pseudo_user_id?: string | null
           query_complexity?: number | null
+          settlement_status?: string | null
           staged_data_ids?: string[] | null
           status?: string | null
           synapse_ledger_entry_id?: string | null
@@ -5219,8 +5243,10 @@ export type Database = {
           fiat_balance: number | null
           flare_tx_hash: string | null
           id: string
+          is_settled: boolean | null
           metadata: Json | null
           reference_id: string | null
+          settled_at: string | null
           status: Database["public"]["Enums"]["idia_transaction_status"] | null
           transaction_id: string | null
           transaction_type:
@@ -5242,8 +5268,10 @@ export type Database = {
           fiat_balance?: number | null
           flare_tx_hash?: string | null
           id?: string
+          is_settled?: boolean | null
           metadata?: Json | null
           reference_id?: string | null
+          settled_at?: string | null
           status?: Database["public"]["Enums"]["idia_transaction_status"] | null
           transaction_id?: string | null
           transaction_type?:
@@ -5265,8 +5293,10 @@ export type Database = {
           fiat_balance?: number | null
           flare_tx_hash?: string | null
           id?: string
+          is_settled?: boolean | null
           metadata?: Json | null
           reference_id?: string | null
+          settled_at?: string | null
           status?: Database["public"]["Enums"]["idia_transaction_status"] | null
           transaction_id?: string | null
           transaction_type?:
@@ -6190,6 +6220,13 @@ export type Database = {
         }
         Relationships: []
       }
+      library_actuals: {
+        Row: {
+          data_category: string | null
+          total_records: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       anonymize_location: {
@@ -6232,18 +6269,6 @@ export type Database = {
           total_raw_records: number
         }[]
       }
-      check_pipeline_health: {
-        Args: never
-        Returns: {
-          processed_raw_data: number
-          processing_raw_data: number
-          total_raw_data: number
-          total_staged_data: number
-          total_transactions: number
-          unprocessed_raw_data: number
-          unrewarded_staged_data: number
-        }[]
-      }
       check_raw_health_data_duplicate: {
         Args: { p_recorded_at: string; p_step_count: number; p_user_id: string }
         Returns: boolean
@@ -6284,6 +6309,13 @@ export type Database = {
         }[]
       }
       get_hub_balance: { Args: { uid: string }; Returns: number }
+      get_real_library_yield: {
+        Args: never
+        Returns: {
+          category: string
+          count: number
+        }[]
+      }
       get_synapse_balance: { Args: { uid: string }; Returns: number }
       get_user_business_access: {
         Args: { p_user_id: string }
