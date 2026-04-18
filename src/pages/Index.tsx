@@ -32,11 +32,13 @@ const Index = () => {
 
         if (error) throw error;
 
-        // Inside the checkState function in Index.tsx:
         if (!profile?.onboarding_completed) {
+          // 3. User is real but has no Enclave data yet.
+          // Trigger the PII capture.
           navigate("/onboarding");
         } else {
-          // Navigate to the path defined in App.tsx
+          // 4. Identity Verified & Sovereignty Established.
+          // Enter the IDIA System.
           navigate("/dashboard");
         }
       } catch (err: any) {
