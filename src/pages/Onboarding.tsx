@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SecureStoragePlugin } from 'capacitor-secure-storage-plugin';
 import { supabase } from '@/integrations/supabase/client';
