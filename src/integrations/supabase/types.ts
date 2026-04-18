@@ -5593,6 +5593,7 @@ export type Database = {
         Row: {
           aca_hash_key: string
           consent_scope: string[]
+          consent_type: string | null
           created_at: string | null
           id: string
           platform_guid: string
@@ -5601,6 +5602,7 @@ export type Database = {
         Insert: {
           aca_hash_key: string
           consent_scope?: string[]
+          consent_type?: string | null
           created_at?: string | null
           id?: string
           platform_guid: string
@@ -5609,6 +5611,7 @@ export type Database = {
         Update: {
           aca_hash_key?: string
           consent_scope?: string[]
+          consent_type?: string | null
           created_at?: string | null
           id?: string
           platform_guid?: string
