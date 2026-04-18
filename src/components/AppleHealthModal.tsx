@@ -91,7 +91,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   useEffect(() => {
     const syncCompleteHandler = async (serverResponse: any) => {
       try {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        if (completedRef.current) return;
+        completedRef.current = true;
+        clearAllTimers();
 
         setConnectionStatus("connected");
         setIsConnecting(false);
@@ -149,7 +151,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     };
 
     const syncErrorHandler = async (errorMsg: string) => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (completedRef.current) return;
+      clearAllTimers();
       setErrorMessage(`Sync Error: ${errorMsg}`);
       setConnectionStatus("error");
       setIsConnecting(false);
@@ -157,9 +160,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
     (window as any).onHealthDataSyncComplete = syncCompleteHandler;
     (window as any).onHealthDataSyncError = syncErrorHandler;
+    (window as any).__appleHealthSyncCompleteHandler = syncCompleteHandler;
 
     return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      clearAllTimers();
       if ((window as any).onHealthDataSyncComplete === syncCompleteHandler) {
         (window as any).onHealthDataSyncComplete = undefined;
       }
