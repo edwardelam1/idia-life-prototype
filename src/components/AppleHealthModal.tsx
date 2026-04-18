@@ -243,7 +243,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         platform_guid: profile.platform_guid,
         aca_hash_key: hash,
         consent_type: "DATA_PAYLOAD_CONSENT",
-        source_id: "apple_health",
       });
 
       if (acaError) {
