@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SecureStoragePlugin } from 'capacitor-secure-storage-plugin';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Shield, Lock, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { App } from '@capacitor/app';
 
 /** SHA-256 helper */
 async function generateACA(platformGuid: string, consentType: string): Promise<string> {
@@ -41,6 +42,35 @@ const Onboarding = () => {
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState<'form' | 'success'>('form');
 
+  useEffect(() => {
+    // 🔗 Deep Link Listener: Handle return from email verification
+    const setupDeepLinkListener = async () => {
+      App.addListener('appUrlOpen', async (event: any) => {
+        const url = new URL(event.url);
+        // Supabase sends auth data in the fragment (#) or as query params
+        const hash = url.hash;
+
+        if (hash && (hash.includes("access_token") || hash.includes("type=signup"))) {
+          const { data: { session }, error } = await supabase.auth.getSession();
+          if (session) {
+            toast({
+              title: "Email Verified",
+              description: "Welcome back. Please complete your sovereign profile.",
+            });
+            // Ensure we stay on/go to onboarding to complete the PII capture
+            navigate("/onboarding");
+          }
+        }
+      });
+    };
+
+    setupDeepLinkListener();
+    
+    return () => {
+      App.removeAllListeners();
+    };
+  }, [navigate, toast]);
+
   const isValid =
     firstName.trim().length >= 2 &&
     lastName.trim().length >= 2 &&
@@ -72,11 +102,10 @@ const Onboarding = () => {
       const platformGuid = user.id; // Strict: no fallback, no drift
 
       // 2b. Defensive heal — force any drifted profile row back into alignment.
-      // (DB trigger also enforces this, but we belt-and-suspenders for legacy rows.)
       await supabase
         .from('profiles')
         .update({ platform_guid: user.id })
-        .eq('user_id', user.id);
+        .eq('user_id", user.id);
 
       // 3. Generate ACA consent hash
       const acaHash = await generateACA(platformGuid, 'KYC_CONSENT');
@@ -160,7 +189,6 @@ const Onboarding = () => {
         </CardHeader>
 
         <CardContent className="space-y-5">
-          {/* Privacy badge */}
           <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-3">
             <Lock className="w-4 h-4 text-muted-foreground shrink-0" />
             <span className="text-xs text-muted-foreground">
@@ -168,7 +196,6 @@ const Onboarding = () => {
             </span>
           </div>
 
-          {/* First Name */}
           <div className="space-y-2">
             <Label htmlFor="firstName">First Name *</Label>
             <Input
@@ -183,7 +210,6 @@ const Onboarding = () => {
             )}
           </div>
 
-          {/* Last Name */}
           <div className="space-y-2">
             <Label htmlFor="lastName">Last Name *</Label>
             <Input
@@ -198,7 +224,6 @@ const Onboarding = () => {
             )}
           </div>
 
-          {/* Email */}
           <div className="space-y-2">
             <Label htmlFor="email">Email *</Label>
             <Input
@@ -211,7 +236,6 @@ const Onboarding = () => {
             />
           </div>
 
-          {/* Phone — strict xxx-xxx-xxxx */}
           <div className="space-y-2">
             <Label htmlFor="phone">Phone (xxx-xxx-xxxx) *</Label>
             <Input
@@ -227,7 +251,6 @@ const Onboarding = () => {
             )}
           </div>
 
-          {/* Legal Disclaimer */}
           <div className="flex items-start gap-2 bg-destructive/5 border border-destructive/20 rounded-lg p-3">
             <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
             <span className="text-xs text-muted-foreground">
