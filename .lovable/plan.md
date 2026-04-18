@@ -1,78 +1,64 @@
 
+Fix the Apple Health modal by treating it as a single, cancellable sync session instead of a component with long-lived global callbacks.
 
-# Fix: 404 Routing + ACA Architecture (DB-Propagated)
+What’s actually racing now:
+- The modal is parent-controlled (`isOpen`), but `AppleHealthModal` keeps native callbacks and timers alive for the full component lifetime.
+- A late native callback or auto-close timer can still run after the user closes/cancels, which re-mutates modal state and makes it feel stuck or inconsistent.
+- `Dialog onOpenChange={onClose}` is too loose for a controlled dialog. It should explicitly handle only the close transition.
+- The Apple Health bridge payload is still nested under `config`, but project memory says the iOS wrapper expects flat root keys. That can prevent the native completion callback from arriving reliably, leaving the modal hanging in “connecting”.
 
-## Problems Identified
+Implementation plan
 
-### 1. **404 on `/dashboard`** (current route in viewport)
-`App.tsx` only defines `/`, `/auth`, `/onboarding`, `/settings`. Any deep link like `/dashboard` hits the `*` catch-all `NotFound`. The "main app" lives at `/` (rendered by `Index.tsx` → `MainApp`), so `/dashboard` was never wired.
+1. Harden `src/components/AppleHealthModal.tsx`
+- Add a dedicated `closeAndReset()` function that:
+  - clears all timeout refs
+  - invalidates the active sync session
+  - resets `connectionStatus`, `isConnecting`, `errorMessage`, `healthData`, `syncCount`, and success flags
+  - then calls parent `onClose`
+- Add a `syncSessionIdRef` (or request token) so only the current sync is allowed to update state.
+- Make every async path check that the callback still belongs to the active session before setting state.
+- Store the auto-close timer in a ref and clear it on close/unmount.
+- Reset modal state whenever `isOpen` becomes `false`, so stale success/error state never survives into the next open.
 
-### 2. **Onboarding flow ordering is correct in code, but fragile**
-- OAuth (`Auth.tsx`) → redirects to `/`
-- `Index.tsx` checks session, then checks SecureStorage for `user_pii_profile` → if missing, redirects to `/onboarding`
-- This is correct, BUT `/onboarding` is publicly reachable without an auth check, so a deep-linked user with no session sees a broken page.
+2. Fix the controlled dialog wiring
+- Replace `onOpenChange={onClose}` with an explicit handler:
+  - if `open === false`, run `closeAndReset()`
+- Route the top-right X, Cancel button, overlay close, and Escape key through the same `closeAndReset()` path so every exit path behaves identically.
 
-### 3. **ACA Architecture — DB does NOT propagate, UI is doing all the work**
-Audited DB state for `user_aca_records`:
-- **RLS is DISABLED** (`relrowsecurity = false`) — table is wide open
-- Only ONE policy exists, a SELECT policy, and it has a hardcoded user UUID `217c6224-...` as a backdoor — **this is a critical security leak**
-- **No INSERT policy** exists (irrelevant since RLS is off, but required once we enable it)
-- **No triggers** on the table — no propagation, no lineage registration, no liability shield logging
-- Frontend (`Onboarding.tsx`, `DataSourceModal.tsx`, `AppleHealthModal.tsx`) generates the hash AND inserts the row, with no DB-side enrichment
+3. Fix the native bridge contract
+- Change the `webkit.messageHandlers.syncHealthData.postMessage(...)` payload to the flat structure required by the iOS bridge:
+  - `action`
+  - `endpoint`
+  - `user_id`
+  - `auth_token`
+  - `aca_hash`
+  - `requestedDataTypes`
+  - `sync_session_id`
+- Return/use the same `sync_session_id` in the JS callback handling and ignore stale completions/errors from older sessions.
 
-The new architecture: **UI generates the ACA hash** (proof-of-consent at the source), **DB propagates** by:
-1. Auto-stamping `source_id`/`consent_scope` defaults if omitted
-2. Firing the existing `register_aca_in_library()` trigger to insert into `data_lineage_index`
-3. Enforcing `platform_guid = auth.uid()` via RLS
+4. Clean up callback registration timing
+- Only register `window.onHealthDataSyncComplete` / `window.onHealthDataSyncError` while the modal is open or a sync is active.
+- Remove them immediately on close/reset, not just on component unmount.
 
-## Fix Plan
+5. Align ACA insert with the new DB-owned propagation
+- In `AppleHealthModal`, stop sending `source_id` in `user_aca_records` unless the Apple flow truly requires it.
+- Let the DB trigger stamp/propagate it, keeping the UI responsible only for generating the ACA hash.
 
-### A. Routing (`src/App.tsx`)
-Add a `/dashboard` route that renders `Index` (same gate logic as `/`). This makes the app resilient to deep links and matches user expectation.
+Files to update
+- `src/components/AppleHealthModal.tsx` — main race-condition fix
+- `src/components/DataDashboard.tsx` — only if a small parent close-handler cleanup is needed
 
-```tsx
-<Route path="/" element={<Index />} />
-<Route path="/dashboard" element={<Index />} />
-```
+Expected result
+- The modal closes reliably from X, overlay, Escape, Cancel, and Done.
+- No stale native callback can reopen or mutate a closed modal session.
+- Apple sync completion is reliable because the bridge payload matches the iOS contract.
+- ACA flow remains production-safe: UI generates the hash, DB propagates it.
 
-### B. Auth → Onboarding ordering (`src/pages/Index.tsx`)
-Already correct: OAuth lands at `/`, `Index` gates on session → PII → MainApp. No change needed beyond confirming `Auth.tsx` redirect is `/` (it is).
-
-Add an auth guard to `/onboarding` so an unauthenticated direct hit redirects to `/auth` instead of erroring on `supabase.auth.getUser()`.
-
-### C. ACA Architecture — DB Migration (production-grade)
-Single migration that:
-
-1. **Drop the leaky SELECT policy** with the hardcoded UUID backdoor
-2. **Enable RLS** on `user_aca_records`
-3. **Create proper RLS policies**:
-   - SELECT: `auth.uid() = platform_guid`
-   - INSERT: `WITH CHECK (auth.uid() = platform_guid)` — user can only log consent for themselves
-4. **Attach `register_aca_in_library()` trigger** to `user_aca_records` AFTER INSERT — propagates the ACA hash into `data_lineage_index` (the propagation the user described)
-5. **Add a BEFORE INSERT trigger** that defaults `source_id` to `consent_type` if NULL/`'unknown'` and stamps `created_at`
-
-### D. Frontend cleanup (`src/pages/Onboarding.tsx`)
-- Capture and surface the ACA insert error (currently silently ignored with no `error` destructure)
-- Pass `source_id: 'sovereign_onboarding'` so lineage is meaningful
-
-## Files Modified
-
-| File | Change |
-|------|--------|
-| `src/App.tsx` | Add `/dashboard` route → `Index` |
-| `src/pages/Onboarding.tsx` | Capture ACA error, pass `source_id` |
-| `src/pages/Index.tsx` *(optional)* | No change — gate logic is correct |
-| New migration | Drop leaky policy, enable RLS, add SELECT/INSERT policies, attach lineage propagation trigger |
-
-## Out of Scope
-- PII storage rules (already correct: device-only + `user_metadata`)
-- Identity unification (already enforced by prior `enforce_platform_guid_equals_user_id` trigger)
-- Edge functions (no changes needed; lineage propagation is now DB-side)
-
-## Why This Is Production MVP Grade
-- Removes a hardcoded user-ID backdoor in RLS (security-critical)
-- Enables RLS on a previously unprotected table
-- Moves propagation responsibility to the DB (single source of truth, can't be bypassed by a buggy client)
-- Deep-link resilient routing
-- Zero PII enters the public schema (constraint preserved)
-
+Technical notes
+- This is not just a visual close bug; it’s a lifecycle bug caused by mixing:
+  1. controlled dialog state,
+  2. global window callbacks,
+  3. multiple timers,
+  4. async native completion,
+  5. no request/session invalidation.
+- The safest production fix is session-token gating + single-path close/reset + flat native bridge payload.
