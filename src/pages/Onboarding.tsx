@@ -134,18 +134,18 @@ const Onboarding = () => {
         description: "Your data is stored on-device only. KYC submitted to FBO provider.",
       });
 
-      setTimeout(() => navigate("/settings?tab=idia-profile"), 1500);
-    } catch (err: unknown) {
-      console.error("[Onboarding] Error:", err);
-      toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : "Something went wrong.",
-        variant: "destructive",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
+      setTimeout(() => {
+        const isHubReturn = sessionStorage.getItem("return_to_hub");
+        
+        if (isHubReturn === "true") {
+          // Clean up the session and bounce them back to the SaaS platform
+          sessionStorage.removeItem("return_to_hub");
+          window.location.href = "https://thebigidia.com/dashboard"; // Update to your exact Hub dashboard URL
+        } else {
+          // Standard IDIA Life flow
+          navigate("/settings?tab=idia-profile");
+        }
+      }, 1500);
 
   if (step === "success") {
     return (
