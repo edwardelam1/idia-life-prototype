@@ -40,6 +40,22 @@ const Onboarding = () => {
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState<'form' | 'success'>('form');
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Auth guard: deep-link visitors without a session get sent to /auth
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (!session?.user) {
+        navigate('/auth', { replace: true });
+        return;
+      }
+      setAuthChecked(true);
+    })();
+    return () => { cancelled = true; };
+  }, [navigate]);
 
   const isValid =
     firstName.trim().length >= 2 &&
