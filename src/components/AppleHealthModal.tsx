@@ -48,24 +48,11 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.id)),
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [syncCount, setSyncCount] = useState<number | string>(0);
+  const [syncCount, setSyncCount] = useState(0);
 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const completedRef = useRef(false);
   const currentUserIdRef = useRef<string | null>(null);
   const callbacksRef = useRef({ onComplete, onClose });
-
-  const clearAllTimers = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
-  };
 
   useEffect(() => {
     callbacksRef.current = { onComplete, onClose };
@@ -91,35 +78,51 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   useEffect(() => {
     const syncCompleteHandler = async (serverResponse: any) => {
       try {
-        if (completedRef.current) return;
-        completedRef.current = true;
-        clearAllTimers();
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
         setConnectionStatus("connected");
         setIsConnecting(false);
         setJustFinishedSync(true);
 
-        // 1. Safely parse the WebKit payload if iOS passed a string
-        let parsedPayload = serverResponse;
-        if (typeof serverResponse === "string") {
-          try {
-            parsedPayload = JSON.parse(serverResponse);
-          } catch (e) {
-            console.warn("Failed to parse native payload:", e);
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session?.user?.id) {
+          const { error: dbError } = await supabase.from("data_connections").upsert(
+            {
+              user_id: session.user.id,
+              connection_type: "apple_health",
+              connection_name: "Apple Health",
+              is_active: true,
+              last_sync_at: new Date().toISOString(),
+            },
+            {
+              onConflict: "user_id,connection_type",
+              ignoreDuplicates: false,
+            },
+          );
+
+          if (dbError) {
+            console.error("Connection sync failed:", dbError);
+            await supabase
+              .from("data_connections")
+              .update({ is_active: true, last_sync_at: new Date().toISOString() })
+              .eq("user_id", session.user.id)
+              .eq("connection_type", "apple_health");
           }
         }
 
-        // 2. Extract metrics safely (Zero database writes here)
         const displayData: any = {};
-        const count = parsedPayload?.processed_count || 0;
+        const count = serverResponse?.processed_count || 0;
         setSyncCount(count);
 
-        if (parsedPayload?.processed_data && Array.isArray(parsedPayload.processed_data)) {
+        if (serverResponse?.processed_data && Array.isArray(serverResponse.processed_data)) {
           let totalSteps = 0;
           let totalCalories = 0;
           let hrValues: number[] = [];
 
-          parsedPayload.processed_data.forEach((item: any) => {
+          serverResponse.processed_data.forEach((item: any) => {
             const val = item.value !== undefined ? Number(item.value) : 0;
             if (isNaN(val)) return;
 
@@ -137,7 +140,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
         setHealthData(displayData);
 
-        // 3. Trigger the dashboard refresh
         setTimeout(() => {
           if (callbacksRef.current.onComplete) {
             callbacksRef.current.onComplete();
@@ -151,8 +153,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     };
 
     const syncErrorHandler = async (errorMsg: string) => {
-      if (completedRef.current) return;
-      clearAllTimers();
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (currentUserIdRef.current) {
+        await supabase
+          .from("data_connections")
+          .update({ is_active: false })
+          .eq("user_id", currentUserIdRef.current)
+          .eq("connection_type", "apple_health");
+      }
       setErrorMessage(`Sync Error: ${errorMsg}`);
       setConnectionStatus("error");
       setIsConnecting(false);
@@ -160,10 +168,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
     (window as any).onHealthDataSyncComplete = syncCompleteHandler;
     (window as any).onHealthDataSyncError = syncErrorHandler;
-    (window as any).__appleHealthSyncCompleteHandler = syncCompleteHandler;
 
     return () => {
-      clearAllTimers();
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
       if ((window as any).onHealthDataSyncComplete === syncCompleteHandler) {
         (window as any).onHealthDataSyncComplete = undefined;
       }
@@ -173,48 +180,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     };
   }, []);
 
-  const startServerPolling = useCallback(
-    (targetHash: string) => {
-      if (!currentUserId) return;
-      let elapsed = 0;
-      const maxMs = 20000;
-      const intervalMs = 2000;
-
-      // We poll the ACA record. If the hash exists, the Edge Function successfully started processing.
-      // This perfectly bypasses the time-drift issue and race conditions.
-      pollIntervalRef.current = setInterval(async () => {
-        elapsed += intervalMs;
-        try {
-          const { data } = await supabase
-            .from("user_aca_records")
-            .select("id")
-            .eq("aca_hash_key", targetHash)
-            .maybeSingle();
-
-          if (data?.id && !completedRef.current) {
-            console.log("Fallback Polling Success: Edge Function verified via ACA Hash.");
-            const handler = (window as any).__appleHealthSyncCompleteHandler;
-            if (handler) {
-              handler({ processed_count: "Verified Server-Side", processed_data: [], _verified_via: "server_poll" });
-            }
-          }
-        } catch (e) {
-          console.warn("Poll error:", e);
-        }
-
-        if (elapsed >= maxMs && pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-        }
-      }, intervalMs);
-    },
-    [currentUserId],
-  );
-
   const syncHealthDataViaNativeApp = useCallback(
     (hash: string) => {
       const webkit = (window as any).webkit;
-
       if (webkit?.messageHandlers?.syncHealthData) {
         const requestedTypesByCategory: { [key: string]: string[] } = {};
         ALL_HEALTH_DATA_TYPES.forEach((type) => {
@@ -226,12 +194,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         });
 
         timeoutRef.current = setTimeout(() => {
-          if (completedRef.current) return;
-          clearAllTimers();
           setErrorMessage("Native bridge timeout. Check permissions.");
           setConnectionStatus("error");
           setIsConnecting(false);
-        }, 25000);
+        }, 15000);
 
         webkit.messageHandlers.syncHealthData.postMessage({
           action: "comprehensive_health_sync",
@@ -243,23 +209,19 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           },
           requestedDataTypes: requestedTypesByCategory,
         });
-
-        // Start server-side polling fallback targeting the explicit cryptographic hash
-        startServerPolling(hash);
       } else {
         setErrorMessage("Please launch from the IDIA iOS App.");
         setConnectionStatus("error");
         setIsConnecting(false);
       }
     },
-    [selectedDataTypes, currentUserId, authSession, startServerPolling],
+    [selectedDataTypes, currentUserId, authSession],
   );
 
   const handleConnect = useCallback(async () => {
     setErrorMessage(null);
     setIsConnecting(true);
     setConnectionStatus("connecting");
-    completedRef.current = false;
 
     try {
       await supabase.from("profiles").update({ platform_guid: currentUserId }).eq("user_id", currentUserId);
@@ -276,6 +238,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       const { hash } = await generateACAHash(profile.platform_guid, "apple_health", ["HEALTH_DATA_SYNC"]);
 
       // 2. Hand it directly to the native bridge.
+      // The Edge Function will handle the secure database insertion.
       syncHealthDataViaNativeApp(hash);
     } catch (error: any) {
       setErrorMessage(error.message);
@@ -384,9 +347,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                   <Zap className="w-6 h-6 text-green-600" />
                 </div>
                 <h3 className="font-medium text-green-800 text-lg">Sync Complete!</h3>
-                {syncCount !== 0 && <p className="text-xs text-muted-foreground mt-1">{syncCount} records synced</p>}
+                {syncCount > 0 && <p className="text-xs text-muted-foreground mt-1">{syncCount} records synced</p>}
               </div>
-              {healthData && Object.keys(healthData).length > 0 && (
+              {healthData && (
                 <div className="grid grid-cols-3 gap-3">
                   <Card>
                     <CardContent className="p-3 text-center">
