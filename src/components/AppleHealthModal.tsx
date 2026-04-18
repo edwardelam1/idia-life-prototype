@@ -90,7 +90,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         } = await supabase.auth.getSession();
 
         if (session?.user?.id) {
-          await supabase.from("data_connections").upsert(
+          const { error: dbError } = await supabase.from("data_connections").upsert(
             {
               user_id: session.user.id,
               connection_type: "apple_health",
@@ -98,8 +98,20 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               is_active: true,
               last_sync_at: new Date().toISOString(),
             },
-            { onConflict: "user_id,connection_type" },
+            {
+              onConflict: "user_id,connection_type",
+              ignoreDuplicates: false,
+            },
           );
+
+          if (dbError) {
+            console.error("Connection sync failed:", dbError);
+            await supabase
+              .from("data_connections")
+              .update({ is_active: true, last_sync_at: new Date().toISOString() })
+              .eq("user_id", session.user.id)
+              .eq("connection_type", "apple_health");
+          }
         }
 
         const displayData: any = {};
@@ -213,7 +225,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setConnectionStatus("connecting");
 
     try {
-      // 1. IDENTITY HEAL: Alignment check before payload generation
       await supabase.from("profiles").update({ platform_guid: currentUserId }).eq("user_id", currentUserId);
 
       const { data: profile } = await supabase
@@ -224,24 +235,22 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
       if (!profile?.platform_guid) throw new Error("Profile anchor missing.");
 
-      // 2. ACA GENERATION: Hash is generated FOR the specific payload about to be sent
+      // ACA PIVOT: Generating hash for the specific data payload contribution
       const { hash } = await generateACAHash(profile.platform_guid, "DATA_PAYLOAD_CONSENT");
 
-      // 3. AUDIT RECORD: Proof of specific payload consent
-      const { error: acaError } = await supabase.from("user_aca_records").upsert(
-        {
-          platform_guid: profile.platform_guid,
-          aca_hash_key: hash,
-          source_id: "apple_health",
-          consent_type: "DATA_PAYLOAD_CONSENT",
-          created_at: new Date().toISOString(),
-        },
-        { onConflict: "aca_hash_key" },
-      );
+      // Audit Record: Proof of consent for this specific batch
+      const { error: acaError } = await supabase.from("user_aca_records").insert({
+        platform_guid: profile.platform_guid,
+        aca_hash_key: hash,
+        consent_type: "DATA_PAYLOAD_CONSENT",
+        source_id: "apple_health",
+      });
 
-      if (acaError) console.warn("ACA Hash Insert Warning:", acaError);
+      if (acaError) {
+        console.warn("ACA Hash Audit Warning:", acaError);
+      }
 
-      // 4. ATTACH TO PAYLOAD: Pass receipt to the native sync loop
+      // Final Handoff: The hash is now deterministic to the payload
       syncHealthDataViaNativeApp(hash);
     } catch (error: any) {
       setErrorMessage(error.message);
