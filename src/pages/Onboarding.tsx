@@ -82,12 +82,12 @@ const Onboarding = () => {
       const acaHash = await generateACA(platformGuid, 'KYC_CONSENT');
 
       // 4. Save ACA hash to Supabase (proof of consent, NO PII)
-      // DB triggers auto-stamp source_id and propagate to data_lineage_index.
+      // DB BEFORE INSERT trigger auto-stamps source_id from consent_type.
+      // DB AFTER INSERT trigger propagates to data_lineage_index.
       const { error: acaError } = await supabase.from('user_aca_records').insert({
         platform_guid: platformGuid,
         aca_hash_key: acaHash,
         consent_type: 'KYC_CONSENT',
-        source_id: 'sovereign_onboarding',
       });
       if (acaError) throw new Error(`ACA consent record failed: ${acaError.message}`);
 
