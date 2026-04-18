@@ -169,28 +169,38 @@ const DataDashboard = () => {
   const handleAppleHealthComplete = async () => {
     setShowAppleHealthModal(false);
     try {
+      // Allow data_connections upsert to commit before re-reading
+      await new Promise((r) => setTimeout(r, 250));
       await fetchConnections();
       await fetchAcaRecords();
       triggerFriendForDataEvent();
-    } catch {}
+    } catch (error) {
+      console.error("Apple Health post-sync refresh failed:", error);
+    }
   };
 
   const handleStravaComplete = async () => {
     setShowStravaModal(false);
     try {
+      await new Promise((r) => setTimeout(r, 250));
       await fetchConnections();
       await fetchAcaRecords();
       triggerFriendForDataEvent();
-    } catch {}
+    } catch (error) {
+      console.error("Strava post-sync refresh failed:", error);
+    }
   };
 
   const handleFordComplete = async () => {
     setShowFordModal(false);
     try {
+      await new Promise((r) => setTimeout(r, 250));
       await fetchConnections();
       await fetchAcaRecords();
       triggerFriendForDataEvent();
-    } catch {}
+    } catch (error) {
+      console.error("Ford post-sync refresh failed:", error);
+    }
   };
 
   const getConnectionStatus = (connectionType: string) => {
