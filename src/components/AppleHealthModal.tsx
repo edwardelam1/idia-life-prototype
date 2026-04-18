@@ -112,6 +112,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setErrorMessage(null);
     setHealthData(null);
     setSyncCount(0);
+    setConnectedThisSession(false);
     onCloseRef.current?.();
   }, [clearAllTimers, detachNativeCallbacks]);
 
@@ -126,6 +127,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       setErrorMessage(null);
       setHealthData(null);
       setSyncCount(0);
+      setConnectedThisSession(false);
     }
   }, [isOpen, clearAllTimers, detachNativeCallbacks]);
 
