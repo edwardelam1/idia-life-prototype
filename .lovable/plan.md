@@ -1,50 +1,69 @@
 
-Goal: make Apple Health complete the real native flow and then land in the connected state reliably, with the modal closing only when the user actually closes it.
+Goal: make Apple Health feel instant again by getting to the designed connected state in under ~3 seconds, while the real first sync continues in the background.
 
-What I found
-- The modal still has a hard 15s JS timeout. That can fire before first-run HealthKit permission + query + upload finishes, so the modal flips to error while native is still working.
-- The success path is not aligned with the designed UX. It shows a transient “Sync Complete” state and then auto-closes after 2.5s instead of settling into the persistent “Apple Health Connected” area.
-- The backend `apple-health-sync` function already upserts `data_connections` as active, but the modal is still relying on its own local success state plus a later parent refresh. That leaves a gap where the modal does not transition into the connected view deterministically.
+Do I know what the issue is? Yes.
 
-Implementation plan
+What is actually slow
+- The delay is not mainly “file transport.” The biggest bottlenecks in this repo are:
+  1. `AppleHealthModal.tsx` does serial work before native handoff: auth/profile lookup, ACA hash generation, ACA DB upsert.
+  2. The modal stays in `connecting` until `onHealthDataSyncComplete`, which appears to mean “native query + upload + server processing finished,” not just “connection established.”
+  3. `supabase/functions/apple-health-sync/index.ts` inserts records one-by-one inside nested loops, which is expensive on first sync.
+- Result: the UI is waiting on the entire ingest pipeline instead of the connection handshake.
 
-1. Rework the Apple Health modal success state
-- Remove the transient auto-close behavior after success.
-- Replace the current “connected” success screen flow with a persistent connected-state flow.
-- Add local session state such as “connectedThisSession” so the modal can render the connected area immediately after the native callback succeeds, without waiting on a reopen.
+What I will change
+1. Make “Connect” land in the connected area fast
+- Rework `src/components/AppleHealthModal.tsx` so the blocking spinner is only for the bridge launch, not the whole sync.
+- Remove the waiting paragraph entirely.
+- As soon as the native bridge is successfully dispatched, move the modal into the designed connected view instead of keeping it in the spinner state.
+- Keep the modal closable the whole time.
 
-2. Fix the actual timeout bug
-- Replace the blind 15s timeout with a production-safe timeout strategy for native HealthKit onboarding.
-- Keep stale-callback protection, but do not declare failure before the native bridge has had a realistic chance to finish first-run authorization and upload.
-- Preserve explicit native error handling as the primary failure path.
+2. Separate connection establishment from initial backfill
+- Treat “bridge accepted + Apple Health connection row created” as the point where the UI becomes connected.
+- Keep the full HealthKit fetch/upload running in the background.
+- Use the later native completion callback only to update stats like synced count / steps / BPM, not to decide whether the modal is allowed to leave the spinner.
+- If an explicit native error arrives before connection is established, show error normally. If it arrives after connected state, show a non-blocking sync issue state without breaking the connected UI.
 
-3. Make the modal use the real source of truth
-- Treat the backend `data_connections` update from `apple-health-sync` as authoritative.
-- Refresh connection state immediately on successful native completion and use that refreshed state to drive the UI.
-- Do not depend on a delayed parent rerender to decide whether the modal is “connected”.
+3. Remove unnecessary front-end blocking before native handoff
+- In `src/components/AppleHealthModal.tsx`, minimize pre-bridge latency by tightening the order of:
+  - session/profile read
+  - ACA creation
+  - `user_aca_records` write
+  - native `postMessage`
+- The connection UI should not wait on extra client-side refresh cycles.
 
-4. Keep one close path for every exit
-- Keep a single `closeAndReset()` path for X, overlay, Escape, Cancel, Close, and Done.
-- Ensure no timer or stale native callback can mutate the modal after the user closes it.
+4. Speed up the server path for real first sync
+- Refactor `supabase/functions/apple-health-sync/index.ts` to batch raw record inserts instead of inserting each sample individually in nested loops.
+- Preserve DELT verification, real-data-only enforcement, and existing downstream triggers.
+- This keeps the real sync materially faster without fake data or shortcutting the pipeline.
 
-5. Keep ACA handling unchanged except where required for stability
-- Leave the DB-owned ACA propagation intact.
-- Keep the UI limited to generating/inserting the ACA hash before handing off to native sync.
+5. Keep the existing close/race-condition fix intact
+- Preserve the single `closeAndReset()` path and session-gated callbacks.
+- Ensure background completion cannot re-block or re-open the modal.
 
 Files to update
-- `src/components/AppleHealthModal.tsx` — main fix
-- `src/components/DataDashboard.tsx` — pass/refetch connection state so the modal can land in the connected area immediately after a real success
+- `src/components/AppleHealthModal.tsx`
+- `src/components/DataDashboard.tsx` (only if parent refresh timing needs a small adjustment)
+- `supabase/functions/apple-health-sync/index.ts`
+
+Technical details
+```text
+Tap Connect
+  -> fast ACA + bridge dispatch
+  -> modal immediately shows "Apple Health Connected"
+  -> background native fetch/upload continues
+  -> edge function bulk-inserts records
+  -> callback enriches connected view with real synced data
+```
 
 Expected result
-- User taps Connect.
-- Native HealthKit permission/sync completes without premature timeout.
-- Modal transitions into the designed “Apple Health Connected” area.
-- User can close it normally with X/Close/overlay/Escape.
-- Reopening the modal shows the connection as connected, not stuck or half-finished.
+- No long “waiting” message in the modal.
+- User reaches the connected area in ~2–3 seconds instead of waiting for full first-sync completion.
+- Real Apple Health data still fully syncs through the existing pipeline.
+- Modal closes normally and reopens in connected state.
 
 Validation
-- Test on the iOS wrapper, not browser preview.
-- Verify first-run connect takes longer than 15s without false error.
-- Verify success lands in connected area.
-- Verify X/overlay/Escape/Close all dismiss correctly.
-- Verify reopening shows connected state and disconnect still works.
+- First connect on iOS reaches connected UI in under ~3 seconds.
+- No regression in ACA / DELT verification.
+- First full sync still writes real records into `raw_health_data`.
+- Connected view remains stable while background sync finishes.
+- Close/X/overlay/Escape still work correctly.
