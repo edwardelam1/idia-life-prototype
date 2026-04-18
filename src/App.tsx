@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import Onboarding from "./pages/Onboarding";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import MainApp from "@/components/MainApp";
 
 const queryClient = new QueryClient();
 
