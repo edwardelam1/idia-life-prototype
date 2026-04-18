@@ -240,13 +240,15 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setIsConnecting(false);
       };
 
-      // Bridge timeout
+      // Bridge timeout — first-run HealthKit auth + sequential queries for ~19 data
+      // types + edge function upload routinely takes 30–60s. 90s prevents false errors
+      // while still surfacing a true bridge stall.
       bridgeTimeoutRef.current = setTimeout(() => {
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
         setErrorMessage("Native bridge timeout. Check permissions.");
         setConnectionStatus("error");
         setIsConnecting(false);
-      }, 15000);
+      }, 90000);
 
       const requestedTypesByCategory: { [key: string]: string[] } = {};
       ALL_HEALTH_DATA_TYPES.forEach((type) => {
