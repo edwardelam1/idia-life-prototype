@@ -207,13 +207,15 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             }
           }
           setHealthData(displayData);
+          setConnectedThisSession(true);
 
-          // Auto-close — gated by session id
-          autoCloseTimeoutRef.current = setTimeout(() => {
-            if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+          // Notify parent so it refetches connections/ACA records,
+          // but DO NOT auto-close — the user dismisses the modal manually.
+          try {
             onCompleteRef.current?.();
-            closeAndReset();
-          }, 2500);
+          } catch (notifyErr) {
+            console.warn("onComplete notify failed (non-fatal):", notifyErr);
+          }
         } catch (err: any) {
           if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
           setErrorMessage(`Success Callback Error: ${err.message}`);
