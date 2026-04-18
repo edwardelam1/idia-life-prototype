@@ -50,6 +50,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [syncCount, setSyncCount] = useState(0);
+  const [connectedThisSession, setConnectedThisSession] = useState(false);
 
   // --- Lifecycle refs ---
   const bridgeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -111,6 +112,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setErrorMessage(null);
     setHealthData(null);
     setSyncCount(0);
+    setConnectedThisSession(false);
     onCloseRef.current?.();
   }, [clearAllTimers, detachNativeCallbacks]);
 
@@ -125,6 +127,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       setErrorMessage(null);
       setHealthData(null);
       setSyncCount(0);
+      setConnectedThisSession(false);
     }
   }, [isOpen, clearAllTimers, detachNativeCallbacks]);
 
@@ -204,13 +207,15 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             }
           }
           setHealthData(displayData);
+          setConnectedThisSession(true);
 
-          // Auto-close — gated by session id
-          autoCloseTimeoutRef.current = setTimeout(() => {
-            if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+          // Notify parent so it refetches connections/ACA records,
+          // but DO NOT auto-close — the user dismisses the modal manually.
+          try {
             onCompleteRef.current?.();
-            closeAndReset();
-          }, 2500);
+          } catch (notifyErr) {
+            console.warn("onComplete notify failed (non-fatal):", notifyErr);
+          }
         } catch (err: any) {
           if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
           setErrorMessage(`Success Callback Error: ${err.message}`);
@@ -235,13 +240,15 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setIsConnecting(false);
       };
 
-      // Bridge timeout
+      // Bridge timeout — first-run HealthKit auth + sequential queries for ~19 data
+      // types + edge function upload routinely takes 30–60s. 90s prevents false errors
+      // while still surfacing a true bridge stall.
       bridgeTimeoutRef.current = setTimeout(() => {
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
         setErrorMessage("Native bridge timeout. Check permissions.");
         setConnectionStatus("error");
         setIsConnecting(false);
-      }, 15000);
+      }, 90000);
 
       const requestedTypesByCategory: { [key: string]: string[] } = {};
       ALL_HEALTH_DATA_TYPES.forEach((type) => {
@@ -357,7 +364,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             </div>
           )}
 
-          {connectionStatus === "idle" && !existingConnection && (
+          {connectionStatus === "idle" && !existingConnection && !connectedThisSession && (
             <>
               <p className="text-sm text-muted-foreground">Select the health metrics you wish to sync.</p>
               <div className="max-h-60 overflow-y-auto border p-2 rounded-md bg-muted/30 mb-4">
@@ -390,7 +397,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             </>
           )}
 
-          {existingConnection && connectionStatus === "idle" && (
+          {existingConnection && connectionStatus === "idle" && !connectedThisSession && (
             <div className="space-y-4 text-center py-6">
               <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
                 <Zap className="w-6 h-6 text-green-600" />
@@ -411,7 +418,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           {connectionStatus === "connecting" && (
             <div className="text-center py-10 space-y-4">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-sm text-muted-foreground">Establishing Liability Shield...</p>
+              <p className="text-sm text-muted-foreground">
+                Establishing Liability Shield... This can take up to a minute on first connect while iOS requests
+                HealthKit permissions and runs the initial sync.
+              </p>
               <Button variant="outline" className="w-full" onClick={closeAndReset}>
                 Cancel
               </Button>
@@ -424,8 +434,11 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
                   <Zap className="w-6 h-6 text-green-600" />
                 </div>
-                <h3 className="font-medium text-green-800 text-lg">Sync Complete!</h3>
-                {syncCount > 0 && <p className="text-xs text-muted-foreground mt-1">{syncCount} records synced</p>}
+                <h3 className="font-medium text-green-800 text-lg">Apple Health Connected</h3>
+                <p className="text-sm text-muted-foreground mt-1">Your metrics are actively syncing to your vault.</p>
+                {syncCount > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">{syncCount} records synced this session</p>
+                )}
               </div>
               {healthData && (
                 <div className="grid grid-cols-3 gap-3">
@@ -456,15 +469,16 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                   </Card>
                 </div>
               )}
-              <Button
-                onClick={() => {
-                  onCompleteRef.current?.();
-                  closeAndReset();
-                }}
-                className="w-full"
-              >
-                Done
-              </Button>
+              <div className="flex space-x-3">
+                <Button variant="outline" className="flex-1" onClick={closeAndReset}>
+                  Close
+                </Button>
+                {(existingConnection || connectedThisSession) && (
+                  <Button variant="destructive" className="flex-1" onClick={handleDisconnect}>
+                    Disconnect
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 

@@ -167,7 +167,8 @@ const DataDashboard = () => {
   };
 
   const handleAppleHealthComplete = async () => {
-    setShowAppleHealthModal(false);
+    // Do NOT close the modal here — the modal owns its own connected-state UI
+    // and will be dismissed by the user via X / Close / overlay / Escape.
     try {
       await fetchConnections();
       await fetchAcaRecords();
