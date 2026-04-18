@@ -64,8 +64,8 @@ const Auth = () => {
           email,
           password,
           options: {
-            // This MUST match the scheme in your capacitor.config.ts
-            emailRedirectTo: "com.thebigidia.app://onboarding",
+            // Land on app root so Index.tsx runs the launch sequence and routes correctly
+            emailRedirectTo: "com.thebigidia.app://",
           },
         });
         if (error) throw error;
