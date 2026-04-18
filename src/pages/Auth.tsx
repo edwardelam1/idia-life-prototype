@@ -253,11 +253,9 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
       <Card className="w-full max-w-md animate-fade-in">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">
-            {isLogin ? "Welcome Back" : "Create Account"}
-          </CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">{isLogin ? "Hi!" : "Create Account"}</CardTitle>
           <p className="text-sm text-gray-600 text-center">
-            {isLogin ? "Sign in to your account to continue" : "Sign up to get started with IDIA"}
+            {isLogin ? "Sign in to your soveriegn account" : "Sign up to join the soveriegn!"}
           </p>
         </CardHeader>
         <CardContent>
