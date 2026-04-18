@@ -58,12 +58,15 @@ const Auth = () => {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        toast({ title: "Welcome back!", description: "You've been signed in successfully." });
+        toast({ title: "Welcome to IDIA!", description: "You've have now entered the IDIA Protocol." });
       } else {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: `${window.location.origin}/` },
+          options: {
+            // This MUST match the scheme in your capacitor.config.ts
+            emailRedirectTo: "com.thebigidia.app://onboarding",
+          },
         });
         if (error) throw error;
         toast({ title: "Account created!", description: "Please check your email to verify your account." });
