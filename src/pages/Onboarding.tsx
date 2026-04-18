@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SecureStoragePlugin } from 'capacitor-secure-storage-plugin';
 import { supabase } from '@/integrations/supabase/client';
@@ -40,6 +40,22 @@ const Onboarding = () => {
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState<'form' | 'success'>('form');
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Auth guard: deep-link visitors without a session get sent to /auth
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (!session?.user) {
+        navigate('/auth', { replace: true });
+        return;
+      }
+      setAuthChecked(true);
+    })();
+    return () => { cancelled = true; };
+  }, [navigate]);
 
   const isValid =
     firstName.trim().length >= 2 &&
@@ -132,6 +148,14 @@ const Onboarding = () => {
       setSubmitting(false);
     }
   };
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-foreground border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (step === 'success') {
     return (

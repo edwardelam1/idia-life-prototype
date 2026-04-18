@@ -353,9 +353,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           )}
 
           {connectionStatus === "connecting" && (
-            <div className="text-center py-10">
-              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <div className="text-center py-10 space-y-4">
+              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
               <p className="text-sm text-muted-foreground">Establishing Liability Shield...</p>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                  setIsConnecting(false);
+                  setConnectionStatus("idle");
+                  onClose();
+                }}
+              >
+                Cancel
+              </Button>
             </div>
           )}
 
