@@ -399,7 +399,7 @@ const DataDashboard = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Source</TableHead>
+                      <TableHead>Audit Action</TableHead>
                       <TableHead>ACA Hash (Audit Key)</TableHead>
                       <TableHead>Timestamp</TableHead>
                     </TableRow>
@@ -408,7 +408,7 @@ const DataDashboard = () => {
                     {acaRecords.map((record) => (
                       <TableRow key={record.id}>
                         <TableCell className="font-medium text-sm">
-                          {formatSourceName(record.source_id || "unknown")}
+                          {formatSourceName(record.consent_type || "System Verification")}
                         </TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground">
                           {record.aca_hash_key?.substring(0, 12)}...

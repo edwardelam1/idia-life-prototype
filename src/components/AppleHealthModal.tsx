@@ -5,7 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Activity, Heart, Footprints, Zap, Flame } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
-import React from "react";
 import { generateACAHash } from "@/utils/acaGenerator";
 
 interface AppleHealthModalProps {
