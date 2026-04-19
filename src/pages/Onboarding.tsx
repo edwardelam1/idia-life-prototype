@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Shield, Lock, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+/** SHA-256 helper */
 async function generateACA(platformGuid: string, consentType: string): Promise<string> {
   const timestamp = Date.now().toString();
   const data = new TextEncoder().encode(platformGuid + consentType + timestamp);
@@ -19,6 +20,7 @@ async function generateACA(platformGuid: string, consentType: string): Promise<s
     .join("");
 }
 
+/** Format phone as xxx-xxx-xxxx while typing */
 function formatPhone(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 10);
   if (digits.length <= 3) return digits;
@@ -40,6 +42,7 @@ const Onboarding = () => {
   const [step, setStep] = useState<"form" | "success">("form");
   const [authChecked, setAuthChecked] = useState(false);
 
+  // Auth guard: deep-link visitors without a session get sent to /auth
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -66,6 +69,7 @@ const Onboarding = () => {
     setSubmitting(true);
 
     try {
+      // 1. Store PII in device Secure Enclave — NEVER sent to Supabase
       const piiPayload = {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
@@ -78,6 +82,7 @@ const Onboarding = () => {
         value: JSON.stringify(piiPayload),
       });
 
+      // 2. Source of truth: Auth User ID === Platform GUID === Pseudonym source
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -85,10 +90,13 @@ const Onboarding = () => {
 
       const platformGuid = user.id;
 
+      // 2b. Defensive heal — force profile into alignment with platform_guid
       await supabase.from("profiles").update({ platform_guid: user.id }).eq("user_id", user.id);
 
+      // 3. Generate ACA consent hash
       const acaHash = await generateACA(platformGuid, "KYC_CONSENT");
 
+      // 4. Save ACA hash to Supabase (proof of consent, NO PII)
       const { error: acaError } = await supabase.from("user_aca_records").insert({
         platform_guid: platformGuid,
         aca_hash_key: acaHash,
@@ -96,6 +104,7 @@ const Onboarding = () => {
       });
       if (acaError) throw new Error(`ACA consent record failed: ${acaError.message}`);
 
+      // 5. Push PII to auth.users.user_metadata for Hub bridge
       const displayName = `${firstName.trim()} ${lastName.trim()}`;
       await supabase.auth.updateUser({
         data: {
@@ -107,6 +116,7 @@ const Onboarding = () => {
         },
       });
 
+      // 6. Direct FBO KYC pass-through (stub)
       const fboResult = await sendToFBOProvider(
         { name: `${firstName.trim()} ${lastName.trim()}`, email: email.trim(), phone },
         acaHash,
@@ -119,10 +129,10 @@ const Onboarding = () => {
       setStep("success");
       toast({
         title: "Identity Secured",
-        description: "Your data is stored on-device only. Identity verified.",
+        description: "Your data is stored on-device only. KYC submitted.",
       });
 
-      // --- THE FIX: RETURN TO HUB VIA URL SCHEME ---
+      // --- THE FIX: RETURN TO HUB IF REDIRECTED ---
       setTimeout(() => {
         const returnToHub = sessionStorage.getItem("return_to_hub") === "true";
         if (returnToHub) {
@@ -182,6 +192,7 @@ const Onboarding = () => {
         </CardHeader>
 
         <CardContent className="space-y-5">
+          {/* Privacy badge */}
           <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-3">
             <Lock className="w-4 h-4 text-muted-foreground shrink-0" />
             <span className="text-xs text-muted-foreground">
