@@ -93,7 +93,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           filter: `user_id=eq.${currentUserId}`,
         },
         (payload) => {
-          if (payload.new && payload.new.connection_type === "apple_health" && payload.new.is_active === true) {
+          const newRow = payload.new as { connection_type?: string; is_active?: boolean } | null;
+          if (newRow && newRow.connection_type === "apple_health" && newRow.is_active === true) {
             console.log("🔥 Realtime Engine confirmed sync! Forcing UI closure.");
             triggerSuccessClosure();
           }
