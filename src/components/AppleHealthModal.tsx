@@ -249,6 +249,41 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     ],
   );
 
+  const handleCheckboxChange = (id: string, checked: boolean) => {
+    setSelectedDataTypes((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const handleConnect = useCallback(async () => {
+    if (!currentUserId || !authSession) {
+      setErrorMessage("Please sign in first.");
+      setConnectionStatus("error");
+      return;
+    }
+    setErrorMessage(null);
+    setIsConnecting(true);
+    setConnectionStatus("connecting");
+    try {
+      const hash = await generateACAHash(currentUserId);
+      const sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      syncSessionIdRef.current = sessionId;
+      syncHealthDataViaNativeApp(hash, sessionId);
+    } catch (err: any) {
+      setErrorMessage(err?.message || "Failed to start sync.");
+      setConnectionStatus("error");
+      setIsConnecting(false);
+    }
+  }, [currentUserId, authSession, syncHealthDataViaNativeApp]);
+
+  const handleDisconnect = useCallback(() => {
+    onDisconnect?.();
+    closeAndReset();
+  }, [onDisconnect, closeAndReset]);
+
   return (
     <Dialog
       open={isOpen}
