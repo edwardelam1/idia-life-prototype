@@ -268,7 +268,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setIsConnecting(true);
     setConnectionStatus("connecting");
     try {
-      const hash = await generateACAHash(currentUserId);
+      const { hash } = await generateACAHash(currentUserId, "apple_health");
       const sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       syncSessionIdRef.current = sessionId;
       syncHealthDataViaNativeApp(hash, sessionId);
