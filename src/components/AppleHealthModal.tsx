@@ -355,7 +355,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                 <Zap className="w-6 h-6 text-green-600" />
               </div>
               <h3 className="font-medium text-green-800">Apple Health Connected</h3>
-              <p className="text-sm text-muted-foreground">Your metrics are actively syncing to your vault.</p>
+              <p className="text-sm text-muted-foreground">Your data is now syncing to the vault.</p>
               <div className="flex space-x-3 mt-4">
                 <Button variant="outline" className="flex-1" onClick={closeAndReset}>
                   Close
