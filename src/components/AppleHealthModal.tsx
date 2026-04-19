@@ -179,17 +179,12 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           }
           setHealthData(displayData);
 
-          // 🚨 THE FIX: Move the "Connected" state here!
-          // Now it only shows green AFTER the iPhone officially finishes syncing.
           setConnectionStatus("connected");
           setConnectedThisSession(true);
           setIsConnecting(false);
 
-          // Tell the dashboard underneath to refresh
           onCompleteRef.current?.();
 
-          // 🚨 THE FIX: Add the auto-close timer back!
-          // Give the user 3 seconds to see their synced steps/calories, then close it on its own.
           autoCloseTimeoutRef.current = setTimeout(() => {
             closeAndReset();
           }, 3000);
@@ -234,9 +229,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setIsConnecting(false);
         return;
       }
-
-      // 🚨 DELETED: The code that used to immediately trigger "Connected" was right here.
-      // It is gone, so the UI will stay on the "Connecting..." spinner until the callback fires!
     },
     [
       selectedDataTypes,
@@ -249,40 +241,66 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     ],
   );
 
-  const handleCheckboxChange = (id: string, checked: boolean) => {
-    setSelectedDataTypes((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  };
-
   const handleConnect = useCallback(async () => {
-    if (!currentUserId || !authSession) {
-      setErrorMessage("Please sign in first.");
-      setConnectionStatus("error");
-      return;
-    }
     setErrorMessage(null);
     setIsConnecting(true);
     setConnectionStatus("connecting");
+
+    const sessionId = Math.random().toString(36).substring(7);
+    syncSessionIdRef.current = sessionId;
+
     try {
-      const { hash } = await generateACAHash(currentUserId, "apple_health");
-      const sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-      syncSessionIdRef.current = sessionId;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("platform_guid")
+        .eq("user_id", currentUserId)
+        .single();
+
+      if (!profile?.platform_guid) throw new Error("Profile anchor missing.");
+
+      const { hash } = await generateACAHash(profile.platform_guid, "apple_health");
+
+      const { error: acaError } = await supabase.from("user_aca_records").upsert(
+        {
+          platform_guid: profile.platform_guid,
+          aca_hash_key: hash,
+          consent_type: "apple_health_sync",
+        },
+        { onConflict: "aca_hash_key" },
+      );
+
+      if (acaError) {
+        throw new Error(`Database rejected ACA record: ${acaError.message}`);
+      }
+
+      if (syncSessionIdRef.current !== sessionId) return;
       syncHealthDataViaNativeApp(hash, sessionId);
-    } catch (err: any) {
-      setErrorMessage(err?.message || "Failed to start sync.");
+    } catch (error: any) {
+      if (syncSessionIdRef.current !== sessionId) return;
+      setErrorMessage(error.message);
       setConnectionStatus("error");
       setIsConnecting(false);
     }
-  }, [currentUserId, authSession, syncHealthDataViaNativeApp]);
+  }, [currentUserId, syncHealthDataViaNativeApp]);
 
-  const handleDisconnect = useCallback(() => {
-    onDisconnect?.();
-    closeAndReset();
-  }, [onDisconnect, closeAndReset]);
+  const handleDisconnect = async () => {
+    if (!currentUserId || !existingConnection) return;
+    try {
+      await supabase.from("data_connections").update({ is_active: false }).eq("id", existingConnection.id);
+      onDisconnect?.();
+      closeAndReset();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCheckboxChange = (id: string, isChecked: boolean) => {
+    setSelectedDataTypes((prev) => {
+      const newSet = new Set(prev);
+      isChecked ? newSet.add(id) : newSet.delete(id);
+      return newSet;
+    });
+  };
 
   return (
     <Dialog
@@ -349,7 +367,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                 <Zap className="w-6 h-6 text-green-600" />
               </div>
               <h3 className="font-medium text-green-800">Apple Health Connected</h3>
-              <p className="text-sm text-muted-foreground">Your data is now syncing to the vault.</p>
+              <p className="text-sm text-muted-foreground">Your metrics are actively syncing to your vault.</p>
               <div className="flex space-x-3 mt-4">
                 <Button variant="outline" className="flex-1" onClick={closeAndReset}>
                   Close
