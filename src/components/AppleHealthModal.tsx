@@ -82,7 +82,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           filter: `user_id=eq.${currentUserId}`,
         },
         (payload) => {
-          if (payload.new && payload.new.connection_type === "apple_health") {
+          const newRow = payload.new as { connection_type?: string } | null;
+          if (newRow && newRow.connection_type === "apple_health") {
             console.log("🔥 Server confirmed sync! Forcing UI closure natively.");
             if (typeof (window as any).onHealthDataSyncComplete === "function") {
               (window as any).onHealthDataSyncComplete({
