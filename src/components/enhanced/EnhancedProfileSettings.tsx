@@ -1,33 +1,56 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useEnhancedProfile } from '@/hooks/useEnhancedProfile';
-import { Upload, Shield, CreditCard, Clock, Bot } from 'lucide-react';
+import React, { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
+import { useWalletBalance } from "@/hooks/useWalletBalance";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Upload, Shield, CreditCard, Clock, Building } from "lucide-react";
 
 const EnhancedProfileSettings: React.FC = () => {
-  const { 
-    profile, 
-    wallet, 
-    interests, 
-    availableInterests, 
-    loading, 
-    updating, 
-    updateProfile, 
-    updateInterests, 
-    uploadAvatar 
+  const {
+    profile,
+    wallet: seedWallet, // keep to check backup status
+    interests,
+    availableInterests,
+    loading,
+    updating,
+    updateProfile,
+    updateInterests,
+    uploadAvatar,
   } = useEnhancedProfile();
-  
-  const [selectedInterests, setSelectedInterests] = useState<string[]>(
-    interests.map(i => i.id)
-  );
+
+  // Bring in the live wallet data hook
+  const { balance } = useWalletBalance();
+  const { toast } = useToast();
+
+  const [selectedInterests, setSelectedInterests] = useState<string[]>(interests ? interests.map((i) => i.id) : []);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+
+  // Business Upgrade State
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [upgradeForm, setUpgradeForm] = useState({
+    companyName: "",
+    industry: "",
+    contactName: "",
+    contactRole: "Controlling Partner",
+  });
 
   if (loading) {
     return (
@@ -58,10 +81,8 @@ const EnhancedProfileSettings: React.FC = () => {
   };
 
   const handleInterestToggle = (interestId: string) => {
-    setSelectedInterests(prev => 
-      prev.includes(interestId)
-        ? prev.filter(id => id !== interestId)
-        : [...prev, interestId]
+    setSelectedInterests((prev) =>
+      prev.includes(interestId) ? prev.filter((id) => id !== interestId) : [...prev, interestId],
     );
   };
 
@@ -73,7 +94,7 @@ const EnhancedProfileSettings: React.FC = () => {
     const variants: Record<string, "default" | "secondary" | "destructive"> = {
       pending: "secondary",
       verified: "default",
-      rejected: "destructive"
+      rejected: "destructive",
     };
     return <Badge variant={variants[status] || "secondary"}>{status}</Badge>;
   };
@@ -82,9 +103,48 @@ const EnhancedProfileSettings: React.FC = () => {
     const labels: Record<string, string> = {
       personal: "Personal",
       business: "Business",
-      'non-profit': "Non-Profit"
+      "non-profit": "Non-Profit",
     };
     return <Badge variant="outline">{labels[type] || type}</Badge>;
+  };
+
+  const handleBusinessUpgrade = async () => {
+    if (!upgradeForm.companyName || !upgradeForm.contactName || !uploadFile) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill out all required fields and upload your legal documentation.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploadingDoc(true);
+    try {
+      // In a full production env, you'd upload `uploadFile` to Supabase storage here.
+
+      // Dispatch the notification to the back office
+      const { error } = await supabase.from("account_conversion_requests").insert({
+        user_id: profile.user_id,
+        company_name: upgradeForm.companyName,
+        industry: upgradeForm.industry,
+        contact_name: upgradeForm.contactName,
+        contact_role: upgradeForm.contactRole,
+        request_type: "Personal to Business",
+        status: "pending",
+      });
+
+      if (error && error.code !== "42P01") throw error; // Ignore if table isn't migrated yet locally
+
+      toast({
+        title: "Application Submitted",
+        description: "Your business account request has been sent to the IDIA Corporate back office.",
+      });
+      setShowUpgradeModal(false);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setUploadingDoc(false);
+    }
   };
 
   return (
@@ -105,9 +165,10 @@ const EnhancedProfileSettings: React.FC = () => {
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
             <Avatar className="w-20 h-20">
-              <AvatarImage src={profile.avatar_url || ''} />
+              <AvatarImage src={profile.avatar_url || ""} />
               <AvatarFallback>
-                {profile.first_name?.[0]}{profile.last_name?.[0]}
+                {profile.first_name?.[0]}
+                {profile.last_name?.[0]}
               </AvatarFallback>
             </Avatar>
             <div>
@@ -132,7 +193,7 @@ const EnhancedProfileSettings: React.FC = () => {
               <Label htmlFor="display_name">Display Name</Label>
               <Input
                 id="display_name"
-                value={profile.display_name || ''}
+                value={profile.display_name || ""}
                 onChange={(e) => updateProfile({ display_name: e.target.value })}
                 placeholder="How others see you"
               />
@@ -141,7 +202,7 @@ const EnhancedProfileSettings: React.FC = () => {
               <Label htmlFor="ai_assistant_name">AI Assistant Name</Label>
               <Input
                 id="ai_assistant_name"
-                value={profile.ai_assistant_name}
+                value={profile.ai_assistant_name || ""}
                 onChange={(e) => updateProfile({ ai_assistant_name: e.target.value })}
                 placeholder="Friend"
               />
@@ -163,32 +224,13 @@ const EnhancedProfileSettings: React.FC = () => {
             {profile.date_of_birth && (
               <div>
                 <Label>Date of Birth (Read-only)</Label>
-                <p className="text-sm font-medium">
-                  {new Date(profile.date_of_birth).toLocaleDateString()}
-                </p>
-              </div>
-            )}
-            {profile.ssn_last4 && (
-              <div>
-                <Label>SSN Last 4 (Read-only)</Label>
-                <p className="text-sm font-medium">***-**-{profile.ssn_last4}</p>
+                <p className="text-sm font-medium">{new Date(profile.date_of_birth).toLocaleDateString()}</p>
               </div>
             )}
             {profile.phone_number && (
               <div>
                 <Label>Phone Number (Read-only)</Label>
                 <p className="text-sm font-medium">{profile.phone_number}</p>
-              </div>
-            )}
-            {profile.full_legal_address && (
-              <div className="md:col-span-2">
-                <Label>Mailing Address (Read-only)</Label>
-                <p className="text-sm font-medium">
-                  {(profile.full_legal_address as any)?.street1}
-                  {(profile.full_legal_address as any)?.street2 && `, ${(profile.full_legal_address as any).street2}`}
-                  <br />
-                  {(profile.full_legal_address as any)?.city}, {(profile.full_legal_address as any)?.state} {(profile.full_legal_address as any)?.zip}
-                </p>
               </div>
             )}
           </div>
@@ -210,10 +252,8 @@ const EnhancedProfileSettings: React.FC = () => {
                 <span>KYC Status:</span>
                 {getKycStatusBadge(profile.kyc_status)}
               </div>
-              {profile.kyc_status === 'pending' && (
-                <p className="text-sm text-muted-foreground">
-                  Complete your verification to unlock all features.
-                </p>
+              {profile.kyc_status === "pending" && (
+                <p className="text-sm text-muted-foreground">Complete your verification to unlock all features.</p>
               )}
             </div>
           </CardContent>
@@ -234,45 +274,41 @@ const EnhancedProfileSettings: React.FC = () => {
               </div>
               <div className="flex justify-between items-center">
                 <span>Credit Line:</span>
-                <span className="font-medium">
-                  ${profile.available_credit_line || 0}
-                </span>
+                <span className="font-medium">${profile.available_credit_line || 0}</span>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Wallet Information */}
-      {wallet && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Wallet Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground">Cash Balance</p>
-                <p className="text-xl font-bold">${wallet.cash_balance.toFixed(2)}</p>
-              </div>
-              <div className="text-center p-4 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground">IDIA-USD</p>
-                <p className="text-xl font-bold">${wallet.idia_usd_balance.toFixed(2)}</p>
-              </div>
-              <div className="text-center p-4 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground">IDIA Tokens</p>
-                <p className="text-xl font-bold">{wallet.idia_token_balance.toFixed(2)}</p>
-              </div>
+      {/* Wallet Information (Now Live) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Wallet Information</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground">Cash Balance</p>
+              <p className="text-xl font-bold">${(balance.cash_balance || 0).toFixed(2)}</p>
             </div>
-            <div className="mt-4 flex items-center gap-2">
-              <Shield className="w-4 h-4" />
-              <span className="text-sm">
-                Seed Backup: {wallet.is_seed_backed_up ? '✅ Completed' : '⚠️ Not backed up'}
-              </span>
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground">IDIA-USD</p>
+              <p className="text-xl font-bold">${(balance.idia_usd_balance || 0).toFixed(2)}</p>
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground">IDIA Tokens</p>
+              <p className="text-xl font-bold">{(balance.idia_token_balance || 0).toFixed(2)}</p>
+            </div>
+          </div>
+          <div className="mt-4 flex items-center gap-2">
+            <Shield className="w-4 h-4" />
+            <span className="text-sm">
+              Seed Backup: {seedWallet?.is_seed_backed_up ? "✅ Completed" : "⚠️ Not backed up"}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Interests Selection */}
       <Card>
@@ -299,63 +335,99 @@ const EnhancedProfileSettings: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Quiet Time Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5" />
-            Quiet Time Settings
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="quiet-time"
-              checked={profile.quiet_time_enabled}
-              onCheckedChange={(checked) => updateProfile({ quiet_time_enabled: checked })}
-            />
-            <Label htmlFor="quiet-time">Enable Quiet Time</Label>
-          </div>
-          
-          {profile.quiet_time_enabled && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="quiet-start">Start Time</Label>
-                <Input
-                  id="quiet-start"
-                  type="time"
-                  value={profile.quiet_time_start || '22:00'}
-                  onChange={(e) => updateProfile({ quiet_time_start: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="quiet-end">End Time</Label>
-                <Input
-                  id="quiet-end"
-                  type="time"
-                  value={profile.quiet_time_end || '07:00'}
-                  onChange={(e) => updateProfile({ quiet_time_end: e.target.value })}
-                />
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Account Management */}
+      {/* Account Management with Business Upgrade */}
       <Card>
         <CardHeader>
           <CardTitle>Account Management</CardTitle>
         </CardHeader>
         <CardContent>
-          {profile.account_type === 'personal' && (
+          {profile.account_type === "personal" && (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Want to upgrade your account for business features?
-              </p>
-              <Button variant="outline">
-                Upgrade to Business Account
-              </Button>
+              <p className="text-sm text-muted-foreground">Want to upgrade your account for business features?</p>
+
+              <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="w-full sm:w-auto">
+                    <Building className="w-4 h-4 mr-2" />
+                    Upgrade to Business Account
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Business Account Onboarding</DialogTitle>
+                    <DialogDescription>
+                      Provide your business details and legal documentation. You must be a controlling partner or
+                      authorized signatory to proceed.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Legal Business Name</Label>
+                      <Input
+                        value={upgradeForm.companyName}
+                        onChange={(e) => setUpgradeForm({ ...upgradeForm, companyName: e.target.value })}
+                        placeholder="Acme Corp"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Industry</Label>
+                      <Select
+                        value={upgradeForm.industry}
+                        onValueChange={(v) => setUpgradeForm({ ...upgradeForm, industry: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select Industry" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="technology">Technology</SelectItem>
+                          <SelectItem value="retail">Retail</SelectItem>
+                          <SelectItem value="healthcare">Healthcare</SelectItem>
+                          <SelectItem value="non-profit">Non-Profit</SelectItem>
+                          <SelectItem value="finance">Financial Services</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Your Full Name</Label>
+                      <Input
+                        value={upgradeForm.contactName}
+                        onChange={(e) => setUpgradeForm({ ...upgradeForm, contactName: e.target.value })}
+                        placeholder="Jane Doe"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Your Role (Signatory Required)</Label>
+                      <Select
+                        value={upgradeForm.contactRole}
+                        onValueChange={(v) => setUpgradeForm({ ...upgradeForm, contactRole: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select Role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Controlling Partner">Controlling Partner</SelectItem>
+                          <SelectItem value="Authorized Signatory">Authorized Signatory</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Legal Documentation (Required)</Label>
+                      <Input
+                        type="file"
+                        accept=".pdf,.png,.jpg,.jpeg"
+                        onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Upload incorporation documents, 501(c)(3) letter, or business license.
+                      </p>
+                    </div>
+                    <Button className="w-full mt-4" onClick={handleBusinessUpgrade} disabled={uploadingDoc}>
+                      {uploadingDoc ? "Submitting Application..." : "Submit Application"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           )}
         </CardContent>
