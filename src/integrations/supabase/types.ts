@@ -6260,23 +6260,10 @@ export type Database = {
         }
         Returns: number
       }
-      check_health_data_pipeline_status: {
-        Args: never
-        Returns: {
-          completed_records: number
-          failed_records: number
-          pending_records: number
-          pipeline_health_score: number
-          processing_records: number
-          stuck_records: number
-          total_raw_records: number
-        }[]
-      }
       check_raw_health_data_duplicate: {
         Args: { p_recorded_at: string; p_step_count: number; p_user_id: string }
         Returns: boolean
       }
-      cleanup_orphaned_queue_items: { Args: never; Returns: number }
       community_pool_ledger: {
         Args: { p_fiat_amount: number; p_pseudo_id: string }
         Returns: undefined
@@ -6360,41 +6347,11 @@ export type Database = {
         }
         Returns: string
       }
-      process_backlog_data: {
-        Args: never
-        Returns: {
-          error_count: number
-          processed_count: number
-        }[]
-      }
       process_stuck_raw_data: {
         Args: never
         Returns: {
           error_count: number
           processed_count: number
-        }[]
-      }
-      process_synapse_backlog: {
-        Args: never
-        Returns: {
-          bundles_generated: number
-          processed_business_queue: number
-          processed_health_data: number
-          processed_lifestyle_queue: number
-        }[]
-      }
-      recover_all_stuck_health_data: {
-        Args: never
-        Returns: {
-          failed_count: number
-          recovered_count: number
-        }[]
-      }
-      recover_stuck_health_data: {
-        Args: never
-        Returns: {
-          error_count: number
-          recovered_count: number
         }[]
       }
       settle_synapse_consumption: {
