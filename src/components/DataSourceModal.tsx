@@ -24,7 +24,9 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
     setIsConnecting(true);
     setErrorMessage(null);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session?.user) {
         setErrorMessage("Please sign in first.");
         setIsConnecting(false);
@@ -38,11 +40,11 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
         .maybeSingle();
       const platformGuid = profile?.platform_guid || userId;
 
-      // 1. Mandatory ACA Hash Generation (DELT Protocol)
+      // 1. Mandatory ACA Hash Generation (IDIA Liability Shield)
       const sourceId = source.name.toLowerCase().replace(/\s+/g, "_");
       const { hash, payload } = await generateACAHash(platformGuid, sourceId, ["KYC_VAULT", "WALLET_PROVISIONING"]);
 
-      // 2. Log Mandatory Transaction Record (Liability Shield)
+      // 2. Log Mandatory Transaction Record
       const { error: acaError } = await supabase.from("user_aca_records").insert({
         platform_guid: platformGuid,
         aca_hash_key: hash,
@@ -61,14 +63,14 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
       const sourceName = source.name.toLowerCase();
 
       if (sourceName.includes("apple") || sourceName.includes("health")) {
-        // Apple Health must be connected through the dedicated AppleHealthModal / native iOS app
-        // Do NOT call apple-health-sync with placeholder data — it will fail ACA verification
-        setErrorMessage("Apple Health requires the IDIA iOS app. Please use the Apple Health card on the Data screen to connect.");
+        setErrorMessage(
+          "Apple Health requires the IDIA iOS app. Please use the Apple Health card on the Data screen to connect.",
+        );
         setIsConnecting(false);
         return;
       } else if (sourceName.includes("strava")) {
         const { data, error } = await supabase.functions.invoke("strava-auth-url", {
-          body: { userId, aca_hash: hash },
+          body: { userId, aca_hash: hash, aca_payload: payload },
         });
         if (error) {
           setErrorMessage("Failed to connect to Strava. Please try again.");
@@ -76,12 +78,17 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
         }
         if (data?.oauthUrl) {
           window.open(data.oauthUrl, "_blank");
-          setErrorMessage("Please complete Strava authorization in the new window.");
+          // Correctly trigger success state and close modal
+          setConnected(true);
+          setTimeout(() => {
+            onClose();
+            setConnected(false);
+          }, 2000);
           return;
         }
       } else if (sourceName.includes("google") || sourceName.includes("fit")) {
         const { error } = await supabase.functions.invoke("google-fit-sync", {
-          body: { user_id: userId, aca_hash: hash, sync_type: "manual" },
+          body: { user_id: userId, aca_hash: hash, sync_type: "manual", aca_payload: payload },
         });
         if (error) {
           setErrorMessage("Google Fit requires OAuth authorization. Please contact support.");
@@ -89,7 +96,7 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
         }
       } else if (sourceName.includes("ford")) {
         const { data, error } = await supabase.functions.invoke("ford-auth-url", {
-          body: { userId, aca_hash: hash },
+          body: { userId, aca_hash: hash, aca_payload: payload },
         });
         if (error) {
           setErrorMessage("Failed to connect to FordConnect. Please try again.");
@@ -97,7 +104,12 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
         }
         if (data?.oauthUrl) {
           window.open(data.oauthUrl, "_blank");
-          setErrorMessage("Please complete Ford authorization in the new window.");
+          // Correctly trigger success state and close modal
+          setConnected(true);
+          setTimeout(() => {
+            onClose();
+            setConnected(false);
+          }, 2000);
           return;
         }
       } else {
@@ -224,7 +236,7 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
 
           <Separator />
 
-          {/* DELT Protocol Notice (Mandatory — No Toggle) */}
+          {/* Liability Shield Notice */}
           <div className="bg-muted/50 border border-border p-4 rounded-lg">
             <div className="flex items-start space-x-3">
               <FileKey className="w-5 h-5 text-primary mt-0.5" />
@@ -279,7 +291,7 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
             </div>
           </div>
 
-          {/* Action Buttons — No consent gate */}
+          {/* Action Buttons */}
           <div className="flex space-x-3">
             <Button variant="outline" className="flex-1" onClick={onClose} disabled={isConnecting}>
               Cancel
