@@ -225,7 +225,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setIsConnecting(false);
       };
 
-      try {
+        try {
         webkit.messageHandlers.syncHealthData.postMessage({
           action: "comprehensive_health_sync",
           endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash=${hash}`,
@@ -233,6 +233,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           auth_token: authSession?.access_token,
           aca_hash: hash,
           sync_session_id: sessionId,
+          requestedDataTypes: {} // 🚨 THE MISSING KEY: Add this so Swift doesn't crash!
         });
       } catch (postErr: any) {
         setErrorMessage(`Native bridge dispatch failed.`);
@@ -240,9 +241,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setIsConnecting(false);
         return;
       }
-    },
-    [currentUserId, authSession, clearAllTimers, closeAndReset, connectionStatus, connectedThisSession],
-  );
 
   const handleConnect = useCallback(async () => {
     setErrorMessage(null);
