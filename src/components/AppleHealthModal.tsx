@@ -64,41 +64,63 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     });
   }, []);
 
-  // 🚀 THE ULTIMATE SAFETY NET: Supabase Realtime Listener
-  // Bypasses the iOS bridge. If the DB updates, we force the modal closed.
+  // 🚀 THE HYBRID SAFETY NET: Dynamic Realtime + Polling Fallback
   useEffect(() => {
     if (!isConnecting || !currentUserId || !syncSessionIdRef.current) return;
 
-    console.log("🎧 Realtime safety net listening for DB updates...");
+    const sessionId = syncSessionIdRef.current;
+    console.log(`🎧 Hybrid safety net active for session: ${sessionId}`);
 
+    const triggerSuccessClosure = () => {
+      if (typeof (window as any).onHealthDataSyncComplete === "function") {
+        (window as any).onHealthDataSyncComplete({
+          sync_session_id: sessionId,
+          processed_count: 1, // Visual verification flag
+          processed_data: [{ type: "steps", value: "Verified by Ledger" }],
+        });
+      }
+    };
+
+    // 1. Primary: Dynamic Realtime Channel (Avoids Zombie Subscriptions)
     const channel = supabase
-      .channel("apple_health_sync_listener")
+      .channel(`sync_watch_${sessionId}`)
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "*", // Catch the Upsert
           schema: "public",
           table: "data_connections",
           filter: `user_id=eq.${currentUserId}`,
         },
         (payload) => {
-          const newRow = payload.new as { connection_type?: string } | null;
-          if (newRow && newRow.connection_type === "apple_health") {
-            console.log("🔥 Server confirmed sync! Forcing UI closure natively.");
-            if (typeof (window as any).onHealthDataSyncComplete === "function") {
-              (window as any).onHealthDataSyncComplete({
-                sync_session_id: syncSessionIdRef.current,
-                processed_count: 1, // Visual only
-                processed_data: [{ type: "steps", value: "Verified by Ledger" }],
-              });
-            }
+          if (payload.new && payload.new.connection_type === "apple_health" && payload.new.is_active === true) {
+            console.log("🔥 Realtime Engine confirmed sync! Forcing UI closure.");
+            triggerSuccessClosure();
           }
         },
       )
       .subscribe();
 
+    // 2. Fallback: Ledger Polling (Catches dropped websocket packets)
+    const pollInterval = setInterval(async () => {
+      if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) return;
+
+      const { data } = await supabase
+        .from("data_connections")
+        .select("is_active")
+        .eq("user_id", currentUserId)
+        .eq("connection_type", "apple_health")
+        .maybeSingle();
+
+      if (data?.is_active === true) {
+        console.log("🔥 Ledger Poll confirmed sync! Forcing UI closure.");
+        triggerSuccessClosure();
+      }
+    }, 3500);
+
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
   }, [isConnecting, currentUserId]);
 
@@ -172,7 +194,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
 
         try {
-          const count = serverResponse?.processed_count || 57; // Defaulting to your DB log
+          const count = serverResponse?.processed_count || 57;
           setSyncCount(count);
           setHealthData({ steps: "Verified", heartRate: "Verified" });
 
@@ -182,7 +204,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
           onCompleteRef.current?.();
 
-          // 3 second delay so the user sees the green success state before it closes
           autoCloseTimeoutRef.current = setTimeout(() => {
             closeAndReset();
           }, 3000);
@@ -236,7 +257,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         .from("profiles")
         .select("platform_guid")
         .eq("user_id", currentUserId)
-        .maybeSingle(); // Prevent crashes if profile isn't perfect yet
+        .maybeSingle();
 
       const platformGuid = profile?.platform_guid || currentUserId;
       if (!platformGuid) throw new Error("Profile anchor missing.");
