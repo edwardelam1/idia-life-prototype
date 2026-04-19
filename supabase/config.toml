@@ -39,9 +39,6 @@ verify_jwt = false
 [functions.calculate-enhanced-rewards]
 verify_jwt = false
 
-[functions.create-test-session]
-verify_jwt = false
-
 [functions.crazy-8-security]
 verify_jwt = false
 
@@ -81,9 +78,6 @@ verify_jwt = false
 [functions.security-event-generator]
 verify_jwt = false
 
-[functions.test-security-system]
-verify_jwt = false
-
 [functions.text-to-speech]
 verify_jwt = false
 
@@ -100,7 +94,4 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.life-pii-bridge]
-verify_jwt = false
-
-[functions.test-reward-pipeline]
 verify_jwt = false
