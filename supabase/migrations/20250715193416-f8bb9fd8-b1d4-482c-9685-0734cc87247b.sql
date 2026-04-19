@@ -154,29 +154,6 @@ BEGIN
 END;
 $function$;
 
--- Step 8: Health check function for monitoring
-CREATE OR REPLACE FUNCTION public.check_health_data_pipeline_status()
-RETURNS TABLE(
-  total_raw_records INTEGER,
-  pending_records INTEGER,
-  processing_records INTEGER,
-  completed_records INTEGER,
-  failed_records INTEGER,
-  stuck_records INTEGER,
-  pipeline_health_score NUMERIC
-)
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $function$
-DECLARE
-  total_count INTEGER;
-  pending_count INTEGER;
-  processing_count INTEGER;
-  completed_count INTEGER;
-  failed_count INTEGER;
-  stuck_count INTEGER;
-  health_score NUMERIC;
-BEGIN
   -- Get counts for each status
   SELECT COUNT(*) INTO total_count FROM public.raw_health_data;
   SELECT COUNT(*) INTO pending_count FROM public.raw_health_data WHERE processing_status = 'pending';
