@@ -201,8 +201,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           autoCloseTimeoutRef.current = setTimeout(() => {
             closeAndReset();
           }, 3000);
-
         } catch (err: any) {
+          console.error("Sync complete handler error:", err);
+          setErrorMessage("Failed to process sync response.");
+          setConnectionStatus("error");
+          setIsConnecting(false);
+        }
+      };
 
       (window as any).onHealthDataSyncError = (errorMsg: string, incomingId?: string) => {
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
