@@ -177,21 +177,32 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
               displayData.heartRate = Math.round(hrValues.reduce((a, b) => a + b, 0) / hrValues.length);
             }
           }
-          setHealthData(displayData);
+          if (currentUserId) {
+            supabase.from("data_connections").upsert(
+              {
+                user_id: currentUserId,
+                connection_type: "apple_health",
+                connection_name: "Apple Health",
+                is_active: true,
+                last_sync_at: new Date().toISOString(),
+              },
+              { onConflict: "user_id,connection_type" }
+            ).then(({ error }) => {
+              if (error) console.warn("Could not sign roster:", error);
+            });
+          }
 
           setConnectionStatus("connected");
           setConnectedThisSession(true);
           setIsConnecting(false);
-
+          
           onCompleteRef.current?.();
 
           autoCloseTimeoutRef.current = setTimeout(() => {
             closeAndReset();
           }, 3000);
+
         } catch (err: any) {
-          console.warn("Sync enrichment failed:", err);
-        }
-      };
 
       (window as any).onHealthDataSyncError = (errorMsg: string, incomingId?: string) => {
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
