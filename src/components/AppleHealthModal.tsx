@@ -149,9 +149,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         return;
       }
 
-      // ---- Register session-gated native callbacks (background sync enrichment only) ----
+      // ---- Register session-gated native callbacks ----
       (window as any).onHealthDataSyncComplete = (serverResponse: any) => {
-        // Reject stale callbacks
+        // REJECT STALE CALLBACKS: Check if the incoming message has our sessionId
+        const incomingId = typeof serverResponse === "string" ? serverResponse : serverResponse?.sync_session_id;
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
 
         try {
@@ -177,25 +178,16 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             }
           }
           setHealthData(displayData);
-
-          // Refetch parent state with real synced data
-          try {
-            onCompleteRef.current?.();
-          } catch (notifyErr) {
-            console.warn("onComplete notify failed (non-fatal):", notifyErr);
-          }
+          onCompleteRef.current?.();
         } catch (err: any) {
-          console.warn("Background sync enrichment failed (non-fatal):", err);
+          console.warn("Sync enrichment failed:", err);
         }
       };
 
-      (window as any).onHealthDataSyncError = (errorMsg: string) => {
+      (window as any).onHealthDataSyncError = (errorMsg: string, incomingId?: string) => {
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
-        // If we've already entered the connected view, do NOT tear it down — log and let user retry later.
-        if (connectionStatus === "connected" || connectedThisSession) {
-          console.warn("Background Apple Health sync error (non-fatal):", errorMsg);
-          return;
-        }
+        if (connectionStatus === "connected" || connectedThisSession) return;
+
         clearAllTimers();
         setErrorMessage(`Sync Error: ${errorMsg}`);
         setConnectionStatus("error");
@@ -223,43 +215,26 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           sync_session_id: sessionId,
         });
       } catch (postErr: any) {
-        setErrorMessage(`Native bridge dispatch failed: ${postErr?.message || postErr}`);
+        setErrorMessage(`Native bridge dispatch failed.`);
         setConnectionStatus("error");
         setIsConnecting(false);
         return;
       }
 
-      // Bridge dispatched successfully — connection is established.
-      // Mark connected immediately and let the full sync continue in the background.
-      // Optimistically write data_connections (server will also upsert).
-      if (currentUserId) {
-        supabase
-          .from("data_connections")
-          .upsert(
-            {
-              user_id: currentUserId,
-              connection_type: "apple_health",
-              connection_name: "Apple Health",
-              is_active: true,
-              last_sync_at: new Date().toISOString(),
-            },
-            { onConflict: "user_id,connection_type", ignoreDuplicates: false },
-          )
-          .then(({ error }) => {
-            if (error) console.warn("Optimistic data_connections upsert warning:", error);
-          });
-      }
-
       setConnectionStatus("connected");
       setConnectedThisSession(true);
       setIsConnecting(false);
-      try {
-        onCompleteRef.current?.();
-      } catch (notifyErr) {
-        console.warn("onComplete notify failed (non-fatal):", notifyErr);
-      }
+      onCompleteRef.current?.();
     },
-    [selectedDataTypes, currentUserId, authSession, clearAllTimers, closeAndReset],
+    [
+      selectedDataTypes,
+      currentUserId,
+      authSession,
+      clearAllTimers,
+      closeAndReset,
+      connectionStatus,
+      connectedThisSession,
+    ],
   );
 
   const handleConnect = useCallback(async () => {
@@ -267,11 +242,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setIsConnecting(true);
     setConnectionStatus("connecting");
 
-    // Mint a new session id — invalidates any prior callbacks
-    const sessionId =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random()}`;
+    // NEW SESSION ID: This is our "Secret Password" for this specific game
+    const sessionId = Math.random().toString(36).substring(7);
     syncSessionIdRef.current = sessionId;
 
     try {
@@ -285,20 +257,11 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
       const { hash } = await generateACAHash(profile.platform_guid, "apple_health");
 
-      // DB trigger stamps source_id + lineage. UI only supplies the hash + anchor.
-      const { error: acaError } = await supabase.from("user_aca_records").upsert(
-        {
-          platform_guid: profile.platform_guid,
-          aca_hash_key: hash,
-        },
-        { onConflict: "aca_hash_key" },
-      );
+      await supabase
+        .from("user_aca_records")
+        .upsert({ platform_guid: profile.platform_guid, aca_hash_key: hash }, { onConflict: "aca_hash_key" });
 
-      if (acaError) {
-        console.warn("ACA Hash Insert Warning (non-fatal):", acaError);
-      }
-
-      if (syncSessionIdRef.current !== sessionId) return; // user closed mid-flight
+      if (syncSessionIdRef.current !== sessionId) return;
       syncHealthDataViaNativeApp(hash, sessionId);
     } catch (error: any) {
       if (syncSessionIdRef.current !== sessionId) return;
