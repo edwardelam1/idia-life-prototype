@@ -67,8 +67,8 @@ const DataDashboard = () => {
     if (!currentUserId) return;
 
     try {
-      const [pipelineHealthResult, connectionsResult, walletResult, recentDataResult] = await Promise.allSettled([
-        supabase.functions.invoke("pipeline-diagnostics"),
+      // STRIPPED: Removed the dead pipeline-diagnostics edge function call
+      const [connectionsResult, walletResult, recentDataResult] = await Promise.allSettled([
         supabase.from("data_connections").select("*").eq("user_id", currentUserId).eq("is_active", true),
         supabase.from("user_wallets").select("*").eq("user_id", currentUserId).maybeSingle(),
         supabase
@@ -78,9 +78,6 @@ const DataDashboard = () => {
           .order("created_at", { ascending: false })
           .limit(1),
       ]);
-
-      if (pipelineHealthResult.status === "rejected")
-        console.warn("Pipeline health check failed:", pipelineHealthResult.reason);
 
       if (connectionsResult.status === "rejected") {
         console.error("Error fetching connections:", connectionsResult.reason);
