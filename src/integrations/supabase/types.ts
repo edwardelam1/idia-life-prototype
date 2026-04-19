@@ -453,6 +453,36 @@ export type Database = {
           },
         ]
       }
+      auditable_consent_artifacts: {
+        Row: {
+          aca_record_id: string
+          affirmative_action_type: string
+          consent_timestamp: string
+          created_at: string | null
+          data_types_granted: string[]
+          id: string
+          user_id: string
+        }
+        Insert: {
+          aca_record_id: string
+          affirmative_action_type: string
+          consent_timestamp: string
+          created_at?: string | null
+          data_types_granted: string[]
+          id?: string
+          user_id: string
+        }
+        Update: {
+          aca_record_id?: string
+          affirmative_action_type?: string
+          consent_timestamp?: string
+          created_at?: string | null
+          data_types_granted?: string[]
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       bin_assignments: {
         Row: {
           created_at: string | null
@@ -4255,6 +4285,7 @@ export type Database = {
       }
       raw_health_data: {
         Row: {
+          aca_hash_key: string | null
           activity_type: string | null
           created_at: string | null
           device_type: string | null
@@ -4273,6 +4304,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          aca_hash_key?: string | null
           activity_type?: string | null
           created_at?: string | null
           device_type?: string | null
@@ -4291,6 +4323,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          aca_hash_key?: string | null
           activity_type?: string | null
           created_at?: string | null
           device_type?: string | null
@@ -4994,15 +5027,17 @@ export type Database = {
           data_quality_score: number | null
           effort_score: number | null
           entity_id: string | null
+          faculty: string | null
           id: string
           payload: Json
+          platform_guid: string | null
           processed_at: string | null
           pseudo_user_id: string | null
           raw_data_id: string | null
           reward_amount: number | null
           reward_calculated: boolean | null
+          status: string | null
           synapse_weight_coefficient: number | null
-          user_id: string | null
         }
         Insert: {
           aca_hash_key?: string | null
@@ -5011,15 +5046,17 @@ export type Database = {
           data_quality_score?: number | null
           effort_score?: number | null
           entity_id?: string | null
+          faculty?: string | null
           id?: string
           payload?: Json
+          platform_guid?: string | null
           processed_at?: string | null
           pseudo_user_id?: string | null
           raw_data_id?: string | null
           reward_amount?: number | null
           reward_calculated?: boolean | null
+          status?: string | null
           synapse_weight_coefficient?: number | null
-          user_id?: string | null
         }
         Update: {
           aca_hash_key?: string | null
@@ -5028,15 +5065,17 @@ export type Database = {
           data_quality_score?: number | null
           effort_score?: number | null
           entity_id?: string | null
+          faculty?: string | null
           id?: string
           payload?: Json
+          platform_guid?: string | null
           processed_at?: string | null
           pseudo_user_id?: string | null
           raw_data_id?: string | null
           reward_amount?: number | null
           reward_calculated?: boolean | null
+          status?: string | null
           synapse_weight_coefficient?: number | null
-          user_id?: string | null
         }
         Relationships: []
       }
@@ -6336,6 +6375,7 @@ export type Database = {
         Args: { p_amount: number; p_user_id: string }
         Returns: undefined
       }
+      invoke_refiner_secure: { Args: { payload: Json }; Returns: undefined }
       log_delt_egress: {
         Args: {
           p_aca_hash: string
