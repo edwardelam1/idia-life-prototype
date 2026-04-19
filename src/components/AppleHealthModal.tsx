@@ -67,7 +67,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
   useEffect(() => {
     isMountedRef.current = true;
-    return () => {
+    return (
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
       isMountedRef.current = false;
     };
   }, []);
