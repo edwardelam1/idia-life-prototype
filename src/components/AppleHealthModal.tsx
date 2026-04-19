@@ -241,6 +241,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setIsConnecting(false);
         return;
       }
+    },
+    [currentUserId, authSession, connectionStatus, connectedThisSession, clearAllTimers, closeAndReset],
+  );
 
   const handleConnect = useCallback(async () => {
     setErrorMessage(null);
