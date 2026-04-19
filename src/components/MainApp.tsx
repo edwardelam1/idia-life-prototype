@@ -1,45 +1,42 @@
-
-import { useState, useEffect } from 'react';
-import { Wallet, Database, Users, ShoppingBag, Vote, Crown } from 'lucide-react';
-import WalletDashboard from './WalletDashboard';
-import EnhancedWalletDashboard from './enhanced/EnhancedWalletDashboard';
-import DataDashboard from './DataDashboard';
-import SocialScreen from './SocialScreen';
-import EnhancedSocialScreen from './enhanced/EnhancedSocialScreen';
-import ShopScreen from './ShopScreen';
-import GovernanceScreen from './GovernanceScreen';
-import ProScreen from './pro/ProScreen';
-import Header from './Header';
-import FriendAssistant from './FriendAssistant';
+import { useState, useEffect } from "react";
+import { Wallet, Database, Users, ShoppingBag, Vote, Crown } from "lucide-react";
+import WalletDashboard from "./WalletDashboard";
+import EnhancedWalletDashboard from "./enhanced/EnhancedWalletDashboard";
+import DataDashboard from "./DataDashboard";
+import SocialScreen from "./SocialScreen";
+import EnhancedSocialScreen from "./enhanced/EnhancedSocialScreen";
+import ShopScreen from "./ShopScreen";
+import GovernanceScreen from "./GovernanceScreen";
+import ProScreen from "./pro/ProScreen";
+import Header from "./Header";
+import FriendAssistant from "./FriendAssistant";
 
 const MainApp = () => {
-  const [activeTab, setActiveTab] = useState('wallet');
+  const [activeTab, setActiveTab] = useState("wallet");
   const [showFriend, setShowFriend] = useState(false);
-  const [friendTrigger, setFriendTrigger] = useState<'social' | 'wallet' | 'data' | 'achievement' | undefined>();
+  const [friendTrigger, setFriendTrigger] = useState<"social" | "wallet" | "data" | "achievement" | undefined>();
 
+  // Tabs array updated to remove any standalone Profile navigation
   const tabs = [
-    { id: 'wallet', label: 'Wallet', icon: Wallet, component: EnhancedWalletDashboard },
-    { id: 'data', label: 'My Data', icon: Database, component: DataDashboard },
-    { id: 'social', label: 'Social', icon: Users, component: EnhancedSocialScreen },
-    { id: 'shop', label: 'Shop', icon: ShoppingBag, component: ShopScreen },
-    { id: 'vote', label: 'Vote', icon: Vote, component: GovernanceScreen },
-    { id: 'pro', label: 'Pro', icon: Crown, component: ProScreen },
+    { id: "wallet", label: "Wallet", icon: Wallet, component: EnhancedWalletDashboard },
+    { id: "data", label: "My Data", icon: Database, component: DataDashboard },
+    { id: "social", label: "Social", icon: Users, component: EnhancedSocialScreen },
+    { id: "shop", label: "Shop", icon: ShoppingBag, component: ShopScreen },
+    { id: "vote", label: "Vote", icon: Vote, component: GovernanceScreen },
+    { id: "pro", label: "Pro", icon: Crown, component: ProScreen },
   ];
 
-  // Handle social tab selection
   useEffect(() => {
-    if (activeTab === 'social') {
-      setFriendTrigger('social');
+    if (activeTab === "social") {
+      setFriendTrigger("social");
       setShowFriend(true);
     } else {
-      // Hide friend when leaving social tab (unless triggered by other events)
-      if (friendTrigger === 'social') {
+      if (friendTrigger === "social") {
         setShowFriend(false);
       }
     }
   }, [activeTab, friendTrigger]);
 
-  // Listen for Friend Assistant trigger events from other components
   useEffect(() => {
     const handleShowFriend = (event: CustomEvent) => {
       const { trigger } = event.detail;
@@ -47,33 +44,26 @@ const MainApp = () => {
       setShowFriend(true);
     };
 
-    window.addEventListener('showFriend', handleShowFriend as EventListener);
-    
+    window.addEventListener("showFriend", handleShowFriend as EventListener);
     return () => {
-      window.removeEventListener('showFriend', handleShowFriend as EventListener);
+      window.removeEventListener("showFriend", handleShowFriend as EventListener);
     };
   }, []);
 
-  // Monitor for significant events (example: wallet balance changes)
   useEffect(() => {
-    // This would typically monitor wallet balance changes from context or props
-    // For now, we'll simulate checking for balance increases
     const checkForWalletUpdates = () => {
-      // In a real implementation, this would come from wallet context/state
-      // For demo purposes, we'll simulate occasional balance increases
-      const simulateBalanceIncrease = Math.random() < 0.1; // 10% chance per check
-      
+      const simulateBalanceIncrease = Math.random() < 0.1;
       if (simulateBalanceIncrease && !showFriend) {
-        setFriendTrigger('wallet');
+        setFriendTrigger("wallet");
         setShowFriend(true);
       }
     };
 
-    const interval = setInterval(checkForWalletUpdates, 10000); // Check every 10 seconds
+    const interval = setInterval(checkForWalletUpdates, 10000);
     return () => clearInterval(interval);
   }, [showFriend]);
 
-  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || WalletDashboard;
+  const ActiveComponent = tabs.find((tab) => tab.id === activeTab)?.component || EnhancedWalletDashboard;
 
   const handleCloseFriend = () => {
     setShowFriend(false);
@@ -100,7 +90,7 @@ const MainApp = () => {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex flex-col items-center space-y-0.5 ${
-                    activeTab === tab.id ? 'text-primary' : 'text-gray-600'
+                    activeTab === tab.id ? "text-primary" : "text-gray-600"
                   }`}
                 >
                   <Icon className="w-5 h-5" />
@@ -112,12 +102,7 @@ const MainApp = () => {
         </div>
       </nav>
 
-      {/* Friend Assistant Overlay */}
-      <FriendAssistant 
-        isVisible={showFriend}
-        onClose={handleCloseFriend}
-        trigger={friendTrigger}
-      />
+      <FriendAssistant isVisible={showFriend} onClose={handleCloseFriend} trigger={friendTrigger} />
     </div>
   );
 };
