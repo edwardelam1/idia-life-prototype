@@ -93,8 +93,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           filter: `user_id=eq.${currentUserId}`,
         },
         (payload) => {
-          const newRow = payload.new as { connection_type?: string; is_active?: boolean } | null;
-          if (newRow && newRow.connection_type === "apple_health" && newRow.is_active === true) {
+          if (payload.new && payload.new.connection_type === "apple_health" && payload.new.is_active === true) {
             console.log("🔥 Realtime Engine confirmed sync! Forcing UI closure.");
             triggerSuccessClosure();
           }
@@ -111,7 +110,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         .select("is_active")
         .eq("user_id", currentUserId)
         .eq("connection_type", "apple_health")
-        .maybeSingle();
+        .limit(1);
 
       if (data?.is_active === true) {
         console.log("🔥 Ledger Poll confirmed sync! Forcing UI closure.");
@@ -258,7 +257,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         .from("profiles")
         .select("platform_guid")
         .eq("user_id", currentUserId)
-        .maybeSingle();
+        .limit(1);
 
       const platformGuid = profile?.platform_guid || currentUserId;
       if (!platformGuid) throw new Error("Profile anchor missing.");
