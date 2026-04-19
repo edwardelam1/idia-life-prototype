@@ -93,7 +93,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           filter: `user_id=eq.${currentUserId}`,
         },
         (payload) => {
-          if (payload.new && payload.new.connection_type === "apple_health" && payload.new.is_active === true) {
+          const newRow = payload.new as { connection_type?: string; is_active?: boolean } | null;
+          if (newRow && newRow.connection_type === "apple_health" && newRow.is_active === true) {
             console.log("🔥 Realtime Engine confirmed sync! Forcing UI closure.");
             triggerSuccessClosure();
           }
@@ -112,7 +113,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         .eq("connection_type", "apple_health")
         .limit(1);
 
-      if (data?.is_active === true) {
+      if (data?.[0]?.is_active === true) {
         console.log("🔥 Ledger Poll confirmed sync! Forcing UI closure.");
         triggerSuccessClosure();
       }
@@ -260,7 +261,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         .eq("user_id", currentUserId)
         .limit(1);
 
-      const platformGuid = profile?.platform_guid || currentUserId;
+      const platformGuid = profile?.[0]?.platform_guid || currentUserId;
       if (!platformGuid) throw new Error("Profile anchor missing.");
 
       const { hash, payload } = await generateACAHash(platformGuid, "apple_health", ["KYC_VAULT", "HEALTH_DATA_READ"]);
