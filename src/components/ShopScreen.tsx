@@ -1,294 +1,328 @@
+import React, { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  MapPin,
+  Star,
+  Clock,
+  ShoppingCart,
+  Camera,
+  Sparkles,
+  Search,
+  Utensils,
+  Coffee,
+  ShoppingBag,
+  Package,
+  Store,
+  ChevronRight,
+  X,
+} from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Database } from "@/integrations/supabase/types";
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MapPin, Star, Clock, ShoppingCart, Camera, Eye, Sparkles, Search, Tag, Heart, ShoppingBag, Utensils, Coffee, Fuel } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+type Business = Database["public"]["Tables"]["businesses"]["Row"] & {
+  business_locations?: Database["public"]["Tables"]["business_locations"]["Row"][];
+  ar_experiences?: Database["public"]["Tables"]["ar_experiences"]["Row"][];
+};
 
-interface ARExperience {
-  id: string;
-  title: string;
-  description: string;
-  experience_type: string;
-  ar_content_assets: any[];
-}
-
-interface Merchant {
+type Item = {
   id: string;
   name: string;
-  business_type: string;
-  address: string;
-  business_locations: any[];
-  ar_experiences: ARExperience[];
-  distance?: string;
-  rating?: number;
-  isOpen?: boolean;
-  loyaltyStatus?: string;
-  specialOffers?: string[];
-}
+  price: number;
+  description?: string;
+  image_url?: string;
+  type: "menu" | "inventory";
+};
 
 const ShopScreen = () => {
-  const [merchants, setMerchants] = useState<Merchant[]>([]);
-  const [selectedMerchant, setSelectedMerchant] = useState<Merchant | null>(null);
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [filteredBusinesses, setFilteredBusinesses] = useState<Business[]>([]);
+  const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
+  const [businessItems, setBusinessItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [cart, setCart] = useState<{ item: Item; quantity: number }[]>([]);
   const { toast } = useToast();
 
+  const categories = ["All", "Restaurant", "Coffee Shop", "Electronics Store", "Gym", "Retail"];
+
   useEffect(() => {
-    getUserLocation();
-    fetchNearbyMerchants();
+    fetchMarketplaceData();
   }, []);
 
-  const getUserLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-          // Use default location or show error
-        }
-      );
-    }
-  };
+  useEffect(() => {
+    const query = searchQuery.toLowerCase();
+    const filtered = businesses.filter(
+      (b) =>
+        (b.name.toLowerCase().includes(query) || b.business_type.toLowerCase().includes(query)) &&
+        (selectedCategory === "All" || b.business_type === selectedCategory),
+    );
+    setFilteredBusinesses(filtered);
+  }, [searchQuery, selectedCategory, businesses]);
 
-  const fetchNearbyMerchants = async () => {
+  const fetchMarketplaceData = async () => {
     try {
-      // Demo app with mock data - no API calls to prevent errors
-      const mockMerchants = [
-        {
-          id: 'mock-1',
-          name: "Joe's Coffee & More",
-          business_type: "Coffee Shop",
-          address: "123 Main St",
-          business_locations: [{ address: "123 Main St" }],
-          ar_experiences: [{
-            id: 'ar-1',
-            title: 'Interactive Coffee Menu',
-            description: 'View our coffee in 3D and see ingredients',
-            experience_type: 'menu_visualization',
-            ar_content_assets: []
-          }],
-          distance: "0.2 miles",
-          rating: 4.8,
-          isOpen: true,
-          loyaltyStatus: "Gold Member",
-          specialOffers: ["10% off coffee", "Free pastry with purchase"]
-        },
-        {
-          id: 'mock-2',
-          name: "Fresh Garden Bistro",
-          business_type: "Restaurant",
-          address: "456 Oak Ave",
-          business_locations: [{ address: "456 Oak Ave" }],
-          ar_experiences: [{
-            id: 'ar-2',
-            title: 'AR Garden Tour',
-            description: 'Explore our virtual herb garden',
-            experience_type: 'spatial_experience',
-            ar_content_assets: []
-          }],
-          distance: "0.4 miles",
-          rating: 4.6,
-          isOpen: true,
-          loyaltyStatus: "Silver Member",
-          specialOffers: ["Happy hour 3-6pm"]
-        },
-        {
-          id: 'mock-3',
-          name: "TechHub Electronics",
-          business_type: "Electronics Store",
-          address: "789 Tech Blvd",
-          business_locations: [{ address: "789 Tech Blvd" }],
-          ar_experiences: [{
-            id: 'ar-3',
-            title: 'AR Product Demo',
-            description: 'Try products virtually before buying',
-            experience_type: 'product_visualization',
-            ar_content_assets: []
-          }],
-          distance: "0.6 miles",
-          rating: 4.7,
-          isOpen: true,
-          loyaltyStatus: "Bronze Member",
-          specialOffers: ["Tech bundle discount"]
-        },
-        {
-          id: 'mock-4',
-          name: "Urban Fitness Center",
-          business_type: "Gym",
-          address: "321 Fitness Way",
-          business_locations: [{ address: "321 Fitness Way" }],
-          ar_experiences: [{
-            id: 'ar-4',
-            title: 'Virtual Gym Tour',
-            description: 'Explore equipment and classes',
-            experience_type: 'spatial_experience',
-            ar_content_assets: []
-          }],
-          distance: "0.8 miles",
-          rating: 4.5,
-          isOpen: true,
-          loyaltyStatus: "Platinum Member",
-          specialOffers: ["Free trial week"]
-        }
-      ];
+      setLoading(true);
+      // Fetch enterprises (businesses) and their locations
+      const { data, error } = await supabase
+        .from("businesses")
+        .select("*, business_locations(*), ar_experiences(*)")
+        .order("name");
 
-      setMerchants(mockMerchants);
+      if (error) throw error;
+      setBusinesses(data || []);
+      setFilteredBusinesses(data || []);
     } catch (error) {
-      console.error('Error loading merchants:', error);
+      console.error("Error loading marketplace:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const launchARExperience = async (experience: ARExperience, merchant: Merchant) => {
+  const fetchInventory = async (businessId: string) => {
     try {
-      // Demo AR experience - no API calls
-      toast({
-        title: "AR Experience Launched",
-        description: `Launching ${experience.title} for ${merchant.name}`,
-        variant: "default"
-      });
+      // 1:1 ratio fetch from menu and general inventory
+      const [menuRes, invRes] = await Promise.all([
+        supabase.from("menu_items").select("*").eq("business_id", businessId).eq("is_active", true),
+        supabase.from("inventory_items").select("*").eq("business_id", businessId).eq("is_active", true),
+      ]);
 
-      // Simulate AR experience launch
-      console.log('Demo AR experience launched:', { experience, merchant });
-      
+      const items: Item[] = [
+        ...(menuRes.data || []).map((i) => ({
+          id: i.id,
+          name: i.name,
+          price: i.base_price,
+          description: i.description || "",
+          image_url: i.image_url || "",
+          type: "menu" as const,
+        })),
+        ...(invRes.data || []).map((i) => ({
+          id: i.id,
+          name: i.name,
+          price: i.current_cost || 0,
+          type: "inventory" as const,
+        })),
+      ];
+      setBusinessItems(items);
     } catch (error) {
-      console.error('Error launching AR experience:', error);
+      console.error("Error fetching inventory:", error);
     }
   };
 
-  const viewARMenu = (merchant: Merchant) => {
-    setSelectedMerchant(merchant);
+  const handleSelectBusiness = (business: Business) => {
+    setSelectedBusiness(business);
+    fetchInventory(business.id);
   };
 
-  if (loading) {
+  const addToCart = (item: Item) => {
+    setCart((prev) => {
+      const existing = prev.find((i) => i.item.id === item.id);
+      if (existing) return prev.map((i) => (i.item.id === item.id ? { ...i, quantity: i.quantity + 1 } : i));
+      return [...prev, { item, quantity: 1 }];
+    });
+    toast({ title: "Added to Cart", description: `${item.name} added to your IDIA order.` });
+  };
+
+  const getBusinessIcon = (type: string) => {
+    switch (type.toLowerCase()) {
+      case "restaurant":
+        return <Utensils className="h-5 w-5 text-orange-500" />;
+      case "coffee shop":
+        return <Coffee className="h-5 w-5 text-orange-500" />;
+      case "electronics store":
+        return <Package className="h-5 w-5 text-teal-500" />;
+      case "gym":
+        return <Sparkles className="h-5 w-5 text-teal-500" />;
+      default:
+        return <Store className="h-5 w-5 text-muted-foreground" />;
+    }
+  };
+
+  if (loading)
     return (
-      <div className="space-y-4">
-        <div className="animate-pulse space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="h-32 bg-muted" />
-          ))}
-        </div>
+      <div className="space-y-4 animate-pulse p-4">
+        <div className="h-32 bg-muted rounded-xl" />
+        <div className="h-32 bg-muted rounded-xl" />
       </div>
     );
-  };
 
   return (
-    <div className="space-y-4">
-      <Tabs defaultValue="nearby" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="nearby">Nearby</TabsTrigger>
-          <TabsTrigger value="ar-experiences">AR Experiences</TabsTrigger>
-        </TabsList>
+    <div className="space-y-6 pb-20">
+      {/* Marketplace Header */}
+      {!selectedBusiness ? (
+        <>
+          <div className="px-4 space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search IDIA Enterprises..."
+                className="pl-10 h-12 bg-white/80 backdrop-blur-sm border-teal-100 shadow-sm"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
 
-        <TabsContent value="nearby" className="space-y-4">
-          <div className="grid gap-4">
-            {merchants.map((merchant) => (
-              <Card key={merchant.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg">{merchant.name}</CardTitle>
-                      <CardDescription className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4" />
-                        {merchant.business_locations?.[0]?.address || merchant.address} • {merchant.distance || 'Unknown distance'}
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      <span className="text-sm font-medium">{merchant.rating || 4.5}</span>
-                    </div>
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+              {categories.map((cat) => (
+                <Badge
+                  key={cat}
+                  variant={selectedCategory === cat ? "default" : "outline"}
+                  className={`cursor-pointer px-4 py-1.5 whitespace-nowrap transition-all ${
+                    selectedCategory === cat
+                      ? "bg-teal-600"
+                      : "bg-white text-muted-foreground border-teal-50 hover:border-teal-200"
+                  }`}
+                  onClick={() => setSelectedCategory(cat)}
+                >
+                  {cat}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          <div className="px-4 grid gap-4">
+            {filteredBusinesses.map((business) => (
+              <Card
+                key={business.id}
+                className="overflow-hidden hover:shadow-lg transition-all border-teal-50/50 cursor-pointer group active:scale-[0.98]"
+                onClick={() => handleSelectBusiness(business)}
+              >
+                <div className="p-4 flex gap-4 items-center">
+                  <div className="w-16 h-16 rounded-2xl bg-teal-50 flex items-center justify-center group-hover:bg-orange-50 transition-colors">
+                    {getBusinessIcon(business.business_type)}
                   </div>
-                </CardHeader>
-
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant={merchant.isOpen !== false ? "default" : "secondary"}>
-                        <Clock className="h-3 w-3 mr-1" />
-                        {merchant.isOpen !== false ? "Open" : "Closed"}
+                  <div className="flex-1 space-y-1">
+                    <div className="flex justify-between items-start">
+                      <CardTitle className="text-lg font-bold">{business.name}</CardTitle>
+                      <div className="flex items-center gap-1">
+                        <Star className="h-3 w-3 fill-orange-400 text-orange-400" />
+                        <span className="text-xs font-bold">{(business.business_health_score || 95) / 20}</span>
+                      </div>
+                    </div>
+                    <CardDescription className="text-xs flex items-center gap-1">
+                      <MapPin className="h-3 w-3 text-teal-500" />
+                      {business.business_locations?.[0]?.address || "Multiple Locations"}
+                    </CardDescription>
+                    <div className="flex gap-2 pt-1">
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] bg-teal-100/50 text-teal-700 hover:bg-teal-100 border-none"
+                      >
+                        {business.business_type}
                       </Badge>
-                      {merchant.loyaltyStatus && (
-                        <Badge variant="outline">{merchant.loyaltyStatus}</Badge>
-                      )}
-                      {merchant.ar_experiences && merchant.ar_experiences.length > 0 && (
-                        <Badge variant="outline" className="bg-gradient-to-r from-primary/10 to-secondary/10">
-                          <Sparkles className="h-3 w-3 mr-1" />
-                          AR Available
+                      {business.ar_experiences && business.ar_experiences.length > 0 && (
+                        <Badge className="text-[10px] bg-orange-100 text-orange-700 hover:bg-orange-100 border-none">
+                          <Sparkles className="h-2 w-2 mr-1" /> AR Ready
                         </Badge>
                       )}
                     </div>
                   </div>
-
-                  <div className="flex gap-2">
-                    <Button 
-                      className="flex-1" 
-                      disabled={merchant.isOpen === false}
-                      onClick={() => viewARMenu(merchant)}
-                    >
-                      <ShoppingCart className="h-4 w-4 mr-2" />
-                      View Menu
-                    </Button>
-                    {merchant.ar_experiences && merchant.ar_experiences.length > 0 && (
-                      <Button 
-                        variant="outline" 
-                        disabled={merchant.isOpen === false}
-                        onClick={() => launchARExperience(merchant.ar_experiences[0], merchant)}
-                      >
-                        <Camera className="h-4 w-4 mr-2" />
-                        AR View
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground opacity-30 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                </div>
               </Card>
             ))}
           </div>
-        </TabsContent>
-
-        <TabsContent value="ar-experiences" className="space-y-4">
-          <div className="grid gap-4">
-            {merchants
-              .filter(m => m.ar_experiences && m.ar_experiences.length > 0)
-              .map((merchant) => (
-                <Card key={merchant.id}>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-primary" />
-                      {merchant.name}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {merchant.ar_experiences.map((experience) => (
-                      <div key={experience.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <h4 className="font-medium">{experience.title}</h4>
-                          <p className="text-sm text-muted-foreground">{experience.description}</p>
-                        </div>
-                        <Button size="sm" onClick={() => launchARExperience(experience, merchant)}>
-                          <Eye className="h-4 w-4 mr-2" />
-                          Launch
-                        </Button>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              ))}
+        </>
+      ) : (
+        /* Business Detail View / Business Card */
+        <div className="animate-in slide-in-from-right duration-300">
+          <div className="p-4 bg-white sticky top-0 z-10 border-b flex items-center justify-between">
+            <Button variant="ghost" size="icon" onClick={() => setSelectedBusiness(null)}>
+              <X className="h-6 w-6" />
+            </Button>
+            <h2 className="font-bold text-lg">{selectedBusiness.name}</h2>
+            <div className="relative">
+              <ShoppingCart className="h-6 w-6 text-teal-600" />
+              {cart.length > 0 && (
+                <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                  {cart.reduce((a, b) => a + b.quantity, 0)}
+                </span>
+              )}
+            </div>
           </div>
-        </TabsContent>
-      </Tabs>
+
+          <div className="p-4 space-y-6">
+            <div className="rounded-3xl bg-gradient-to-br from-teal-500 to-teal-700 p-6 text-white shadow-xl relative overflow-hidden">
+              <div className="relative z-10 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h1 className="text-2xl font-black">{selectedBusiness.name}</h1>
+                    <p className="opacity-80 text-sm">{selectedBusiness.business_type}</p>
+                  </div>
+                  {getBusinessIcon(selectedBusiness.business_type)}
+                </div>
+                <div className="space-y-2 text-sm opacity-90">
+                  <p className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" /> {selectedBusiness.business_locations?.[0]?.address}
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" /> Open • Until 9:00 PM
+                  </p>
+                </div>
+                <div className="flex gap-4 pt-2">
+                  <div className="text-center">
+                    <p className="text-xs opacity-70">Loyalty</p>
+                    <p className="font-bold">Platinum</p>
+                  </div>
+                  <div className="text-center border-l border-white/20 pl-4">
+                    <p className="text-xs opacity-70">Rating</p>
+                    <p className="font-bold">4.9/5</p>
+                  </div>
+                </div>
+              </div>
+              <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+            </div>
+
+            <Tabs defaultValue="shop" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 bg-teal-50/50">
+                <TabsTrigger value="shop">Live Inventory</TabsTrigger>
+                <TabsTrigger value="about">Info</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="shop" className="space-y-4 pt-4">
+                <div className="grid grid-cols-2 gap-4">
+                  {businessItems.map((item) => (
+                    <Card
+                      key={item.id}
+                      className="overflow-hidden border-teal-50 group hover:border-teal-200 transition-all"
+                    >
+                      <div className="h-24 bg-muted flex items-center justify-center">
+                        {item.image_url ? (
+                          <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <Package className="h-8 w-8 text-muted-foreground/30" />
+                        )}
+                      </div>
+                      <CardContent className="p-3 space-y-2">
+                        <div>
+                          <h4 className="font-bold text-sm line-clamp-1">{item.name}</h4>
+                          <p className="text-[10px] text-muted-foreground uppercase">{item.type}</p>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-black text-teal-700">${item.price.toFixed(2)}</span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 w-7 p-0 border-teal-200 text-teal-700"
+                            onClick={() => addToCart(item)}
+                          >
+                            +
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
