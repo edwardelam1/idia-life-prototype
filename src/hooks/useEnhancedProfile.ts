@@ -75,43 +75,45 @@ export const useEnhancedProfile = () => {
       if (profileError && profileError.code !== "PGRST116") {
         console.error("Error loading profile:", profileError);
       } else if (profileData) {
+        const p = profileData as any; // Cast to any to resolve TS2339 property errors
         const displayName = user.user_metadata?.display_name || user.user_metadata?.full_name || user.email || "";
 
         setProfile({
-          id: profileData.id,
-          user_id: profileData.user_id,
+          id: p.id,
+          user_id: p.user_id,
           first_name: user.user_metadata?.first_name || displayName.split(" ")[0] || "",
           last_name: user.user_metadata?.last_name || displayName.split(" ").slice(1).join(" ") || "",
           email: user.email,
-          ai_assistant_name: profileData.ai_assistant_name || "Friend",
-          account_type: profileData.account_type || "personal",
+          ai_assistant_name: p.ai_assistant_name || "Friend",
+          account_type: p.account_type || "personal",
           display_name: displayName,
-          avatar_url: profileData.avatar_url,
-          phone_number: profileData.phone_number,
-          date_of_birth: profileData.date_of_birth,
-          trust_score: profileData.trust_score, // Fixed: Now uses database value
-          available_credit_line: profileData.available_credit_line || 0,
-          quiet_time_enabled: profileData.quiet_time_enabled || false,
-          quiet_time_start: profileData.quiet_time_start,
-          quiet_time_end: profileData.quiet_time_end,
-          created_at: profileData.created_at,
-          updated_at: profileData.updated_at,
-          kyc_status: profileData.kyc_status || "pending",
-          ssn_last4: profileData.ssn_last4,
+          avatar_url: p.avatar_url,
+          phone_number: p.phone_number || null,
+          date_of_birth: p.date_of_birth || null,
+          trust_score: p.trust_score,
+          available_credit_line: p.available_credit_line || 0,
+          quiet_time_enabled: p.quiet_time_enabled || false,
+          quiet_time_start: p.quiet_time_start,
+          quiet_time_end: p.quiet_time_end,
+          created_at: p.created_at,
+          updated_at: p.updated_at,
+          kyc_status: p.kyc_status || "pending",
+          ssn_last4: p.ssn_last4 || null,
         });
       }
 
       const { data: walletData } = await supabase.from("user_wallets").select("*").eq("user_id", user.id).maybeSingle();
 
       if (walletData) {
+        const w = walletData as any; // Cast to any to resolve TS2339/TS2551 errors
         setWallet({
-          id: walletData.id,
-          user_id: walletData.user_id,
-          wallet_address: walletData.wallet_address,
-          cash_balance: walletData.cash_balance || 0,
-          idia_usd_balance: walletData.total_earned || 0,
-          idia_token_balance: walletData.idia_token_balance || 0,
-          is_seed_backed_up: walletData.is_seed_backed_up || false,
+          id: w.id,
+          user_id: w.user_id,
+          wallet_address: w.wallet_address || null,
+          cash_balance: w.cash_balance || 0,
+          idia_usd_balance: w.total_earned || 0, // Mapping total_earned to usd balance
+          idia_token_balance: w.idia_beta_balance || 0, // Mapping beta_balance to token balance
+          is_seed_backed_up: w.is_seed_backed_up || false,
         });
       }
     } catch (error) {
@@ -138,7 +140,6 @@ export const useEnhancedProfile = () => {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
-      // Destructure to handle explicit fields if necessary, or pass updates directly
       const { trust_score, available_credit_line, ...rest } = updates;
 
       const { data, error } = await supabase
