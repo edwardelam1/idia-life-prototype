@@ -175,7 +175,6 @@ const DataDashboard = () => {
             <div>
               <div className="flex items-center space-x-2 mb-1">
                 <p className="text-teal-100 text-[10px] uppercase font-bold tracking-widest">Liquid Cash Account</p>
-                {getSyncStatusBadge()}
               </div>
               <p className="text-3xl font-black">${totalEarnings.toFixed(2)} USD</p>
             </div>
