@@ -43,7 +43,16 @@ interface Transaction {
   created_at: string;
   metadata?: any;
 }
-
+} finally {
+      setIsCalculating(false);
+      setShowTestModal(false); // Modal closes
+      setActiveTab('credit');
+      
+      // Delay the finale by 300ms so the modal is fully out of the way
+      setTimeout(() => {
+        fireFinaleConfetti();
+      }, 300);
+    }
 interface CreditSimulation {
   current_score: number | string; // Updated to support "NO SCORE" string
   simulated_score: number;
@@ -63,7 +72,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   // Trust Score Test State
   const [showTestModal, setShowTestModal] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
-
+  
   useEffect(() => {
     fetchTransactions();
   }, []);
