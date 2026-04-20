@@ -115,30 +115,24 @@ const EnhancedWalletDashboard: React.FC = () => {
     }
   };
 
-  const handleCalculateScore = async (moduleScores: Record<TestId, number>) => {
+  const handleCalculateScore = async (moduleScores: Record<string, number>) => {
     setIsCalculating(true);
     try {
-      const telemetryPayload = {
-        social_exchange_balance: moduleScores.seb,
-        attachment_security: moduleScores.ass,
-        social_network_vitality: moduleScores.snv,
-        job_resources_demands: moduleScores.jrda,
-        org_citizenship: moduleScores.ocs,
-        psych_contract: moduleScores.pcf,
-        empathy_quotient: moduleScores.eq,
-        generosity_under_pressure: moduleScores.gup,
-        social_context_sensitivity: moduleScores.scs,
-      };
+      // 1. Filter out the tutorial module ('tut') to keep the telemetry pure
+      const { tut, ...actualTelemetry } = moduleScores;
 
+      // 2. Invoke the Single Source of Truth (The Edge Function)
       const { data, error } = await supabase.functions.invoke("calculate-trust-score", {
         body: {
-          user_id: profile?.id,
-          telemetry: telemetryPayload,
+          user_id: profile?.user_id,
+          telemetry: actualTelemetry,
         },
       });
 
       if (error) throw error;
 
+      // 3. Update Global Profile State
+      // This forces all screens to re-render with the new Trust Score & Credit Line
       if (updateProfile) {
         await updateProfile({
           trust_score: data.trust_score,
@@ -146,22 +140,24 @@ const EnhancedWalletDashboard: React.FC = () => {
         });
       }
 
-      setCreditSimulation({
-        current_score: profile?.trust_score ?? "NO SCORE",
-        simulated_score: data.trust_score,
-        actions: ["Psychometric telemetry verified via Edge Function", "Deterministic capital limit recalculated"],
-      });
+      // 4. (Optional) Local feedback for the Simulation UI in the Wallet
+      if (typeof setCreditSimulation === "function") {
+        setCreditSimulation({
+          current_score: profile?.trust_score ?? "NO SCORE",
+          simulated_score: data.trust_score,
+          actions: ["Psychometric telemetry verified via IDIA Protocol", "Deterministic capital limit recalculated"],
+        });
+      }
     } catch (err) {
       console.error("IDIA Algorithm Execution Failed:", err);
     } finally {
       setIsCalculating(false);
       setShowTestModal(false);
-      setActiveTab("credit");
 
-      // Execution: Delay finale so particles render over the Dashboard, not the disappearing Modal
+      // Delay the celebration to ensure the modal is closed
       setTimeout(() => {
         fireFinaleConfetti();
-      }, 350);
+      }, 400);
     }
   };
 
