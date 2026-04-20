@@ -5,88 +5,82 @@ const TEAL = ["#14b8a6", "#0d9488", "#5eead4", "#2dd4bf"];
 const ORANGE = ["#f97316", "#ea580c", "#fb923c", "#fdba74"];
 const BRAND = [...TEAL, ...ORANGE];
 
-// Set global zIndex to clear the Radix/Shadcn Modal
-const globalZ = { zIndex: 10000 };
+// Create a persistent instance that survives component unmounting
+const fire = confetti.create(undefined, {
+  resize: true,
+  useWorker: true,
+});
+
+const globalDefaults = {
+  zIndex: 10000, // Higher than any Radix Dialog/Overlay
+  colors: BRAND,
+};
 
 export const fireWelcomeConfetti = () => {
-  confetti({
-    ...globalZ,
-    particleCount: 40,
+  fire({
+    ...globalDefaults,
+    particleCount: 60,
     angle: 60,
     spread: 55,
     origin: { x: 0, y: 0.7 },
-    colors: BRAND,
-    scalar: 0.8,
   });
-  confetti({
-    ...globalZ,
-    particleCount: 40,
+  fire({
+    ...globalDefaults,
+    particleCount: 60,
     angle: 120,
     spread: 55,
     origin: { x: 1, y: 0.7 },
-    colors: BRAND,
-    scalar: 0.8,
   });
 };
 
 export const fireCompletionConfetti = () => {
-  confetti({
-    ...globalZ,
+  fire({
+    ...globalDefaults,
     particleCount: 150,
     spread: 90,
     startVelocity: 45,
-    origin: { x: 0.5, y: 0.6 },
-    colors: BRAND,
+    origin: { x: 0.5, y: 0.5 }, // Centered
   });
 };
 
 export const fireGraffitiConfetti = () => {
   const shoot = (originX: number) => {
-    confetti({
-      ...globalZ,
-      particleCount: 30,
+    fire({
+      ...globalDefaults,
+      particleCount: 40,
       angle: 60 + Math.random() * 60,
       spread: 80,
       startVelocity: 35 + Math.random() * 20,
-      origin: { x: originX, y: 0.9 },
-      colors: BRAND,
+      origin: { x: originX, y: 0.8 },
       shapes: ["square", "circle"],
-      scalar: 0.9 + Math.random() * 0.6,
-      ticks: 200,
+      scalar: 1.2,
     });
   };
-  shoot(0.1);
+  shoot(0.2);
   shoot(0.5);
-  shoot(0.9);
-  setTimeout(() => {
-    shoot(0.25);
-    shoot(0.75);
-  }, 200);
+  shoot(0.8);
 };
 
 export const fireFinaleConfetti = () => {
-  const duration = 2500;
+  const duration = 3000;
   const end = Date.now() + duration;
-  const interval = setInterval(() => {
-    if (Date.now() > end) {
-      clearInterval(interval);
-      return;
-    }
-    confetti({
-      ...globalZ,
-      particleCount: 50,
+
+  const interval: any = setInterval(() => {
+    if (Date.now() > end) return clearInterval(interval);
+
+    fire({
+      ...globalDefaults,
+      particleCount: 40,
       angle: 60,
       spread: 70,
       origin: { x: 0, y: 0.8 },
-      colors: BRAND,
     });
-    confetti({
-      ...globalZ,
-      particleCount: 50,
+    fire({
+      ...globalDefaults,
+      particleCount: 40,
       angle: 120,
       spread: 70,
       origin: { x: 1, y: 0.8 },
-      colors: BRAND,
     });
   }, 250);
 };
