@@ -123,7 +123,7 @@ const EnhancedProfileSettings: React.FC = () => {
       // In a full production env, you'd upload `uploadFile` to Supabase storage here.
 
       // Dispatch the notification to the back office
-      const { error } = await supabase.from("account_conversion_requests").insert({
+      const { error } = await supabase.from("account_conversion_requests" as any).insert({
         user_id: profile.user_id,
         company_name: upgradeForm.companyName,
         industry: upgradeForm.industry,
