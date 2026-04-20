@@ -176,10 +176,10 @@ const EnhancedSocialScreen: React.FC = () => {
                   </div>
                   <div className="flex items-baseline gap-3">
                     <span className="text-5xl font-bold tracking-tighter text-foreground">
-                      {profile?.trust_score ?? "NO SCORE"}
-                    </span>
-                    <span className="text-sm text-muted-foreground font-medium">/ 1000</span>
-                  </div>
+  {profile?.trust_score !== null && profile?.trust_score !== undefined 
+    ? profile.trust_score 
+    : "NO SCORE"}
+</span>
                   <p className="text-sm text-muted-foreground max-w-sm">
                     Current Max Advance:{" "}
                     <span className="text-emerald-500 font-bold">
