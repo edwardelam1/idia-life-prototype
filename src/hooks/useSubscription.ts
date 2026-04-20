@@ -3,12 +3,18 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type SubscriptionTier = "pro" | "pro_plus" | "pure_alpha" | null;
 
-const TIER_RANK = { null: 0, pro: 1, pro_plus: 2, pure_alpha: 3 };
+// Ranking for upgrade/downgrade logic
+export const TIER_RANK: Record<string, number> = {
+  null: 0,
+  pro: 1,
+  pro_plus: 2,
+  pure_alpha: 3,
+};
 
 export const useSubscription = () => {
-  const [tier, setTier] = useState<SubscriptionTier>(
-    () => (localStorage.getItem("idia_dev_tier") as SubscriptionTier) || null,
-  );
+  const [tier, setTier] = useState<SubscriptionTier>(() => {
+    return (localStorage.getItem("idia_dev_tier") as SubscriptionTier) || null;
+  });
   const [loading, setLoading] = useState(true);
 
   const fetchSubscription = async () => {
@@ -25,11 +31,14 @@ export const useSubscription = () => {
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle() as any);
+
         if (data?.tier) {
           setTier(data.tier);
           localStorage.setItem("idia_dev_tier", data.tier);
         }
       }
+    } catch (e) {
+      console.error("Subscription fetch error:", e);
     } finally {
       setLoading(false);
     }
@@ -37,24 +46,20 @@ export const useSubscription = () => {
 
   const subscribe = async (selectedTier: SubscriptionTier) => {
     if (!selectedTier) return false;
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
 
-    // Logic for upgrade vs downgrade
-    const currentRank = TIER_RANK[tier as keyof typeof TIER_RANK] || 0;
-    const nextRank = TIER_RANK[selectedTier as keyof typeof TIER_RANK];
-    const isUpgrade = nextRank > currentRank;
-
+    // Optimistic local update for ungated dev
     setTier(selectedTier);
     localStorage.setItem("idia_dev_tier", selectedTier);
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (user) {
       await supabase.from("user_subscriptions" as any).insert({
         user_id: user.id,
         tier: selectedTier,
         status: "active",
-        expires_at: new Date(Date.now() + 2592000000).toISOString(),
+        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       } as any);
     }
     return true;
