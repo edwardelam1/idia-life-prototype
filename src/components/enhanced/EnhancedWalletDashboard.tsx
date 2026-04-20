@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import NFCPayrollModal from "../NFCPayrollModal";
 import SendRequestModal from "../SendRequestModal";
 import AddFundsModal from "../AddFundsModal";
+import { fireFinaleConfetti } from "../psychometric/confetti";
 import {
   Wallet,
   CreditCard,
@@ -43,18 +44,9 @@ interface Transaction {
   created_at: string;
   metadata?: any;
 }
-} finally {
-      setIsCalculating(false);
-      setShowTestModal(false); // Modal closes
-      setActiveTab('credit');
-      
-      // Delay the finale by 300ms so the modal is fully out of the way
-      setTimeout(() => {
-        fireFinaleConfetti();
-      }, 300);
-    }
+
 interface CreditSimulation {
-  current_score: number | string; // Updated to support "NO SCORE" string
+  current_score: number | string;
   simulated_score: number;
   actions: string[];
 }
@@ -72,7 +64,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   // Trust Score Test State
   const [showTestModal, setShowTestModal] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
-  
+
   useEffect(() => {
     fetchTransactions();
   }, []);
@@ -123,11 +115,9 @@ const EnhancedWalletDashboard: React.FC = () => {
     }
   };
 
-  // The IDIA Algorithm Execution — strictly calls the Edge Function
   const handleCalculateScore = async (moduleScores: Record<TestId, number>) => {
     setIsCalculating(true);
     try {
-      // 1. Package telemetry for the Secure Enclave
       const telemetryPayload = {
         social_exchange_balance: moduleScores.seb,
         attachment_security: moduleScores.ass,
@@ -140,7 +130,6 @@ const EnhancedWalletDashboard: React.FC = () => {
         social_context_sensitivity: moduleScores.scs,
       };
 
-      // 2. Invoke the Edge Function (The Single Source of Truth)
       const { data, error } = await supabase.functions.invoke("calculate-trust-score", {
         body: {
           user_id: profile?.id,
@@ -150,7 +139,6 @@ const EnhancedWalletDashboard: React.FC = () => {
 
       if (error) throw error;
 
-      // 3. Update the Blind Ledger with returned values
       if (updateProfile) {
         await updateProfile({
           trust_score: data.trust_score,
@@ -158,7 +146,6 @@ const EnhancedWalletDashboard: React.FC = () => {
         });
       }
 
-      // 4. Update the simulation UI for immediate feedback
       setCreditSimulation({
         current_score: profile?.trust_score ?? "NO SCORE",
         simulated_score: data.trust_score,
@@ -169,6 +156,12 @@ const EnhancedWalletDashboard: React.FC = () => {
     } finally {
       setIsCalculating(false);
       setShowTestModal(false);
+      setActiveTab("credit");
+
+      // Execution: Delay finale so particles render over the Dashboard, not the disappearing Modal
+      setTimeout(() => {
+        fireFinaleConfetti();
+      }, 350);
     }
   };
 
@@ -232,7 +225,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">IDIA Wallet</h1>
+        <h1 className="text-xl font-bold text-foreground">IDIA Wallet</h1>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={exportTaxableEvents}>
             <Download className="w-4 h-4 mr-2" />
@@ -256,7 +249,6 @@ const EnhancedWalletDashboard: React.FC = () => {
                 <h2 className="text-lg font-bold">Total Balance</h2>
                 <Wallet className="w-6 h-6" />
               </div>
-
               <div className="grid grid-cols-3 gap-2">
                 <div className="text-center">
                   <p className="text-teal-100 text-xs font-medium">Cash</p>
@@ -285,7 +277,6 @@ const EnhancedWalletDashboard: React.FC = () => {
               </div>
               Send / Request
             </Button>
-
             <Button
               variant="outline"
               className="h-14 flex-col border border-teal-200 hover:bg-teal-50 hover:border-teal-300 text-teal-700 text-sm py-0.5"
@@ -294,7 +285,6 @@ const EnhancedWalletDashboard: React.FC = () => {
               <Smartphone className="w-5 h-5 mb-1 text-teal-600" />
               Tap To Payroll
             </Button>
-
             <Button
               variant="outline"
               className="h-14 flex-col border border-cyan-200 hover:bg-cyan-50 hover:border-cyan-300 text-cyan-700 text-sm py-0.5"
@@ -307,7 +297,7 @@ const EnhancedWalletDashboard: React.FC = () => {
 
           <Card>
             <CardHeader className="py-2 px-3">
-              <CardTitle className="flex items-center gap-2 text-sm">
+              <CardTitle className="flex items-center gap-2 text-sm text-foreground">
                 <TrendingUp className="w-4 h-4" />
                 Trust Score & Credit
               </CardTitle>
@@ -328,7 +318,9 @@ const EnhancedWalletDashboard: React.FC = () => {
                   <div className="text-xl font-bold text-green-600">
                     ${profile?.available_credit_line?.toLocaleString() || 0}
                   </div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-tight">Available Credit</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-tight text-foreground">
+                    Available Credit
+                  </p>
                 </div>
               </div>
               <div className="mt-4">
@@ -341,7 +333,7 @@ const EnhancedWalletDashboard: React.FC = () => {
         <TabsContent value="transactions" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Transaction History</CardTitle>
+              <CardTitle className="text-foreground">Transaction History</CardTitle>
             </CardHeader>
             <CardContent>
               {transactions.length === 0 ? (
@@ -358,7 +350,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                           <Icon className="w-5 h-5 text-muted-foreground" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{transaction.description}</p>
+                          <p className="font-medium truncate text-foreground">{transaction.description}</p>
                           <p className="text-sm text-muted-foreground">
                             {new Date(transaction.created_at).toLocaleDateString()}
                           </p>
@@ -378,7 +370,7 @@ const EnhancedWalletDashboard: React.FC = () => {
         <TabsContent value="credit" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Capital Advancement Control</CardTitle>
+              <CardTitle className="text-foreground">Capital Advancement Control</CardTitle>
             </CardHeader>
             <CardContent>
               {creditSimulation ? (
@@ -386,18 +378,21 @@ const EnhancedWalletDashboard: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="text-center p-4 border rounded-lg">
                       <p className="text-sm text-muted-foreground">Current Score</p>
-                      <p className="text-2xl font-bold">{creditSimulation.current_score}</p>
+                      <p className="text-2xl font-bold text-foreground">{creditSimulation.current_score}</p>
                     </div>
-                    <div className="text-center p-4 border rounded-lg bg-green-50">
+                    <div className="text-center p-4 border rounded-lg bg-green-50/50">
                       <p className="text-sm text-muted-foreground">New Score</p>
                       <p className="text-2xl font-bold text-green-600">{creditSimulation.simulated_score}</p>
                     </div>
                   </div>
                   <div>
-                    <h4 className="font-medium mb-2">Actions Registered:</h4>
+                    <h4 className="font-medium mb-2 text-foreground text-foreground">Actions Registered:</h4>
                     <ul className="space-y-1">
                       {creditSimulation.actions.map((action, index) => (
-                        <li key={index} className="text-sm flex items-center gap-2">
+                        <li
+                          key={index}
+                          className="text-sm flex items-center gap-2 text-muted-foreground text-foreground"
+                        >
                           <div className="w-2 h-2 bg-primary rounded-full" />
                           {action}
                         </li>
@@ -410,8 +405,8 @@ const EnhancedWalletDashboard: React.FC = () => {
                 </div>
               ) : (
                 <div className="text-center py-8 space-y-4 flex flex-col items-center">
-                  <BrainCircuit className="w-12 h-12 text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground max-w-sm">
+                  <BrainCircuit className="w-12 h-12 text-muted-foreground mb-2 text-foreground" />
+                  <p className="text-sm text-muted-foreground max-w-sm text-foreground">
                     Your advancement limits are calculated based on verifiable behavioral and social telemetry.
                   </p>
                   <div className="w-full max-w-xs">
@@ -427,12 +422,12 @@ const EnhancedWalletDashboard: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="w-5 h-5" />
+                <CardTitle className="flex items-center gap-2 text-foreground text-foreground">
+                  <Shield className="w-5 h-5 text-foreground" />
                   Wallet Security
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 text-foreground text-foreground">
                 <div className="flex items-center justify-between">
                   <span>Seed Phrase Backup</span>
                   <Badge variant="destructive">Not backed up</Badge>
@@ -453,13 +448,13 @@ const EnhancedWalletDashboard: React.FC = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="w-5 h-5" />
+                <CardTitle className="flex items-center gap-2 text-foreground text-foreground">
+                  <Clock className="w-5 h-5 text-foreground" />
                   Recent Activity
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2 text-sm text-muted-foreground">
+                <div className="space-y-2 text-sm text-muted-foreground text-foreground">
                   <p>Last login: Today at 2:30 PM</p>
                   <p>Last transaction: 2 hours ago</p>
                   <p>Device: Secure Enclave Verified</p>
