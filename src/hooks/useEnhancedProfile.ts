@@ -100,7 +100,32 @@ export const useEnhancedProfile = () => {
           ssn_last4: null,
         });
       }
+      const { 
+      trust_score, 
+      available_credit_line, 
+      ...rest 
+    } = updates;
 
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        ...rest,
+        trust_score: trust_score, // Now it knows what trust_score is
+        available_credit_line: available_credit_line,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id);
+
+    if (error) throw error;
+    
+    // Refresh local state
+    fetchProfile(); 
+  } catch (error: any) {
+    console.error("Error updating profile:", error.message);
+  } finally {
+    setLoading(false);
+  }
+};
       // Fetch wallet data from user_wallets table
       const { data: walletData } = await supabase.from("user_wallets").select("*").eq("user_id", user.id).maybeSingle();
 
