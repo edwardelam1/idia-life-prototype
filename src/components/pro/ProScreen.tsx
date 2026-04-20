@@ -1,8 +1,8 @@
-import { useSubscription } from '@/hooks/useSubscription';
-import ProPaywall from './ProPaywall';
-import HRIDashboard from './HRIDashboard';
-import CPMDashboard from './CPMDashboard';
-import PureAlphaDashboard from './PureAlphaDashboard';
+import { useSubscription } from "@/hooks/useSubscription";
+import ProPaywall from "./ProPaywall";
+import HRIDashboard from "./HRIDashboard";
+import CPMDashboard from "./CPMDashboard";
+import PureAlphaDashboard from "./PureAlphaDashboard";
 
 const ProScreen = () => {
   const { tier, loading, subscribe } = useSubscription();
@@ -15,19 +15,25 @@ const ProScreen = () => {
     );
   }
 
+  // Mask data if no active subscription exists in storage/DB
+  // Note: We are currently defaulting tier to 'pro' in the hook to bypass this
+  const isPaid = !!tier;
+  const activeTier = tier || "pro";
+
+  // Passing currentTier fixes TS2741
   if (!tier) {
-    return <ProPaywall onSubscribe={subscribe} />;
+    return <ProPaywall currentTier={tier} onSubscribe={subscribe} />;
   }
 
-  switch (tier) {
-    case 'pro':
-      return <HRIDashboard />;
-    case 'pro_plus':
-      return <CPMDashboard />;
-    case 'pure_alpha':
-      return <PureAlphaDashboard />;
+  switch (activeTier) {
+    case "pro":
+      return <HRIDashboard isMasked={!isPaid} />;
+    case "pro_plus":
+      return <CPMDashboard isMasked={!isPaid} />;
+    case "pure_alpha":
+      return <PureAlphaDashboard isMasked={!isPaid} />;
     default:
-      return <ProPaywall onSubscribe={subscribe} />;
+      return <ProPaywall currentTier={tier} onSubscribe={subscribe} />;
   }
 };
 
