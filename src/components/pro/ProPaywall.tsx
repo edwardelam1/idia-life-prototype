@@ -9,14 +9,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import type { SubscriptionTier } from "@/hooks/useSubscription";
+import { SubscriptionTier, TIER_RANK } from "@/hooks/useSubscription";
 import { toast } from "@/hooks/use-toast";
-
-const TIER_RANK: Record<string, number> = {
-  pro: 1,
-  pro_plus: 2,
-  pure_alpha: 3,
-};
 
 const tiers = [
   {
@@ -28,12 +22,7 @@ const tiers = [
     icon: Crown,
     color: "from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)]",
     border: "border-[hsl(178,42%,32%)/0.3]",
-    features: [
-      "Human Reliability Index (HRI)",
-      "Gig Economy Performance Tools",
-      "Bio-Tether Link",
-      "Cognitive Battery Alerts",
-    ],
+    features: ["Human Reliability Index (HRI)", "Performance Tools", "Bio-Tether Link", "Cognitive Alerts"],
   },
   {
     id: "pro_plus" as SubscriptionTier,
@@ -45,13 +34,7 @@ const tiers = [
     color: "from-[hsl(28,80%,55%)] to-[hsl(28,80%,45%)]",
     border: "border-[hsl(28,80%,55%)/0.3]",
     popular: true,
-    features: [
-      "Everything in Pro",
-      "CPM Dashboard",
-      "40Hz Gamma Trigger",
-      "RSVP Memory Anchoring",
-      "Pattern of Life Monitor",
-    ],
+    features: ["Everything in Pro", "CPM Dashboard", "40Hz Gamma Trigger", "Memory Anchoring"],
   },
   {
     id: "pure_alpha" as SubscriptionTier,
@@ -62,13 +45,7 @@ const tiers = [
     icon: Zap,
     color: "from-[hsl(270,60%,50%)] to-[hsl(270,60%,35%)]",
     border: "border-[hsl(270,60%,50%)/0.3]",
-    features: [
-      "Everything in Pro+",
-      "P&L Fusion Dashboard",
-      "HRV × Revenue Correlation",
-      "Ghost Protocol (Duress)",
-      "Sovereign Auth Biometrics",
-    ],
+    features: ["Everything in Pro+", "P&L Fusion", "Ghost Protocol", "Sovereign Biometrics"],
   },
 ];
 
@@ -89,69 +66,61 @@ const ProPaywall = ({ currentTier, onSubscribe }: ProPaywallProps) => {
     if (ok) {
       toast({ title: "Plan Updated", description: `You are now on ${confirmTier.name}.` });
       setConfirmTier(null);
-    } else {
-      toast({ title: "Update failed", description: "Please try again.", variant: "destructive" });
     }
   };
 
   return (
     <div className="p-4 pb-24 space-y-6 animate-fade-in">
       <div className="text-center space-y-2">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-xl border border-white/20">
-          <Shield className="w-4 h-4 text-[hsl(28,80%,55%)]" />
-          <span className="text-xs font-medium text-muted-foreground">Sovereign Access Control</span>
-        </div>
-        <h1 className="text-2xl font-bold text-foreground">Sovereign Subscription Matrix</h1>
+        <Shield className="w-8 h-8 text-[hsl(28,80%,55%)] mx-auto" />
+        <h1 className="text-2xl font-bold">Unlock Your Edge</h1>
+        <p className="text-sm text-muted-foreground">Advanced cognitive & financial tools.</p>
       </div>
 
       <div className="space-y-4">
         {tiers.map((t) => {
-          const Icon = t.icon;
           const isActive = currentTier === t.id;
-          const isUpgrade = currentTier ? TIER_RANK[t.id as string] > TIER_RANK[currentTier as string] : true;
+          const currentRank = TIER_RANK[String(currentTier)] || 0;
+          const targetRank = TIER_RANK[String(t.id)];
+          const isUpgrade = targetRank > currentRank;
 
           return (
             <div
               key={t.id}
-              className={`relative rounded-2xl border ${t.border} bg-card/80 backdrop-blur-xl shadow-lg overflow-hidden transition-all ${isActive ? "ring-2 ring-[hsl(178,42%,32%)]" : ""}`}
+              className={`relative rounded-2xl border p-5 bg-card/80 backdrop-blur-xl ${isActive ? "border-[hsl(178,42%,32%)]" : t.border}`}
             >
               {isActive && (
-                <div className="absolute top-0 right-0 bg-[hsl(178,42%,32%)] text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl">
+                <div className="absolute top-0 right-0 bg-[hsl(178,42%,32%)] text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl tracking-tighter">
                   CURRENT PLAN
                 </div>
               )}
-              <div className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${t.color} flex items-center justify-center`}>
-                      <Icon className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-foreground text-sm">{t.name}</h3>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{t.subtitle}</p>
-                    </div>
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex items-center gap-2">
+                  <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${t.color} flex items-center justify-center`}>
+                    <t.icon className="w-4 h-4 text-white" />
                   </div>
-                  <div className="text-right">
-                    <span className="text-xl font-bold text-foreground">{t.price}</span>
-                    <span className="text-xs text-muted-foreground">{t.period}</span>
-                  </div>
+                  <h3 className="font-semibold text-sm">{t.name}</h3>
                 </div>
-                <ul className="space-y-1.5 mb-4">
-                  {t.features.map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Check className="w-3 h-3 text-[hsl(178,42%,32%)] shrink-0" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  className={`w-full bg-gradient-to-r ${t.color} text-white border-0`}
-                  onClick={() => setConfirmTier(t)}
-                  disabled={isActive || subscribing}
-                >
-                  {isActive ? "Active" : isUpgrade ? "Upgrade" : "Downgrade"}
-                </Button>
+                <div className="text-right">
+                  <span className="text-xl font-bold">{t.price}</span>
+                  <span className="text-[10px] text-muted-foreground">/mo</span>
+                </div>
               </div>
+              <ul className="space-y-1.5 mb-5">
+                {t.features.map((f) => (
+                  <li key={f} className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <Check className="w-3 h-3 text-[hsl(178,42%,32%)]" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <Button
+                className={`w-full bg-gradient-to-r ${t.color} border-0`}
+                onClick={() => setConfirmTier(t)}
+                disabled={isActive || subscribing}
+              >
+                {isActive ? "Active" : isUpgrade ? "Upgrade" : "Downgrade"}
+              </Button>
             </div>
           );
         })}
@@ -160,30 +129,18 @@ const ProPaywall = ({ currentTier, onSubscribe }: ProPaywallProps) => {
       <Dialog open={!!confirmTier} onOpenChange={() => setConfirmTier(null)}>
         <DialogContent className="max-w-sm backdrop-blur-xl bg-card/95">
           <DialogHeader>
-            <DialogTitle>Confirm Transition</DialogTitle>
-            <DialogDescription>
-              {currentTier ? (
-                <>
-                  Moving from <strong>{tiers.find((t) => t.id === currentTier)?.name}</strong> to{" "}
-                  <strong>{confirmTier?.name}</strong>.
-                </>
-              ) : (
-                <>
-                  Subscribing to <strong>{confirmTier?.name}</strong> at {confirmTier?.price}/mo.
-                </>
-              )}
-            </DialogDescription>
+            <DialogTitle>Confirm Plan Change</DialogTitle>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmTier(null)}>
               Cancel
             </Button>
             <Button
-              className={`bg-gradient-to-r ${confirmTier?.color} text-white border-0`}
+              className={`bg-gradient-to-r ${confirmTier?.color} text-white`}
               onClick={handleConfirm}
               disabled={subscribing}
             >
-              {subscribing ? "Processing..." : "Confirm Change"}
+              Confirm
             </Button>
           </DialogFooter>
         </DialogContent>
