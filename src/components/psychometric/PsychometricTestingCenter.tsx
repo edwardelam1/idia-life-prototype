@@ -4,7 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, ArrowRight, BrainCircuit, ShieldCheck } from "lucide-react";
 import TestRunner from "./TestRunner";
-import { testBank, type TestId } from "./test_Bank";
+import { testBank, type TestId } from "./testBank";
 import { fireWelcomeConfetti, fireFinaleConfetti } from "./confetti";
 
 interface PsychometricTestingCenterProps {
@@ -20,7 +20,7 @@ const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({ o
     fireWelcomeConfetti();
   }, []);
 
-  const totalModules = test_Bank.length;
+  const totalModules = testBank.length;
   const progress = (Object.keys(completedModules).length / totalModules) * 100;
 
   const startNextModule = () => {
@@ -34,12 +34,16 @@ const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({ o
   };
 
   const handleModuleComplete = (score: number) => {
-    const currentModule = test_Bank[currentModuleIndex];
+    const currentModule = testBank[currentModuleIndex];
     setCompletedModules((prev) => ({
       ...prev,
       [currentModule.id]: score,
     }));
     startNextModule();
+  };
+
+  const handleExit = () => {
+    setCurrentModuleIndex(-1);
   };
 
   // Intro Screen - Mobile Optimized
@@ -59,7 +63,7 @@ const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({ o
 
           <Card className="w-full max-w-sm border-primary/20 bg-card/50 backdrop-blur-sm">
             <CardContent className="p-4 grid grid-cols-3 gap-2">
-              {test_Bank.map((test, idx) => (
+              {testBank.map((test, idx) => (
                 <div key={test.id} className="flex flex-col items-center gap-1">
                   <div className="w-2 h-2 rounded-full bg-muted" />
                   <span className="text-[10px] text-muted-foreground uppercase truncate w-full px-1">{test.id}</span>
@@ -120,13 +124,18 @@ const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({ o
         <div className="max-w-xl mx-auto">
           <Card className="border-none shadow-none bg-transparent">
             <CardContent className="p-0">
-              <TestRunner key={currentModule.id} test={currentModule} onComplete={handleModuleComplete} />
+              <TestRunner
+                key={currentModule.id}
+                test={currentModule}
+                onComplete={handleModuleComplete}
+                onExit={handleExit}
+              />
             </CardContent>
           </Card>
         </div>
       </div>
 
-      {/* Mobile Footer Area (Optional padding for thumb safety) */}
+      {/* Mobile Footer Area for thumb safety */}
       <div className="h-4 bg-background border-t border-transparent" />
     </div>
   );
