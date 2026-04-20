@@ -167,7 +167,7 @@ const EnhancedSocialScreen: React.FC = () => {
             <div className="absolute top-0 right-0 p-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
             <CardContent className="p-6 relative z-10">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                <div className="space-y-2">
+               <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="w-5 h-5 text-primary" />
                     <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
@@ -176,10 +176,12 @@ const EnhancedSocialScreen: React.FC = () => {
                   </div>
                   <div className="flex items-baseline gap-3">
                     <span className="text-5xl font-bold tracking-tighter text-foreground">
-  {profile?.trust_score !== null && profile?.trust_score !== undefined 
-    ? profile.trust_score 
-    : "NO SCORE"}
-</span>
+                      {profile?.trust_score !== null && profile?.trust_score !== undefined 
+                        ? profile.trust_score 
+                        : "NO SCORE"}
+                    </span>
+                    <span className="text-sm text-muted-foreground font-medium">/ 1000</span>
+                  </div>
                   <p className="text-sm text-muted-foreground max-w-sm">
                     Current Max Advance:{" "}
                     <span className="text-emerald-500 font-bold">
@@ -187,17 +189,6 @@ const EnhancedSocialScreen: React.FC = () => {
                     </span>
                   </p>
                 </div>
-
-                <div className="w-full md:w-auto flex flex-col gap-3 p-4 bg-muted/50 border border-border/50 rounded-xl backdrop-blur-sm">
-                  <div className="space-y-1">
-                    <h3 className="font-semibold flex items-center gap-2 text-foreground">
-                      <BrainCircuit className="w-4 h-4 text-primary" />
-                      Need an advance?
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Complete your psychometric validation to establish your deterministic limit.
-                    </p>
-                  </div>
 
                   <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
                     <DialogTrigger asChild>
