@@ -1,52 +1,81 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import { useSocialGraph } from '@/hooks/useSocialGraph';
-import { 
-  Users, 
-  Heart, 
-  Award, 
-  TrendingUp, 
-  UserPlus, 
+import React, { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Slider } from "@/components/ui/slider";
+import { useSocialGraph } from "@/hooks/useSocialGraph";
+import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
+import {
+  Users,
+  Heart,
+  Award,
+  TrendingUp,
+  UserPlus,
   MessageCircle,
   Shield,
-  Target,
+  Clock,
   CheckCircle,
-  Clock
-} from 'lucide-react';
+  ShieldCheck,
+  BrainCircuit,
+  ArrowRight,
+} from "lucide-react";
 
 const EnhancedSocialScreen: React.FC = () => {
-  const { 
-    friends, 
-    trustCircles, 
-    goodDeeds, 
-    socialMetrics, 
+  const {
+    friends,
+    trustCircles,
+    goodDeeds,
+    socialMetrics,
     loading,
     sendFriendRequest,
     acceptFriendRequest,
     submitGoodDeed,
-    createTrustCircle
+    createTrustCircle,
   } = useSocialGraph();
 
-  const [newDeedTitle, setNewDeedTitle] = useState('');
-  const [newDeedDescription, setNewDeedDescription] = useState('');
-  const [newCircleName, setNewCircleName] = useState('');
+  // Pull profile to access current trust score and credit line
+  const { profile, updateProfile } = useEnhancedProfile();
+
+  const [newDeedTitle, setNewDeedTitle] = useState("");
+  const [newDeedDescription, setNewDeedDescription] = useState("");
+  const [newCircleName, setNewCircleName] = useState("");
   const [isSubmittingDeed, setIsSubmittingDeed] = useState(false);
+
+  // Trust Score Test States (Simulating the 9 Indicators from 0-100)
+  const [showTestModal, setShowTestModal] = useState(false);
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [testScores, setTestScores] = useState({
+    seb: 50,
+    ass: 50,
+    snv: 50, // Social Connectivity
+    jrda: 50,
+    ocs: 50,
+    pcf: 50, // Work Engagement
+    eq: 50,
+    gup: 50,
+    scs: 50, // Prosocial Disposition
+  });
 
   const handleSubmitGoodDeed = async () => {
     if (!newDeedTitle.trim() || !newDeedDescription.trim()) return;
-    
+
     setIsSubmittingDeed(true);
     try {
       await submitGoodDeed(newDeedTitle, newDeedDescription);
-      setNewDeedTitle('');
-      setNewDeedDescription('');
+      setNewDeedTitle("");
+      setNewDeedDescription("");
     } finally {
       setIsSubmittingDeed(false);
     }
@@ -54,9 +83,39 @@ const EnhancedSocialScreen: React.FC = () => {
 
   const handleCreateTrustCircle = async () => {
     if (!newCircleName.trim()) return;
-    
+
     await createTrustCircle(newCircleName);
-    setNewCircleName('');
+    setNewCircleName("");
+  };
+
+  // The IDIA Algorithm Execution
+  const handleCalculateScore = async () => {
+    setIsCalculating(true);
+
+    // Simulate edge function processing time
+    setTimeout(async () => {
+      const sci = (testScores.seb + testScores.ass + testScores.snv) / 3;
+      const wei = (testScores.jrda + testScores.ocs + testScores.pcf) / 3;
+      const pdi = (testScores.eq + testScores.gup + testScores.scs) / 3;
+
+      // Final Algorithm: 45% SCI, 35% WEI, 20% PDI (scaled to 1000 max)
+      const rawScore = (0.45 * sci + 0.35 * wei + 0.2 * pdi) * 10;
+      const finalTrustScore = Math.round(rawScore);
+
+      // Calculate Capital Advance (e.g. 650 score = $1500 advance)
+      const calculatedAdvance = Math.round((finalTrustScore / 650) * 1500);
+
+      // Update the blind ledger
+      if (updateProfile) {
+        await updateProfile({
+          trust_score: finalTrustScore,
+          available_credit_line: calculatedAdvance,
+        });
+      }
+
+      setIsCalculating(false);
+      setShowTestModal(false);
+    }, 2000);
   };
 
   const getStatusBadge = (status: string) => {
@@ -64,7 +123,7 @@ const EnhancedSocialScreen: React.FC = () => {
       pending: "secondary",
       accepted: "default",
       verified: "default",
-      rejected: "destructive"
+      rejected: "destructive",
     };
     return <Badge variant={variants[status] || "secondary"}>{status}</Badge>;
   };
@@ -113,6 +172,204 @@ const EnhancedSocialScreen: React.FC = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
+          {/* Trust Score & Capital Advance CTA */}
+          <Card className="bg-[#0a0a0a] border-primary/20 overflow-hidden relative">
+            <div className="absolute top-0 right-0 p-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+            <CardContent className="p-6 relative z-10">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-primary" />
+                    <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
+                      IDIA Trust Score
+                    </h2>
+                  </div>
+                  <div className="flex items-baseline gap-3">
+                    <span className="text-5xl font-bold text-white tracking-tighter">
+                      {profile?.trust_score || "---"}
+                    </span>
+                    <span className="text-sm text-muted-foreground font-medium">/ 1000</span>
+                  </div>
+                  <p className="text-sm text-gray-400 max-w-sm">
+                    Current Max Advance:{" "}
+                    <span className="text-emerald-400 font-bold">
+                      ${profile?.available_credit_line?.toLocaleString() || "0"}
+                    </span>
+                  </p>
+                </div>
+
+                <div className="w-full md:w-auto flex flex-col gap-3 p-4 bg-white/5 border border-white/10 rounded-xl backdrop-blur-sm">
+                  <div className="space-y-1">
+                    <h3 className="text-white font-semibold flex items-center gap-2">
+                      <BrainCircuit className="w-4 h-4 text-primary" />
+                      Need an advance?
+                    </h3>
+                    <p className="text-xs text-gray-400">
+                      Take our behavioral tests to generate or increase your deterministic capital limit.
+                    </p>
+                  </div>
+
+                  <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
+                    <DialogTrigger asChild>
+                      <Button className="w-full font-bold shadow-lg shadow-primary/20">
+                        Take our Tests <ArrowRight className="w-4 h-4 ml-2" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle className="text-2xl">Psychometric Validation</DialogTitle>
+                        <DialogDescription>
+                          Complete these three pillars to establish your cryptographic IDIA Trust Score.
+                        </DialogDescription>
+                      </DialogHeader>
+
+                      <div className="space-y-8 py-4">
+                        {/* Pillar 1 */}
+                        <div className="space-y-4 p-4 bg-muted/30 rounded-xl border">
+                          <h4 className="font-bold text-primary flex items-center gap-2">
+                            <Users className="w-4 h-4" /> 1. Social Connectivity Index (45%)
+                          </h4>
+                          <div className="space-y-3">
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs font-medium">
+                                <label>Social Exchange Balance (Equity)</label>
+                                <span>{testScores.seb}%</span>
+                              </div>
+                              <Slider
+                                value={[testScores.seb]}
+                                onValueChange={([v]) => setTestScores((prev) => ({ ...prev, seb: v }))}
+                                max={100}
+                                step={1}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs font-medium">
+                                <label>Attachment Security</label>
+                                <span>{testScores.ass}%</span>
+                              </div>
+                              <Slider
+                                value={[testScores.ass]}
+                                onValueChange={([v]) => setTestScores((prev) => ({ ...prev, ass: v }))}
+                                max={100}
+                                step={1}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs font-medium">
+                                <label>Network Vitality</label>
+                                <span>{testScores.snv}%</span>
+                              </div>
+                              <Slider
+                                value={[testScores.snv]}
+                                onValueChange={([v]) => setTestScores((prev) => ({ ...prev, snv: v }))}
+                                max={100}
+                                step={1}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Pillar 2 */}
+                        <div className="space-y-4 p-4 bg-muted/30 rounded-xl border">
+                          <h4 className="font-bold text-emerald-500 flex items-center gap-2">
+                            <TrendingUp className="w-4 h-4" /> 2. Work Engagement Index (35%)
+                          </h4>
+                          <div className="space-y-3">
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs font-medium">
+                                <label>Job Resources-Demands Delta</label>
+                                <span>{testScores.jrda}%</span>
+                              </div>
+                              <Slider
+                                value={[testScores.jrda]}
+                                onValueChange={([v]) => setTestScores((prev) => ({ ...prev, jrda: v }))}
+                                max={100}
+                                step={1}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs font-medium">
+                                <label>Organizational Citizenship</label>
+                                <span>{testScores.ocs}%</span>
+                              </div>
+                              <Slider
+                                value={[testScores.ocs]}
+                                onValueChange={([v]) => setTestScores((prev) => ({ ...prev, ocs: v }))}
+                                max={100}
+                                step={1}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs font-medium">
+                                <label>Psychological Contract Fulfillment</label>
+                                <span>{testScores.pcf}%</span>
+                              </div>
+                              <Slider
+                                value={[testScores.pcf]}
+                                onValueChange={([v]) => setTestScores((prev) => ({ ...prev, pcf: v }))}
+                                max={100}
+                                step={1}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Pillar 3 */}
+                        <div className="space-y-4 p-4 bg-muted/30 rounded-xl border">
+                          <h4 className="font-bold text-purple-500 flex items-center gap-2">
+                            <Heart className="w-4 h-4" /> 3. Prosocial Disposition Index (20%)
+                          </h4>
+                          <div className="space-y-3">
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs font-medium">
+                                <label>Empathy Quotient</label>
+                                <span>{testScores.eq}%</span>
+                              </div>
+                              <Slider
+                                value={[testScores.eq]}
+                                onValueChange={([v]) => setTestScores((prev) => ({ ...prev, eq: v }))}
+                                max={100}
+                                step={1}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs font-medium">
+                                <label>Generosity Under Pressure</label>
+                                <span>{testScores.gup}%</span>
+                              </div>
+                              <Slider
+                                value={[testScores.gup]}
+                                onValueChange={([v]) => setTestScores((prev) => ({ ...prev, gup: v }))}
+                                max={100}
+                                step={1}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs font-medium">
+                                <label>Social Context Sensitivity</label>
+                                <span>{testScores.scs}%</span>
+                              </div>
+                              <Slider
+                                value={[testScores.scs]}
+                                onValueChange={([v]) => setTestScores((prev) => ({ ...prev, scs: v }))}
+                                max={100}
+                                step={1}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <Button className="w-full h-12 text-lg" onClick={handleCalculateScore} disabled={isCalculating}>
+                          {isCalculating ? "Processing Cryptographic Attestation..." : "Calculate Limits"}
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Social Health Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card>
@@ -124,11 +381,9 @@ const EnhancedSocialScreen: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-primary">
-                  {socialMetrics?.reciprocity_score?.toFixed(1) || '0.0'}
+                  {socialMetrics?.reciprocity_score?.toFixed(1) || "0.0"}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  How much you give vs receive
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">How much you give vs receive</p>
               </CardContent>
             </Card>
 
@@ -141,11 +396,9 @@ const EnhancedSocialScreen: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-primary">
-                  {socialMetrics?.network_vitality_score?.toFixed(1) || '0.0'}
+                  {socialMetrics?.network_vitality_score?.toFixed(1) || "0.0"}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  How active your network is
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">How active your network is</p>
               </CardContent>
             </Card>
 
@@ -158,11 +411,9 @@ const EnhancedSocialScreen: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-primary">
-                  {friends.filter(f => f.status === 'accepted').length}
+                  {friends.filter((f) => f.status === "accepted").length}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Connected friends
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">Connected friends</p>
               </CardContent>
             </Card>
           </div>
@@ -179,18 +430,12 @@ const EnhancedSocialScreen: React.FC = () => {
                     <Award className="w-5 h-5 text-yellow-500" />
                     <div className="flex-1">
                       <p className="font-medium">{deed.title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(deed.created_at).toLocaleDateString()}
-                      </p>
+                      <p className="text-sm text-muted-foreground">{new Date(deed.created_at).toLocaleDateString()}</p>
                     </div>
                     {getStatusBadge(deed.verification_status)}
                   </div>
                 ))}
-                {goodDeeds.length === 0 && (
-                  <p className="text-center text-muted-foreground py-4">
-                    No recent activity
-                  </p>
-                )}
+                {goodDeeds.length === 0 && <p className="text-center text-muted-foreground py-4">No recent activity</p>}
               </div>
             </CardContent>
           </Card>
@@ -199,14 +444,14 @@ const EnhancedSocialScreen: React.FC = () => {
         <TabsContent value="friends" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Your Friends ({friends.filter(f => f.status === 'accepted').length})</CardTitle>
+              <CardTitle>Your Friends ({friends.filter((f) => f.status === "accepted").length})</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {friends.map((friend) => (
                   <div key={friend.id} className="flex items-center space-x-3 p-3 border rounded-lg">
                     <Avatar>
-                      <AvatarImage src={friend.friend_profile?.avatar_url || ''} />
+                      <AvatarImage src={friend.friend_profile?.avatar_url || ""} />
                       <AvatarFallback>
                         {friend.friend_profile?.first_name?.[0]}
                         {friend.friend_profile?.last_name?.[0]}
@@ -214,8 +459,8 @@ const EnhancedSocialScreen: React.FC = () => {
                     </Avatar>
                     <div className="flex-1">
                       <p className="font-medium">
-                        {friend.friend_profile?.display_name || 
-                         `${friend.friend_profile?.first_name} ${friend.friend_profile?.last_name}`}
+                        {friend.friend_profile?.display_name ||
+                          `${friend.friend_profile?.first_name} ${friend.friend_profile?.last_name}`}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Friends since {new Date(friend.created_at).toLocaleDateString()}
@@ -223,11 +468,8 @@ const EnhancedSocialScreen: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       {getStatusBadge(friend.status)}
-                      {friend.status === 'pending' && (
-                        <Button 
-                          size="sm" 
-                          onClick={() => acceptFriendRequest(friend.id)}
-                        >
+                      {friend.status === "pending" && (
+                        <Button size="sm" onClick={() => acceptFriendRequest(friend.id)}>
                           Accept
                         </Button>
                       )}
@@ -266,11 +508,7 @@ const EnhancedSocialScreen: React.FC = () => {
                         value={newCircleName}
                         onChange={(e) => setNewCircleName(e.target.value)}
                       />
-                      <Button 
-                        className="w-full" 
-                        onClick={handleCreateTrustCircle}
-                        disabled={!newCircleName.trim()}
-                      >
+                      <Button className="w-full" onClick={handleCreateTrustCircle} disabled={!newCircleName.trim()}>
                         Create Circle
                       </Button>
                     </div>
@@ -285,9 +523,7 @@ const EnhancedSocialScreen: React.FC = () => {
                     <Shield className="w-5 h-5 text-blue-500" />
                     <div className="flex-1">
                       <p className="font-medium">{circle.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {circle.member_count || 0} members
-                      </p>
+                      <p className="text-sm text-muted-foreground">{circle.member_count || 0} members</p>
                     </div>
                     <Button variant="outline" size="sm">
                       Manage
@@ -332,12 +568,12 @@ const EnhancedSocialScreen: React.FC = () => {
                         onChange={(e) => setNewDeedDescription(e.target.value)}
                         rows={3}
                       />
-                      <Button 
-                        className="w-full" 
+                      <Button
+                        className="w-full"
                         onClick={handleSubmitGoodDeed}
                         disabled={isSubmittingDeed || !newDeedTitle.trim() || !newDeedDescription.trim()}
                       >
-                        {isSubmittingDeed ? 'Submitting...' : 'Submit for Verification'}
+                        {isSubmittingDeed ? "Submitting..." : "Submit for Verification"}
                       </Button>
                     </div>
                   </DialogContent>
