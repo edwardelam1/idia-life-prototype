@@ -62,20 +62,8 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [showSendRequestModal, setShowSendRequestModal] = useState(false);
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
 
-  // Trust Score Test States
+  // Trust Score Test
   const [showTestModal, setShowTestModal] = useState(false);
-  const [isCalculating, setIsCalculating] = useState(false);
-  const [testScores, setTestScores] = useState({
-    seb: 50,
-    ass: 50,
-    snv: 50, // Social Connectivity
-    jrda: 50,
-    ocs: 50,
-    pcf: 50, // Work Engagement
-    eq: 50,
-    gup: 50,
-    scs: 50, // Prosocial Disposition
-  });
 
   useEffect(() => {
     fetchTransactions();
