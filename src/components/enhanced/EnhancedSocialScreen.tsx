@@ -14,7 +14,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Slider } from "@/components/ui/slider";
+
 import { useSocialGraph } from "@/hooks/useSocialGraph";
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
 import {

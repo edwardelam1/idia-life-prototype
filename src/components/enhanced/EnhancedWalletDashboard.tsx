@@ -30,8 +30,6 @@ import {
   Smartphone,
   Clock,
   Plus,
-  Users,
-  Heart,
   BrainCircuit,
   ArrowRight,
 } from "lucide-react";
