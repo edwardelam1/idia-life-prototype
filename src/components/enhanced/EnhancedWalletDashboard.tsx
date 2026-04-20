@@ -223,25 +223,27 @@ const EnhancedWalletDashboard: React.FC = () => {
 
         <TabsContent value="overview" className="space-y-4">
           <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold">Total Balance</h2>
-                <Wallet className="w-6 h-6" />
+            <CardContent className="p-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center">
+                  <div className="text-xl font-bold text-primary">
+                    {profile?.trust_score !== null && profile?.trust_score !== undefined 
+                      ? profile.trust_score 
+                      : "NO SCORE"}
+                  </div>
+                  <Badge variant={profile?.trust_score != null ? "secondary" : "outline"} className="text-xs">
+                    {profile?.trust_score != null ? "Active" : "Unverified"}
+                  </Badge>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-bold text-green-600">
+                    ${profile?.available_credit_line?.toLocaleString() || "0"}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Available Credit</p>
+                </div>
               </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div className="text-center">
-                  <p className="text-teal-100 text-xs font-medium">Cash</p>
-                  <p className="text-xl font-bold">${walletBalance?.cash_balance?.toFixed(2) || "0.00"}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-teal-100 text-xs font-medium">IDIA-BETA</p>
-                  <p className="text-xl font-bold">${walletBalance?.idia_usd_balance?.toFixed(2) || "0.00"}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-teal-100 text-xs font-medium">IDIA Token</p>
-                  <p className="text-xl font-bold">{walletBalance?.idia_token_balance?.toFixed(2) || "0.00"}</p>
-                </div>
+              <div className="mt-4">
+                <TestLauncher />
               </div>
             </CardContent>
           </Card>
