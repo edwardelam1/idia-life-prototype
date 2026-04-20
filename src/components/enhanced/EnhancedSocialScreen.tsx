@@ -76,8 +76,7 @@ const EnhancedSocialScreen: React.FC = () => {
     setNewCircleName("");
   };
 
-
-
+  const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive"> = {
       pending: "secondary",
       accepted: "default",
