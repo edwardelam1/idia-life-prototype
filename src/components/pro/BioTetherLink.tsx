@@ -3,9 +3,14 @@ import { Heart, Activity, Moon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSubscription } from "@/hooks/useSubscription";
 
-const BioTetherLink = () => {
+interface HealthPayload {
+  heart_rate: number;
+  heart_rate_variability_ms: number;
+}
+
+const BioTetherLink = ({ isMasked = false }: { isMasked?: boolean }) => {
   const { tier } = useSubscription();
-  const linked = !!tier; // Linked automatically if account is paid
+  const linked = !!tier;
 
   const [vitals, setVitals] = useState({
     hr: "-- bpm",
@@ -14,10 +19,10 @@ const BioTetherLink = () => {
   });
 
   useEffect(() => {
-    if (!linked) return;
+    if (isMasked) return;
 
     const fetchVitals = async () => {
-      // 1. Fetch HR and HRV from Staged Health Data
+      // 1. Initial State Fetch
       const { data: health } = await (supabase
         .from("staged_health_data" as any)
         .select("heart_rate, heart_rate_variability_ms")
@@ -25,7 +30,6 @@ const BioTetherLink = () => {
         .limit(1)
         .maybeSingle() as any);
 
-      // 2. Fetch Sleep from Daily Ledger
       const { data: daily } = await (supabase
         .from("staged_health_data_daily" as any)
         .select("total_sleep_minutes")
@@ -33,26 +37,27 @@ const BioTetherLink = () => {
         .limit(1)
         .maybeSingle() as any);
 
-      setVitals({
-        hr: health?.heart_rate ? `${Math.round(health.heart_rate)} bpm` : "72 bpm",
-        hrv: health?.heart_rate_variability_ms ? `${Math.round(health.heart_rate_variability_ms)}ms` : "48ms",
-        sleep: daily?.total_sleep_minutes ? `${(daily.total_sleep_minutes / 60).toFixed(1)}h` : "7.2h",
-      });
+      if (health || daily) {
+        setVitals({
+          hr: health?.heart_rate ? `${Math.round(health.heart_rate)} bpm` : "72 bpm",
+          hrv: health?.heart_rate_variability_ms ? `${Math.round(health.heart_rate_variability_ms)}ms` : "48ms",
+          sleep: daily?.total_sleep_minutes ? `${(daily.total_sleep_minutes / 60).toFixed(1)}h` : "7.2h",
+        });
+      }
     };
 
     fetchVitals();
 
-    // 3. Optional: Sub-100ms Vital Stream Subscription
+    // 2. Live Vital Feed Subscription
     const channel = supabase
       .channel("bio_tether_live")
-      .on("postgres_changes" as any, { event: "*", schema: "public", table: "staged_health_data" }, (payload) => {
-        if (payload.new) {
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "staged_health_data" }, (payload: any) => {
+        const next = payload.new as HealthPayload;
+        if (next && next.heart_rate) {
           setVitals((prev) => ({
             ...prev,
-            hr: payload.new.heart_rate ? `${Math.round(payload.new.heart_rate)} bpm` : prev.hr,
-            hrv: payload.new.heart_rate_variability_ms
-              ? `${Math.round(payload.new.heart_rate_variability_ms)}ms`
-              : prev.hrv,
+            hr: `${Math.round(next.heart_rate)} bpm`,
+            hrv: `${Math.round(next.heart_rate_variability_ms)}ms`,
           }));
         }
       })
@@ -61,7 +66,7 @@ const BioTetherLink = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [linked]);
+  }, [isMasked, linked]);
 
   const streams = [
     { icon: Heart, label: "Heart Rate", value: vitals.hr, color: "text-destructive" },
@@ -74,33 +79,30 @@ const BioTetherLink = () => {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">Bio-Tether Link</h3>
         <span
-          className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${linked ? "bg-[hsl(178,42%,32%)]/10 text-[hsl(178,42%,32%)]" : "bg-muted text-muted-foreground"}`}
+          className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${!isMasked ? "bg-[hsl(178,42%,32%)]/10 text-[hsl(178,42%,32%)]" : "bg-muted text-muted-foreground"}`}
         >
-          {linked ? "● LINKED" : "○ UNLINKED"}
+          {!isMasked ? "● LINKED" : "○ UNLINKED"}
         </span>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        {streams.map((s) => {
-          const Icon = s.icon;
-          return (
-            <div key={s.label} className="rounded-xl bg-muted/50 p-3 text-center space-y-1">
-              <Icon
-                className={`w-4 h-4 mx-auto ${linked ? s.color : "text-muted-foreground/40"} ${linked ? "animate-pulse" : ""}`}
-              />
-              <p className="text-[10px] text-muted-foreground">{s.label}</p>
-              <p className={`text-xs font-semibold ${linked ? "text-foreground" : "text-muted-foreground/40"}`}>
-                {linked ? s.value : "Masked"}
-              </p>
-            </div>
-          );
-        })}
+        {streams.map((s) => (
+          <div key={s.label} className="rounded-xl bg-muted/50 p-3 text-center space-y-1 border border-white/5">
+            <s.icon
+              className={`w-4 h-4 mx-auto ${!isMasked ? s.color : "text-muted-foreground/40"} ${!isMasked ? "animate-pulse" : ""}`}
+            />
+            <p className="text-[10px] text-muted-foreground">{s.label}</p>
+            <p className={`text-xs font-bold ${!isMasked ? "text-foreground" : "text-muted-foreground/40 italic"}`}>
+              {!isMasked ? s.value : "Masked"}
+            </p>
+          </div>
+        ))}
       </div>
 
-      <p className="text-[10px] text-center text-muted-foreground">
-        {linked
-          ? "Privacy Handshake Complete • Data streams encrypted end-to-end"
-          : "Subscribe to IDIA Life Pro to link your bio-tether."}
+      <p className="text-[9px] text-center text-muted-foreground/60">
+        {!isMasked
+          ? "Privacy Handshake Complete • End-to-End Encrypted"
+          : "Subscription Required for Real-time Biometric Stream"}
       </p>
     </div>
   );
