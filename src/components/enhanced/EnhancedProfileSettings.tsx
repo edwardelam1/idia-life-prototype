@@ -269,12 +269,11 @@ const EnhancedProfileSettings: React.FC = () => {
           <CardContent>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <span>Trust Score:</span>
-                <Badge variant="default">{profile.trust_score || 650}</Badge>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Credit Line:</span>
-                <span className="font-medium">${profile.available_credit_line || 0}</span>
+                <span className="text-5xl font-bold tracking-tighter text-foreground">
+                  {profile?.trust_score !== null && profile?.trust_score !== undefined
+                    ? profile.trust_score
+                    : "NO SCORE"}
+                </span>
               </div>
             </div>
           </CardContent>

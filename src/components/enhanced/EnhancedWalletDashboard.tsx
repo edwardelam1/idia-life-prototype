@@ -296,9 +296,13 @@ const EnhancedWalletDashboard: React.FC = () => {
             <CardContent className="p-3">
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center">
-                  <div className="text-xl font-bold text-primary">{profile?.trust_score || 650}</div>
-                  <Badge variant="secondary" className="text-xs">
-                    Excellent
+                  <div className="text-xl font-bold text-primary">
+                    {profile?.trust_score !== null && profile?.trust_score !== undefined
+                      ? profile.trust_score
+                      : "NO SCORE"}
+                  </div>
+                  <Badge variant={profile?.trust_score != null ? "secondary" : "outline"} className="text-xs">
+                    {profile?.trust_score != null ? "Active" : "Unverified"}
                   </Badge>
                 </div>
                 <div className="text-center">
