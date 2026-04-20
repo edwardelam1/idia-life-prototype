@@ -66,7 +66,6 @@ export const useEnhancedProfile = () => {
         return;
       }
 
-      // Load enhanced profile with basic fields that exist
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("*")
@@ -77,71 +76,43 @@ export const useEnhancedProfile = () => {
         console.error("Error loading profile:", profileError);
       } else if (profileData) {
         const displayName = user.user_metadata?.display_name || user.user_metadata?.full_name || user.email || "";
+
         setProfile({
           id: profileData.id,
           user_id: profileData.user_id,
           first_name: user.user_metadata?.first_name || displayName.split(" ")[0] || "",
           last_name: user.user_metadata?.last_name || displayName.split(" ").slice(1).join(" ") || "",
           email: user.email,
-          ai_assistant_name: "Friend",
-          account_type: "personal",
+          ai_assistant_name: profileData.ai_assistant_name || "Friend",
+          account_type: profileData.account_type || "personal",
           display_name: displayName,
-          avatar_url: null,
-          phone_number: null,
-          date_of_birth: null,
-          trust_score: trust_score,
-          available_credit_line: 0,
-          quiet_time_enabled: false,
-          quiet_time_start: null,
-          quiet_time_end: null,
+          avatar_url: profileData.avatar_url,
+          phone_number: profileData.phone_number,
+          date_of_birth: profileData.date_of_birth,
+          trust_score: profileData.trust_score, // Fixed: Now uses database value
+          available_credit_line: profileData.available_credit_line || 0,
+          quiet_time_enabled: profileData.quiet_time_enabled || false,
+          quiet_time_start: profileData.quiet_time_start,
+          quiet_time_end: profileData.quiet_time_end,
           created_at: profileData.created_at,
           updated_at: profileData.updated_at,
-          kyc_status: "pending",
-          ssn_last4: null,
+          kyc_status: profileData.kyc_status || "pending",
+          ssn_last4: profileData.ssn_last4,
         });
       }
-      const { 
-      trust_score, 
-      available_credit_line, 
-      ...rest 
-    } = updates;
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        ...rest,
-        trust_score: trust_score, // Now it knows what trust_score is
-        available_credit_line: available_credit_line,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", user.id);
-
-    if (error) throw error;
-    
-    // Refresh local state
-    fetchProfile(); 
-  } catch (error: any) {
-    console.error("Error updating profile:", error.message);
-  } finally {
-    setLoading(false);
-  }
-};
-      // Fetch wallet data from user_wallets table
       const { data: walletData } = await supabase.from("user_wallets").select("*").eq("user_id", user.id).maybeSingle();
 
       if (walletData) {
         setWallet({
           id: walletData.id,
           user_id: walletData.user_id,
-          wallet_address: null,
-          cash_balance: 0,
+          wallet_address: walletData.wallet_address,
+          cash_balance: walletData.cash_balance || 0,
           idia_usd_balance: walletData.total_earned || 0,
-          idia_token_balance: 0,
-          is_seed_backed_up: false,
+          idia_token_balance: walletData.idia_token_balance || 0,
+          is_seed_backed_up: walletData.is_seed_backed_up || false,
         });
-      } else {
-        // No wallet record found – do not simulate values
-        setWallet(null);
       }
     } catch (error) {
       console.error("Error loading profile data:", error);
@@ -151,7 +122,6 @@ export const useEnhancedProfile = () => {
   };
 
   const loadAvailableInterests = async () => {
-    // Mock interests for now since the table doesn't exist yet
     setAvailableInterests([
       { id: "1", name: "Health & Fitness", category: "lifestyle" },
       { id: "2", name: "Technology", category: "professional" },
@@ -168,7 +138,20 @@ export const useEnhancedProfile = () => {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
-      const { data, error } = await supabase.from("profiles").update(updates).eq("user_id", user.id).select().single();
+      // Destructure to handle explicit fields if necessary, or pass updates directly
+      const { trust_score, available_credit_line, ...rest } = updates;
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({
+          ...rest,
+          trust_score: trust_score,
+          available_credit_line: available_credit_line,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", user.id)
+        .select()
+        .single();
 
       if (error) throw error;
 
@@ -177,17 +160,15 @@ export const useEnhancedProfile = () => {
           ...profile,
           ...updates,
           ...(data as any),
-          email: profile.email,
-          ai_assistant_name: profile.ai_assistant_name,
-          account_type: profile.account_type,
         });
       }
+
       toast({
         title: "Success",
         description: "Profile updated successfully",
       });
-    } catch (error) {
-      console.error("Error updating profile:", error);
+    } catch (error: any) {
+      console.error("Error updating profile:", error.message);
       toast({
         title: "Error",
         description: "Failed to update profile",
@@ -201,20 +182,13 @@ export const useEnhancedProfile = () => {
   const updateInterests = async (selectedInterestIds: string[]) => {
     setUpdating(true);
     try {
-      // Mock implementation for now
       setInterests(availableInterests.filter((interest) => selectedInterestIds.includes(interest.id)));
-
       toast({
         title: "Success",
         description: "Interests updated successfully",
       });
     } catch (error) {
       console.error("Error updating interests:", error);
-      toast({
-        title: "Error",
-        description: "Failed to update interests",
-        variant: "destructive",
-      });
     } finally {
       setUpdating(false);
     }
@@ -243,11 +217,6 @@ export const useEnhancedProfile = () => {
       await updateProfile({ avatar_url: publicUrl });
     } catch (error) {
       console.error("Error uploading avatar:", error);
-      toast({
-        title: "Error",
-        description: "Failed to upload avatar",
-        variant: "destructive",
-      });
     } finally {
       setUpdating(false);
     }
