@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import NFCPayrollModal from "../NFCPayrollModal";
 import SendRequestModal from "../SendRequestModal";
 import AddFundsModal from "../AddFundsModal";
-import PsychometricTestingCenter from "./psychometric/PsychometricTestingCenter";
+import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter";
 import {
   Wallet,
   CreditCard,
@@ -195,7 +195,8 @@ const EnhancedWalletDashboard: React.FC = () => {
           {isCalculating ? "Processing..." : "Need an advance? Take our Tests"} <ArrowRight className="w-4 h-4 ml-2" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto bg-[#0a0a0a] p-0 border-none">
+      {/* Background color changed from #0a0a0a to bg-background to match design system */}
+      <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto bg-background p-0 border-none">
         <PsychometricTestingCenter onCompleteAll={handleCalculateScore} />
       </DialogContent>
     </Dialog>
@@ -204,7 +205,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">IDIA Wallet</h1>
+        <h1 className="text-xl font-bold text-foreground">IDIA Wallet</h1>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={exportTaxableEvents}>
             <Download className="w-4 h-4 mr-2" />
@@ -222,32 +223,31 @@ const EnhancedWalletDashboard: React.FC = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
+          {/* Total Balance Card */}
           <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white">
-            <CardContent className="p-3">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center">
-                  <div className="text-xl font-bold text-primary">
-                    {profile?.trust_score !== null && profile?.trust_score !== undefined 
-                      ? profile.trust_score 
-                      : "NO SCORE"}
-                  </div>
-                  <Badge variant={profile?.trust_score != null ? "secondary" : "outline"} className="text-xs">
-                    {profile?.trust_score != null ? "Active" : "Unverified"}
-                  </Badge>
-                </div>
-                <div className="text-center">
-                  <div className="text-xl font-bold text-green-600">
-                    ${profile?.available_credit_line?.toLocaleString() || "0"}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Available Credit</p>
-                </div>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold">Total Balance</h2>
+                <Wallet className="w-6 h-6" />
               </div>
-              <div className="mt-4">
-                <TestLauncher />
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-center">
+                  <p className="text-teal-100 text-xs font-medium">Cash</p>
+                  <p className="text-xl font-bold">${walletBalance?.cash_balance?.toFixed(2) || "0.00"}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-teal-100 text-xs font-medium">IDIA-BETA</p>
+                  <p className="text-xl font-bold">${walletBalance?.idia_usd_balance?.toFixed(2) || "0.00"}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-teal-100 text-xs font-medium">IDIA Token</p>
+                  <p className="text-xl font-bold">{walletBalance?.idia_token_balance?.toFixed(2) || "0.00"}</p>
+                </div>
               </div>
             </CardContent>
           </Card>
 
+          {/* Quick Actions */}
           <div className="grid grid-cols-3 gap-4">
             <Button
               className="h-14 flex-col bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white text-sm py-0.5"
@@ -279,9 +279,10 @@ const EnhancedWalletDashboard: React.FC = () => {
             </Button>
           </div>
 
+          {/* Trust Score & Credit Card */}
           <Card>
             <CardHeader className="py-2 px-3">
-              <CardTitle className="flex items-center gap-2 text-sm">
+              <CardTitle className="flex items-center gap-2 text-sm text-foreground">
                 <TrendingUp className="w-4 h-4" />
                 Trust Score & Credit
               </CardTitle>
@@ -290,10 +291,14 @@ const EnhancedWalletDashboard: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center">
                   <div className="text-xl font-bold text-primary">
-  {profile?.trust_score !== null && profile?.trust_score !== undefined 
-    ? profile.trust_score 
-    : "NO SCORE"}
-</div>
+                    {profile?.trust_score !== null && profile?.trust_score !== undefined
+                      ? profile.trust_score
+                      : "NO SCORE"}
+                  </div>
+                  <Badge variant={profile?.trust_score != null ? "secondary" : "outline"} className="text-xs">
+                    {profile?.trust_score != null ? "Active" : "Unverified"}
+                  </Badge>
+                </div>
                 <div className="text-center">
                   <div className="text-xl font-bold text-green-600">
                     ${profile?.available_credit_line?.toLocaleString() || "0"}
@@ -311,7 +316,7 @@ const EnhancedWalletDashboard: React.FC = () => {
         <TabsContent value="transactions" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Transaction History</CardTitle>
+              <CardTitle className="text-foreground">Transaction History</CardTitle>
             </CardHeader>
             <CardContent>
               {transactions.length === 0 ? (
@@ -328,7 +333,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                           <Icon className="w-5 h-5 text-muted-foreground" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{transaction.description}</p>
+                          <p className="font-medium truncate text-foreground">{transaction.description}</p>
                           <p className="text-sm text-muted-foreground">
                             {new Date(transaction.created_at).toLocaleDateString()}
                           </p>
@@ -348,7 +353,7 @@ const EnhancedWalletDashboard: React.FC = () => {
         <TabsContent value="credit" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Capital Advancement Control</CardTitle>
+              <CardTitle className="text-foreground">Capital Advancement Control</CardTitle>
             </CardHeader>
             <CardContent>
               {creditSimulation ? (
@@ -356,18 +361,18 @@ const EnhancedWalletDashboard: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="text-center p-4 border rounded-lg">
                       <p className="text-sm text-muted-foreground">Previous Score</p>
-                      <p className="text-2xl font-bold">{creditSimulation.current_score}</p>
+                      <p className="text-2xl font-bold text-foreground">{creditSimulation.current_score}</p>
                     </div>
-                    <div className="text-center p-4 border rounded-lg bg-green-50">
+                    <div className="text-center p-4 border rounded-lg bg-green-50/50">
                       <p className="text-sm text-muted-foreground">New Score</p>
                       <p className="text-2xl font-bold text-green-600">{creditSimulation.simulated_score}</p>
                     </div>
                   </div>
                   <div>
-                    <h4 className="font-medium mb-2">Actions Registered:</h4>
+                    <h4 className="font-medium mb-2 text-foreground">Actions Registered:</h4>
                     <ul className="space-y-1">
                       {creditSimulation.actions.map((action, index) => (
-                        <li key={index} className="text-sm flex items-center gap-2">
+                        <li key={index} className="text-sm flex items-center gap-2 text-muted-foreground">
                           <div className="w-2 h-2 bg-primary rounded-full" />
                           {action}
                         </li>
@@ -398,12 +403,12 @@ const EnhancedWalletDashboard: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-foreground">
                   <Shield className="w-5 h-5" />
                   Wallet Security
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 text-foreground">
                 <div className="flex items-center justify-between">
                   <span>Seed Phrase Backup</span>
                   <Badge variant="destructive">Not backed up</Badge>
@@ -424,17 +429,15 @@ const EnhancedWalletDashboard: React.FC = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-foreground">
                   <Clock className="w-5 h-5" />
                   Recent Activity
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm">
-                  <p>Last login: Today at 2:30 PM</p>
-                  <p>Last transaction: 2 hours ago</p>
-                  <p>Device: Secure Enclave Verified</p>
-                </div>
+              <CardContent className="space-y-2 text-sm text-muted-foreground">
+                <p>Last login: Today at 2:30 PM</p>
+                <p>Last transaction: 2 hours ago</p>
+                <p>Device: Secure Enclave Verified</p>
               </CardContent>
             </Card>
           </div>
