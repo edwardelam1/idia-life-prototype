@@ -52,6 +52,8 @@ const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({ o
   // Intro Screen - Mobile Optimized
   if (currentModuleIndex === -1) {
     return (
+      <div className="flex flex-col h-[85vh] md:h-auto min-h-[500px] bg-background text-foreground overflow-hidden">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-6">
           <Card className="w-full max-w-sm border-primary/20 bg-card/50 backdrop-blur-sm">
             <CardContent className="p-4 grid grid-cols-3 gap-2">
               {modules.map((test) => (
