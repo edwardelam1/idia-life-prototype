@@ -40,8 +40,8 @@ const Auth = () => {
     } = supabase.auth.onAuthStateChange((event, session) => {
       // Only auto-redirect if they have a session AND they aren't in the middle of an OTP reset
       if (session && !isResetMode) {
-        // Surgical Fix: Ensure local sign-in events land on /wallet
-        navigate("/wallet");
+        // Surgical Fix: Land on root dashboard
+        navigate("/");
       }
     });
 
@@ -64,8 +64,8 @@ const Auth = () => {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          // Surgical Fix: Land on /wallet after email confirmation
-          options: { emailRedirectTo: `${window.location.origin}/wallet` },
+          // Surgical Fix: Land on root after email confirmation
+          options: { emailRedirectTo: `${window.location.origin}/` },
         });
         if (error) throw error;
         toast({ title: "Account created!", description: "Please check your email to verify your account." });
@@ -82,8 +82,8 @@ const Auth = () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
-        // Surgical Fix: Land on /wallet after OAuth handshake
-        options: { redirectTo: `${window.location.origin}/wallet` },
+        // Surgical Fix: Land on root after OAuth handshake
+        options: { redirectTo: `${window.location.origin}/` },
       });
       if (error) throw error;
     } catch (error: any) {
@@ -145,8 +145,8 @@ const Auth = () => {
       setOtpCode("");
       setNewPassword("");
       setIsResetMode(false);
-      // Surgical Fix: Land on /wallet after reset
-      navigate("/wallet");
+      // Surgical Fix: Land on root after reset
+      navigate("/");
     } catch (error: any) {
       toast({ title: "Reset failed", description: error.message, variant: "destructive" });
     } finally {
