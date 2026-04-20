@@ -16,7 +16,6 @@ const MainApp = () => {
   const [showFriend, setShowFriend] = useState(false);
   const [friendTrigger, setFriendTrigger] = useState<"social" | "wallet" | "data" | "achievement" | undefined>();
 
-  // Tabs array updated to remove any standalone Profile navigation
   const tabs = [
     { id: "wallet", label: "Wallet", icon: Wallet, component: EnhancedWalletDashboard },
     { id: "data", label: "My Data", icon: Database, component: DataDashboard },
@@ -26,6 +25,7 @@ const MainApp = () => {
     { id: "pro", label: "Pro", icon: Crown, component: ProScreen },
   ];
 
+  // Automated trigger when entering the Social tab
   useEffect(() => {
     if (activeTab === "social") {
       setFriendTrigger("social");
@@ -37,6 +37,7 @@ const MainApp = () => {
     }
   }, [activeTab, friendTrigger]);
 
+  // Listener for legitimate app-wide events (e.g., from the Edge Function completion)
   useEffect(() => {
     const handleShowFriend = (event: CustomEvent) => {
       const { trigger } = event.detail;
@@ -50,19 +51,6 @@ const MainApp = () => {
     };
   }, []);
 
-  useEffect(() => {
-    const checkForWalletUpdates = () => {
-      const simulateBalanceIncrease = Math.random() < 0.1;
-      if (simulateBalanceIncrease && !showFriend) {
-        setFriendTrigger("wallet");
-        setShowFriend(true);
-      }
-    };
-
-    const interval = setInterval(checkForWalletUpdates, 10000);
-    return () => clearInterval(interval);
-  }, [showFriend]);
-
   const ActiveComponent = tabs.find((tab) => tab.id === activeTab)?.component || EnhancedWalletDashboard;
 
   const handleCloseFriend = () => {
@@ -71,7 +59,7 @@ const MainApp = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-screen overflow-hidden bg-background">
       <Header />
       <main className="flex-1 overflow-hidden pt-[calc(3.5rem+env(safe-area-inset-top))]">
         <div className="h-full max-w-4xl mx-auto">
@@ -80,6 +68,7 @@ const MainApp = () => {
           </div>
         </div>
       </main>
+
       <nav className="fixed bottom-0 left-0 right-0 bg-background border-t border-border pb-[env(safe-area-inset-bottom)] z-50">
         <div className="max-w-4xl mx-auto px-2">
           <div className="flex justify-around py-2">
@@ -89,8 +78,8 @@ const MainApp = () => {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex flex-col items-center space-y-0.5 ${
-                    activeTab === tab.id ? "text-primary" : "text-gray-600"
+                  className={`flex flex-col items-center space-y-0.5 transition-colors ${
+                    activeTab === tab.id ? "text-primary" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <Icon className="w-5 h-5" />
