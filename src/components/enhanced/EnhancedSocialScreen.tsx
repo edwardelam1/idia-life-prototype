@@ -5,14 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useSocialGraph } from "@/hooks/useSocialGraph";
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
@@ -74,7 +67,6 @@ const EnhancedSocialScreen: React.FC = () => {
     setNewCircleName("");
   };
 
-  // --- ATTACHED TO EDGE FUNCTION: CALCULATE-TRUST-SCORE ---
   const handleCalculateScore = async (finalScores: Record<string, number>) => {
     setIsCalculating(true);
     try {
@@ -133,7 +125,7 @@ const EnhancedSocialScreen: React.FC = () => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Social Network</h1>
+        <h1 className="text-xl font-bold text-foreground">Social Network</h1>
         <Dialog>
           <DialogTrigger asChild>
             <Button size="sm">
@@ -162,12 +154,11 @@ const EnhancedSocialScreen: React.FC = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          {/* Theme Correction: Uses bg-card to match design system */}
           <Card className="bg-card border-primary/20 overflow-hidden relative">
             <div className="absolute top-0 right-0 p-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
             <CardContent className="p-6 relative z-10">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-               <div className="space-y-2">
+                <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="w-5 h-5 text-primary" />
                     <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
@@ -176,8 +167,8 @@ const EnhancedSocialScreen: React.FC = () => {
                   </div>
                   <div className="flex items-baseline gap-3">
                     <span className="text-5xl font-bold tracking-tighter text-foreground">
-                      {profile?.trust_score !== null && profile?.trust_score !== undefined 
-                        ? profile.trust_score 
+                      {profile?.trust_score !== null && profile?.trust_score !== undefined
+                        ? profile.trust_score
                         : "NO SCORE"}
                     </span>
                     <span className="text-sm text-muted-foreground font-medium">/ 1000</span>
@@ -189,6 +180,17 @@ const EnhancedSocialScreen: React.FC = () => {
                     </span>
                   </p>
                 </div>
+
+                <div className="w-full md:w-auto flex flex-col gap-3 p-4 bg-muted/50 border border-border/50 rounded-xl backdrop-blur-sm">
+                  <div className="space-y-1">
+                    <h3 className="font-semibold flex items-center gap-2 text-foreground">
+                      <BrainCircuit className="w-4 h-4 text-primary" />
+                      Need an advance?
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Complete your psychometric validation to establish your deterministic limit.
+                    </p>
+                  </div>
 
                   <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
                     <DialogTrigger asChild>
@@ -208,7 +210,7 @@ const EnhancedSocialScreen: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
+                <CardTitle className="text-base flex items-center gap-2 text-foreground">
                   <Heart className="w-4 h-4 text-red-500" />
                   Reciprocity Score
                 </CardTitle>
@@ -222,7 +224,7 @@ const EnhancedSocialScreen: React.FC = () => {
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
+                <CardTitle className="text-base flex items-center gap-2 text-foreground">
                   <TrendingUp className="w-4 h-4 text-green-500" />
                   Network Vitality
                 </CardTitle>
@@ -236,7 +238,7 @@ const EnhancedSocialScreen: React.FC = () => {
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
+                <CardTitle className="text-base flex items-center gap-2 text-foreground">
                   <Users className="w-4 h-4 text-blue-500" />
                   Network Size
                 </CardTitle>
@@ -251,7 +253,7 @@ const EnhancedSocialScreen: React.FC = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle>Recent Social Activity</CardTitle>
+              <CardTitle className="text-foreground">Recent Social Activity</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -259,7 +261,7 @@ const EnhancedSocialScreen: React.FC = () => {
                   <div key={deed.id} className="flex items-center space-x-3 p-3 border rounded-lg">
                     <Award className="w-5 h-5 text-yellow-500" />
                     <div className="flex-1">
-                      <p className="font-medium">{deed.title}</p>
+                      <p className="font-medium text-foreground">{deed.title}</p>
                       <p className="text-sm text-muted-foreground">{new Date(deed.created_at).toLocaleDateString()}</p>
                     </div>
                     {getStatusBadge(deed.verification_status)}
@@ -274,42 +276,46 @@ const EnhancedSocialScreen: React.FC = () => {
         <TabsContent value="friends" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Your Friends ({friends.filter((f) => f.status === "accepted").length})</CardTitle>
+              <CardTitle className="text-foreground">Your Friends</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {friends.map((friend) => (
-                  <div key={friend.id} className="flex items-center space-x-3 p-3 border rounded-lg">
-                    <Avatar>
-                      <AvatarImage src={friend.friend_profile?.avatar_url || ""} />
-                      <AvatarFallback>
-                        {friend.friend_profile?.first_name?.[0]}
-                        {friend.friend_profile?.last_name?.[0]}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <p className="font-medium">
-                        {friend.friend_profile?.display_name ||
-                          `${friend.friend_profile?.first_name} ${friend.friend_profile?.last_name}`}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Connected {new Date(friend.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {getStatusBadge(friend.status)}
-                      {friend.status === "pending" && (
-                        <Button size="sm" onClick={() => acceptFriendRequest(friend.id)}>
-                          Accept
+              {friends.length === 0 ? (
+                <p className="text-center py-8 text-muted-foreground">No friends yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {friends.map((f) => (
+                    <div key={f.id} className="flex items-center space-x-3 p-3 border rounded-lg">
+                      <Avatar>
+                        <AvatarImage src={f.friend_profile?.avatar_url || ""} />
+                        <AvatarFallback>
+                          {f.friend_profile?.first_name?.[0]}
+                          {f.friend_profile?.last_name?.[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="font-medium text-foreground">
+                          {f.friend_profile?.display_name ||
+                            `${f.friend_profile?.first_name} ${f.friend_profile?.last_name}`}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Connected {new Date(f.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {getStatusBadge(f.status)}
+                        {f.status === "pending" && (
+                          <Button size="sm" onClick={() => acceptFriendRequest(f.id)}>
+                            Accept
+                          </Button>
+                        )}
+                        <Button variant="outline" size="sm">
+                          <MessageCircle className="w-4 h-4" />
                         </Button>
-                      )}
-                      <Button variant="outline" size="sm">
-                        <MessageCircle className="w-4 h-4" />
-                      </Button>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -318,44 +324,29 @@ const EnhancedSocialScreen: React.FC = () => {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>Trust Circles ({trustCircles.length})</CardTitle>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button size="sm">Create Circle</Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Create Trust Circle</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <Input
-                        placeholder="Circle name"
-                        value={newCircleName}
-                        onChange={(e) => setNewCircleName(e.target.value)}
-                      />
-                      <Button className="w-full" onClick={handleCreateTrustCircle} disabled={!newCircleName.trim()}>
-                        Create Circle
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                <CardTitle className="text-foreground">Trust Circles</CardTitle>
+                <Button size="sm">Create Circle</Button>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {trustCircles.map((circle) => (
-                  <div key={circle.id} className="flex items-center space-x-3 p-3 border rounded-lg">
-                    <Shield className="w-5 h-5 text-blue-500" />
-                    <div className="flex-1">
-                      <p className="font-medium">{circle.name}</p>
-                      <p className="text-sm text-muted-foreground">{circle.member_count || 0} members</p>
+              {trustCircles.length === 0 ? (
+                <p className="text-center py-8 text-muted-foreground">No trust circles yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {trustCircles.map((circle) => (
+                    <div key={circle.id} className="flex items-center space-x-3 p-3 border rounded-lg">
+                      <Shield className="w-5 h-5 text-blue-500" />
+                      <div className="flex-1">
+                        <p className="font-medium text-foreground">{circle.name}</p>
+                        <p className="text-sm text-muted-foreground">{circle.member_count || 0} members</p>
+                      </div>
+                      <Button variant="outline" size="sm">
+                        Manage
+                      </Button>
                     </div>
-                    <Button variant="outline" size="sm">
-                      Manage
-                    </Button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -364,7 +355,7 @@ const EnhancedSocialScreen: React.FC = () => {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>Good Deeds ({goodDeeds.length})</CardTitle>
+                <CardTitle className="text-foreground">Good Deeds</CardTitle>
                 <Dialog>
                   <DialogTrigger asChild>
                     <Button size="sm">
@@ -401,29 +392,33 @@ const EnhancedSocialScreen: React.FC = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {goodDeeds.map((deed) => (
-                  <div key={deed.id} className="p-4 border rounded-lg space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-medium">{deed.title}</h4>
-                      {getStatusBadge(deed.verification_status)}
-                    </div>
-                    <p className="text-sm text-muted-foreground">{deed.description}</p>
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {new Date(deed.created_at).toLocaleDateString()}
-                      </span>
-                      {deed.verified_at && (
+              {goodDeeds.length === 0 ? (
+                <p className="text-center py-8 text-muted-foreground">No good deeds submitted yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {goodDeeds.map((deed) => (
+                    <div key={deed.id} className="p-4 border rounded-lg space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-foreground">{deed.title}</h4>
+                        {getStatusBadge(deed.verification_status)}
+                      </div>
+                      <p className="text-sm text-muted-foreground">{deed.description}</p>
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3 text-green-500" />
-                          Verified {new Date(deed.verified_at).toLocaleDateString()}
+                          <Clock className="w-3 h-3" />
+                          {new Date(deed.created_at).toLocaleDateString()}
                         </span>
-                      )}
+                        {deed.verified_at && (
+                          <span className="flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3 text-green-500" />
+                            Verified {new Date(deed.verified_at).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
