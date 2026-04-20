@@ -45,7 +45,7 @@ interface Transaction {
 }
 
 interface CreditSimulation {
-  current_score: number;
+  current_score: number | string; // Updated to support "NO SCORE" string
   simulated_score: number;
   actions: string[];
 }
@@ -60,8 +60,9 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [showSendRequestModal, setShowSendRequestModal] = useState(false);
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
 
-  // Trust Score Test
+  // Trust Score Test State
   const [showTestModal, setShowTestModal] = useState(false);
+  const [isCalculating, setIsCalculating] = useState(false);
 
   useEffect(() => {
     fetchTransactions();
@@ -82,6 +83,34 @@ const EnhancedWalletDashboard: React.FC = () => {
       }
     } catch (error) {
       console.error("Error fetching transactions:", error);
+    }
+  };
+
+  const exportTaxableEvents = async () => {
+    try {
+      const taxableEvents = transactions.filter(
+        (t) =>
+          t.transaction_type === "data_reward" ||
+          t.transaction_type === "crypto_sale" ||
+          t.transaction_type === "income",
+      );
+
+      const csvContent = [
+        "Date,Type,Amount,Description,Tax Category",
+        ...taxableEvents.map(
+          (t) => `${t.created_at},${t.transaction_type},${t.amount},${t.description},Taxable Income`,
+        ),
+      ].join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `taxable-events-${new Date().getFullYear()}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error exporting taxable events:", error);
     }
   };
 
@@ -172,15 +201,14 @@ const EnhancedWalletDashboard: React.FC = () => {
     );
   }
 
-  // Reusable Test Modal Component — wraps the new Psychometric Testing Center
   const TestModal = () => (
     <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
       <DialogTrigger asChild>
         <Button className="w-full font-bold shadow-lg shadow-orange-500/30 bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white">
-          Need an advance? Take our Tests <ArrowRight className="w-4 h-4 ml-2" />
+          {isCalculating ? "Calculating..." : "Need an advance? Take our Tests"} <ArrowRight className="w-4 h-4 ml-2" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-background p-0 border-none">
         <DialogHeader className="sr-only">
           <DialogTitle>Psychometric Validation</DialogTitle>
           <DialogDescription>
@@ -213,7 +241,6 @@ const EnhancedWalletDashboard: React.FC = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-          {/* Enhanced Balance Card */}
           <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-4">
@@ -224,27 +251,20 @@ const EnhancedWalletDashboard: React.FC = () => {
               <div className="grid grid-cols-3 gap-2">
                 <div className="text-center">
                   <p className="text-teal-100 text-xs font-medium">Cash</p>
-                  <p className="text-xl font-bold">${walletBalance.cash_balance.toFixed(2)}</p>
+                  <p className="text-xl font-bold">${walletBalance?.cash_balance?.toFixed(2) || "0.00"}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-teal-100 text-xs font-medium">IDIA-BETA</p>
-                  <p className="text-xl font-bold">${walletBalance.idia_usd_balance.toFixed(2)}</p>
+                  <p className="text-xl font-bold">${walletBalance?.idia_usd_balance?.toFixed(2) || "0.00"}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-teal-100 text-xs font-medium">IDIA Token</p>
-                  <p className="text-xl font-bold">{walletBalance.idia_token_balance.toFixed(2)}</p>
+                  <p className="text-xl font-bold">{walletBalance?.idia_token_balance?.toFixed(2) || "0.00"}</p>
                 </div>
               </div>
-
-              {!walletBalance && (
-                <div className="mt-4 p-3 bg-yellow-500/20 rounded-lg">
-                  <p className="text-sm font-medium">⚠️ Backup your wallet seed phrase for security</p>
-                </div>
-              )}
             </CardContent>
           </Card>
 
-          {/* Quick Actions */}
           <div className="grid grid-cols-3 gap-4">
             <Button
               className="h-14 flex-col bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white text-sm py-0.5"
@@ -276,7 +296,6 @@ const EnhancedWalletDashboard: React.FC = () => {
             </Button>
           </div>
 
-          {/* Trust Score & Credit - Condensed */}
           <Card>
             <CardHeader className="py-2 px-3">
               <CardTitle className="flex items-center gap-2 text-sm">
@@ -286,21 +305,21 @@ const EnhancedWalletDashboard: React.FC = () => {
             </CardHeader>
             <CardContent className="p-3">
               <div className="grid grid-cols-2 gap-4">
-                <div className="text-center">
+                <div className="text-center border-r pr-2">
                   <div className="text-xl font-bold text-primary">
                     {profile?.trust_score !== null && profile?.trust_score !== undefined
                       ? profile.trust_score
                       : "NO SCORE"}
                   </div>
-                  <Badge variant={profile?.trust_score != null ? "secondary" : "outline"} className="text-xs">
+                  <Badge variant={profile?.trust_score != null ? "secondary" : "outline"} className="text-[10px]">
                     {profile?.trust_score != null ? "Active" : "Unverified"}
                   </Badge>
                 </div>
-                <div className="text-center">
+                <div className="text-center pl-2">
                   <div className="text-xl font-bold text-green-600">
                     ${profile?.available_credit_line?.toLocaleString() || 0}
                   </div>
-                  <p className="text-xs text-muted-foreground">Available Credit</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-tight">Available Credit</p>
                 </div>
               </div>
               <div className="mt-4">
@@ -431,11 +450,10 @@ const EnhancedWalletDashboard: React.FC = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2 text-sm">
+                <div className="space-y-2 text-sm text-muted-foreground">
                   <p>Last login: Today at 2:30 PM</p>
                   <p>Last transaction: 2 hours ago</p>
-                  <p>Device: iPhone 15 Pro</p>
-                  <p>Location: San Francisco, CA</p>
+                  <p>Device: Secure Enclave Verified</p>
                 </div>
               </CardContent>
             </Card>
@@ -444,9 +462,7 @@ const EnhancedWalletDashboard: React.FC = () => {
       </Tabs>
 
       <NFCPayrollModal isOpen={showNFCModal} onClose={() => setShowNFCModal(false)} />
-
       <SendRequestModal isOpen={showSendRequestModal} onClose={() => setShowSendRequestModal(false)} />
-
       <AddFundsModal isOpen={showAddFundsModal} onClose={() => setShowAddFundsModal(false)} />
     </div>
   );
