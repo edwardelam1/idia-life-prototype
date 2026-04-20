@@ -52,18 +52,6 @@ const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({ o
   // Intro Screen - Mobile Optimized
   if (currentModuleIndex === -1) {
     return (
-      <div className="flex flex-col h-[85vh] md:h-auto min-h-[500px] bg-background text-foreground overflow-hidden">
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-6">
-          <div className="p-4 rounded-full bg-primary/10 animate-pulse">
-            <BrainCircuit className="w-16 h-16 text-primary" />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tighter">Psychometric Validation</h1>
-            <p className="text-muted-foreground text-sm md:text-base max-w-[280px] md:max-w-md mx-auto">
-              Complete the 9 telemetry modules to establish your cryptographic IDIA Trust Score.
-            </p>
-          </div>
-
           <Card className="w-full max-w-sm border-primary/20 bg-card/50 backdrop-blur-sm">
             <CardContent className="p-4 grid grid-cols-3 gap-2">
               {modules.map((test) => (
