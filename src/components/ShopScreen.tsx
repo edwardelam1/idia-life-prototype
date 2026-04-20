@@ -29,8 +29,12 @@ const ShopScreen = () => {
   const [businessItems, setBusinessItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
   const [cart, setCart] = useState<{ item: Item; quantity: number }[]>([]);
   const { toast } = useToast();
+
+  // Extract categories dynamically from live database entries
+  const categories = ["All", ...new Set(businesses.map((b) => b.business_type).filter(Boolean))];
 
   useEffect(() => {
     fetchLiveMarketplace();
@@ -38,28 +42,28 @@ const ShopScreen = () => {
 
   useEffect(() => {
     const query = searchQuery.toLowerCase();
-    const filtered = businesses.filter(
-      (b) => b.name.toLowerCase().includes(query) || b.business_type?.toLowerCase().includes(query),
-    );
+    const filtered = businesses.filter((b) => {
+      const matchesSearch = b.name.toLowerCase().includes(query) || b.business_type?.toLowerCase().includes(query);
+      const matchesCategory = selectedCategory === "All" || b.business_type === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
     setFilteredBusinesses(filtered);
-  }, [searchQuery, businesses]);
+  }, [searchQuery, selectedCategory, businesses]);
 
   const fetchLiveMarketplace = async () => {
     try {
       setLoading(true);
-      // Fetching live data from the businesses ledger
       const { data, error } = await supabase.from("businesses").select("*, business_locations(*)").order("name");
 
       if (error) throw error;
       setBusinesses(data || []);
-      setFilteredBusinesses(data || []);
     } finally {
       setLoading(false);
     }
   };
 
   const fetchInventory = async (businessId: string) => {
-    // 1:1 Database Ratio Connection
+    // 1:1 Database Ratio: Pulling live ledger items
     const [menuRes, invRes] = await Promise.all([
       supabase.from("menu_items").select("*").eq("business_id", businessId).eq("is_active", true),
       supabase.from("inventory_items").select("*").eq("business_id", businessId).eq("is_active", true),
@@ -86,12 +90,11 @@ const ShopScreen = () => {
 
   const addToCart = (item: Item) => {
     setCart((prev) => [...prev, { item, quantity: 1 }]);
-    toast({ title: "Order Synced", description: `${item.name} added to live session.` });
+    toast({ title: "Ledger Updated", description: `${item.name} staged for checkout.` });
   };
 
-  // Technical Placeholder for pending assets
-  const PendingAsset = ({ size = 16, label = "HUB ASSET PENDING" }: { size?: number; label?: string }) => (
-    <div className="flex flex-col items-center justify-center gap-1.5 opacity-20 text-center p-2">
+  const AssetPlaceholder = ({ size = 16, label = "LOGO_URL" }: { size?: number; label?: string }) => (
+    <div className="flex flex-col items-center justify-center gap-1 opacity-20 text-center p-2">
       <ImagePlus size={size} className="text-teal-600" />
       <span className="text-[6px] font-black uppercase tracking-tighter leading-none">{label}</span>
     </div>
@@ -100,7 +103,9 @@ const ShopScreen = () => {
   if (loading)
     return (
       <div className="p-8 animate-pulse grid grid-cols-4 gap-4">
-        <div className="aspect-square bg-muted rounded-2xl" />
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div key={i} className="aspect-square bg-muted rounded-2xl" />
+        ))}
       </div>
     );
 
@@ -108,7 +113,6 @@ const ShopScreen = () => {
     <div className="space-y-6 bg-white min-h-screen pb-20">
       {!selectedBusiness ? (
         <div className="animate-fade-in">
-          {/* Marketplace Controls */}
           <div className="px-4 space-y-4 pt-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -119,14 +123,28 @@ const ShopScreen = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
+
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+              {categories.map((cat) => (
+                <Badge
+                  key={cat}
+                  variant={selectedCategory === cat ? "default" : "outline"}
+                  className={`cursor-pointer px-4 py-1.5 whitespace-nowrap transition-all border-teal-50 ${
+                    selectedCategory === cat ? "bg-teal-600 text-white" : "bg-white text-muted-foreground"
+                  }`}
+                  onClick={() => setSelectedCategory(cat)}
+                >
+                  {cat}
+                </Badge>
+              ))}
+            </div>
           </div>
 
-          {/* High-Density Grid (4x4 Viewport) */}
           <div className="px-4 mt-6 overflow-y-auto max-h-[480px] scrollbar-hide">
             {filteredBusinesses.length === 0 ? (
               <div className="py-20 text-center space-y-2 opacity-30">
                 <LayoutGrid className="mx-auto w-12 h-12" />
-                <p className="text-[10px] font-bold uppercase tracking-widest">No Active Enterprises in Range</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest">NO LIVE NODES IN RANGE</p>
               </div>
             ) : (
               <div className="grid grid-cols-4 gap-x-3 gap-y-8">
@@ -143,7 +161,7 @@ const ShopScreen = () => {
                       {business.logo_url ? (
                         <img src={business.logo_url} alt={business.name} className="w-full h-full object-cover" />
                       ) : (
-                        <PendingAsset />
+                        <AssetPlaceholder />
                       )}
                     </div>
                     <p className="text-[9px] font-black text-foreground text-center truncate w-full px-0.5 uppercase tracking-tighter">
@@ -156,7 +174,6 @@ const ShopScreen = () => {
           </div>
         </div>
       ) : (
-        /* Detailed Business Card Interface */
         <div className="animate-in slide-in-from-right duration-300">
           <div className="p-4 bg-white sticky top-0 z-10 border-b flex items-center justify-between border-muted">
             <Button variant="ghost" size="icon" onClick={() => setSelectedBusiness(null)}>
@@ -174,10 +191,8 @@ const ShopScreen = () => {
           </div>
 
           <div className="p-4 space-y-6">
-            {/* Enterprise Business Card */}
             <div className="rounded-[2rem] bg-gradient-to-br from-teal-600 to-teal-800 p-6 text-white shadow-xl relative overflow-hidden">
               <div className="relative z-10 flex gap-4">
-                {/* 1:1 Logo Slot from Hub */}
                 <div className="w-20 h-20 bg-white/10 rounded-3xl overflow-hidden shadow-inner flex items-center justify-center border-2 border-white/20 backdrop-blur-md shrink-0">
                   {selectedBusiness.logo_url ? (
                     <img
@@ -186,17 +201,17 @@ const ShopScreen = () => {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <PendingAsset size={24} label="Awaiting Hub Asset" />
+                    <AssetPlaceholder size={24} label="LOGO_URL" />
                   )}
                 </div>
                 <div className="flex flex-col justify-center space-y-1">
                   <h1 className="text-xl font-black uppercase tracking-tight">{selectedBusiness.name}</h1>
-                  <Badge className="bg-orange-500 text-white border-none text-[8px] w-fit font-black tracking-widest px-2 py-0.5">
-                    PLATFORM VERIFIED
+                  <Badge className="bg-orange-500 text-white border-none text-[8px] w-fit font-black tracking-widest px-2 py-0.5 uppercase">
+                    Enterprise Node
                   </Badge>
                   <p className="text-[10px] opacity-80 flex items-center gap-1.5 pt-2">
-                    <MapPin size={10} className="text-orange-300" />{" "}
-                    {selectedBusiness.business_locations?.[0]?.address || "Sovereign Node"}
+                    <MapPin size={10} className="text-orange-300" />
+                    {selectedBusiness.business_locations?.[0]?.address || "SOVEREIGN_NODE"}
                   </p>
                 </div>
               </div>
@@ -205,14 +220,12 @@ const ShopScreen = () => {
 
             <div className="space-y-4">
               <div className="flex justify-between items-center px-1">
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                  Live Sync Inventory
-                </h3>
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">LIVE_LEDGER</h3>
                 <Badge
                   variant="outline"
                   className="text-[8px] border-teal-100 text-teal-600 font-black tracking-widest uppercase bg-white"
                 >
-                  1:1 Ratio
+                  1:1_SYNC
                 </Badge>
               </div>
 
