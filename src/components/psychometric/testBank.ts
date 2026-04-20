@@ -1,6 +1,6 @@
-// IDIA Psychometric Test Bank — 9 modules × 10 questions = 90 questions
-export type TestId = "seb" | "ass" | "snv" | "jrda" | "ocs" | "pcf" | "eq" | "gup" | "scs";
-export type Pillar = "Social Connectivity Index" | "Work Engagement Index" | "Prosocial Disposition Index";
+// IDIA Psychometric Test Bank — 1 Tutorial + 9 telemetry modules
+export type TestId = "tut" | "seb" | "ass" | "snv" | "jrda" | "ocs" | "pcf" | "eq" | "gup" | "scs";
+export type Pillar = "Training" | "Social Connectivity Index" | "Work Engagement Index" | "Prosocial Disposition Index";
 
 export interface TestModule {
   id: TestId;
@@ -10,10 +10,20 @@ export interface TestModule {
   questions: string[];
 }
 
-// Indices in each 10-question array that are reverse-scored (6 - value)
 export const REVERSE_SCORED_INDICES = [0, 2, 4, 6, 8, 9];
 
 export const TEST_BANK: Record<TestId, TestModule> = {
+  tut: {
+    id: "tut",
+    pillar: "Training",
+    title: "How to IDIA",
+    description: "A quick warm-up to learn the controls and see why this is fun.",
+    questions: [
+      "I understand that selecting '5' means I strongly agree with a statement.",
+      "I am ready to help build a deterministic 'Verified Truth Economy'.",
+      "I find it exciting that my character, not just my cash, determines my credit.",
+    ],
+  },
   seb: {
     id: "seb",
     pillar: "Social Connectivity Index",
