@@ -3,14 +3,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
+import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter";
+import type { TestId } from "../psychometric/testBank";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { supabase } from "@/integrations/supabase/client";
 import NFCPayrollModal from "../NFCPayrollModal";
 import SendRequestModal from "../SendRequestModal";
 import AddFundsModal from "../AddFundsModal";
-import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter";
 import {
   Wallet,
   CreditCard,
@@ -37,7 +45,7 @@ interface Transaction {
 }
 
 interface CreditSimulation {
-  current_score: number | string;
+  current_score: number;
   simulated_score: number;
   actions: string[];
 }
@@ -52,8 +60,8 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [showSendRequestModal, setShowSendRequestModal] = useState(false);
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
 
+  // Trust Score Test
   const [showTestModal, setShowTestModal] = useState(false);
-  const [isCalculating, setIsCalculating] = useState(false);
 
   useEffect(() => {
     fetchTransactions();
@@ -77,49 +85,34 @@ const EnhancedWalletDashboard: React.FC = () => {
     }
   };
 
-  const handleCalculateScore = async (finalScores: Record<string, number>) => {
-    setIsCalculating(true);
-    try {
-      const telemetryPayload = {
-        social_exchange_balance: finalScores.seb,
-        attachment_security: finalScores.ass,
-        social_network_vitality: finalScores.snv,
-        job_resources_demands: finalScores.jrda,
-        org_citizenship: finalScores.ocs,
-        psych_contract: finalScores.pcf,
-        empathy_quotient: finalScores.eq,
-        generosity_under_pressure: finalScores.gup,
-        social_context_sensitivity: finalScores.scs,
-      };
+  // The IDIA Algorithm Execution — receives normalized 0-100 scores per module
+  const handleCalculateScore = async (moduleScores: Record<TestId, number>) => {
+    const sci = (moduleScores.seb + moduleScores.ass + moduleScores.snv) / 3;
+    const wei = (moduleScores.jrda + moduleScores.ocs + moduleScores.pcf) / 3;
+    const pdi = (moduleScores.eq + moduleScores.gup + moduleScores.scs) / 3;
 
-      const { data, error } = await supabase.functions.invoke("calculate-trust-score", {
-        body: { user_id: profile?.id, telemetry: telemetryPayload },
+    const rawScore = (0.45 * sci + 0.35 * wei + 0.2 * pdi) * 10;
+    const finalTrustScore = Math.round(rawScore);
+    const calculatedAdvance = Math.round((finalTrustScore / 650) * 1500);
+
+    if (updateProfile) {
+      await updateProfile({
+        trust_score: finalTrustScore,
+        available_credit_line: calculatedAdvance,
       });
+    }
 
-      if (error) throw error;
+    setCreditSimulation({
+      current_score: profile?.trust_score || 650,
+      simulated_score: finalTrustScore,
+      actions: ["Psychometric telemetry verified", "Capital advance limit recalculated"],
+    });
 
-      if (updateProfile) {
-        await updateProfile({
-          trust_score: data.trust_score,
-          available_credit_line: data.credit_line,
-        });
-      }
-
-      setCreditSimulation({
-        current_score: profile?.trust_score ?? "NO SCORE",
-        simulated_score: data.trust_score,
-        actions: [
-          "Psychometric telemetry verified via Edge Function",
-          "Capital advance limit dynamically recalculated",
-        ],
-      });
-    } catch (err) {
-      console.error("Error executing edge function:", err);
-    } finally {
-      setIsCalculating(false);
+    // Pause so user sees the finale confetti before modal closes
+    setTimeout(() => {
       setShowTestModal(false);
       setActiveTab("credit");
-    }
+    }, 2800);
   };
 
   const exportTaxableEvents = async () => {
@@ -188,15 +181,21 @@ const EnhancedWalletDashboard: React.FC = () => {
     );
   }
 
-  const TestLauncher = () => (
+  // Reusable Test Modal Component — wraps the new Psychometric Testing Center
+  const TestModal = () => (
     <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
       <DialogTrigger asChild>
-        <Button className="w-full font-bold shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 text-primary-foreground">
-          {isCalculating ? "Processing..." : "Need an advance? Take our Tests"} <ArrowRight className="w-4 h-4 ml-2" />
+        <Button className="w-full font-bold shadow-lg shadow-orange-500/30 bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white">
+          Need an advance? Take our Tests <ArrowRight className="w-4 h-4 ml-2" />
         </Button>
       </DialogTrigger>
-      {/* Background color changed from #0a0a0a to bg-background to match design system */}
-      <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto bg-background p-0 border-none">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="sr-only">
+          <DialogTitle>Psychometric Validation</DialogTitle>
+          <DialogDescription>
+            Complete the 9 telemetry modules to establish your cryptographic IDIA Trust Score.
+          </DialogDescription>
+        </DialogHeader>
         <PsychometricTestingCenter onCompleteAll={handleCalculateScore} />
       </DialogContent>
     </Dialog>
@@ -205,7 +204,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-foreground">IDIA Wallet</h1>
+        <h1 className="text-xl font-bold">IDIA Wallet</h1>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={exportTaxableEvents}>
             <Download className="w-4 h-4 mr-2" />
@@ -223,27 +222,34 @@ const EnhancedWalletDashboard: React.FC = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-          {/* Total Balance Card */}
+          {/* Enhanced Balance Card */}
           <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold">Total Balance</h2>
                 <Wallet className="w-6 h-6" />
               </div>
+
               <div className="grid grid-cols-3 gap-2">
                 <div className="text-center">
                   <p className="text-teal-100 text-xs font-medium">Cash</p>
-                  <p className="text-xl font-bold">${walletBalance?.cash_balance?.toFixed(2) || "0.00"}</p>
+                  <p className="text-xl font-bold">${walletBalance.cash_balance.toFixed(2)}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-teal-100 text-xs font-medium">IDIA-BETA</p>
-                  <p className="text-xl font-bold">${walletBalance?.idia_usd_balance?.toFixed(2) || "0.00"}</p>
+                  <p className="text-xl font-bold">${walletBalance.idia_usd_balance.toFixed(2)}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-teal-100 text-xs font-medium">IDIA Token</p>
-                  <p className="text-xl font-bold">{walletBalance?.idia_token_balance?.toFixed(2) || "0.00"}</p>
+                  <p className="text-xl font-bold">{walletBalance.idia_token_balance.toFixed(2)}</p>
                 </div>
               </div>
+
+              {!walletBalance && (
+                <div className="mt-4 p-3 bg-yellow-500/20 rounded-lg">
+                  <p className="text-sm font-medium">⚠️ Backup your wallet seed phrase for security</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -279,10 +285,10 @@ const EnhancedWalletDashboard: React.FC = () => {
             </Button>
           </div>
 
-          {/* Trust Score & Credit Card */}
+          {/* Trust Score & Credit - Condensed */}
           <Card>
             <CardHeader className="py-2 px-3">
-              <CardTitle className="flex items-center gap-2 text-sm text-foreground">
+              <CardTitle className="flex items-center gap-2 text-sm">
                 <TrendingUp className="w-4 h-4" />
                 Trust Score & Credit
               </CardTitle>
@@ -290,24 +296,20 @@ const EnhancedWalletDashboard: React.FC = () => {
             <CardContent className="p-3">
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center">
-                  <div className="text-xl font-bold text-primary">
-                    {profile?.trust_score !== null && profile?.trust_score !== undefined
-                      ? profile.trust_score
-                      : "NO SCORE"}
-                  </div>
-                  <Badge variant={profile?.trust_score != null ? "secondary" : "outline"} className="text-xs">
-                    {profile?.trust_score != null ? "Active" : "Unverified"}
+                  <div className="text-xl font-bold text-primary">{profile?.trust_score || 650}</div>
+                  <Badge variant="secondary" className="text-xs">
+                    Excellent
                   </Badge>
                 </div>
                 <div className="text-center">
                   <div className="text-xl font-bold text-green-600">
-                    ${profile?.available_credit_line?.toLocaleString() || "0"}
+                    ${profile?.available_credit_line?.toLocaleString() || 0}
                   </div>
                   <p className="text-xs text-muted-foreground">Available Credit</p>
                 </div>
               </div>
               <div className="mt-4">
-                <TestLauncher />
+                <TestModal />
               </div>
             </CardContent>
           </Card>
@@ -316,7 +318,7 @@ const EnhancedWalletDashboard: React.FC = () => {
         <TabsContent value="transactions" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-foreground">Transaction History</CardTitle>
+              <CardTitle>Transaction History</CardTitle>
             </CardHeader>
             <CardContent>
               {transactions.length === 0 ? (
@@ -333,7 +335,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                           <Icon className="w-5 h-5 text-muted-foreground" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate text-foreground">{transaction.description}</p>
+                          <p className="font-medium truncate">{transaction.description}</p>
                           <p className="text-sm text-muted-foreground">
                             {new Date(transaction.created_at).toLocaleDateString()}
                           </p>
@@ -353,26 +355,26 @@ const EnhancedWalletDashboard: React.FC = () => {
         <TabsContent value="credit" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-foreground">Capital Advancement Control</CardTitle>
+              <CardTitle>Capital Advancement Control</CardTitle>
             </CardHeader>
             <CardContent>
               {creditSimulation ? (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="text-center p-4 border rounded-lg">
-                      <p className="text-sm text-muted-foreground">Previous Score</p>
-                      <p className="text-2xl font-bold text-foreground">{creditSimulation.current_score}</p>
+                      <p className="text-sm text-muted-foreground">Current Score</p>
+                      <p className="text-2xl font-bold">{creditSimulation.current_score}</p>
                     </div>
-                    <div className="text-center p-4 border rounded-lg bg-green-50/50">
+                    <div className="text-center p-4 border rounded-lg bg-green-50">
                       <p className="text-sm text-muted-foreground">New Score</p>
                       <p className="text-2xl font-bold text-green-600">{creditSimulation.simulated_score}</p>
                     </div>
                   </div>
                   <div>
-                    <h4 className="font-medium mb-2 text-foreground">Actions Registered:</h4>
+                    <h4 className="font-medium mb-2">Actions Registered:</h4>
                     <ul className="space-y-1">
                       {creditSimulation.actions.map((action, index) => (
-                        <li key={index} className="text-sm flex items-center gap-2 text-muted-foreground">
+                        <li key={index} className="text-sm flex items-center gap-2">
                           <div className="w-2 h-2 bg-primary rounded-full" />
                           {action}
                         </li>
@@ -380,18 +382,17 @@ const EnhancedWalletDashboard: React.FC = () => {
                     </ul>
                   </div>
                   <div className="pt-4">
-                    <TestLauncher />
+                    <TestModal />
                   </div>
                 </div>
               ) : (
                 <div className="text-center py-8 space-y-4 flex flex-col items-center">
                   <BrainCircuit className="w-12 h-12 text-muted-foreground mb-2" />
                   <p className="text-sm text-muted-foreground max-w-sm">
-                    Your advancement limits are calculated dynamically based on verifiable behavioral and social
-                    telemetry.
+                    Your advancement limits are calculated based on verifiable behavioral and social telemetry.
                   </p>
                   <div className="w-full max-w-xs">
-                    <TestLauncher />
+                    <TestModal />
                   </div>
                 </div>
               )}
@@ -403,12 +404,12 @@ const EnhancedWalletDashboard: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-foreground">
+                <CardTitle className="flex items-center gap-2">
                   <Shield className="w-5 h-5" />
                   Wallet Security
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4 text-foreground">
+              <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span>Seed Phrase Backup</span>
                   <Badge variant="destructive">Not backed up</Badge>
@@ -429,15 +430,18 @@ const EnhancedWalletDashboard: React.FC = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-foreground">
+                <CardTitle className="flex items-center gap-2">
                   <Clock className="w-5 h-5" />
                   Recent Activity
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm text-muted-foreground">
-                <p>Last login: Today at 2:30 PM</p>
-                <p>Last transaction: 2 hours ago</p>
-                <p>Device: Secure Enclave Verified</p>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  <p>Last login: Today at 2:30 PM</p>
+                  <p>Last transaction: 2 hours ago</p>
+                  <p>Device: iPhone 15 Pro</p>
+                  <p>Location: San Francisco, CA</p>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -445,7 +449,9 @@ const EnhancedWalletDashboard: React.FC = () => {
       </Tabs>
 
       <NFCPayrollModal isOpen={showNFCModal} onClose={() => setShowNFCModal(false)} />
+
       <SendRequestModal isOpen={showSendRequestModal} onClose={() => setShowSendRequestModal(false)} />
+
       <AddFundsModal isOpen={showAddFundsModal} onClose={() => setShowAddFundsModal(false)} />
     </div>
   );

@@ -12,24 +12,9 @@ interface PsychometricTestingCenterProps {
 }
 
 const PILLAR_META = {
-  "Social Connectivity Index": {
-    icon: Users,
-    accent: "text-teal-500",
-    border: "border-teal-500/30",
-    bg: "from-teal-500/10",
-  },
-  "Work Engagement Index": {
-    icon: Activity,
-    accent: "text-orange-500",
-    border: "border-orange-500/30",
-    bg: "from-orange-500/10",
-  },
-  "Prosocial Disposition Index": {
-    icon: Heart,
-    accent: "text-teal-600",
-    border: "border-teal-600/30",
-    bg: "from-teal-600/10",
-  },
+  "Social Connectivity Index": { icon: Users, accent: "text-teal-500", border: "border-teal-500/30", bg: "from-teal-500/10" },
+  "Work Engagement Index": { icon: Activity, accent: "text-orange-500", border: "border-orange-500/30", bg: "from-orange-500/10" },
+  "Prosocial Disposition Index": { icon: Heart, accent: "text-teal-600", border: "border-teal-600/30", bg: "from-teal-600/10" },
 } as const;
 
 const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({
@@ -61,7 +46,11 @@ const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({
   // ---------- ACTIVE TEST ----------
   if (activeTestId) {
     return (
-      <TestRunner test={TEST_BANK[activeTestId]} onExit={() => setActiveTestId(null)} onComplete={handleTestComplete} />
+      <TestRunner
+        test={TEST_BANK[activeTestId]}
+        onExit={() => setActiveTestId(null)}
+        onComplete={handleTestComplete}
+      />
     );
   }
 
@@ -76,8 +65,8 @@ const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({
         <div>
           <h2 className="text-2xl font-bold">Trust Matrix Validation</h2>
           <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1">
-            Complete the 9 telemetry modules to establish your capital advancement limits. Processed locally in your
-            Secure Enclave.
+            Complete the 9 telemetry modules to establish your capital advancement limits. Processed locally in
+            your Secure Enclave.
           </p>
         </div>
 
@@ -99,9 +88,9 @@ const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({
       {/* Pillars */}
       <div className="space-y-4">
         {PILLARS.map((pillar) => {
-          const meta = PILLAR_META[pillar.name as keyof typeof PILLAR_META];
+          const meta = PILLAR_META[pillar.name];
           const Icon = meta.icon;
-          const pillarComplete = pillar.keys.filter((k) => scores[k as TestId] !== undefined).length;
+          const pillarComplete = pillar.keys.filter((k) => scores[k] !== undefined).length;
 
           return (
             <div
@@ -120,12 +109,12 @@ const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({
 
               <div className="space-y-2">
                 {pillar.keys.map((key) => {
-                  const test = TEST_BANK[key as TestId];
-                  const isComplete = scores[key as TestId] !== undefined;
+                  const test = TEST_BANK[key];
+                  const isComplete = scores[key] !== undefined;
                   return (
                     <button
                       key={key}
-                      onClick={() => !isComplete && setActiveTestId(key as TestId)}
+                      onClick={() => !isComplete && setActiveTestId(key)}
                       disabled={isComplete}
                       className={`w-full text-left p-3 rounded-lg border transition-all ${
                         isComplete
@@ -144,8 +133,8 @@ const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({
                         {isComplete ? (
                           <div className="text-right shrink-0">
                             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Score</p>
-                            <p className="font-bold bg-gradient-to-r from-teal-500 to-orange-500 bg-clip-text text-transparent">
-                              {scores[key as TestId]}
+                            <p className="text-lg font-bold bg-gradient-to-r from-teal-500 to-orange-500 bg-clip-text text-transparent">
+                              {scores[key]}
                             </p>
                           </div>
                         ) : (

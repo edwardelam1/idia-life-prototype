@@ -5,14 +5,8 @@ const TEAL = ["#14b8a6", "#0d9488", "#5eead4", "#2dd4bf"];
 const ORANGE = ["#f97316", "#ea580c", "#fb923c", "#fdba74"];
 const BRAND = [...TEAL, ...ORANGE];
 
-// Default configuration to ensure visibility over Modals/Dialogs
-const globalDefaults = {
-  zIndex: 10000,
-};
-
 export const fireWelcomeConfetti = () => {
   confetti({
-    ...globalDefaults,
     particleCount: 40,
     angle: 60,
     spread: 55,
@@ -21,7 +15,6 @@ export const fireWelcomeConfetti = () => {
     scalar: 0.8,
   });
   confetti({
-    ...globalDefaults,
     particleCount: 40,
     angle: 120,
     spread: 55,
@@ -33,7 +26,6 @@ export const fireWelcomeConfetti = () => {
 
 export const fireCompletionConfetti = () => {
   confetti({
-    ...globalDefaults,
     particleCount: 150,
     spread: 90,
     startVelocity: 45,
@@ -46,7 +38,6 @@ export const fireCompletionConfetti = () => {
 export const fireGraffitiConfetti = () => {
   const shoot = (originX: number) => {
     confetti({
-      ...globalDefaults,
       particleCount: 30,
       angle: 60 + Math.random() * 60,
       spread: 80,
@@ -76,7 +67,6 @@ export const fireFinaleConfetti = () => {
       return;
     }
     confetti({
-      ...globalDefaults,
       particleCount: 50,
       angle: 60,
       spread: 70,
@@ -84,7 +74,6 @@ export const fireFinaleConfetti = () => {
       colors: BRAND,
     });
     confetti({
-      ...globalDefaults,
       particleCount: 50,
       angle: 120,
       spread: 70,
