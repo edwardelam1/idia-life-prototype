@@ -270,7 +270,7 @@ const EnhancedProfileSettings: React.FC = () => {
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span>Trust Score:</span>
-                <Badge variant="default">{profile.trust_score || 650}</Badge>
+                <Badge variant="default">{profile?.trust_score ?? "NO SCORE"}</Badge>
               </div>
               <div className="flex justify-between items-center">
                 <span>Credit Line:</span>

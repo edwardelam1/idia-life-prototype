@@ -93,7 +93,7 @@ const EnhancedWalletDashboard: React.FC = () => {
 
     const rawScore = (0.45 * sci + 0.35 * wei + 0.2 * pdi) * 10;
     const finalTrustScore = Math.round(rawScore);
-    const calculatedAdvance = Math.round((finalTrustScore / 650) * 1500);
+    const calculatedAdvance = Math.round(({profile?.trust_score ?? "NO SCORE"};
 
     if (updateProfile) {
       await updateProfile({
@@ -103,7 +103,7 @@ const EnhancedWalletDashboard: React.FC = () => {
     }
 
     setCreditSimulation({
-      current_score: profile?.trust_score || 650,
+      current_score: profile?.trust_score ?? "NO SCORE",
       simulated_score: finalTrustScore,
       actions: ["Psychometric telemetry verified", "Capital advance limit recalculated"],
     });
@@ -296,7 +296,7 @@ const EnhancedWalletDashboard: React.FC = () => {
             <CardContent className="p-3">
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center">
-                  <div className="text-xl font-bold text-primary">{profile?.trust_score || 650}</div>
+                  <div className="text-xl font-bold text-primary">{profile?.trust_score ?? "NO SCORE"}</div>
                   <Badge variant="secondary" className="text-xs">
                     Excellent
                   </Badge>

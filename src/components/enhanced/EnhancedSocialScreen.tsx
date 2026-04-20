@@ -68,7 +68,7 @@ const EnhancedSocialScreen: React.FC = () => {
     const pdi = (moduleScores.eq + moduleScores.gup + moduleScores.scs) / 3;
 
     const finalTrustScore = Math.round((0.45 * sci + 0.35 * wei + 0.2 * pdi) * 10);
-    const calculatedAdvance = Math.round((finalTrustScore / 650) * 1500);
+    const calculatedAdvance = Math.round({profile?.trust_score ?? "NO SCORE"}
 
     if (updateProfile) {
       await updateProfile({
