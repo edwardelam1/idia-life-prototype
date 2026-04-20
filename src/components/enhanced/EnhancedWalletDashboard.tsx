@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import NFCPayrollModal from "../NFCPayrollModal";
 import SendRequestModal from "../SendRequestModal";
 import AddFundsModal from "../AddFundsModal";
-import PsychometricTestingCenter from "./PsychometricTestingCenter";
+import PsychometricTestingCenter from "./psychometric/PsychometricTestingCenter";
 import {
   Wallet,
   CreditCard,
