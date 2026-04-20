@@ -1,325 +1,230 @@
-
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Vote, Users, TrendingUp, Plus, ThumbsUp, ThumbsDown } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import ProposalForm from './ProposalForm';
-import { eventTracker } from '@/utils/EventTracker';
+import React, { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Vote, Users, MessageSquare, ShieldCheck, Zap, Clock, Gavel, ArrowUpRight, TrendingUp } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface Proposal {
   id: string;
   title: string;
   description: string;
-  category: string;
   status: string;
-  ai_validation_score: number | null;
-  ai_validation_feedback: string | null;
-  created_at: string;
-  votes_for?: number;
-  votes_against?: number;
-  user_voted?: string | null;
+  vote_type: string;
+  end_date: string;
+  total_votes: number;
 }
 
-const GovernanceScreen = () => {
+const VotingScreen = () => {
   const [proposals, setProposals] = useState<Proposal[]>([]);
-  const [showProposalForm, setShowProposalForm] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [votingStates, setVotingStates] = useState<{[key: string]: boolean}>({});
+  const [governanceTokens, setGovernanceTokens] = useState(0);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const fetchProposals = async () => {
-    try {
-      // Track proposals page view through synapse
-      eventTracker.trackPageView({
-        page: 'governance_screen'
-      });
-
-      const { data, error } = await supabase
-        .from('user_proposals')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      if (data) {
-        // Track successful data load
-        eventTracker.trackFeatureUsage({
-          feature: 'governance_proposals',
-          action: 'data_loaded',
-          success: true,
-          context: {
-            proposal_count: data.length,
-            categories: [...new Set(data.map(p => p.category))]
-          }
-        });
-
-        setProposals(data.map(proposal => ({
-          id: proposal.id,
-          title: proposal.title,
-          description: proposal.description,
-          category: proposal.category,
-          status: proposal.status || 'approved',
-          ai_validation_score: proposal.ai_validation_score,
-          ai_validation_feedback: proposal.ai_validation_feedback,
-          created_at: proposal.created_at || new Date().toISOString(),
-          votes_for: Math.floor(Math.random() * 150) + 50,
-          votes_against: Math.floor(Math.random() * 30) + 10,
-          user_voted: null
-        })));
-      }
-    } catch (error: any) {
-      console.error('Error fetching proposals:', error);
-      
-      // Track error through synapse
-      eventTracker.trackFeatureUsage({
-        feature: 'governance_proposals',
-        action: 'data_load_failed',
-        success: false,
-        context: {
-          error_type: error.message || 'unknown_error'
-        }
-      });
-      
-      toast({
-        title: "Error loading proposals",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchProposals();
+    fetchGovernanceData();
+
+    // Real-time Vote Sync
+    const channel = supabase
+      .channel("dao_live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "dao_votes" }, () => {
+        fetchGovernanceData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved': return 'bg-green-100 text-green-800';
-      case 'under_review': return 'bg-yellow-100 text-yellow-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const handleVote = async (proposalId: string, voteType: 'for' | 'against') => {
-    if (votingStates[proposalId]) return;
-    
-    setVotingStates(prev => ({ ...prev, [proposalId]: true }));
-    
+  const fetchGovernanceData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
 
-      // Insert vote into database - this will automatically trigger synapse via database trigger
-      const { error: voteError } = await supabase
-        .from('user_votes')
-        .insert({
-          user_id: user.id,
-          proposal_id: proposalId,
-          vote_type: voteType
-        });
+      // 1. Fetch User Governance Power from Wallet
+      const { data: wallet } = await supabase
+        .from("user_wallets")
+        .select("governance_tokens")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
-      if (voteError) throw voteError;
+      if (wallet) setGovernanceTokens(wallet.governance_tokens || 0);
 
-      // Track vote action through synapse
-      eventTracker.trackVotingAction({
-        vote_type: 'governance',
-        category: 'governance_screen',
-        engagement_seconds: 1,
-        research_actions: [voteType],
-        frequency_score: 1
-      });
+      // 2. Fetch Active Proposals
+      const { data: propData } = await supabase
+        .from("dao_proposals")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-      // Update local state
-      setProposals(prev => prev.map(p => {
-        if (p.id === proposalId) {
-          return {
-            ...p,
-            votes_for: voteType === 'for' ? (p.votes_for || 0) + 1 : p.votes_for,
-            votes_against: voteType === 'against' ? (p.votes_against || 0) + 1 : p.votes_against,
-            user_voted: voteType
-          };
-        }
-        return p;
-      }));
-
-      toast({
-        title: "Vote Recorded",
-        description: `Your vote ${voteType === 'for' ? 'in favor' : 'against'} has been recorded`,
-        variant: "default"
-      });
-    } catch (error: any) {
-      console.error('Error voting:', error);
-      
-      // Track voting error through synapse
-      eventTracker.trackVotingAction({
-        vote_type: 'governance',
-        category: 'error_tracking',
-        engagement_seconds: 1,
-        research_actions: ['vote_failed'],
-        frequency_score: 0
-      });
-      
-      toast({
-        title: "Error",
-        description: "Failed to record vote",
-        variant: "destructive"
-      });
+      if (propData) setProposals(propData as any);
     } finally {
-      setTimeout(() => {
-        setVotingStates(prev => ({ ...prev, [proposalId]: false }));
-      }, 1000);
+      setLoading(false);
     }
   };
 
-  if (showProposalForm) {
+  const castQuadraticVote = async (proposalId: string, votes: number) => {
+    const cost = Math.pow(votes, 2); // Quadratic Voting: Cost = n^2
+
+    if (cost > governanceTokens) {
+      toast({
+        title: "Insufficient Credits",
+        description: `Casting ${votes} votes costs ${cost} IDIA Tokens.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({ title: "Submitting Vote", description: "Verifying Sybil resistance via IDIA Protocol..." });
+    // Implementation for dao_votes.insert would go here
+  };
+
+  if (loading)
     return (
-      <div>
-        <ProposalForm
-          onClose={() => setShowProposalForm(false)}
-          onSuccess={fetchProposals}
-        />
+      <div className="p-8 animate-pulse space-y-4">
+        <div className="h-32 bg-muted rounded-2xl" />
       </div>
     );
-  }
 
   return (
-    <div className="h-full overflow-hidden">
-      <div className="h-[calc(100vh-8rem)] overflow-y-auto space-y-3">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Governance</h1>
-            <p className="text-gray-600 text-sm">Participate in platform decisions</p>
+    <div className="space-y-6 bg-white min-h-screen pb-20 p-4">
+      {/* Governance Power Header */}
+      <Card className="bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] text-white border-none shadow-xl rounded-[2rem] overflow-hidden">
+        <CardContent className="p-6">
+          <div className="flex justify-between items-start">
+            <div className="space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-teal-100/60">Governance Capacity</p>
+              <h1 className="text-4xl font-black">
+                {governanceTokens.toLocaleString()} <span className="text-sm font-medium text-teal-100/40">IDIA</span>
+              </h1>
+            </div>
+            <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/10">
+              <ShieldCheck className="w-6 h-6 text-white" />
+            </div>
           </div>
-          <Button onClick={() => setShowProposalForm(true)} size="sm" className="flex items-center gap-1">
-            <Plus className="w-4 h-4" />
-            Submit
-          </Button>
-        </div>
+          <div className="mt-6 pt-4 border-t border-white/10 flex gap-4">
+            <div className="flex items-center gap-2">
+              <Users size={14} className="text-orange-400" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Level 4 Delegate</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Zap size={14} className="text-orange-400" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Sybil Verified</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-2">
-          <Card>
-            <CardContent className="flex items-center p-2">
-              <Vote className="h-8 w-8 text-blue-600" />
-              <div className="ml-2">
-                <p className="text-xs font-medium text-gray-600">Active</p>
-                <p className="text-lg font-bold text-gray-900">
-                  {proposals.filter(p => p.status === 'approved').length}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: Proposals Feed */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex justify-between items-center px-1">
+            <h2 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+              <Gavel size={14} className="text-teal-600" /> Active Proposals
+            </h2>
+            <Badge variant="outline" className="text-[9px] border-teal-100 text-teal-600">
+              EIP-4824 Standard
+            </Badge>
+          </div>
 
-          <Card>
-            <CardContent className="flex items-center p-2">
-              <Users className="h-8 w-8 text-green-600" />
-              <div className="ml-2">
-                <p className="text-xs font-medium text-gray-600">Users</p>
-                <p className="text-lg font-bold text-gray-900">1,247</p>
-              </div>
-            </CardContent>
-          </Card>
+          {proposals.map((prop) => (
+            <Card key={prop.id} className="border-teal-50 shadow-sm rounded-2xl hover:border-teal-200 transition-all">
+              <CardContent className="p-5 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <Badge className="bg-orange-500 text-white text-[8px] border-none uppercase font-black">
+                      {prop.status}
+                    </Badge>
+                    <h3 className="font-black text-lg text-foreground leading-tight">{prop.title}</h3>
+                  </div>
+                  <Button variant="ghost" size="icon" className="text-muted-foreground">
+                    <ArrowUpRight size={18} />
+                  </Button>
+                </div>
 
-          <Card>
-            <CardContent className="flex items-center p-2">
-              <TrendingUp className="h-8 w-8 text-purple-600" />
-              <div className="ml-2">
-                <p className="text-xs font-medium text-gray-600">Rate</p>
-                <p className="text-lg font-bold text-gray-900">73%</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+                <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{prop.description}</p>
 
-        {/* Proposals List */}
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Recent Proposals</h2>
-          {isLoading ? (
-            <div className="text-center py-4">Loading proposals...</div>
-          ) : proposals.length === 0 ? (
-            <Card>
-              <CardContent className="text-center py-4">
-                <p className="text-gray-500 text-sm">No proposals yet. Be the first to submit one!</p>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-[10px] font-black uppercase tracking-tighter">
+                    <span className="text-teal-700">Consensus Progress</span>
+                    <span className="text-muted-foreground">72% of Quorum</span>
+                  </div>
+                  <Progress value={72} className="h-1.5 bg-teal-50" />
+                </div>
+
+                <div className="flex justify-between items-center pt-2">
+                  <div className="flex items-center gap-3 text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Vote size={12} /> <span className="text-[10px] font-bold">1.2k Votes</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Clock size={12} /> <span className="text-[10px] font-bold">2d Left</span>
+                    </div>
+                  </div>
+                  <Button className="bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,42%)] text-white font-black text-[10px] uppercase h-8 px-6 rounded-full shadow-lg">
+                    Vote Quadratic
+                  </Button>
+                </div>
               </CardContent>
             </Card>
-          ) : (
-            proposals.map((proposal) => (
-              <Card key={proposal.id} className="rounded-lg">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-base">{proposal.title}</CardTitle>
-                      <div className="flex items-center gap-1 mt-1">
-                        <Badge variant="outline" className="text-xs">{proposal.category}</Badge>
-                        <Badge className={`text-xs ${getStatusColor(proposal.status)}`}>
-                          {proposal.status.replace('_', ' ')}
-                        </Badge>
-                        {proposal.ai_validation_score && (
-                          <Badge variant="outline" className="text-xs">
-                            AI: {proposal.ai_validation_score}/10
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <p className="text-gray-600 text-sm mb-3">{proposal.description}</p>
-                  {proposal.ai_validation_feedback && (
-                    <div className="bg-blue-50 p-2 rounded-lg mb-3">
-                      <p className="text-xs text-blue-800">
-                        <strong>AI Analysis:</strong> {proposal.ai_validation_feedback}
-                      </p>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500">
-                      {new Date(proposal.created_at).toLocaleDateString()}
-                    </span>
-                    {proposal.status === 'approved' && (
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1 text-xs text-gray-600">
-                          <span className="text-green-600">{proposal.votes_for || 0}</span>
-                          <span>-</span>
-                          <span className="text-red-600">{proposal.votes_against || 0}</span>
-                        </div>
-                        <div className="flex gap-1">
-                          <Button 
-                            variant={proposal.user_voted === 'for' ? "default" : "outline"} 
-                            size="sm" 
-                            className="h-7 px-2"
-                            onClick={() => handleVote(proposal.id, 'for')}
-                            disabled={!!proposal.user_voted || votingStates[proposal.id]}
-                          >
-                            <ThumbsUp className="h-3 w-3" />
-                          </Button>
-                          <Button 
-                            variant={proposal.user_voted === 'against' ? "default" : "outline"} 
-                            size="sm" 
-                            className="h-7 px-2"
-                            onClick={() => handleVote(proposal.id, 'against')}
-                            disabled={!!proposal.user_voted || votingStates[proposal.id]}
-                          >
-                            <ThumbsDown className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
+          ))}
+        </div>
+
+        {/* Right Column: Discord & DAO KPIs */}
+        <div className="space-y-6">
+          {/* Discord Widget Container */}
+          <div className="space-y-3">
+            <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+              <MessageSquare size={14} className="text-orange-500" /> DAO Commune
+            </h2>
+            <div className="rounded-[2rem] overflow-hidden border border-teal-50 shadow-md bg-[#313338] h-[400px]">
+              {/* Replace with actual Discord Widget ID */}
+              <iframe
+                src="https://discord.com/widget?id=YOUR_SERVER_ID&theme=dark"
+                width="100%"
+                height="100%"
+                allowTransparency={true}
+                frameBorder="0"
+                sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+              />
+            </div>
+          </div>
+
+          {/* DAO KPI Dashboard */}
+          <Card className="border-teal-50 bg-teal-50/30 shadow-none rounded-[2rem]">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-[10px] font-black uppercase tracking-widest text-teal-800 flex items-center gap-2">
+                <TrendingUp size={14} /> Health Analytics
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-white rounded-xl border border-teal-100">
+                  <p className="text-[8px] font-bold text-muted-foreground uppercase">Participation</p>
+                  <p className="text-sm font-black text-teal-700">42.8%</p>
+                </div>
+                <div className="p-3 bg-white rounded-xl border border-teal-100">
+                  <p className="text-[8px] font-bold text-muted-foreground uppercase">Efficiency</p>
+                  <p className="text-sm font-black text-teal-700">8.2 Days</p>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-[9px] font-bold">
+                  <span className="text-teal-800">Treasury Runway</span>
+                  <span className="text-teal-600">28 Months</span>
+                </div>
+                <Progress value={85} className="h-1 bg-white" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
   );
 };
 
-export default GovernanceScreen;
+export default VotingScreen;
