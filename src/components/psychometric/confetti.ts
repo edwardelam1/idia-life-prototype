@@ -34,6 +34,30 @@ export const fireCompletionConfetti = () => {
   });
 };
 
+// Graffiti-style burst: scattered, random angles, multi-shape — fired on entering Social page
+export const fireGraffitiConfetti = () => {
+  const shoot = (originX: number) => {
+    confetti({
+      particleCount: 30,
+      angle: 60 + Math.random() * 60,
+      spread: 80,
+      startVelocity: 35 + Math.random() * 20,
+      origin: { x: originX, y: 0.9 },
+      colors: BRAND,
+      shapes: ["square", "circle"],
+      scalar: 0.9 + Math.random() * 0.6,
+      ticks: 200,
+    });
+  };
+  shoot(0.1);
+  shoot(0.5);
+  shoot(0.9);
+  setTimeout(() => {
+    shoot(0.25);
+    shoot(0.75);
+  }, 200);
+};
+
 export const fireFinaleConfetti = () => {
   const duration = 2500;
   const end = Date.now() + duration;
