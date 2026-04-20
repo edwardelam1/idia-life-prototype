@@ -11,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -28,8 +27,6 @@ import {
   Clock,
   CheckCircle,
   ShieldCheck,
-  BrainCircuit,
-  ArrowRight,
 } from "lucide-react";
 
 const EnhancedSocialScreen: React.FC = () => {
