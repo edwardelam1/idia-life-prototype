@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,17 +16,17 @@ import {
   ShoppingBag,
   Package,
   Store,
-  ChevronRight,
   X,
+  ChevronRight,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Database } from "@/integrations/supabase/types";
 
 type Business = Database["public"]["Tables"]["businesses"]["Row"] & {
   business_locations?: Database["public"]["Tables"]["business_locations"]["Row"][];
-  ar_experiences?: Database["public"]["Tables"]["ar_experiences"]["Row"][];
 };
 
 type Item = {
@@ -49,7 +49,7 @@ const ShopScreen = () => {
   const [cart, setCart] = useState<{ item: Item; quantity: number }[]>([]);
   const { toast } = useToast();
 
-  const categories = ["All", "Restaurant", "Coffee Shop", "Electronics Store", "Gym", "Retail"];
+  const categories = ["All", "Restaurant", "Coffee Shop", "Retail", "Gym"];
 
   useEffect(() => {
     fetchMarketplaceData();
@@ -68,50 +68,38 @@ const ShopScreen = () => {
   const fetchMarketplaceData = async () => {
     try {
       setLoading(true);
-      // Fetch enterprises (businesses) and their locations
-      const { data, error } = await supabase
-        .from("businesses")
-        .select("*, business_locations(*), ar_experiences(*)")
-        .order("name");
-
+      const { data, error } = await supabase.from("businesses").select("*, business_locations(*)").order("name");
       if (error) throw error;
       setBusinesses(data || []);
       setFilteredBusinesses(data || []);
-    } catch (error) {
-      console.error("Error loading marketplace:", error);
     } finally {
       setLoading(false);
     }
   };
 
   const fetchInventory = async (businessId: string) => {
-    try {
-      // 1:1 ratio fetch from menu and general inventory
-      const [menuRes, invRes] = await Promise.all([
-        supabase.from("menu_items").select("*").eq("business_id", businessId).eq("is_active", true),
-        supabase.from("inventory_items").select("*").eq("business_id", businessId).eq("is_active", true),
-      ]);
+    const [menuRes, invRes] = await Promise.all([
+      supabase.from("menu_items").select("*").eq("business_id", businessId).eq("is_active", true),
+      supabase.from("inventory_items").select("*").eq("business_id", businessId).eq("is_active", true),
+    ]);
 
-      const items: Item[] = [
-        ...(menuRes.data || []).map((i) => ({
-          id: i.id,
-          name: i.name,
-          price: i.base_price,
-          description: i.description || "",
-          image_url: i.image_url || "",
-          type: "menu" as const,
-        })),
-        ...(invRes.data || []).map((i) => ({
-          id: i.id,
-          name: i.name,
-          price: i.current_cost || 0,
-          type: "inventory" as const,
-        })),
-      ];
-      setBusinessItems(items);
-    } catch (error) {
-      console.error("Error fetching inventory:", error);
-    }
+    const items: Item[] = [
+      ...(menuRes.data || []).map((i) => ({
+        id: i.id,
+        name: i.name,
+        price: i.base_price,
+        description: i.description || "",
+        image_url: i.image_url || "",
+        type: "menu" as const,
+      })),
+      ...(invRes.data || []).map((i) => ({
+        id: i.id,
+        name: i.name,
+        price: i.current_cost || 0,
+        type: "inventory" as const,
+      })),
+    ];
+    setBusinessItems(items);
   };
 
   const handleSelectBusiness = (business: Business) => {
@@ -119,207 +107,173 @@ const ShopScreen = () => {
     fetchInventory(business.id);
   };
 
-  const addToCart = (item: Item) => {
-    setCart((prev) => {
-      const existing = prev.find((i) => i.item.id === item.id);
-      if (existing) return prev.map((i) => (i.item.id === item.id ? { ...i, quantity: i.quantity + 1 } : i));
-      return [...prev, { item, quantity: 1 }];
-    });
-    toast({ title: "Added to Cart", description: `${item.name} added to your IDIA order.` });
-  };
-
   const getBusinessIcon = (type: string) => {
     switch (type.toLowerCase()) {
       case "restaurant":
-        return <Utensils className="h-5 w-5 text-orange-500" />;
+        return <Utensils className="h-6 w-6 text-orange-500" />;
       case "coffee shop":
-        return <Coffee className="h-5 w-5 text-orange-500" />;
-      case "electronics store":
-        return <Package className="h-5 w-5 text-teal-500" />;
-      case "gym":
-        return <Sparkles className="h-5 w-5 text-teal-500" />;
+        return <Coffee className="h-6 w-6 text-orange-500" />;
       default:
-        return <Store className="h-5 w-5 text-muted-foreground" />;
+        return <Store className="h-6 w-6 text-teal-600" />;
     }
   };
 
   if (loading)
     return (
-      <div className="space-y-4 animate-pulse p-4">
-        <div className="h-32 bg-muted rounded-xl" />
-        <div className="h-32 bg-muted rounded-xl" />
+      <div className="p-8 animate-pulse flex gap-4">
+        <div className="w-16 h-16 bg-muted rounded-2xl" />
+        <div className="w-16 h-16 bg-muted rounded-2xl" />
       </div>
     );
 
   return (
-    <div className="space-y-6 pb-20">
-      {/* Marketplace Header */}
+    <div className="space-y-6 bg-white min-h-screen pb-20">
       {!selectedBusiness ? (
-        <>
-          <div className="px-4 space-y-4">
+        <div className="space-y-6 animate-fade-in">
+          {/* Marketplace Search */}
+          <div className="px-4 pt-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search IDIA Enterprises..."
-                className="pl-10 h-12 bg-white/80 backdrop-blur-sm border-teal-100 shadow-sm"
+                placeholder="Search Downtown Chicago..."
+                className="pl-10 h-11 bg-muted/30 border-none rounded-xl text-sm"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
+          </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-              {categories.map((cat) => (
-                <Badge
+          {/* High-Density Scaling Container (Horizontal Scroll) */}
+          <div className="space-y-3">
+            <div className="px-4 flex justify-between items-center">
+              <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                Nearby Enterprises
+              </h2>
+              <Badge variant="outline" className="text-[9px] border-teal-100 text-teal-700">
+                {filteredBusinesses.length} Active
+              </Badge>
+            </div>
+
+            <ScrollArea className="w-full whitespace-nowrap px-4">
+              <div className="flex w-max space-x-5 pb-4">
+                {filteredBusinesses.map((business) => (
+                  <div
+                    key={business.id}
+                    className="flex flex-col items-center gap-2 group cursor-pointer active:scale-95 transition-transform"
+                    onClick={() => handleSelectBusiness(business)}
+                  >
+                    {/* Square Icon (Company Logo Placeholder) */}
+                    <div className="w-16 h-16 rounded-2xl bg-muted/40 border border-muted flex items-center justify-center overflow-hidden group-hover:border-teal-500 group-hover:bg-white transition-all shadow-sm">
+                      {getBusinessIcon(business.business_type)}
+                    </div>
+                    <p className="text-[10px] font-bold text-foreground text-center max-w-[64px] truncate">
+                      {business.name}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </div>
+
+          {/* Categories */}
+          <div className="px-4 space-y-3">
+            <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+              Sovereign Categories
+            </h2>
+            <div className="grid grid-cols-2 gap-2">
+              {categories.slice(1).map((cat) => (
+                <div
                   key={cat}
-                  variant={selectedCategory === cat ? "default" : "outline"}
-                  className={`cursor-pointer px-4 py-1.5 whitespace-nowrap transition-all ${
+                  className={`p-3 rounded-xl border text-xs font-bold transition-all ${
                     selectedCategory === cat
-                      ? "bg-teal-600"
-                      : "bg-white text-muted-foreground border-teal-50 hover:border-teal-200"
+                      ? "bg-teal-600 text-white border-teal-600 shadow-md"
+                      : "bg-white text-teal-800 border-teal-50"
                   }`}
-                  onClick={() => setSelectedCategory(cat)}
+                  onClick={() => setSelectedCategory(selectedCategory === cat ? "All" : cat)}
                 >
                   {cat}
-                </Badge>
+                </div>
               ))}
             </div>
           </div>
-
-          <div className="px-4 grid gap-4">
-            {filteredBusinesses.map((business) => (
-              <Card
-                key={business.id}
-                className="overflow-hidden hover:shadow-lg transition-all border-teal-50/50 cursor-pointer group active:scale-[0.98]"
-                onClick={() => handleSelectBusiness(business)}
-              >
-                <div className="p-4 flex gap-4 items-center">
-                  <div className="w-16 h-16 rounded-2xl bg-teal-50 flex items-center justify-center group-hover:bg-orange-50 transition-colors">
-                    {getBusinessIcon(business.business_type)}
-                  </div>
-                  <div className="flex-1 space-y-1">
-                    <div className="flex justify-between items-start">
-                      <CardTitle className="text-lg font-bold">{business.name}</CardTitle>
-                      <div className="flex items-center gap-1">
-                        <Star className="h-3 w-3 fill-orange-400 text-orange-400" />
-                        <span className="text-xs font-bold">{(business.business_health_score || 95) / 20}</span>
-                      </div>
-                    </div>
-                    <CardDescription className="text-xs flex items-center gap-1">
-                      <MapPin className="h-3 w-3 text-teal-500" />
-                      {business.business_locations?.[0]?.address || "Multiple Locations"}
-                    </CardDescription>
-                    <div className="flex gap-2 pt-1">
-                      <Badge
-                        variant="secondary"
-                        className="text-[10px] bg-teal-100/50 text-teal-700 hover:bg-teal-100 border-none"
-                      >
-                        {business.business_type}
-                      </Badge>
-                      {business.ar_experiences && business.ar_experiences.length > 0 && (
-                        <Badge className="text-[10px] bg-orange-100 text-orange-700 hover:bg-orange-100 border-none">
-                          <Sparkles className="h-2 w-2 mr-1" /> AR Ready
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground opacity-30 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-                </div>
-              </Card>
-            ))}
-          </div>
-        </>
+        </div>
       ) : (
-        /* Business Detail View / Business Card */
-        <div className="animate-in slide-in-from-right duration-300">
-          <div className="p-4 bg-white sticky top-0 z-10 border-b flex items-center justify-between">
+        /* Detailed Business Interface */
+        <div className="animate-in slide-in-from-bottom duration-300">
+          <div className="p-4 flex items-center justify-between sticky top-0 bg-white z-10 border-b border-muted">
             <Button variant="ghost" size="icon" onClick={() => setSelectedBusiness(null)}>
-              <X className="h-6 w-6" />
+              <X className="h-5 w-5" />
             </Button>
-            <h2 className="font-bold text-lg">{selectedBusiness.name}</h2>
+            <h2 className="font-black text-sm uppercase tracking-tighter">{selectedBusiness.name}</h2>
             <div className="relative">
-              <ShoppingCart className="h-6 w-6 text-teal-600" />
+              <ShoppingCart className="h-5 w-5 text-teal-600" />
               {cart.length > 0 && (
-                <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                  {cart.reduce((a, b) => a + b.quantity, 0)}
+                <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {cart.length}
                 </span>
               )}
             </div>
           </div>
 
           <div className="p-4 space-y-6">
-            <div className="rounded-3xl bg-gradient-to-br from-teal-500 to-teal-700 p-6 text-white shadow-xl relative overflow-hidden">
-              <div className="relative z-10 space-y-4">
+            {/* Enterprise Business Card */}
+            <Card className="bg-gradient-to-br from-teal-500 to-teal-700 text-white border-none rounded-[2rem] overflow-hidden shadow-xl">
+              <CardContent className="p-6 space-y-4">
                 <div className="flex justify-between items-start">
-                  <div>
-                    <h1 className="text-2xl font-black">{selectedBusiness.name}</h1>
-                    <p className="opacity-80 text-sm">{selectedBusiness.business_type}</p>
+                  <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center">
+                    {getBusinessIcon(selectedBusiness.business_type)}
                   </div>
-                  {getBusinessIcon(selectedBusiness.business_type)}
+                  <Badge className="bg-orange-500 hover:bg-orange-600 border-none text-[9px]">IDIA VERIFIED</Badge>
                 </div>
-                <div className="space-y-2 text-sm opacity-90">
-                  <p className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" /> {selectedBusiness.business_locations?.[0]?.address}
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <Clock className="h-4 w-4" /> Open • Until 9:00 PM
+                <div>
+                  <CardTitle className="text-2xl font-black leading-none mb-1">{selectedBusiness.name}</CardTitle>
+                  <p className="text-[10px] uppercase font-bold text-teal-100 tracking-widest">
+                    {selectedBusiness.business_type}
                   </p>
                 </div>
-                <div className="flex gap-4 pt-2">
-                  <div className="text-center">
-                    <p className="text-xs opacity-70">Loyalty</p>
-                    <p className="font-bold">Platinum</p>
+                <div className="pt-2 border-t border-white/10 flex justify-between items-center text-[11px] font-medium opacity-90">
+                  <div className="flex items-center gap-1.5">
+                    <MapPin size={12} /> {selectedBusiness.business_locations?.[0]?.address || "Downtown"}
                   </div>
-                  <div className="text-center border-l border-white/20 pl-4">
-                    <p className="text-xs opacity-70">Rating</p>
-                    <p className="font-bold">4.9/5</p>
+                  <div className="flex items-center gap-1.5">
+                    <Star size={12} className="fill-orange-400 text-orange-400" /> 4.9
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xs font-black uppercase tracking-widest">Live Inventory</h3>
+                <span className="text-[9px] text-muted-foreground">1:1 Database Sync</span>
               </div>
-              <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+
+              <div className="grid grid-cols-2 gap-3">
+                {businessItems.map((item) => (
+                  <Card key={item.id} className="border-muted bg-muted/10 rounded-2xl overflow-hidden group">
+                    <div className="aspect-square bg-muted/40 flex items-center justify-center relative">
+                      {item.image_url ? (
+                        <img src={item.image_url} alt={item.name} className="object-cover w-full h-full" />
+                      ) : (
+                        <Package size={24} className="text-muted-foreground/30" />
+                      )}
+                      <Button
+                        size="sm"
+                        className="absolute bottom-2 right-2 h-7 w-7 rounded-full bg-white text-teal-600 shadow-sm hover:bg-teal-600 hover:text-white border-none p-0"
+                        onClick={() => addToCart(item)}
+                      >
+                        +
+                      </Button>
+                    </div>
+                    <div className="p-3">
+                      <p className="text-[10px] font-black text-foreground truncate">{item.name}</p>
+                      <p className="text-xs font-black text-teal-600">${item.price.toFixed(2)}</p>
+                    </div>
+                  </Card>
+                ))}
+              </div>
             </div>
-
-            <Tabs defaultValue="shop" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 bg-teal-50/50">
-                <TabsTrigger value="shop">Live Inventory</TabsTrigger>
-                <TabsTrigger value="about">Info</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="shop" className="space-y-4 pt-4">
-                <div className="grid grid-cols-2 gap-4">
-                  {businessItems.map((item) => (
-                    <Card
-                      key={item.id}
-                      className="overflow-hidden border-teal-50 group hover:border-teal-200 transition-all"
-                    >
-                      <div className="h-24 bg-muted flex items-center justify-center">
-                        {item.image_url ? (
-                          <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <Package className="h-8 w-8 text-muted-foreground/30" />
-                        )}
-                      </div>
-                      <CardContent className="p-3 space-y-2">
-                        <div>
-                          <h4 className="font-bold text-sm line-clamp-1">{item.name}</h4>
-                          <p className="text-[10px] text-muted-foreground uppercase">{item.type}</p>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-black text-teal-700">${item.price.toFixed(2)}</span>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 w-7 p-0 border-teal-200 text-teal-700"
-                            onClick={() => addToCart(item)}
-                          >
-                            +
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </TabsContent>
-            </Tabs>
           </div>
         </div>
       )}
