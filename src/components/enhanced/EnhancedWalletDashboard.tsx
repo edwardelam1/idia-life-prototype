@@ -11,8 +11,9 @@ import {
   DialogTrigger,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Slider } from "@/components/ui/slider";
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
+import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter";
+import type { TestId } from "../psychometric/testBank";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { supabase } from "@/integrations/supabase/client";
 import NFCPayrollModal from "../NFCPayrollModal";
