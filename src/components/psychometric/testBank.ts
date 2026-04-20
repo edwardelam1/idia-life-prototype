@@ -1,5 +1,4 @@
 // IDIA Psychometric Test Bank — 9 modules × 10 questions = 90 questions
-export type TestId = "seb" | "ass" | "snv" | "jrda" | "ocs" | "pcf" | "eq" | "gup" | "scs";
 export type Pillar = "Social Connectivity Index" | "Work Engagement Index" | "Prosocial Disposition Index";
 
 export interface TestModule {
