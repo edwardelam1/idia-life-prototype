@@ -85,61 +85,52 @@ const EnhancedWalletDashboard: React.FC = () => {
     }
   };
 
-  // The IDIA Algorithm Execution — receives normalized 0-100 scores per module
+  // The IDIA Algorithm Execution — strictly calls the Edge Function
   const handleCalculateScore = async (moduleScores: Record<TestId, number>) => {
-    const sci = (moduleScores.seb + moduleScores.ass + moduleScores.snv) / 3;
-    const wei = (moduleScores.jrda + moduleScores.ocs + moduleScores.pcf) / 3;
-    const pdi = (moduleScores.eq + moduleScores.gup + moduleScores.scs) / 3;
-
-    const rawScore = (0.45 * sci + 0.35 * wei + 0.2 * pdi) * 10;
-    const finalTrustScore = Math.round(rawScore);
-    const calculatedAdvance = Math.round((finalTrustScore / 650) * 1500);
-
-    if (updateProfile) {
-      await updateProfile({
-        trust_score: finalTrustScore,
-        available_credit_line: calculatedAdvance,
-      });
-    }
-
-    setCreditSimulation({
-      current_score: profile?.trust_score || 650,
-      simulated_score: finalTrustScore,
-      actions: ["Psychometric telemetry verified", "Capital advance limit recalculated"],
-    });
-
-    // Pause so user sees the finale confetti before modal closes
-    setTimeout(() => {
-      setShowTestModal(false);
-      setActiveTab("credit");
-    }, 2800);
-  };
-
-  const exportTaxableEvents = async () => {
+    setIsCalculating(true);
     try {
-      const taxableEvents = transactions.filter(
-        (t) =>
-          t.transaction_type === "data_reward" ||
-          t.transaction_type === "crypto_sale" ||
-          t.transaction_type === "income",
-      );
+      // 1. Package telemetry for the Secure Enclave
+      const telemetryPayload = {
+        social_exchange_balance: moduleScores.seb,
+        attachment_security: moduleScores.ass,
+        social_network_vitality: moduleScores.snv,
+        job_resources_demands: moduleScores.jrda,
+        org_citizenship: moduleScores.ocs,
+        psych_contract: moduleScores.pcf,
+        empathy_quotient: moduleScores.eq,
+        generosity_under_pressure: moduleScores.gup,
+        social_context_sensitivity: moduleScores.scs,
+      };
 
-      const csvContent = [
-        "Date,Type,Amount,Description,Tax Category",
-        ...taxableEvents.map(
-          (t) => `${t.created_at},${t.transaction_type},${t.amount},${t.description},Taxable Income`,
-        ),
-      ].join("\n");
+      // 2. Invoke the Edge Function (The Single Source of Truth)
+      const { data, error } = await supabase.functions.invoke("calculate-trust-score", {
+        body: {
+          user_id: profile?.id,
+          telemetry: telemetryPayload,
+        },
+      });
 
-      const blob = new Blob([csvContent], { type: "text/csv" });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `taxable-events-${new Date().getFullYear()}.csv`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Error exporting taxable events:", error);
+      if (error) throw error;
+
+      // 3. Update the Blind Ledger with returned values
+      if (updateProfile) {
+        await updateProfile({
+          trust_score: data.trust_score,
+          available_credit_line: data.credit_line,
+        });
+      }
+
+      // 4. Update the simulation UI for immediate feedback
+      setCreditSimulation({
+        current_score: profile?.trust_score ?? "NO SCORE",
+        simulated_score: data.trust_score,
+        actions: ["Psychometric telemetry verified via Edge Function", "Deterministic capital limit recalculated"],
+      });
+    } catch (err) {
+      console.error("IDIA Algorithm Execution Failed:", err);
+    } finally {
+      setIsCalculating(false);
+      setShowTestModal(false);
     }
   };
 

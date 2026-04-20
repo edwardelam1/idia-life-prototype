@@ -61,21 +61,60 @@ const EnhancedSocialScreen: React.FC = () => {
     fireGraffitiConfetti();
   }, []);
 
-  // Same scoring algorithm as Wallet — single source of truth for Trust Score
+  // The IDIA Algorithm Execution — strictly triggers the Edge Function
   const handleCalculateScore = async (moduleScores: Record<TestId, number>) => {
-    const sci = (moduleScores.seb + moduleScores.ass + moduleScores.snv) / 3;
-    const wei = (moduleScores.jrda + moduleScores.ocs + moduleScores.pcf) / 3;
-    const pdi = (moduleScores.eq + moduleScores.gup + moduleScores.scs) / 3;
+    setIsCalculating(true);
+    try {
+      // 1. Package telemetry to send to the Edge Function
+      const telemetryPayload = {
+        social_exchange_balance: moduleScores.seb,
+        attachment_security: moduleScores.ass,
+        social_network_vitality: moduleScores.snv,
+        job_resources_demands: moduleScores.jrda,
+        org_citizenship: moduleScores.ocs,
+        psych_contract: moduleScores.pcf,
+        empathy_quotient: moduleScores.eq,
+        generosity_under_pressure: moduleScores.gup,
+        social_context_sensitivity: moduleScores.scs,
+      };
 
-    const finalTrustScore = Math.round((0.45 * sci + 0.35 * wei + 0.2 * pdi) * 10);
-    const calculatedAdvance = Math.round((finalTrustScore / 650) * 1500);
-
-    if (updateProfile) {
-      await updateProfile({
-        trust_score: finalTrustScore,
-        available_credit_line: calculatedAdvance,
+      // 2. Invoke the Live Edge Function
+      const { data, error } = await supabase.functions.invoke("calculate-trust-score", {
+        body: { 
+          user_id: profile?.id, 
+          telemetry: telemetryPayload 
+        },
       });
+
+      if (error) throw error;
+
+      // 3. Update the blind ledger with the return values from the Edge Function
+      if (updateProfile) {
+        await updateProfile({
+          trust_score: data.trust_score,
+          available_credit_line: data.credit_line,
+        });
+      }
+
+      // 4. If this is the Wallet screen, update the simulation state
+      if (typeof setCreditSimulation === "function") {
+        setCreditSimulation({
+          current_score: profile?.trust_score ?? "NO SCORE",
+          simulated_score: data.trust_score,
+          actions: [
+            "Psychometric telemetry verified via Edge Function",
+            "Deterministic capital limit recalculated",
+          ],
+        });
+      }
+
+    } catch (err) {
+      console.error("IDIA Algorithm Execution Failed:", err);
+    } finally {
+      setIsCalculating(false);
+      setShowTestModal(false);
     }
+  };
 
     setTimeout(() => setShowTestModal(false), 2800);
   };
