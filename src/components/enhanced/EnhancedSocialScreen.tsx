@@ -76,37 +76,8 @@ const EnhancedSocialScreen: React.FC = () => {
     setNewCircleName("");
   };
 
-  // The IDIA Algorithm Execution
-  const handleCalculateScore = async () => {
-    setIsCalculating(true);
 
-    // Simulate edge function processing time
-    setTimeout(async () => {
-      const sci = (testScores.seb + testScores.ass + testScores.snv) / 3;
-      const wei = (testScores.jrda + testScores.ocs + testScores.pcf) / 3;
-      const pdi = (testScores.eq + testScores.gup + testScores.scs) / 3;
 
-      // Final Algorithm: 45% SCI, 35% WEI, 20% PDI (scaled to 1000 max)
-      const rawScore = (0.45 * sci + 0.35 * wei + 0.2 * pdi) * 10;
-      const finalTrustScore = Math.round(rawScore);
-
-      // Calculate Capital Advance (e.g. 650 score = $1500 advance)
-      const calculatedAdvance = Math.round((finalTrustScore / 650) * 1500);
-
-      // Update the blind ledger
-      if (updateProfile) {
-        await updateProfile({
-          trust_score: finalTrustScore,
-          available_credit_line: calculatedAdvance,
-        });
-      }
-
-      setIsCalculating(false);
-      setShowTestModal(false);
-    }, 2000);
-  };
-
-  const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive"> = {
       pending: "secondary",
       accepted: "default",
