@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type SubscriptionTier = "pro" | "pro_plus" | "pure_alpha" | null;
 
-// Ranking for upgrade/downgrade logic
+// Ranking for transition logic (Upgrade/Downgrade)
 export const TIER_RANK: Record<string, number> = {
   null: 0,
   pro: 1,
@@ -12,8 +12,9 @@ export const TIER_RANK: Record<string, number> = {
 };
 
 export const useSubscription = () => {
+  // Persistence for "No Gating" development flow
   const [tier, setTier] = useState<SubscriptionTier>(() => {
-    return (localStorage.getItem("idia_dev_tier") as SubscriptionTier) || null;
+    return (localStorage.getItem("idia_dev_tier") as SubscriptionTier) || "pro";
   });
   const [loading, setLoading] = useState(true);
 
@@ -59,7 +60,7 @@ export const useSubscription = () => {
         user_id: user.id,
         tier: selectedTier,
         status: "active",
-        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        expires_at: new Date(Date.now() + 2592000000).toISOString(), // 30 days
       } as any);
     }
     return true;
