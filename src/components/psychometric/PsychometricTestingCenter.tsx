@@ -4,7 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, ArrowRight, BrainCircuit, ShieldCheck } from "lucide-react";
 import TestRunner from "./TestRunner";
-import { testBank, type TestId } from "./testBank";
+import { testBank, type TestId } from "./test_Bank";
 import { fireWelcomeConfetti, fireFinaleConfetti } from "./confetti";
 
 interface PsychometricTestingCenterProps {
@@ -20,7 +20,7 @@ const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({ o
     fireWelcomeConfetti();
   }, []);
 
-  const totalModules = testBank.length;
+  const totalModules = test_Bank.length;
   const progress = (Object.keys(completedModules).length / totalModules) * 100;
 
   const startNextModule = () => {
@@ -34,7 +34,7 @@ const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({ o
   };
 
   const handleModuleComplete = (score: number) => {
-    const currentModule = testBank[currentModuleIndex];
+    const currentModule = test_Bank[currentModuleIndex];
     setCompletedModules((prev) => ({
       ...prev,
       [currentModule.id]: score,
@@ -59,7 +59,7 @@ const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({ o
 
           <Card className="w-full max-w-sm border-primary/20 bg-card/50 backdrop-blur-sm">
             <CardContent className="p-4 grid grid-cols-3 gap-2">
-              {testBank.map((test, idx) => (
+              {test_Bank.map((test, idx) => (
                 <div key={test.id} className="flex flex-col items-center gap-1">
                   <div className="w-2 h-2 rounded-full bg-muted" />
                   <span className="text-[10px] text-muted-foreground uppercase truncate w-full px-1">{test.id}</span>
