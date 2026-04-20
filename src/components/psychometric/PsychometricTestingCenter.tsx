@@ -1,168 +1,133 @@
-import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
+import React, { useState, useEffect } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Users, Activity, Heart, CheckCircle2, ChevronRight, ShieldCheck, Sparkles } from "lucide-react";
-import { TEST_BANK, PILLARS, TestId } from "./testBank";
+import { Button } from "@/components/ui/button";
+import { CheckCircle, ArrowRight, BrainCircuit, ShieldCheck } from "lucide-react";
 import TestRunner from "./TestRunner";
-import { fireFinaleConfetti } from "./confetti";
+import { testBank, type TestId } from "./testBank";
+import { fireWelcomeConfetti, fireFinaleConfetti } from "./confetti";
 
 interface PsychometricTestingCenterProps {
-  existingScores?: Partial<Record<TestId, number>>;
-  onCompleteAll: (scores: Record<TestId, number>) => Promise<void> | void;
+  onCompleteAll: (scores: Record<string, number>) => void;
 }
 
-const PILLAR_META = {
-  "Social Connectivity Index": { icon: Users, accent: "text-teal-500", border: "border-teal-500/30", bg: "from-teal-500/10" },
-  "Work Engagement Index": { icon: Activity, accent: "text-orange-500", border: "border-orange-500/30", bg: "from-orange-500/10" },
-  "Prosocial Disposition Index": { icon: Heart, accent: "text-teal-600", border: "border-teal-600/30", bg: "from-teal-600/10" },
-} as const;
+const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({ onCompleteAll }) => {
+  const [currentModuleIndex, setCurrentModuleIndex] = useState(-1);
+  const [completedModules, setCompletedModules] = useState<Record<string, number>>({});
+  const [isFinished, setIsFinished] = useState(false);
 
-const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({
-  existingScores = {},
-  onCompleteAll,
-}) => {
-  const [activeTestId, setActiveTestId] = useState<TestId | null>(null);
-  const [scores, setScores] = useState<Partial<Record<TestId, number>>>(existingScores);
-  const [finalizing, setFinalizing] = useState(false);
+  useEffect(() => {
+    fireWelcomeConfetti();
+  }, []);
 
-  const completedCount = Object.keys(scores).length;
-  const isFullyComplete = completedCount === 9;
-  const overallProgress = (completedCount / 9) * 100;
+  const totalModules = testBank.length;
+  const progress = (Object.keys(completedModules).length / totalModules) * 100;
 
-  const handleTestComplete = async (score: number) => {
-    if (!activeTestId) return;
-    const next = { ...scores, [activeTestId]: score };
-    setScores(next);
-    setActiveTestId(null);
-
-    if (Object.keys(next).length === 9) {
-      setFinalizing(true);
+  const startNextModule = () => {
+    if (currentModuleIndex < totalModules - 1) {
+      setCurrentModuleIndex(currentModuleIndex + 1);
+    } else {
+      setIsFinished(true);
       fireFinaleConfetti();
-      await onCompleteAll(next as Record<TestId, number>);
-      setFinalizing(false);
+      onCompleteAll(completedModules);
     }
   };
 
-  // ---------- ACTIVE TEST ----------
-  if (activeTestId) {
+  const handleModuleComplete = (score: number) => {
+    const currentModule = testBank[currentModuleIndex];
+    setCompletedModules((prev) => ({
+      ...prev,
+      [currentModule.id]: score,
+    }));
+    startNextModule();
+  };
+
+  // Intro Screen - Mobile Optimized
+  if (currentModuleIndex === -1) {
     return (
-      <TestRunner
-        test={TEST_BANK[activeTestId]}
-        onExit={() => setActiveTestId(null)}
-        onComplete={handleTestComplete}
-      />
+      <div className="flex flex-col h-[85vh] md:h-auto min-h-[500px] bg-background text-foreground overflow-hidden">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-6">
+          <div className="p-4 rounded-full bg-primary/10 animate-pulse">
+            <BrainCircuit className="w-16 h-16 text-primary" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tighter">Psychometric Validation</h1>
+            <p className="text-muted-foreground text-sm md:text-base max-w-[280px] md:max-w-md mx-auto">
+              Complete the 9 telemetry modules to establish your cryptographic IDIA Trust Score.
+            </p>
+          </div>
+
+          <Card className="w-full max-w-sm border-primary/20 bg-card/50 backdrop-blur-sm">
+            <CardContent className="p-4 grid grid-cols-3 gap-2">
+              {testBank.map((test, idx) => (
+                <div key={test.id} className="flex flex-col items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-muted" />
+                  <span className="text-[10px] text-muted-foreground uppercase truncate w-full px-1">{test.id}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="p-6 border-t bg-card/30">
+          <Button
+            onClick={() => setCurrentModuleIndex(0)}
+            className="w-full h-14 text-lg font-bold shadow-xl shadow-primary/20 transition-all active:scale-95"
+          >
+            Begin Validation <ArrowRight className="ml-2 w-5 h-5" />
+          </Button>
+        </div>
+      </div>
     );
   }
 
-  // ---------- DASHBOARD ----------
+  // Final Processing Screen
+  if (isFinished) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[70vh] p-8 text-center space-y-6">
+        <div className="relative">
+          <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full" />
+          <ShieldCheck className="w-24 h-24 text-primary relative z-10" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold italic">Telemetry Secured.</h2>
+          <p className="text-muted-foreground">Executing the IDIA Algorithm in the Secure Enclave...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const currentModule = testBank[currentModuleIndex];
+
   return (
-    <div className="space-y-6 py-2">
-      {/* Header */}
-      <div className="text-center space-y-3">
-        <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-teal-500 to-orange-500 flex items-center justify-center shadow-lg shadow-teal-500/30">
-          <ShieldCheck className="w-7 h-7 text-white" />
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold">Trust Matrix Validation</h2>
-          <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1">
-            Complete the 9 telemetry modules to establish your capital advancement limits. Processed locally in
-            your Secure Enclave.
-          </p>
-        </div>
-
-        {/* Overall progress */}
-        <div className="bg-muted/30 border rounded-xl p-3 max-w-sm mx-auto">
-          <div className="flex justify-between text-xs font-medium mb-2">
-            <span className="text-muted-foreground">Validation Progress</span>
-            <span className="text-teal-600">
-              {completedCount} / 9 ({Math.round(overallProgress)}%)
+    <div className="flex flex-col h-[90vh] md:h-auto overflow-hidden bg-background">
+      {/* Fixed Sticky Header */}
+      <div className="px-4 pt-6 pb-4 border-b bg-background/80 backdrop-blur-md z-20">
+        <div className="flex justify-between items-end mb-2">
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-primary uppercase tracking-widest">
+              Module {currentModuleIndex + 1} of {totalModules}
             </span>
+            <h2 className="text-lg font-bold leading-tight">{currentModule.title}</h2>
           </div>
-          <Progress
-            value={overallProgress}
-            className="h-2 [&>div]:bg-gradient-to-r [&>div]:from-teal-500 [&>div]:to-orange-500"
-          />
+          <span className="text-xs font-mono text-muted-foreground">{Math.round(progress)}%</span>
+        </div>
+        <Progress value={progress} className="h-1.5" />
+      </div>
+
+      {/* Responsive Scrollable Content Frame */}
+      <div className="flex-1 overflow-y-auto px-4 py-6">
+        <div className="max-w-xl mx-auto">
+          <Card className="border-none shadow-none bg-transparent">
+            <CardContent className="p-0">
+              <TestRunner key={currentModule.id} test={currentModule} onComplete={handleModuleComplete} />
+            </CardContent>
+          </Card>
         </div>
       </div>
 
-      {/* Pillars */}
-      <div className="space-y-4">
-        {PILLARS.map((pillar) => {
-          const meta = PILLAR_META[pillar.name];
-          const Icon = meta.icon;
-          const pillarComplete = pillar.keys.filter((k) => scores[k] !== undefined).length;
-
-          return (
-            <div
-              key={pillar.name}
-              className={`rounded-xl border ${meta.border} bg-gradient-to-br ${meta.bg} to-transparent p-4 space-y-3`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Icon className={`w-5 h-5 ${meta.accent}`} />
-                  <h3 className="font-bold text-sm">{pillar.name}</h3>
-                </div>
-                <span className="text-xs font-bold text-muted-foreground">
-                  {pillarComplete}/{pillar.keys.length} • {Math.round(pillar.weight * 100)}%
-                </span>
-              </div>
-
-              <div className="space-y-2">
-                {pillar.keys.map((key) => {
-                  const test = TEST_BANK[key];
-                  const isComplete = scores[key] !== undefined;
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => !isComplete && setActiveTestId(key)}
-                      disabled={isComplete}
-                      className={`w-full text-left p-3 rounded-lg border transition-all ${
-                        isComplete
-                          ? "bg-teal-500/5 border-teal-500/30 cursor-default"
-                          : "bg-card border-border hover:border-orange-500/50 hover:shadow-md hover:shadow-orange-500/10"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold text-sm truncate">{test.title}</p>
-                            {isComplete && <CheckCircle2 className="w-4 h-4 text-teal-500 shrink-0" />}
-                          </div>
-                          <p className="text-xs text-muted-foreground truncate mt-0.5">{test.description}</p>
-                        </div>
-                        {isComplete ? (
-                          <div className="text-right shrink-0">
-                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Score</p>
-                            <p className="text-lg font-bold bg-gradient-to-r from-teal-500 to-orange-500 bg-clip-text text-transparent">
-                              {scores[key]}
-                            </p>
-                          </div>
-                        ) : (
-                          <ChevronRight className="w-5 h-5 text-orange-500 shrink-0" />
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Finalize */}
-      {isFullyComplete && (
-        <div className="sticky bottom-0 bg-background pt-2 pb-1">
-          <Button
-            onClick={() => onCompleteAll(scores as Record<TestId, number>)}
-            disabled={finalizing}
-            className="w-full h-12 bg-gradient-to-r from-teal-500 via-teal-600 to-orange-500 hover:opacity-90 text-white font-bold shadow-lg shadow-orange-500/30"
-          >
-            <Sparkles className="w-4 h-4 mr-2" />
-            {finalizing ? "Calculating Cryptographic Limits..." : "All Modules Complete — Finalize"}
-          </Button>
-        </div>
-      )}
+      {/* Mobile Footer Area (Optional padding for thumb safety) */}
+      <div className="h-4 bg-background border-t border-transparent" />
     </div>
   );
 };
