@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 export interface EnhancedProfile {
   id: string;
@@ -58,7 +58,9 @@ export const useEnhancedProfile = () => {
 
   const loadProfileData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         setLoading(false);
         return;
@@ -66,45 +68,41 @@ export const useEnhancedProfile = () => {
 
       // Load enhanced profile with basic fields that exist
       const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', user.id)
+        .from("profiles")
+        .select("*")
+        .eq("user_id", user.id)
         .single();
 
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error('Error loading profile:', profileError);
+      if (profileError && profileError.code !== "PGRST116") {
+        console.error("Error loading profile:", profileError);
       } else if (profileData) {
-        const displayName = user.user_metadata?.display_name || user.user_metadata?.full_name || user.email || '';
+        const displayName = user.user_metadata?.display_name || user.user_metadata?.full_name || user.email || "";
         setProfile({
           id: profileData.id,
           user_id: profileData.user_id,
-          first_name: user.user_metadata?.first_name || displayName.split(' ')[0] || '',
-          last_name: user.user_metadata?.last_name || displayName.split(' ').slice(1).join(' ') || '',
+          first_name: user.user_metadata?.first_name || displayName.split(" ")[0] || "",
+          last_name: user.user_metadata?.last_name || displayName.split(" ").slice(1).join(" ") || "",
           email: user.email,
-          ai_assistant_name: 'Friend',
-          account_type: 'personal',
+          ai_assistant_name: "Friend",
+          account_type: "personal",
           display_name: displayName,
           avatar_url: null,
           phone_number: null,
           date_of_birth: null,
-          trust_score: 650,
+          trust_score: 0,
           available_credit_line: 0,
           quiet_time_enabled: false,
           quiet_time_start: null,
           quiet_time_end: null,
           created_at: profileData.created_at,
           updated_at: profileData.updated_at,
-          kyc_status: 'pending',
-          ssn_last4: null
+          kyc_status: "pending",
+          ssn_last4: null,
         });
       }
 
       // Fetch wallet data from user_wallets table
-      const { data: walletData } = await supabase
-        .from('user_wallets')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      const { data: walletData } = await supabase.from("user_wallets").select("*").eq("user_id", user.id).maybeSingle();
 
       if (walletData) {
         setWallet({
@@ -114,15 +112,14 @@ export const useEnhancedProfile = () => {
           cash_balance: 0,
           idia_usd_balance: walletData.total_earned || 0,
           idia_token_balance: 0,
-          is_seed_backed_up: false
+          is_seed_backed_up: false,
         });
       } else {
         // No wallet record found – do not simulate values
         setWallet(null);
       }
- 
     } catch (error) {
-      console.error('Error loading profile data:', error);
+      console.error("Error loading profile data:", error);
     } finally {
       setLoading(false);
     }
@@ -131,25 +128,22 @@ export const useEnhancedProfile = () => {
   const loadAvailableInterests = async () => {
     // Mock interests for now since the table doesn't exist yet
     setAvailableInterests([
-      { id: '1', name: 'Health & Fitness', category: 'lifestyle' },
-      { id: '2', name: 'Technology', category: 'professional' },
-      { id: '3', name: 'Finance', category: 'professional' },
-      { id: '4', name: 'Travel', category: 'lifestyle' }
+      { id: "1", name: "Health & Fitness", category: "lifestyle" },
+      { id: "2", name: "Technology", category: "professional" },
+      { id: "3", name: "Finance", category: "professional" },
+      { id: "4", name: "Travel", category: "lifestyle" },
     ]);
   };
 
   const updateProfile = async (updates: Partial<EnhancedProfile>) => {
     setUpdating(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No user found');
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("No user found");
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('user_id', user.id)
-        .select()
-        .single();
+      const { data, error } = await supabase.from("profiles").update(updates).eq("user_id", user.id).select().single();
 
       if (error) throw error;
 
@@ -160,20 +154,19 @@ export const useEnhancedProfile = () => {
           ...(data as any),
           email: profile.email,
           ai_assistant_name: profile.ai_assistant_name,
-          account_type: profile.account_type
+          account_type: profile.account_type,
         });
       }
       toast({
         title: "Success",
-        description: "Profile updated successfully"
+        description: "Profile updated successfully",
       });
-
     } catch (error) {
-      console.error('Error updating profile:', error);
+      console.error("Error updating profile:", error);
       toast({
         title: "Error",
         description: "Failed to update profile",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setUpdating(false);
@@ -184,21 +177,18 @@ export const useEnhancedProfile = () => {
     setUpdating(true);
     try {
       // Mock implementation for now
-      setInterests(availableInterests.filter(interest => 
-        selectedInterestIds.includes(interest.id)
-      ));
-      
+      setInterests(availableInterests.filter((interest) => selectedInterestIds.includes(interest.id)));
+
       toast({
         title: "Success",
-        description: "Interests updated successfully"
+        description: "Interests updated successfully",
       });
-
     } catch (error) {
-      console.error('Error updating interests:', error);
+      console.error("Error updating interests:", error);
       toast({
         title: "Error",
         description: "Failed to update interests",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setUpdating(false);
@@ -208,31 +198,30 @@ export const useEnhancedProfile = () => {
   const uploadAvatar = async (file: File) => {
     setUpdating(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No user found');
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("No user found");
 
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split(".").pop();
       const fileName = `${user.id}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
+      const { error: uploadError } = await supabase.storage.from("avatars").upload(filePath, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("avatars").getPublicUrl(filePath);
 
       await updateProfile({ avatar_url: publicUrl });
-
     } catch (error) {
-      console.error('Error uploading avatar:', error);
+      console.error("Error uploading avatar:", error);
       toast({
         title: "Error",
         description: "Failed to upload avatar",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setUpdating(false);
@@ -249,6 +238,6 @@ export const useEnhancedProfile = () => {
     updateProfile,
     updateInterests,
     uploadAvatar,
-    reload: loadProfileData
+    reload: loadProfileData,
   };
 };
