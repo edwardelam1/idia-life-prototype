@@ -1,130 +1,119 @@
-
-import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { 
-  Star, 
-  Users, 
-  Heart, 
-  Award, 
-  TrendingUp, 
-  Search,
-  Plus,
-  Shield,
-  Zap
-} from 'lucide-react';
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Star, Users, Heart, Award, TrendingUp, Search, Plus, Shield, Zap } from "lucide-react";
 
 const SocialScreen = () => {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
 
   const trustScore = {
     current: 847,
     maxScore: 1000,
-    rank: 'Excellent',
-    percentile: 92
+    rank: "Excellent",
+    percentile: 92,
   };
 
   const trustCircles = [
     {
       id: 1,
-      name: 'Close Friends',
+      name: "Close Friends",
       members: 12,
       avgTrustScore: 832,
-      color: 'from-pink-500 to-rose-500'
+      color: "from-pink-500 to-rose-500",
     },
     {
       id: 2,
-      name: 'Work Colleagues',
+      name: "Work Colleagues",
       members: 8,
       avgTrustScore: 789,
-      color: 'from-blue-500 to-indigo-500'
+      color: "from-blue-500 to-indigo-500",
     },
     {
       id: 3,
-      name: 'Neighborhood',
+      name: "Neighborhood",
       members: 15,
       avgTrustScore: 756,
-      color: 'from-green-500 to-emerald-500'
-    }
+      color: "from-green-500 to-emerald-500",
+    },
   ];
 
   const friends = [
     {
       id: 1,
-      name: 'Sarah Chen',
+      name: "Sarah Chen",
       trustScore: 892,
-      avatar: '👩‍💼',
+      avatar: "👩‍💼",
       mutual: 5,
       endorsements: 23,
-      lastActivity: '2 hours ago'
+      lastActivity: "2 hours ago",
     },
     {
       id: 2,
-      name: 'Marcus Johnson',
+      name: "Marcus Johnson",
       trustScore: 834,
-      avatar: '👨‍🔬',
+      avatar: "👨‍🔬",
       mutual: 3,
       endorsements: 18,
-      lastActivity: '1 day ago'
+      lastActivity: "1 day ago",
     },
     {
       id: 3,
-      name: 'Elena Rodriguez',
+      name: "Elena Rodriguez",
       trustScore: 798,
-      avatar: '👩‍🎨',
+      avatar: "👩‍🎨",
       mutual: 7,
       endorsements: 31,
-      lastActivity: '3 hours ago'
+      lastActivity: "3 hours ago",
     },
     {
       id: 4,
-      name: 'David Kim',
+      name: "David Kim",
       trustScore: 865,
-      avatar: '👨‍💻',
+      avatar: "👨‍💻",
       mutual: 2,
       endorsements: 15,
-      lastActivity: '5 hours ago'
-    }
+      lastActivity: "5 hours ago",
+    },
   ];
 
   const recentGoodDeeds = [
     {
       id: 1,
-      title: 'Helped elderly neighbor with groceries',
-      points: '+15',
-      status: 'verified',
-      date: '2 days ago'
+      title: "Helped elderly neighbor with groceries",
+      points: "+15",
+      status: "verified",
+      date: "2 days ago",
     },
     {
       id: 2,
-      title: 'Volunteered at local food bank',
-      points: '+25',
-      status: 'verified',
-      date: '1 week ago'
+      title: "Volunteered at local food bank",
+      points: "+25",
+      status: "verified",
+      date: "1 week ago",
     },
     {
       id: 3,
-      title: 'Returned lost wallet to owner',
-      points: '+20',
-      status: 'pending',
-      date: '3 days ago'
-    }
+      title: "Returned lost wallet to owner",
+      points: "+20",
+      status: "pending",
+      date: "3 days ago",
+    },
   ];
 
   const getTrustScoreColor = (score: number) => {
-    if (score >= 850) return 'text-green-600 bg-green-100';
-    if (score >= 750) return 'text-blue-600 bg-blue-100';
-    if (score >= 650) return 'text-yellow-600 bg-yellow-100';
-    return 'text-red-600 bg-red-100';
+    if (score >= 850) return "text-green-600 bg-green-100";
+    if (score >= 750) return "text-blue-600 bg-blue-100";
+    if (score >= 550) return "text-yellow-600 bg-yellow-100";
+    return "text-red-600 bg-red-100";
   };
 
   const getScoreRank = (score: number) => {
-    if (score >= 850) return 'Excellent';
-    if (score >= 750) return 'Very Good';
-    if (score >= 650) return 'Good';
-    return 'Fair';
+    if (score >= 850) return "Excellent";
+    if (score >= 750) return "Very Good";
+    if (score >= 550) return "Good";
+    return "Fair";
   };
 
   return (
@@ -146,7 +135,7 @@ const SocialScreen = () => {
           </div>
           <div className="mt-4">
             <div className="w-full bg-white/20 rounded-full h-2">
-              <div 
+              <div
                 className="bg-white rounded-full h-2 transition-all duration-500"
                 style={{ width: `${(trustScore.current / trustScore.maxScore) * 100}%` }}
               />
@@ -185,7 +174,9 @@ const SocialScreen = () => {
             <Card key={circle.id}>
               <CardContent className="p-4">
                 <div className="flex items-center space-x-3">
-                  <div className={`w-12 h-12 bg-gradient-to-r ${circle.color} rounded-full flex items-center justify-center`}>
+                  <div
+                    className={`w-12 h-12 bg-gradient-to-r ${circle.color} rounded-full flex items-center justify-center`}
+                  >
                     <Users className="w-6 h-6 text-white" />
                   </div>
                   <div className="flex-1">
@@ -194,9 +185,7 @@ const SocialScreen = () => {
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-medium text-gray-900">Avg Score</p>
-                    <Badge className={getTrustScoreColor(circle.avgTrustScore)}>
-                      {circle.avgTrustScore}
-                    </Badge>
+                    <Badge className={getTrustScoreColor(circle.avgTrustScore)}>{circle.avgTrustScore}</Badge>
                   </div>
                 </div>
               </CardContent>
@@ -239,12 +228,8 @@ const SocialScreen = () => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <Badge className={getTrustScoreColor(friend.trustScore)}>
-                      {friend.trustScore}
-                    </Badge>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {getScoreRank(friend.trustScore)}
-                    </p>
+                    <Badge className={getTrustScoreColor(friend.trustScore)}>{friend.trustScore}</Badge>
+                    <p className="text-xs text-gray-500 mt-1">{getScoreRank(friend.trustScore)}</p>
                   </div>
                 </div>
               </CardContent>
@@ -264,10 +249,12 @@ const SocialScreen = () => {
         <CardContent className="space-y-3">
           {recentGoodDeeds.map((deed) => (
             <div key={deed.id} className="flex items-start space-x-3 py-2">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                deed.status === 'verified' ? 'bg-green-100' : 'bg-yellow-100'
-              }`}>
-                {deed.status === 'verified' ? (
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  deed.status === "verified" ? "bg-green-100" : "bg-yellow-100"
+                }`}
+              >
+                {deed.status === "verified" ? (
                   <Star className="w-4 h-4 text-green-600" />
                 ) : (
                   <TrendingUp className="w-4 h-4 text-yellow-600" />
@@ -278,8 +265,8 @@ const SocialScreen = () => {
                 <p className="text-sm text-gray-600">{deed.date}</p>
               </div>
               <div className="text-right">
-                <Badge variant={deed.status === 'verified' ? 'default' : 'secondary'}>
-                  {deed.status === 'verified' ? 'Verified' : 'Pending'}
+                <Badge variant={deed.status === "verified" ? "default" : "secondary"}>
+                  {deed.status === "verified" ? "Verified" : "Pending"}
                 </Badge>
                 <p className="text-sm font-medium text-green-600 mt-1">{deed.points}</p>
               </div>
