@@ -14,6 +14,116 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_conversion_requests: {
+        Row: {
+          company_name: string
+          contact_name: string
+          contact_role: string
+          created_at: string | null
+          id: string
+          industry: string | null
+          request_type: string | null
+          status: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          company_name: string
+          contact_name: string
+          contact_role: string
+          created_at?: string | null
+          id?: string
+          industry?: string | null
+          request_type?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          company_name?: string
+          contact_name?: string
+          contact_role?: string
+          created_at?: string | null
+          id?: string
+          industry?: string | null
+          request_type?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      api_keys: {
+        Row: {
+          created_at: string | null
+          environment: string | null
+          id: string
+          key_hash: string
+          key_prefix: string
+          last_used_at: string | null
+          name: string
+          status: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          environment?: string | null
+          id?: string
+          key_hash: string
+          key_prefix: string
+          last_used_at?: string | null
+          name: string
+          status?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          environment?: string | null
+          id?: string
+          key_hash?: string
+          key_prefix?: string
+          last_used_at?: string | null
+          name?: string
+          status?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      api_metrics: {
+        Row: {
+          endpoint: string
+          id: string
+          key_id: string | null
+          latency_ms: number
+          status_code: number
+          timestamp: string | null
+        }
+        Insert: {
+          endpoint: string
+          id?: string
+          key_id?: string | null
+          latency_ms: number
+          status_code: number
+          timestamp?: string | null
+        }
+        Update: {
+          endpoint?: string
+          id?: string
+          key_id?: string | null
+          latency_ms?: number
+          status_code?: number
+          timestamp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_metrics_key_id_fkey"
+            columns: ["key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ar_campaign_performance: {
         Row: {
           business_id: string
@@ -1539,6 +1649,47 @@ export type Database = {
         }
         Relationships: []
       }
+      delt_transfers: {
+        Row: {
+          aca_hash: string
+          action_type: string
+          created_at: string | null
+          credit_cost: number
+          enterprise_id: string | null
+          id: string
+          payload_summary: string | null
+          user_id: string | null
+        }
+        Insert: {
+          aca_hash: string
+          action_type: string
+          created_at?: string | null
+          credit_cost: number
+          enterprise_id?: string | null
+          id?: string
+          payload_summary?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          aca_hash?: string
+          action_type?: string
+          created_at?: string | null
+          credit_cost?: number
+          enterprise_id?: string | null
+          id?: string
+          payload_summary?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delt_transfers_enterprise_id_fkey"
+            columns: ["enterprise_id"]
+            isOneToOne: false
+            referencedRelation: "enterprises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       demographic_clusters: {
         Row: {
           behavior_patterns: Json
@@ -1702,11 +1853,13 @@ export type Database = {
           aca_record_ids: string[] | null
           aca_record_references: string[]
           batch_checksum: string | null
+          bundle_id: string | null
           client_id: string | null
           consumption_weight: number | null
           country_of_origin: string
           created_at: string
           data_payload_summary: Json | null
+          data_points_count: number | null
           digiramp_anchor_id: string
           egress_type: string
           id: string
@@ -1715,6 +1868,7 @@ export type Database = {
           liability_token_hash: string | null
           manifest_hashes: string[] | null
           pseudo_user_id: string | null
+          purchaser_id: string | null
           query_complexity: number | null
           settlement_status: string | null
           staged_data_ids: string[] | null
@@ -1727,11 +1881,13 @@ export type Database = {
           aca_record_ids?: string[] | null
           aca_record_references?: string[]
           batch_checksum?: string | null
+          bundle_id?: string | null
           client_id?: string | null
           consumption_weight?: number | null
           country_of_origin?: string
           created_at?: string
           data_payload_summary?: Json | null
+          data_points_count?: number | null
           digiramp_anchor_id: string
           egress_type?: string
           id?: string
@@ -1740,6 +1896,7 @@ export type Database = {
           liability_token_hash?: string | null
           manifest_hashes?: string[] | null
           pseudo_user_id?: string | null
+          purchaser_id?: string | null
           query_complexity?: number | null
           settlement_status?: string | null
           staged_data_ids?: string[] | null
@@ -1752,11 +1909,13 @@ export type Database = {
           aca_record_ids?: string[] | null
           aca_record_references?: string[]
           batch_checksum?: string | null
+          bundle_id?: string | null
           client_id?: string | null
           consumption_weight?: number | null
           country_of_origin?: string
           created_at?: string
           data_payload_summary?: Json | null
+          data_points_count?: number | null
           digiramp_anchor_id?: string
           egress_type?: string
           id?: string
@@ -1765,6 +1924,7 @@ export type Database = {
           liability_token_hash?: string | null
           manifest_hashes?: string[] | null
           pseudo_user_id?: string | null
+          purchaser_id?: string | null
           query_complexity?: number | null
           settlement_status?: string | null
           staged_data_ids?: string[] | null
@@ -1939,6 +2099,92 @@ export type Database = {
           },
         ]
       }
+      enterprise_users: {
+        Row: {
+          created_at: string | null
+          email: string
+          enterprise_id: string | null
+          id: string
+          idia_verified: boolean | null
+          last_active: string | null
+          name: string
+          platform_guid: string | null
+          role: string
+          status: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          enterprise_id?: string | null
+          id?: string
+          idia_verified?: boolean | null
+          last_active?: string | null
+          name: string
+          platform_guid?: string | null
+          role: string
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          enterprise_id?: string | null
+          id?: string
+          idia_verified?: boolean | null
+          last_active?: string | null
+          name?: string
+          platform_guid?: string | null
+          role?: string
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enterprise_users_enterprise_id_fkey"
+            columns: ["enterprise_id"]
+            isOneToOne: false
+            referencedRelation: "enterprises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      enterprises: {
+        Row: {
+          available_credits: number | null
+          created_at: string | null
+          id: string
+          industry: string | null
+          kyb_status: string | null
+          name: string
+          tier: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          available_credits?: number | null
+          created_at?: string | null
+          id?: string
+          industry?: string | null
+          kyb_status?: string | null
+          name: string
+          tier?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          available_credits?: number | null
+          created_at?: string | null
+          id?: string
+          industry?: string | null
+          kyb_status?: string | null
+          name?: string
+          tier?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       facility_assignments: {
         Row: {
           assigned_at: string | null
@@ -1970,6 +2216,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      feature_feeds: {
+        Row: {
+          description: string | null
+          id: string
+          latency: string | null
+          name: string
+          status: string | null
+          subscribers: number | null
+          topic: string
+        }
+        Insert: {
+          description?: string | null
+          id?: string
+          latency?: string | null
+          name: string
+          status?: string | null
+          subscribers?: number | null
+          topic: string
+        }
+        Update: {
+          description?: string | null
+          id?: string
+          latency?: string | null
+          name?: string
+          status?: string | null
+          subscribers?: number | null
+          topic?: string
+        }
+        Relationships: []
       }
       fiat_ledger: {
         Row: {
@@ -4295,7 +4571,7 @@ export type Database = {
           processed: boolean | null
           processing_completed_at: string | null
           processing_started_at: string | null
-          processing_status: string | null
+          processing_status: Database["public"]["Enums"]["sync_status"] | null
           raw_payload: Json
           recorded_at: string | null
           retry_count: number | null
@@ -4314,7 +4590,7 @@ export type Database = {
           processed?: boolean | null
           processing_completed_at?: string | null
           processing_started_at?: string | null
-          processing_status?: string | null
+          processing_status?: Database["public"]["Enums"]["sync_status"] | null
           raw_payload: Json
           recorded_at?: string | null
           retry_count?: number | null
@@ -4333,7 +4609,7 @@ export type Database = {
           processed?: boolean | null
           processing_completed_at?: string | null
           processing_started_at?: string | null
-          processing_status?: string | null
+          processing_status?: Database["public"]["Enums"]["sync_status"] | null
           raw_payload?: Json
           recorded_at?: string | null
           retry_count?: number | null
@@ -5028,7 +5304,9 @@ export type Database = {
           effort_score: number | null
           entity_id: string | null
           faculty: string | null
+          heart_rate_variability_ms: number | null
           id: string
+          is_settled: boolean | null
           payload: Json
           platform_guid: string | null
           processed_at: string | null
@@ -5036,8 +5314,11 @@ export type Database = {
           raw_data_id: string | null
           reward_amount: number | null
           reward_calculated: boolean | null
+          settled_at: string | null
           status: string | null
+          steps_count: number | null
           synapse_weight_coefficient: number | null
+          user_id: string | null
         }
         Insert: {
           aca_hash_key?: string | null
@@ -5047,7 +5328,9 @@ export type Database = {
           effort_score?: number | null
           entity_id?: string | null
           faculty?: string | null
+          heart_rate_variability_ms?: number | null
           id?: string
+          is_settled?: boolean | null
           payload?: Json
           platform_guid?: string | null
           processed_at?: string | null
@@ -5055,8 +5338,11 @@ export type Database = {
           raw_data_id?: string | null
           reward_amount?: number | null
           reward_calculated?: boolean | null
+          settled_at?: string | null
           status?: string | null
+          steps_count?: number | null
           synapse_weight_coefficient?: number | null
+          user_id?: string | null
         }
         Update: {
           aca_hash_key?: string | null
@@ -5066,7 +5352,9 @@ export type Database = {
           effort_score?: number | null
           entity_id?: string | null
           faculty?: string | null
+          heart_rate_variability_ms?: number | null
           id?: string
+          is_settled?: boolean | null
           payload?: Json
           platform_guid?: string | null
           processed_at?: string | null
@@ -5074,8 +5362,11 @@ export type Database = {
           raw_data_id?: string | null
           reward_amount?: number | null
           reward_calculated?: boolean | null
+          settled_at?: string | null
           status?: string | null
+          steps_count?: number | null
           synapse_weight_coefficient?: number | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -5274,6 +5565,7 @@ export type Database = {
           amount_idia_usd: number | null
           balance_after: number | null
           balance_idia_beta: number | null
+          balance_previous: number | null
           circle_transfer_id: string | null
           created_at: string | null
           description: string | null
@@ -5299,6 +5591,7 @@ export type Database = {
           amount_idia_usd?: number | null
           balance_after?: number | null
           balance_idia_beta?: number | null
+          balance_previous?: number | null
           circle_transfer_id?: string | null
           created_at?: string | null
           description?: string | null
@@ -5324,6 +5617,7 @@ export type Database = {
           amount_idia_usd?: number | null
           balance_after?: number | null
           balance_idia_beta?: number | null
+          balance_previous?: number | null
           circle_transfer_id?: string | null
           created_at?: string | null
           description?: string | null
@@ -6262,6 +6556,24 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_reality_view: {
+        Row: {
+          current_war_chest: number | null
+          system_integrity_score: number | null
+          total_biometric_records: number | null
+        }
+        Relationships: []
+      }
+      global_reality_manifest: {
+        Row: {
+          actual_row_count: number | null
+          anchored_census_count: number | null
+          chronic_hrv_avg: number | null
+          lifetime_steps: number | null
+          war_chest_total: number | null
+        }
+        Relationships: []
+      }
       library_actuals: {
         Row: {
           data_category: string | null
@@ -6305,6 +6617,10 @@ export type Database = {
       }
       community_pool_ledger: {
         Args: { p_fiat_amount: number; p_pseudo_id: string }
+        Returns: undefined
+      }
+      deduct_synapse_credit: {
+        Args: { amount_to_deduct: number; target_enterprise_id: string }
         Returns: undefined
       }
       distribute_data_royalty: {
@@ -6442,6 +6758,7 @@ export type Database = {
         | "settlement"
         | "fbo_dissemination"
         | "FREE_COMPUTE"
+      sync_status: "pending" | "processing" | "completed" | "failed"
       user_role: "owner" | "manager" | "employee" | "warehouse_associate"
     }
     CompositeTypes: {
@@ -6581,6 +6898,7 @@ export const Constants = {
         "fbo_dissemination",
         "FREE_COMPUTE",
       ],
+      sync_status: ["pending", "processing", "completed", "failed"],
       user_role: ["owner", "manager", "employee", "warehouse_associate"],
     },
   },
