@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { useSocialGraph } from "@/hooks/useSocialGraph";
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
 import { supabase } from "@/integrations/supabase/client";
 import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter";
+import { fireGraffitiConfetti, fireFinaleConfetti } from "../psychometric/confetti";
 import {
   Users,
   Heart,
@@ -48,6 +49,11 @@ const EnhancedSocialScreen: React.FC = () => {
 
   const [showTestModal, setShowTestModal] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
+
+  // Execution: Trigger Graffiti Confetti on component mount
+  useEffect(() => {
+    fireGraffitiConfetti();
+  }, []);
 
   const handleSubmitGoodDeed = async () => {
     if (!newDeedTitle.trim() || !newDeedDescription.trim()) return;
@@ -103,6 +109,11 @@ const EnhancedSocialScreen: React.FC = () => {
     } finally {
       setIsCalculating(false);
       setShowTestModal(false);
+
+      // Execution: Delay finale so it fires over the Dashboard after the Modal closes
+      setTimeout(() => {
+        fireFinaleConfetti();
+      }, 350);
     }
   };
 
@@ -132,25 +143,25 @@ const EnhancedSocialScreen: React.FC = () => {
         <h1 className="text-xl font-bold text-foreground">Social Network</h1>
         <Dialog>
           <DialogTrigger asChild>
-            <Button size="sm">
+            <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
               <UserPlus className="w-4 h-4 mr-2" />
               Add Friend
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="bg-white">
             <DialogHeader>
               <DialogTitle>Add Friend</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <Input placeholder="Enter friend's email or username" />
-              <Button className="w-full">Send Friend Request</Button>
+              <Button className="w-full bg-teal-600 hover:bg-teal-700">Send Friend Request</Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid grid-cols-4 w-full">
+        <TabsList className="grid grid-cols-4 w-full bg-muted/20">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="friends">Friends</TabsTrigger>
           <TabsTrigger value="circles">Trust Circles</TabsTrigger>
@@ -158,13 +169,12 @@ const EnhancedSocialScreen: React.FC = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <Card className="bg-card border-primary/20 overflow-hidden relative">
-            <div className="absolute top-0 right-0 p-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+          <Card className="bg-white border-teal-100 overflow-hidden relative shadow-sm">
             <CardContent className="p-6 relative z-10">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-primary" />
+                    <ShieldCheck className="w-5 h-5 text-teal-600" />
                     <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
                       IDIA Trust Score
                     </h2>
@@ -185,10 +195,10 @@ const EnhancedSocialScreen: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="w-full md:w-auto flex flex-col gap-3 p-4 bg-muted/50 border border-border/50 rounded-xl backdrop-blur-sm">
+                <div className="w-full md:w-auto flex flex-col gap-3 p-4 bg-teal-50/50 border border-teal-100 rounded-xl">
                   <div className="space-y-1">
                     <h3 className="font-semibold flex items-center gap-2 text-foreground">
-                      <BrainCircuit className="w-4 h-4 text-primary" />
+                      <BrainCircuit className="w-4 h-4 text-teal-600" />
                       Need an advance?
                     </h3>
                     <p className="text-xs text-muted-foreground">
@@ -198,11 +208,11 @@ const EnhancedSocialScreen: React.FC = () => {
 
                   <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
                     <DialogTrigger asChild>
-                      <Button className="w-full font-bold shadow-lg shadow-primary/20">
+                      <Button className="w-full font-bold shadow-lg shadow-orange-500/20 bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white border-none">
                         {isCalculating ? "Calculating..." : "Take our Tests"} <ArrowRight className="w-4 h-4 ml-2" />
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto bg-background p-0 border-none">
+                    <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto bg-white p-0 border-none">
                       <PsychometricTestingCenter onCompleteAll={handleCalculateScore} />
                     </DialogContent>
                   </Dialog>
@@ -212,58 +222,61 @@ const EnhancedSocialScreen: React.FC = () => {
           </Card>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card>
+            <Card className="bg-white border-none shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2 text-foreground">
-                  <Heart className="w-4 h-4 text-red-500" />
+                  <Heart className="w-4 h-4 text-orange-500" />
                   Reciprocity Score
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-primary">
+                <div className="text-2xl font-bold text-teal-600">
                   {socialMetrics?.reciprocity_score?.toFixed(1) || "0.0"}
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-white border-none shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2 text-foreground">
-                  <TrendingUp className="w-4 h-4 text-green-500" />
+                  <TrendingUp className="w-4 h-4 text-emerald-500" />
                   Network Vitality
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-primary">
+                <div className="text-2xl font-bold text-teal-600">
                   {socialMetrics?.network_vitality_score?.toFixed(1) || "0.0"}
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-white border-none shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2 text-foreground">
-                  <Users className="w-4 h-4 text-blue-500" />
+                  <Users className="w-4 h-4 text-teal-600" />
                   Network Size
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-primary">
+                <div className="text-2xl font-bold text-teal-600">
                   {friends.filter((f) => f.status === "accepted").length}
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          <Card>
+          <Card className="bg-white shadow-sm border-none">
             <CardHeader>
               <CardTitle className="text-foreground">Recent Social Activity</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {goodDeeds.slice(0, 5).map((deed) => (
-                  <div key={deed.id} className="flex items-center space-x-3 p-3 border rounded-lg">
-                    <Award className="w-5 h-5 text-yellow-500" />
+                  <div
+                    key={deed.id}
+                    className="flex items-center space-x-3 p-3 border border-teal-50 rounded-lg bg-teal-50/20"
+                  >
+                    <Award className="w-5 h-5 text-orange-400" />
                     <div className="flex-1">
                       <p className="font-medium text-foreground">{deed.title}</p>
                       <p className="text-sm text-muted-foreground">{new Date(deed.created_at).toLocaleDateString()}</p>
@@ -278,7 +291,7 @@ const EnhancedSocialScreen: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="friends" className="space-y-4">
-          <Card>
+          <Card className="bg-white shadow-sm border-none">
             <CardHeader>
               <CardTitle className="text-foreground">Your Friends</CardTitle>
             </CardHeader>
@@ -288,9 +301,9 @@ const EnhancedSocialScreen: React.FC = () => {
               ) : (
                 <div className="space-y-3">
                   {friends.map((f) => (
-                    <div key={f.id} className="flex items-center space-x-3 p-3 border rounded-lg">
+                    <div key={f.id} className="flex items-center space-x-3 p-3 border border-teal-50 rounded-lg">
                       <Avatar>
-                        <AvatarFallback>
+                        <AvatarFallback className="bg-teal-100 text-teal-700">
                           {f.friend_profile?.first_name?.[0]}
                           {f.friend_profile?.last_name?.[0]}
                         </AvatarFallback>
@@ -304,11 +317,16 @@ const EnhancedSocialScreen: React.FC = () => {
                       <div className="flex items-center gap-2">
                         {getStatusBadge(f.status)}
                         {f.status === "pending" && (
-                          <Button size="sm" onClick={() => acceptFriendRequest(f.id)}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-teal-600 border-teal-200"
+                            onClick={() => acceptFriendRequest(f.id)}
+                          >
                             Accept
                           </Button>
                         )}
-                        <Button variant="outline" size="sm">
+                        <Button variant="ghost" size="sm" className="text-teal-600">
                           <MessageCircle className="w-4 h-4" />
                         </Button>
                       </div>
@@ -321,11 +339,13 @@ const EnhancedSocialScreen: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="circles" className="space-y-4">
-          <Card>
+          <Card className="bg-white shadow-sm border-none">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-foreground">Trust Circles</CardTitle>
-                <Button size="sm">Create Circle</Button>
+                <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
+                  Create Circle
+                </Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -334,13 +354,13 @@ const EnhancedSocialScreen: React.FC = () => {
               ) : (
                 <div className="space-y-3">
                   {trustCircles.map((circle) => (
-                    <div key={circle.id} className="flex items-center space-x-3 p-3 border rounded-lg">
-                      <Shield className="w-5 h-5 text-blue-500" />
+                    <div key={circle.id} className="flex items-center space-x-3 p-3 border border-teal-50 rounded-lg">
+                      <Shield className="w-5 h-5 text-teal-500" />
                       <div className="flex-1">
                         <p className="font-medium text-foreground">{circle.name}</p>
                         <p className="text-sm text-muted-foreground">{circle.member_count || 0} members</p>
                       </div>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" className="text-teal-600 border-teal-200">
                         Manage
                       </Button>
                     </div>
@@ -352,18 +372,18 @@ const EnhancedSocialScreen: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="deeds" className="space-y-4">
-          <Card>
+          <Card className="bg-white shadow-sm border-none">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-foreground">Good Deeds</CardTitle>
                 <Dialog>
                   <DialogTrigger asChild>
-                    <Button size="sm">
+                    <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
                       <Award className="w-4 h-4 mr-2" />
                       Submit Deed
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="bg-white">
                     <DialogHeader>
                       <DialogTitle>Submit Good Deed</DialogTitle>
                     </DialogHeader>
@@ -372,15 +392,17 @@ const EnhancedSocialScreen: React.FC = () => {
                         placeholder="Deed title"
                         value={newDeedTitle}
                         onChange={(e) => setNewDeedTitle(e.target.value)}
+                        className="border-teal-100"
                       />
                       <Textarea
                         placeholder="Describe your good deed..."
                         value={newDeedDescription}
                         onChange={(e) => setNewDeedDescription(e.target.value)}
                         rows={3}
+                        className="border-teal-100"
                       />
                       <Button
-                        className="w-full"
+                        className="w-full bg-teal-600 hover:bg-teal-700"
                         onClick={handleSubmitGoodDeed}
                         disabled={isSubmittingDeed || !newDeedTitle.trim()}
                       >
@@ -397,7 +419,7 @@ const EnhancedSocialScreen: React.FC = () => {
               ) : (
                 <div className="space-y-3">
                   {goodDeeds.map((deed) => (
-                    <div key={deed.id} className="p-4 border rounded-lg space-y-2">
+                    <div key={deed.id} className="p-4 border border-teal-50 rounded-lg bg-white space-y-2">
                       <div className="flex items-center justify-between">
                         <h4 className="font-medium text-foreground">{deed.title}</h4>
                         {getStatusBadge(deed.verification_status)}
@@ -410,7 +432,7 @@ const EnhancedSocialScreen: React.FC = () => {
                         </span>
                         {deed.verified_at && (
                           <span className="flex items-center gap-1">
-                            <CheckCircle className="w-3 h-3 text-green-500" />
+                            <CheckCircle className="w-3 h-3 text-emerald-500" />
                             Verified {new Date(deed.verified_at).toLocaleDateString()}
                           </span>
                         )}
