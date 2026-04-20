@@ -87,43 +87,34 @@ const EnhancedWalletDashboard: React.FC = () => {
     }
   };
 
-  // The IDIA Algorithm Execution
-  const handleCalculateScore = async () => {
-    setIsCalculating(true);
+  // The IDIA Algorithm Execution — receives normalized 0-100 scores per module
+  const handleCalculateScore = async (moduleScores: Record<TestId, number>) => {
+    const sci = (moduleScores.seb + moduleScores.ass + moduleScores.snv) / 3;
+    const wei = (moduleScores.jrda + moduleScores.ocs + moduleScores.pcf) / 3;
+    const pdi = (moduleScores.eq + moduleScores.gup + moduleScores.scs) / 3;
 
-    // Simulate enclave/edge function processing time
-    setTimeout(async () => {
-      const sci = (testScores.seb + testScores.ass + testScores.snv) / 3;
-      const wei = (testScores.jrda + testScores.ocs + testScores.pcf) / 3;
-      const pdi = (testScores.eq + testScores.gup + testScores.scs) / 3;
+    const rawScore = (0.45 * sci + 0.35 * wei + 0.2 * pdi) * 10;
+    const finalTrustScore = Math.round(rawScore);
+    const calculatedAdvance = Math.round((finalTrustScore / 650) * 1500);
 
-      // Final Algorithm: 45% SCI, 35% WEI, 20% PDI (scaled to 1000 max)
-      const rawScore = (0.45 * sci + 0.35 * wei + 0.2 * pdi) * 10;
-      const finalTrustScore = Math.round(rawScore);
-
-      // Calculate Capital Advance (e.g. 650 score = $1500 advance)
-      const calculatedAdvance = Math.round((finalTrustScore / 650) * 1500);
-
-      // Update the blind ledger
-      if (updateProfile) {
-        await updateProfile({
-          trust_score: finalTrustScore,
-          available_credit_line: calculatedAdvance,
-        });
-      }
-
-      setCreditSimulation({
-        current_score: profile?.trust_score || 650,
-        simulated_score: finalTrustScore,
-        actions: ["Psychometric telemetry verified", "Capital advance limit recalculated"],
+    if (updateProfile) {
+      await updateProfile({
+        trust_score: finalTrustScore,
+        available_credit_line: calculatedAdvance,
       });
+    }
 
-      setIsCalculating(false);
+    setCreditSimulation({
+      current_score: profile?.trust_score || 650,
+      simulated_score: finalTrustScore,
+      actions: ["Psychometric telemetry verified", "Capital advance limit recalculated"],
+    });
+
+    // Pause so user sees the finale confetti before modal closes
+    setTimeout(() => {
       setShowTestModal(false);
-
-      // Switch to credit tab to see results
       setActiveTab("credit");
-    }, 2000);
+    }, 2800);
   };
 
   const exportTaxableEvents = async () => {
