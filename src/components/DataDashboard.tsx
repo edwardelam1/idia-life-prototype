@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Activity, CheckCircle, DollarSign, Zap, FileKey } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Activity, CheckCircle, DollarSign, Zap, FileKey, Search, Loader2, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import AppleHealthModal from "./AppleHealthModal";
 import StravaConnectionModal from "./StravaConnectionModal";
@@ -24,6 +25,11 @@ const DataDashboard = () => {
   const [acaRecords, setAcaRecords] = useState<any[]>([]);
   const [acaLoading, setAcaLoading] = useState(false);
 
+  // ACA Tracking Logic
+  const [searchHash, setSearchHash] = useState("");
+  const [isTracking, setIsTracking] = useState(false);
+  const [trackingStatus, setTrackingStatus] = useState<any>(null);
+
   useEffect(() => {
     const getUser = async () => {
       const {
@@ -42,22 +48,65 @@ const DataDashboard = () => {
     }
   }, [currentUserId]);
 
+  const handleAcaSearch = async () => {
+    if (!searchHash) return;
+    setIsTracking(true);
+    try {
+      // 1. Check Ingestion
+      const { data: aca } = await supabase
+        .from("user_aca_records")
+        .select("id")
+        .eq("aca_hash_key", searchHash)
+        .maybeSingle();
+
+      // 2. Check Processing
+      let inQueue = false;
+      if (aca) {
+        const { data: proc } = await supabase
+          .from("data_processing_queue")
+          .select("processing_status")
+          .eq("raw_data_id", aca.id)
+          .maybeSingle();
+        inQueue = proc?.processing_status === "completed" || proc?.processing_status === "processing";
+      }
+
+      // 3. Check Staged
+      const { data: staged } = await supabase
+        .from("staged_health_data")
+        .select("id")
+        .eq("aca_hash_key", searchHash)
+        .maybeSingle();
+
+      // 4. Check Purchased
+      const { data: egress } = await supabase
+        .from("egress_logs")
+        .select("id")
+        .contains("aca_record_references", [searchHash])
+        .maybeSingle();
+
+      setTrackingStatus({
+        ingested: !!aca,
+        processing: inQueue,
+        staged: !!staged,
+        purchased: !!egress,
+      });
+    } catch (err) {
+      console.error("Audit lookup failed:", err);
+    } finally {
+      setIsTracking(false);
+    }
+  };
+
   const fetchAcaRecords = async () => {
     if (!currentUserId) return;
     setAcaLoading(true);
     try {
-      // Unified Identity: Auth User ID === Platform GUID (enforced by DB trigger).
-      // Query strictly by currentUserId — no profile lookup, no fallback.
       const { data, error } = await supabase
         .from("user_aca_records")
         .select("*")
         .eq("platform_guid", currentUserId)
         .order("created_at", { ascending: false });
-
-      if (error) throw error;
       if (data) setAcaRecords(data);
-    } catch (err) {
-      console.error("Failed to fetch ACA records:", err);
     } finally {
       setAcaLoading(false);
     }
@@ -65,384 +114,198 @@ const DataDashboard = () => {
 
   const fetchConnections = async () => {
     if (!currentUserId) return;
-
     try {
-      // STRIPPED: Removed the dead pipeline-diagnostics edge function call
-      const [connectionsResult, walletResult, recentDataResult] = await Promise.allSettled([
+      const [conn, wallet] = await Promise.all([
         supabase.from("data_connections").select("*").eq("user_id", currentUserId).eq("is_active", true),
-        supabase.from("user_wallets").select("*").eq("user_id", currentUserId).maybeSingle(),
-        supabase
-          .from("raw_health_data")
-          .select("created_at")
-          .eq("user_id", currentUserId)
-          .order("created_at", { ascending: false })
-          .limit(1),
+        supabase.from("user_wallets").select("cash_balance").eq("user_id", currentUserId).maybeSingle(),
       ]);
-
-      if (connectionsResult.status === "rejected") {
-        console.error("Error fetching connections:", connectionsResult.reason);
-        setConnections([]);
-        setTotalEarnings(0);
-        setLoading(false);
-        return;
-      }
-
-      const connectionsData = connectionsResult.value.data || [];
-      let totalEarned = 0;
-      if (walletResult.status === "fulfilled") totalEarned = walletResult.value.data?.cash_balance || 0;
-
-      if (recentDataResult.status === "fulfilled" && recentDataResult.value.data?.length > 0) {
-        const lastDataTime = new Date(recentDataResult.value.data[0].created_at);
-        const hoursSinceLastData = (Date.now() - lastDataTime.getTime()) / (1000 * 60 * 60);
-        if (hoursSinceLastData > 24) setLastSyncStatus("stale");
-        else if (hoursSinceLastData > 6) setLastSyncStatus("delayed");
-        else setLastSyncStatus("recent");
-      } else {
-        setLastSyncStatus("no_data");
-      }
-
-      setConnections(connectionsData);
-      setTotalEarnings(totalEarned);
-
-      if (connectionsData.length > 0) {
-        fetchVirtuousImpacts().catch((error) => console.error("Non-critical: Virtuous impacts fetch failed:", error));
-      }
+      if (conn.data) setConnections(conn.data);
+      if (wallet.data) setTotalEarnings(wallet.data.cash_balance);
       setLoading(false);
     } catch (error) {
-      console.error("Error fetching connections:", error);
-      setConnections([]);
-      setTotalEarnings(0);
       setLoading(false);
     }
   };
 
-  const fetchVirtuousImpacts = async () => {
-    const fallbackImpacts = [
-      "Your anonymized activity improved heart health model accuracy",
-      "Contributed to real-time wellness trend analysis",
-      "Enhanced data quality for community research",
-    ];
-    try {
-      const { data, error } = await supabase.functions.invoke("generate-virtuous-cycle-impacts", {
-        body: { user_id: currentUserId },
-      });
-      if (error) {
-        setVirtuousImpacts(fallbackImpacts);
-        return;
-      }
-      setVirtuousImpacts(data?.impacts?.length ? data.impacts : fallbackImpacts);
-    } catch {
-      setVirtuousImpacts(fallbackImpacts);
-    }
-  };
+  const StatusLight = ({ active, label }: { active: boolean; label: string }) => (
+    <div className="flex flex-col items-center gap-2">
+      <div
+        className={`w-3 h-3 rounded-full shadow-sm transition-all duration-500 ${active ? "bg-emerald-500 shadow-emerald-500/50" : "bg-red-500/20"}`}
+      />
+      <span className="text-[9px] font-bold uppercase tracking-tighter text-muted-foreground">{label}</span>
+    </div>
+  );
 
-  const triggerFriendForDataEvent = () => {
-    window.dispatchEvent(new CustomEvent("showFriend", { detail: { trigger: "data" } }));
-  };
-
-  const getSyncStatusBadge = () => {
-    switch (lastSyncStatus) {
-      case "recent":
-        return (
-          <Badge variant="secondary" className="bg-green-100 text-green-800">
-            Synced Recently
-          </Badge>
-        );
-      case "delayed":
-        return (
-          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-            Sync Delayed
-          </Badge>
-        );
-      case "stale":
-        return null;
-      case "no_data":
-        return <Badge variant="outline">No Data Found</Badge>;
-      default:
-        return <Badge variant="outline">Checking...</Badge>;
-    }
-  };
-
-  const handleAppleHealthComplete = async () => {
-    // Do NOT close the modal here — the modal owns its own connected-state UI
-    // and will be dismissed by the user via X / Close / overlay / Escape.
-    try {
-      await fetchConnections();
-      await fetchAcaRecords();
-      triggerFriendForDataEvent();
-    } catch {}
-  };
-
-  const handleStravaComplete = async () => {
-    setShowStravaModal(false);
-    try {
-      await fetchConnections();
-      await fetchAcaRecords();
-      triggerFriendForDataEvent();
-    } catch {}
-  };
-
-  const handleFordComplete = async () => {
-    setShowFordModal(false);
-    try {
-      await fetchConnections();
-      await fetchAcaRecords();
-      triggerFriendForDataEvent();
-    } catch {}
-  };
-
-  const getConnectionStatus = (connectionType: string) => {
-    return connections.find((conn) => conn.connection_type === connectionType);
-  };
-
-  const formatSourceName = (sourceId: string) => {
-    return sourceId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  };
-
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="animate-pulse">
-          <div className="h-32 bg-muted rounded-lg mb-6"></div>
-          <div className="space-y-3">
-            <div className="h-4 bg-muted rounded w-1/4"></div>
-            <div className="h-24 bg-muted rounded"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <div className="p-8 animate-pulse bg-white rounded-xl h-64 border" />;
 
   return (
-    <div className="space-y-4">
-      {/* Data Earnings Summary */}
-      <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center space-x-2 mb-1">
-                <p className="text-teal-100">Cash Account</p>
-                {getSyncStatusBadge()}
-              </div>
-              <p className="text-3xl font-bold">${totalEarnings.toFixed(2)} USD</p>
-              <p className="text-sm text-teal-100 mt-1">
-                {connections.length > 0
-                  ? "Available cash from connected data sources"
-                  : "Start earning by connecting data sources"}
-              </p>
-            </div>
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-              <DollarSign className="w-8 h-8" />
-            </div>
+    <div className="space-y-4 bg-white min-h-screen p-1">
+      {/* 1. Wallet Summary (Teal Gradient) */}
+      <Card className="bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] text-white border-none shadow-lg">
+        <CardContent className="p-5 flex justify-between items-center">
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase font-bold text-teal-100/70 tracking-widest">Sovereign Liquidity</p>
+            <p className="text-3xl font-black">
+              ${totalEarnings.toFixed(2)} <span className="text-sm font-normal text-teal-100/50">USD</span>
+            </p>
+          </div>
+          <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-md">
+            <DollarSign className="w-6 h-6 text-white" />
           </div>
         </CardContent>
       </Card>
 
-      {/* Tabs: Connections + Audit Log */}
+      {/* 2. NEW: Data Flow Tracker (Orange Accents) */}
+      <Card className="border-border bg-white shadow-sm overflow-hidden">
+        <div className="bg-[hsl(28,80%,55%)]/5 px-4 py-2 border-b border-[hsl(28,80%,55%)]/10 flex items-center gap-2">
+          <Zap className="w-3.5 h-3.5 text-[hsl(28,80%,55%)]" />
+          <h3 className="text-[10px] font-bold uppercase tracking-wider text-[hsl(28,80%,55%)]">Data Flow Lifecycle</h3>
+        </div>
+        <CardContent className="p-4 space-y-4">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-3 w-3 text-muted-foreground" />
+              <Input
+                placeholder="Paste ACA Hash (Audit Key)..."
+                className="pl-8 text-[11px] h-9 border-muted"
+                value={searchHash}
+                onChange={(e) => setSearchHash(e.target.value)}
+              />
+            </div>
+            <Button
+              size="sm"
+              className="bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,42%)] h-9 px-4"
+              onClick={handleAcaSearch}
+              disabled={isTracking}
+            >
+              {isTracking ? <Loader2 className="w-4 h-4 animate-spin" /> : "Track"}
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-4 items-center pt-2 relative">
+            {/* Visual connector line */}
+            <div className="absolute top-[5px] left-1/2 -translate-x-1/2 w-[75%] h-[1px] bg-muted -z-0" />
+            <StatusLight active={trackingStatus?.ingested} label="Ingested" />
+            <StatusLight active={trackingStatus?.processing} label="Processing" />
+            <StatusLight active={trackingStatus?.staged} label="Staged" />
+            <StatusLight active={trackingStatus?.purchased} label="Purchased" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 3. Connections & Transactions */}
       <Tabs defaultValue="connections" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="connections">Connections</TabsTrigger>
-          <TabsTrigger value="audit" className="flex items-center gap-1">
-            <FileKey className="w-3 h-3" />
-            Transactions
+        <TabsList className="grid w-full grid-cols-2 bg-muted/50 p-1 rounded-xl">
+          <TabsTrigger
+            value="connections"
+            className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[hsl(178,42%,32%)] font-bold text-xs"
+          >
+            Connections
+          </TabsTrigger>
+          <TabsTrigger
+            value="audit"
+            className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[hsl(178,42%,32%)] font-bold text-xs"
+          >
+            Audit Log
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="connections" className="space-y-4">
-          {/* Virtuous Cycle Report */}
-          {connections.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Zap className="w-5 h-5 text-yellow-500" />
-                  <span>Virtuous Cycle Impact</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Your data helped improve:</span>
-                    <Badge variant="secondary">Live Research Impact</Badge>
+        <TabsContent value="connections" className="space-y-6 pt-2">
+          {/* Data Sources */}
+          <div className="px-1">
+            <h2 className="text-sm font-black text-foreground uppercase tracking-widest mb-4">Connected Sources</h2>
+            <div className="flex flex-wrap gap-6 justify-center">
+              {connections.map((c) => (
+                <div
+                  key={c.id}
+                  className="relative group cursor-pointer"
+                  onClick={() =>
+                    c.connection_type === "apple_health" ? setShowAppleHealthModal(true) : setShowStravaModal(true)
+                  }
+                >
+                  <div className="w-16 h-16 rounded-2xl bg-white border-2 border-emerald-500 shadow-sm p-3 transition-transform group-hover:scale-105">
+                    <img
+                      src={
+                        c.connection_type === "apple_health"
+                          ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
+                          : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"
+                      }
+                      alt={c.connection_type}
+                      className="w-full h-full object-contain"
+                    />
                   </div>
-                  <div className="space-y-2 text-sm">
-                    {virtuousImpacts.length > 0 ? (
-                      virtuousImpacts.map((impact, index) => (
-                        <p key={index} className="flex items-center space-x-2">
-                          <CheckCircle size={16} className="text-green-500 shrink-0" />
-                          <span>{impact}</span>
-                        </p>
-                      ))
-                    ) : (
-                      <p className="flex items-center space-x-2">
-                        <CheckCircle size={16} className="text-green-500 shrink-0" />
-                        <span>Generating live impact analysis...</span>
-                      </p>
-                    )}
+                  <div className="absolute -top-1 -right-1 bg-emerald-500 rounded-full p-0.5 border-2 border-white shadow-sm">
+                    <CheckCircle size={10} className="text-white" />
                   </div>
                 </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Virtuous Impact (Moved to Bottom) */}
+          {connections.length > 0 && (
+            <Card className="bg-muted/30 border-none shadow-none mt-8">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  <Activity className="w-3 h-3" /> Virtuous Impact Report
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {virtuousImpacts.map((impact, i) => (
+                  <div key={i} className="flex items-start gap-3 p-2 rounded-lg bg-white/50 border border-white">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[hsl(178,42%,32%)] mt-1 shrink-0" />
+                    <p className="text-[11px] leading-relaxed text-foreground/80 font-medium">{impact}</p>
+                  </div>
+                ))}
               </CardContent>
             </Card>
           )}
-
-          {/* Available Data Sources */}
-          <div className="space-y-4">
-            <h2 className="text-xl font-bold text-foreground">Available Data Sources</h2>
-            {!getConnectionStatus("apple_health") || !getConnectionStatus("strava") || !getConnectionStatus("ford") ? (
-              <div className="flex justify-center space-x-8">
-                {!getConnectionStatus("apple_health") && (
-                  <div className="relative cursor-pointer group" onClick={() => setShowAppleHealthModal(true)}>
-                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
-                      <img
-                        src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
-                        alt="Apple Health"
-                        className="w-full h-full object-contain p-2"
-                      />
-                    </div>
-                  </div>
-                )}
-                {!getConnectionStatus("strava") && (
-                  <div className="relative cursor-pointer group" onClick={() => setShowStravaModal(true)}>
-                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
-                      <img
-                        src="/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"
-                        alt="Strava"
-                        className="w-full h-full object-contain p-2"
-                      />
-                    </div>
-                  </div>
-                )}
-                {!getConnectionStatus("ford") && (
-                  <div className="relative cursor-pointer group" onClick={() => setShowFordModal(true)}>
-                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
-                      <img src={fordLogo} alt="Ford" className="w-full h-full object-contain p-1" />
-                    </div>
-                    <p className="text-xs text-center mt-1 text-muted-foreground">Ford</p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">All available data sources connected</p>
-                <p className="text-xs">Manage your connections below</p>
-              </div>
-            )}
-          </div>
-
-          {/* Connected Data Sources */}
-          <div className="space-y-4">
-            <h2 className="text-xl font-bold text-foreground">Connected Data Sources</h2>
-            {connections.length > 0 ? (
-              <div className="flex justify-center space-x-8">
-                {connections.map((connection) => (
-                  <div
-                    key={connection.id}
-                    className="relative cursor-pointer group"
-                    onClick={() => {
-                      if (connection.connection_type === "apple_health") setShowAppleHealthModal(true);
-                      else if (connection.connection_type === "strava") setShowStravaModal(true);
-                      else if (connection.connection_type === "ford") setShowFordModal(true);
-                    }}
-                  >
-                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border-2 border-green-500 transition-all group-hover:shadow-md group-hover:scale-105">
-                      {connection.connection_type === "ford" ? (
-                        <img src={fordLogo} alt="Ford" className="w-full h-full object-contain p-1" />
-                      ) : (
-                        <img
-                          src={
-                            connection.connection_type === "apple_health"
-                              ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
-                              : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"
-                          }
-                          alt={connection.connection_type}
-                          className="w-full h-full object-contain p-2"
-                        />
-                      )}
-                    </div>
-                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background">
-                      <CheckCircle className="w-3 h-3 text-white" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Activity className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No data sources connected yet</p>
-                <p className="text-xs">Click on an available source above to connect</p>
-              </div>
-            )}
-          </div>
         </TabsContent>
 
-        {/* Audit Log Tab */}
-        <TabsContent value="audit">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2 text-base">
-                <FileKey className="w-4 h-4" />
-                <span>Audit Log</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {acaLoading ? (
-                <div className="text-center py-8 text-muted-foreground text-sm">Loading audit records...</div>
-              ) : acaRecords.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <FileKey className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No audit records yet</p>
-                  <p className="text-xs">ACA hashes are generated when you connect a data source</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Source</TableHead>
-                      <TableHead>ACA Hash (Audit Key)</TableHead>
-                      <TableHead>Timestamp</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {acaRecords.map((record) => (
-                      <TableRow key={record.id}>
-                        <TableCell className="font-medium text-sm">
-                          {formatSourceName(record.source_id || "unknown")}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {record.aca_hash_key?.substring(0, 12)}...
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {new Date(record.created_at).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
+        <TabsContent value="audit" className="pt-2">
+          <Card className="border-none shadow-none">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent border-muted">
+                  <TableHead className="text-[10px] uppercase font-bold tracking-tighter">Event Source</TableHead>
+                  <TableHead className="text-[10px] uppercase font-bold tracking-tighter">ACA Key</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {acaRecords.map((r) => (
+                  <TableRow key={r.id} className="border-muted">
+                    <TableCell className="text-xs font-bold text-foreground">{r.source_id}</TableCell>
+                    <TableCell className="text-[10px] font-mono text-muted-foreground truncate max-w-[120px]">
+                      {r.aca_hash_key}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </Card>
         </TabsContent>
       </Tabs>
 
+      {/* Connection Modals */}
       <AppleHealthModal
         isOpen={showAppleHealthModal}
         onClose={() => setShowAppleHealthModal(false)}
-        onComplete={handleAppleHealthComplete}
-        existingConnection={getConnectionStatus("apple_health")}
+        onComplete={handleAcaSearch}
+        existingConnection={connections.find((c) => c.connection_type === "apple_health")}
         onDisconnect={fetchConnections}
       />
       <StravaConnectionModal
         isOpen={showStravaModal}
         onClose={() => setShowStravaModal(false)}
-        onComplete={handleStravaComplete}
-        existingConnection={getConnectionStatus("strava")}
+        onComplete={handleAcaSearch}
+        existingConnection={connections.find((c) => c.connection_type === "strava")}
         onDisconnect={fetchConnections}
       />
       <FordConnectionModal
         isOpen={showFordModal}
         onClose={() => setShowFordModal(false)}
-        onComplete={handleFordComplete}
-        existingConnection={getConnectionStatus("ford")}
+        onComplete={handleAcaSearch}
+        existingConnection={connections.find((c) => c.connection_type === "ford")}
         onDisconnect={fetchConnections}
       />
     </div>
