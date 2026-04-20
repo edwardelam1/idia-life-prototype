@@ -3,29 +3,14 @@ import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  MapPin,
-  Star,
-  Clock,
-  ShoppingCart,
-  Camera,
-  Sparkles,
-  Search,
-  Package,
-  Store,
-  X,
-  ChevronRight,
-  ImagePlus,
-} from "lucide-react";
+import { MapPin, Star, Clock, ShoppingCart, Search, Package, X, ImagePlus, LayoutGrid } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Database } from "@/integrations/supabase/types";
 
-// Updated Business type to include the Hub logo output
 type Business = Database["public"]["Tables"]["businesses"]["Row"] & {
   business_locations?: Database["public"]["Tables"]["business_locations"]["Row"][];
-  logo_url?: string | null;
 };
 
 type Item = {
@@ -44,29 +29,25 @@ const ShopScreen = () => {
   const [businessItems, setBusinessItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
   const [cart, setCart] = useState<{ item: Item; quantity: number }[]>([]);
   const { toast } = useToast();
 
-  const categories = ["All", "Restaurant", "Retail", "Gym", "Automotive"];
-
   useEffect(() => {
-    fetchMarketplaceData();
+    fetchLiveMarketplace();
   }, []);
 
   useEffect(() => {
     const query = searchQuery.toLowerCase();
     const filtered = businesses.filter(
-      (b) =>
-        (b.name.toLowerCase().includes(query) || b.business_type.toLowerCase().includes(query)) &&
-        (selectedCategory === "All" || b.business_type === selectedCategory),
+      (b) => b.name.toLowerCase().includes(query) || b.business_type?.toLowerCase().includes(query),
     );
     setFilteredBusinesses(filtered);
-  }, [searchQuery, selectedCategory, businesses]);
+  }, [searchQuery, businesses]);
 
-  const fetchMarketplaceData = async () => {
+  const fetchLiveMarketplace = async () => {
     try {
       setLoading(true);
+      // Fetching live data from the businesses ledger
       const { data, error } = await supabase.from("businesses").select("*, business_locations(*)").order("name");
 
       if (error) throw error;
@@ -78,7 +59,7 @@ const ShopScreen = () => {
   };
 
   const fetchInventory = async (businessId: string) => {
-    // 1:1 Database Ratio: Fetching live menu and general inventory
+    // 1:1 Database Ratio Connection
     const [menuRes, invRes] = await Promise.all([
       supabase.from("menu_items").select("*").eq("business_id", businessId).eq("is_active", true),
       supabase.from("inventory_items").select("*").eq("business_id", businessId).eq("is_active", true),
@@ -105,8 +86,16 @@ const ShopScreen = () => {
 
   const addToCart = (item: Item) => {
     setCart((prev) => [...prev, { item, quantity: 1 }]);
-    toast({ title: "Live Order Updated", description: `${item.name} added to session.` });
+    toast({ title: "Order Synced", description: `${item.name} added to live session.` });
   };
+
+  // Technical Placeholder for pending assets
+  const PendingAsset = ({ size = 16, label = "HUB ASSET PENDING" }: { size?: number; label?: string }) => (
+    <div className="flex flex-col items-center justify-center gap-1.5 opacity-20 text-center p-2">
+      <ImagePlus size={size} className="text-teal-600" />
+      <span className="text-[6px] font-black uppercase tracking-tighter leading-none">{label}</span>
+    </div>
+  );
 
   if (loading)
     return (
@@ -120,67 +109,56 @@ const ShopScreen = () => {
       {!selectedBusiness ? (
         <div className="animate-fade-in">
           {/* Marketplace Controls */}
-          <div className="px-4 space-y-4 pt-2">
+          <div className="px-4 space-y-4 pt-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search IDIA Marketplace..."
+                placeholder="Search Live IDIA Nodes..."
                 className="pl-10 h-12 bg-white border-teal-100 shadow-sm rounded-2xl"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-              {categories.map((cat) => (
-                <Badge
-                  key={cat}
-                  variant={selectedCategory === cat ? "default" : "outline"}
-                  className={`cursor-pointer px-4 py-1.5 whitespace-nowrap transition-all border-teal-50 ${
-                    selectedCategory === cat ? "bg-teal-600 text-white" : "bg-white text-muted-foreground"
-                  }`}
-                  onClick={() => setSelectedCategory(cat)}
-                >
-                  {cat}
-                </Badge>
-              ))}
-            </div>
           </div>
 
-          {/* High-Density Square Grid (4 Columns) */}
-          <div className="px-4 mt-4 overflow-y-auto max-h-[480px] scrollbar-hide">
-            <div className="grid grid-cols-4 gap-x-3 gap-y-6">
-              {filteredBusinesses.map((business) => (
-                <div
-                  key={business.id}
-                  className="flex flex-col items-center gap-1.5 cursor-pointer active:scale-95 transition-transform"
-                  onClick={() => {
-                    setSelectedBusiness(business);
-                    fetchInventory(business.id);
-                  }}
-                >
-                  {/* Square Image Output from IDIA Hub */}
-                  <div className="aspect-square w-full rounded-2xl bg-muted/20 border border-teal-50/50 flex items-center justify-center shadow-sm overflow-hidden bg-white">
-                    {business.logo_url ? (
-                      <img src={business.logo_url} alt={business.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="flex flex-col items-center gap-1 opacity-20">
-                        <ImagePlus size={16} className="text-teal-600" />
-                        <span className="text-[6px] font-bold uppercase tracking-tighter">Hub Asset Pending</span>
-                      </div>
-                    )}
+          {/* High-Density Grid (4x4 Viewport) */}
+          <div className="px-4 mt-6 overflow-y-auto max-h-[480px] scrollbar-hide">
+            {filteredBusinesses.length === 0 ? (
+              <div className="py-20 text-center space-y-2 opacity-30">
+                <LayoutGrid className="mx-auto w-12 h-12" />
+                <p className="text-[10px] font-bold uppercase tracking-widest">No Active Enterprises in Range</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 gap-x-3 gap-y-8">
+                {filteredBusinesses.map((business) => (
+                  <div
+                    key={business.id}
+                    className="flex flex-col items-center gap-2 cursor-pointer active:scale-95 transition-transform"
+                    onClick={() => {
+                      setSelectedBusiness(business);
+                      fetchInventory(business.id);
+                    }}
+                  >
+                    <div className="aspect-square w-full rounded-2xl bg-white border border-teal-50 flex items-center justify-center shadow-sm overflow-hidden transition-all hover:border-teal-300">
+                      {business.logo_url ? (
+                        <img src={business.logo_url} alt={business.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <PendingAsset />
+                      )}
+                    </div>
+                    <p className="text-[9px] font-black text-foreground text-center truncate w-full px-0.5 uppercase tracking-tighter">
+                      {business.name}
+                    </p>
                   </div>
-                  <p className="text-[10px] font-black text-foreground text-center truncate w-full px-0.5 uppercase tracking-tighter">
-                    {business.name}
-                  </p>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ) : (
-        /* Expanded Business Detail View */
+        /* Detailed Business Card Interface */
         <div className="animate-in slide-in-from-right duration-300">
-          <div className="p-4 bg-white sticky top-0 z-10 border-b flex items-center justify-between">
+          <div className="p-4 bg-white sticky top-0 z-10 border-b flex items-center justify-between border-muted">
             <Button variant="ghost" size="icon" onClick={() => setSelectedBusiness(null)}>
               <X className="h-6 w-6" />
             </Button>
@@ -196,11 +174,11 @@ const ShopScreen = () => {
           </div>
 
           <div className="p-4 space-y-6">
-            {/* Business Profile Card */}
+            {/* Enterprise Business Card */}
             <div className="rounded-[2rem] bg-gradient-to-br from-teal-600 to-teal-800 p-6 text-white shadow-xl relative overflow-hidden">
               <div className="relative z-10 flex gap-4">
-                {/* 1:1 Image Display from Hub */}
-                <div className="w-20 h-20 bg-white rounded-3xl overflow-hidden shadow-inner flex items-center justify-center border-4 border-white/10 shrink-0">
+                {/* 1:1 Logo Slot from Hub */}
+                <div className="w-20 h-20 bg-white/10 rounded-3xl overflow-hidden shadow-inner flex items-center justify-center border-2 border-white/20 backdrop-blur-md shrink-0">
                   {selectedBusiness.logo_url ? (
                     <img
                       src={selectedBusiness.logo_url}
@@ -208,14 +186,17 @@ const ShopScreen = () => {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <Store size={32} className="text-teal-600 opacity-20" />
+                    <PendingAsset size={24} label="Awaiting Hub Asset" />
                   )}
                 </div>
                 <div className="flex flex-col justify-center space-y-1">
                   <h1 className="text-xl font-black uppercase tracking-tight">{selectedBusiness.name}</h1>
-                  <Badge className="bg-orange-500 text-white border-none text-[9px] w-fit">IDIA ENTERPRISE</Badge>
-                  <p className="text-[11px] opacity-80 flex items-center gap-1">
-                    <MapPin size={10} /> {selectedBusiness.business_locations?.[0]?.address || "Sovereign Node"}
+                  <Badge className="bg-orange-500 text-white border-none text-[8px] w-fit font-black tracking-widest px-2 py-0.5">
+                    PLATFORM VERIFIED
+                  </Badge>
+                  <p className="text-[10px] opacity-80 flex items-center gap-1.5 pt-2">
+                    <MapPin size={10} className="text-orange-300" />{" "}
+                    {selectedBusiness.business_locations?.[0]?.address || "Sovereign Node"}
                   </p>
                 </div>
               </div>
@@ -224,11 +205,14 @@ const ShopScreen = () => {
 
             <div className="space-y-4">
               <div className="flex justify-between items-center px-1">
-                <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">
-                  Sovereign Inventory
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                  Live Sync Inventory
                 </h3>
-                <Badge variant="outline" className="text-[8px] border-teal-100 text-teal-600 font-bold uppercase">
-                  1:1 Real-time Sync
+                <Badge
+                  variant="outline"
+                  className="text-[8px] border-teal-100 text-teal-600 font-black tracking-widest uppercase bg-white"
+                >
+                  1:1 Ratio
                 </Badge>
               </div>
 
@@ -236,24 +220,24 @@ const ShopScreen = () => {
                 {businessItems.map((item) => (
                   <Card
                     key={item.id}
-                    className="overflow-hidden border-teal-50 bg-white shadow-sm rounded-2xl group hover:border-teal-200 transition-all"
+                    className="overflow-hidden border-teal-50 bg-white shadow-sm rounded-2xl transition-all active:scale-95"
                   >
                     <div className="aspect-square bg-muted/10 flex items-center justify-center relative">
                       {item.image_url ? (
                         <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
                       ) : (
-                        <Package className="h-8 w-8 text-teal-600 opacity-10" />
+                        <Package size={24} className="text-teal-600 opacity-5" />
                       )}
                       <Button
                         size="sm"
-                        className="absolute bottom-2 right-2 h-8 w-8 p-0 rounded-full bg-orange-500 hover:bg-orange-600 shadow-md border-none"
+                        className="absolute bottom-2 right-2 h-8 w-8 p-0 rounded-full bg-orange-500 hover:bg-orange-600 shadow-lg border-none"
                         onClick={() => addToCart(item)}
                       >
                         +
                       </Button>
                     </div>
                     <CardContent className="p-3">
-                      <h4 className="font-bold text-[11px] line-clamp-1 uppercase text-foreground">{item.name}</h4>
+                      <h4 className="font-bold text-[10px] line-clamp-1 uppercase text-foreground">{item.name}</h4>
                       <p className="text-sm font-black text-teal-700">${item.price.toFixed(2)}</p>
                     </CardContent>
                   </Card>
