@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useSocialGraph } from "@/hooks/useSocialGraph";
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
 import { supabase } from "@/integrations/supabase/client";
-import PsychometricTestingCenter from "./PsychometricTestingCenter";
+import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter";
 import {
   Users,
   Heart,
@@ -46,7 +46,6 @@ const EnhancedSocialScreen: React.FC = () => {
     createTrustCircle,
   } = useSocialGraph();
 
-  // Pull profile to access current trust score and credit line
   const { profile, updateProfile, loading: profileLoading } = useEnhancedProfile();
 
   const [newDeedTitle, setNewDeedTitle] = useState("");
@@ -54,13 +53,11 @@ const EnhancedSocialScreen: React.FC = () => {
   const [newCircleName, setNewCircleName] = useState("");
   const [isSubmittingDeed, setIsSubmittingDeed] = useState(false);
 
-  // Trust Score State
   const [showTestModal, setShowTestModal] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
 
   const handleSubmitGoodDeed = async () => {
     if (!newDeedTitle.trim() || !newDeedDescription.trim()) return;
-
     setIsSubmittingDeed(true);
     try {
       await submitGoodDeed(newDeedTitle, newDeedDescription);
@@ -73,17 +70,14 @@ const EnhancedSocialScreen: React.FC = () => {
 
   const handleCreateTrustCircle = async () => {
     if (!newCircleName.trim()) return;
-
     await createTrustCircle(newCircleName);
     setNewCircleName("");
   };
 
-  // --- LIVE EDGE FUNCTION INTEGRATION ---
+  // --- ATTACHED TO EDGE FUNCTION: CALCULATE-TRUST-SCORE ---
   const handleCalculateScore = async (finalScores: Record<string, number>) => {
     setIsCalculating(true);
-
     try {
-      // 1. Package the telemetry data from the psychometric tests
       const telemetryPayload = {
         social_exchange_balance: finalScores.seb,
         attachment_security: finalScores.ass,
@@ -96,14 +90,12 @@ const EnhancedSocialScreen: React.FC = () => {
         social_context_sensitivity: finalScores.scs,
       };
 
-      // 2. Invoke the Live Trust Score Edge Function
       const { data, error } = await supabase.functions.invoke("calculate-trust-score", {
         body: { user_id: profile?.id, telemetry: telemetryPayload },
       });
 
       if (error) throw error;
 
-      // 3. Update the blind ledger profile with the returned results
       if (updateProfile) {
         await updateProfile({
           trust_score: data.trust_score,
@@ -111,7 +103,7 @@ const EnhancedSocialScreen: React.FC = () => {
         });
       }
     } catch (err) {
-      console.error("Score verification failed:", err);
+      console.error("Score calculation failed:", err);
     } finally {
       setIsCalculating(false);
       setShowTestModal(false);
@@ -130,12 +122,10 @@ const EnhancedSocialScreen: React.FC = () => {
 
   if (loading || profileLoading) {
     return (
-      <div className="p-4">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-muted rounded w-1/3"></div>
-          <div className="h-32 bg-muted rounded"></div>
-          <div className="h-64 bg-muted rounded"></div>
-        </div>
+      <div className="p-4 animate-pulse space-y-4">
+        <div className="h-8 bg-muted rounded w-1/3"></div>
+        <div className="h-32 bg-muted rounded"></div>
+        <div className="h-64 bg-muted rounded"></div>
       </div>
     );
   }
@@ -172,7 +162,7 @@ const EnhancedSocialScreen: React.FC = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          {/* Trust Score & Capital Advance CTA */}
+          {/* Theme Correction: Uses bg-card to match design system */}
           <Card className="bg-card border-primary/20 overflow-hidden relative">
             <div className="absolute top-0 right-0 p-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
             <CardContent className="p-6 relative z-10">
@@ -185,7 +175,9 @@ const EnhancedSocialScreen: React.FC = () => {
                     </h2>
                   </div>
                   <div className="flex items-baseline gap-3">
-                    <span className="text-5xl font-bold tracking-tighter">{profile?.trust_score ?? "NO SCORE"}</span>
+                    <span className="text-5xl font-bold tracking-tighter text-foreground">
+                      {profile?.trust_score ?? "NO SCORE"}
+                    </span>
                     <span className="text-sm text-muted-foreground font-medium">/ 1000</span>
                   </div>
                   <p className="text-sm text-muted-foreground max-w-sm">
@@ -196,14 +188,14 @@ const EnhancedSocialScreen: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="w-full md:w-auto flex flex-col gap-3 p-4 bg-muted/50 border rounded-xl backdrop-blur-sm">
+                <div className="w-full md:w-auto flex flex-col gap-3 p-4 bg-muted/50 border border-border/50 rounded-xl backdrop-blur-sm">
                   <div className="space-y-1">
-                    <h3 className="font-semibold flex items-center gap-2">
+                    <h3 className="font-semibold flex items-center gap-2 text-foreground">
                       <BrainCircuit className="w-4 h-4 text-primary" />
                       Need an advance?
                     </h3>
                     <p className="text-xs text-muted-foreground">
-                      Complete our behavioral tests to generate or increase your deterministic capital limit.
+                      Complete your psychometric validation to establish your deterministic limit.
                     </p>
                   </div>
 
@@ -222,7 +214,6 @@ const EnhancedSocialScreen: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Social Health Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card>
               <CardHeader className="pb-2">
@@ -235,7 +226,6 @@ const EnhancedSocialScreen: React.FC = () => {
                 <div className="text-2xl font-bold text-primary">
                   {socialMetrics?.reciprocity_score?.toFixed(1) || "0.0"}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">How much you give vs receive</p>
               </CardContent>
             </Card>
 
@@ -250,7 +240,6 @@ const EnhancedSocialScreen: React.FC = () => {
                 <div className="text-2xl font-bold text-primary">
                   {socialMetrics?.network_vitality_score?.toFixed(1) || "0.0"}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">How active your network is</p>
               </CardContent>
             </Card>
 
@@ -265,12 +254,10 @@ const EnhancedSocialScreen: React.FC = () => {
                 <div className="text-2xl font-bold text-primary">
                   {friends.filter((f) => f.status === "accepted").length}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Connected friends</p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Recent Activity */}
           <Card>
             <CardHeader>
               <CardTitle>Recent Social Activity</CardTitle>
@@ -315,7 +302,7 @@ const EnhancedSocialScreen: React.FC = () => {
                           `${friend.friend_profile?.first_name} ${friend.friend_profile?.last_name}`}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Friends since {new Date(friend.created_at).toLocaleDateString()}
+                        Connected {new Date(friend.created_at).toLocaleDateString()}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -331,11 +318,6 @@ const EnhancedSocialScreen: React.FC = () => {
                     </div>
                   </div>
                 ))}
-                {friends.length === 0 && (
-                  <p className="text-center text-muted-foreground py-8">
-                    No friends yet. Start by adding some friends!
-                  </p>
-                )}
               </div>
             </CardContent>
           </Card>
@@ -382,11 +364,6 @@ const EnhancedSocialScreen: React.FC = () => {
                     </Button>
                   </div>
                 ))}
-                {trustCircles.length === 0 && (
-                  <p className="text-center text-muted-foreground py-8">
-                    No trust circles yet. Create one to organize your close friends!
-                  </p>
-                )}
               </div>
             </CardContent>
           </Card>
@@ -423,7 +400,7 @@ const EnhancedSocialScreen: React.FC = () => {
                       <Button
                         className="w-full"
                         onClick={handleSubmitGoodDeed}
-                        disabled={isSubmittingDeed || !newDeedTitle.trim() || !newDeedDescription.trim()}
+                        disabled={isSubmittingDeed || !newDeedTitle.trim()}
                       >
                         {isSubmittingDeed ? "Submitting..." : "Submit for Verification"}
                       </Button>
@@ -455,11 +432,6 @@ const EnhancedSocialScreen: React.FC = () => {
                     </div>
                   </div>
                 ))}
-                {goodDeeds.length === 0 && (
-                  <p className="text-center text-muted-foreground py-8">
-                    No good deeds submitted yet. Share your positive impact!
-                  </p>
-                )}
               </div>
             </CardContent>
           </Card>
