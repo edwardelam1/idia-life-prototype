@@ -98,15 +98,6 @@ const EnhancedSocialScreen: React.FC = () => {
           available_credit_line: data.credit_line,
         });
       }
-
-      // 4. (Optional) Local feedback for the Simulation UI in the Wallet
-      if (typeof setCreditSimulation === "function") {
-        setCreditSimulation({
-          current_score: profile?.trust_score ?? "NO SCORE",
-          simulated_score: data.trust_score,
-          actions: ["Psychometric telemetry verified via IDIA Protocol", "Deterministic capital limit recalculated"],
-        });
-      }
     } catch (err) {
       console.error("IDIA Algorithm Execution Failed:", err);
     } finally {
