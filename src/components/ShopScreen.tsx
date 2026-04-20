@@ -9,9 +9,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Database } from "@/integrations/supabase/types";
 
-type Business = Database["public"]["Tables"]["businesses"]["Row"] & {
+// Explicit type extension to resolve TS2339
+interface BusinessExtended extends Omit<Database["public"]["Tables"]["businesses"]["Row"], "logo_url"> {
+  logo_url: string | null;
   business_locations?: Database["public"]["Tables"]["business_locations"]["Row"][];
-};
+}
 
 type Item = {
   id: string;
@@ -23,9 +25,9 @@ type Item = {
 };
 
 const ShopScreen = () => {
-  const [businesses, setBusinesses] = useState<Business[]>([]);
-  const [filteredBusinesses, setFilteredBusinesses] = useState<Business[]>([]);
-  const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
+  const [businesses, setBusinesses] = useState<BusinessExtended[]>([]);
+  const [filteredBusinesses, setFilteredBusinesses] = useState<BusinessExtended[]>([]);
+  const [selectedBusiness, setSelectedBusiness] = useState<BusinessExtended | null>(null);
   const [businessItems, setBusinessItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -33,7 +35,6 @@ const ShopScreen = () => {
   const [cart, setCart] = useState<{ item: Item; quantity: number }[]>([]);
   const { toast } = useToast();
 
-  // Extract categories dynamically from live database entries
   const categories = ["All", ...new Set(businesses.map((b) => b.business_type).filter(Boolean))];
 
   useEffect(() => {
@@ -56,14 +57,14 @@ const ShopScreen = () => {
       const { data, error } = await supabase.from("businesses").select("*, business_locations(*)").order("name");
 
       if (error) throw error;
-      setBusinesses(data || []);
+      // Casting to BusinessExtended to ensure logo_url is recognized
+      setBusinesses((data as any) || []);
     } finally {
       setLoading(false);
     }
   };
 
   const fetchInventory = async (businessId: string) => {
-    // 1:1 Database Ratio: Pulling live ledger items
     const [menuRes, invRes] = await Promise.all([
       supabase.from("menu_items").select("*").eq("business_id", businessId).eq("is_active", true),
       supabase.from("inventory_items").select("*").eq("business_id", businessId).eq("is_active", true),
@@ -123,7 +124,6 @@ const ShopScreen = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
               {categories.map((cat) => (
                 <Badge
@@ -132,7 +132,7 @@ const ShopScreen = () => {
                   className={`cursor-pointer px-4 py-1.5 whitespace-nowrap transition-all border-teal-50 ${
                     selectedCategory === cat ? "bg-teal-600 text-white" : "bg-white text-muted-foreground"
                   }`}
-                  onClick={() => setSelectedCategory(cat)}
+                  onClick={() => setSelectedCategory(cat as string)}
                 >
                   {cat}
                 </Badge>
