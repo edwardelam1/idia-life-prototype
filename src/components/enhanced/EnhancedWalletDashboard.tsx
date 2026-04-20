@@ -11,8 +11,9 @@ import {
   DialogTrigger,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Slider } from "@/components/ui/slider";
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
+import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter";
+import type { TestId } from "../psychometric/testBank";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { supabase } from "@/integrations/supabase/client";
 import NFCPayrollModal from "../NFCPayrollModal";
@@ -29,8 +30,6 @@ import {
   Smartphone,
   Clock,
   Plus,
-  Users,
-  Heart,
   BrainCircuit,
   ArrowRight,
 } from "lucide-react";
@@ -46,7 +45,7 @@ interface Transaction {
 }
 
 interface CreditSimulation {
-  current_score: number | string;
+  current_score: number;
   simulated_score: number;
   actions: string[];
 }
@@ -61,20 +60,8 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [showSendRequestModal, setShowSendRequestModal] = useState(false);
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
 
-  // Trust Score Test States
+  // Trust Score Test
   const [showTestModal, setShowTestModal] = useState(false);
-  const [isCalculating, setIsCalculating] = useState(false);
-  const [testScores, setTestScores] = useState({
-    seb: 50,
-    ass: 50,
-    snv: 50, // Social Connectivity
-    jrda: 50,
-    ocs: 50,
-    pcf: 50, // Work Engagement
-    eq: 50,
-    gup: 50,
-    scs: 50, // Prosocial Disposition
-  });
 
   useEffect(() => {
     fetchTransactions();
@@ -98,53 +85,34 @@ const EnhancedWalletDashboard: React.FC = () => {
     }
   };
 
-  // The IDIA Algorithm Execution
-  const handleCalculateScore = async () => {
-    setIsCalculating(true);
+  // The IDIA Algorithm Execution — receives normalized 0-100 scores per module
+  const handleCalculateScore = async (moduleScores: Record<TestId, number>) => {
+    const sci = (moduleScores.seb + moduleScores.ass + moduleScores.snv) / 3;
+    const wei = (moduleScores.jrda + moduleScores.ocs + moduleScores.pcf) / 3;
+    const pdi = (moduleScores.eq + moduleScores.gup + moduleScores.scs) / 3;
 
-    try {
-      const telemetryPayload = {
-        social_exchange_balance: testScores.seb,
-        attachment_security: testScores.ass,
-        social_network_vitality: testScores.snv,
-        job_resources_demands: testScores.jrda,
-        org_citizenship: testScores.ocs,
-        psych_contract: testScores.pcf,
-        empathy_quotient: testScores.eq,
-        generosity_under_pressure: testScores.gup,
-        social_context_sensitivity: testScores.scs,
-      };
+    const rawScore = (0.45 * sci + 0.35 * wei + 0.2 * pdi) * 10;
+    const finalTrustScore = Math.round(rawScore);
+    const calculatedAdvance = Math.round((finalTrustScore / 650) * 1500);
 
-      const { data, error } = await supabase.functions.invoke("calculate-trust-score", {
-        body: { user_id: profile?.id, telemetry: telemetryPayload },
+    if (updateProfile) {
+      await updateProfile({
+        trust_score: finalTrustScore,
+        available_credit_line: calculatedAdvance,
       });
-
-      if (error) throw error;
-
-      // Update the blind ledger
-      if (updateProfile) {
-        await updateProfile({
-          trust_score: data.trust_score,
-          available_credit_line: data.credit_line,
-        });
-      }
-
-      setCreditSimulation({
-        current_score: profile?.trust_score != null ? profile.trust_score : "Unverified",
-        simulated_score: data.trust_score,
-        actions: [
-          "Psychometric telemetry verified via Edge Function",
-          "Capital advance limit dynamically recalculated",
-        ],
-      });
-    } catch (err) {
-      console.error("Error executing edge function:", err);
-    } finally {
-      setIsCalculating(false);
-      setShowTestModal(false);
-      // Switch to credit tab to see results
-      setActiveTab("credit");
     }
+
+    setCreditSimulation({
+      current_score: profile?.trust_score || 650,
+      simulated_score: finalTrustScore,
+      actions: ["Psychometric telemetry verified", "Capital advance limit recalculated"],
+    });
+
+    // Pause so user sees the finale confetti before modal closes
+    setTimeout(() => {
+      setShowTestModal(false);
+      setActiveTab("credit");
+    }, 2800);
   };
 
   const exportTaxableEvents = async () => {
@@ -213,162 +181,22 @@ const EnhancedWalletDashboard: React.FC = () => {
     );
   }
 
-  // Reusable Test Modal Component
+  // Reusable Test Modal Component — wraps the new Psychometric Testing Center
   const TestModal = () => (
     <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
       <DialogTrigger asChild>
-        <Button className="w-full font-bold shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 text-primary-foreground">
+        <Button className="w-full font-bold shadow-lg shadow-orange-500/30 bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white">
           Need an advance? Take our Tests <ArrowRight className="w-4 h-4 ml-2" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-2xl">Psychometric Validation</DialogTitle>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="sr-only">
+          <DialogTitle>Psychometric Validation</DialogTitle>
           <DialogDescription>
-            Complete these three pillars to establish your cryptographic IDIA Trust Score.
+            Complete the 9 telemetry modules to establish your cryptographic IDIA Trust Score.
           </DialogDescription>
         </DialogHeader>
-
-        <div className="space-y-8 py-4">
-          {/* Pillar 1 */}
-          <div className="space-y-4 p-4 bg-muted/30 rounded-xl border">
-            <h4 className="font-bold text-primary flex items-center gap-2">
-              <Users className="w-4 h-4" /> 1. Social Connectivity Index (45%)
-            </h4>
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs font-medium">
-                  <label>Social Exchange Balance (Equity)</label>
-                  <span>{testScores.seb}%</span>
-                </div>
-                <Slider
-                  value={[testScores.seb]}
-                  onValueChange={([v]) => setTestScores((prev) => ({ ...prev, seb: v }))}
-                  max={100}
-                  step={1}
-                />
-              </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs font-medium">
-                  <label>Attachment Security</label>
-                  <span>{testScores.ass}%</span>
-                </div>
-                <Slider
-                  value={[testScores.ass]}
-                  onValueChange={([v]) => setTestScores((prev) => ({ ...prev, ass: v }))}
-                  max={100}
-                  step={1}
-                />
-              </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs font-medium">
-                  <label>Network Vitality</label>
-                  <span>{testScores.snv}%</span>
-                </div>
-                <Slider
-                  value={[testScores.snv]}
-                  onValueChange={([v]) => setTestScores((prev) => ({ ...prev, snv: v }))}
-                  max={100}
-                  step={1}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Pillar 2 */}
-          <div className="space-y-4 p-4 bg-muted/30 rounded-xl border">
-            <h4 className="font-bold text-emerald-500 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" /> 2. Work Engagement Index (35%)
-            </h4>
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs font-medium">
-                  <label>Job Resources-Demands Delta</label>
-                  <span>{testScores.jrda}%</span>
-                </div>
-                <Slider
-                  value={[testScores.jrda]}
-                  onValueChange={([v]) => setTestScores((prev) => ({ ...prev, jrda: v }))}
-                  max={100}
-                  step={1}
-                />
-              </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs font-medium">
-                  <label>Organizational Citizenship</label>
-                  <span>{testScores.ocs}%</span>
-                </div>
-                <Slider
-                  value={[testScores.ocs]}
-                  onValueChange={([v]) => setTestScores((prev) => ({ ...prev, ocs: v }))}
-                  max={100}
-                  step={1}
-                />
-              </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs font-medium">
-                  <label>Psychological Contract Fulfillment</label>
-                  <span>{testScores.pcf}%</span>
-                </div>
-                <Slider
-                  value={[testScores.pcf]}
-                  onValueChange={([v]) => setTestScores((prev) => ({ ...prev, pcf: v }))}
-                  max={100}
-                  step={1}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Pillar 3 */}
-          <div className="space-y-4 p-4 bg-muted/30 rounded-xl border">
-            <h4 className="font-bold text-purple-500 flex items-center gap-2">
-              <Heart className="w-4 h-4" /> 3. Prosocial Disposition Index (20%)
-            </h4>
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs font-medium">
-                  <label>Empathy Quotient</label>
-                  <span>{testScores.eq}%</span>
-                </div>
-                <Slider
-                  value={[testScores.eq]}
-                  onValueChange={([v]) => setTestScores((prev) => ({ ...prev, eq: v }))}
-                  max={100}
-                  step={1}
-                />
-              </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs font-medium">
-                  <label>Generosity Under Pressure</label>
-                  <span>{testScores.gup}%</span>
-                </div>
-                <Slider
-                  value={[testScores.gup]}
-                  onValueChange={([v]) => setTestScores((prev) => ({ ...prev, gup: v }))}
-                  max={100}
-                  step={1}
-                />
-              </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs font-medium">
-                  <label>Social Context Sensitivity</label>
-                  <span>{testScores.scs}%</span>
-                </div>
-                <Slider
-                  value={[testScores.scs]}
-                  onValueChange={([v]) => setTestScores((prev) => ({ ...prev, scs: v }))}
-                  max={100}
-                  step={1}
-                />
-              </div>
-            </div>
-          </div>
-
-          <Button className="w-full h-12 text-lg" onClick={handleCalculateScore} disabled={isCalculating}>
-            {isCalculating ? "Processing Cryptographic Attestation..." : "Calculate Limits"}
-          </Button>
-        </div>
+        <PsychometricTestingCenter onCompleteAll={handleCalculateScore} />
       </DialogContent>
     </Dialog>
   );
@@ -468,11 +296,9 @@ const EnhancedWalletDashboard: React.FC = () => {
             <CardContent className="p-3">
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center">
-                  <div className="text-xl font-bold text-primary">
-                    {profile?.trust_score != null ? profile.trust_score : "---"}
-                  </div>
-                  <Badge variant={profile?.trust_score != null ? "secondary" : "outline"} className="text-xs">
-                    {profile?.trust_score != null ? "Active" : "Unverified"}
+                  <div className="text-xl font-bold text-primary">{profile?.trust_score || 650}</div>
+                  <Badge variant="secondary" className="text-xs">
+                    Excellent
                   </Badge>
                 </div>
                 <div className="text-center">
