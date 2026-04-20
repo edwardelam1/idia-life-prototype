@@ -40,7 +40,8 @@ const Auth = () => {
     } = supabase.auth.onAuthStateChange((event, session) => {
       // Only auto-redirect if they have a session AND they aren't in the middle of an OTP reset
       if (session && !isResetMode) {
-        navigate("/");
+        // Surgical Fix: Ensure local sign-in events land on /wallet
+        navigate("/wallet");
       }
     });
 
@@ -63,7 +64,8 @@ const Auth = () => {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: `${window.location.origin}/` },
+          // Surgical Fix: Land on /wallet after email confirmation
+          options: { emailRedirectTo: `${window.location.origin}/wallet` },
         });
         if (error) throw error;
         toast({ title: "Account created!", description: "Please check your email to verify your account." });
@@ -80,7 +82,8 @@ const Auth = () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
-        options: { redirectTo: `${window.location.origin}/` },
+        // Surgical Fix: Land on /wallet after OAuth handshake
+        options: { redirectTo: `${window.location.origin}/wallet` },
       });
       if (error) throw error;
     } catch (error: any) {
@@ -99,7 +102,6 @@ const Auth = () => {
     setIsResetLoading(true);
 
     try {
-      // This natively tells Supabase to send the email without needing an Edge Function
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail);
       if (error) throw error;
 
@@ -121,7 +123,6 @@ const Auth = () => {
     setIsResetLoading(true);
 
     try {
-      // 1. Verify the 6-digit OTP code
       const { error: verifyError } = await supabase.auth.verifyOtp({
         email: resetEmail,
         token: otpCode,
@@ -129,7 +130,6 @@ const Auth = () => {
       });
       if (verifyError) throw verifyError;
 
-      // 2. Update the password
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
@@ -140,13 +140,13 @@ const Auth = () => {
         description: "Your password has been successfully changed. You can now log into IDIA Hub.",
       });
 
-      // Reset states and exit reset mode
       setResetStep("request");
       setResetEmail("");
       setOtpCode("");
       setNewPassword("");
       setIsResetMode(false);
-      navigate("/"); // Proceed into the app
+      // Surgical Fix: Land on /wallet after reset
+      navigate("/wallet");
     } catch (error: any) {
       toast({ title: "Reset failed", description: error.message, variant: "destructive" });
     } finally {
