@@ -157,7 +157,6 @@ const EnhancedSocialScreen: React.FC = () => {
                 </div>
 
               </div>
-              </div>
             </CardContent>
           </Card>
 
