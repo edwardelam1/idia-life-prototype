@@ -53,20 +53,8 @@ const EnhancedSocialScreen: React.FC = () => {
   const [newCircleName, setNewCircleName] = useState("");
   const [isSubmittingDeed, setIsSubmittingDeed] = useState(false);
 
-  // Trust Score Test States (Simulating the 9 Indicators from 0-100)
-  const [showTestModal, setShowTestModal] = useState(false);
-  const [isCalculating, setIsCalculating] = useState(false);
-  const [testScores, setTestScores] = useState({
-    seb: 50,
-    ass: 50,
-    snv: 50, // Social Connectivity
-    jrda: 50,
-    ocs: 50,
-    pcf: 50, // Work Engagement
-    eq: 50,
-    gup: 50,
-    scs: 50, // Prosocial Disposition
-  });
+
+
 
   const handleSubmitGoodDeed = async () => {
     if (!newDeedTitle.trim() || !newDeedDescription.trim()) return;
