@@ -5,8 +5,12 @@ const TEAL = ["#14b8a6", "#0d9488", "#5eead4", "#2dd4bf"];
 const ORANGE = ["#f97316", "#ea580c", "#fb923c", "#fdba74"];
 const BRAND = [...TEAL, ...ORANGE];
 
+// Set global zIndex to clear the Radix/Shadcn Modal
+const globalZ = { zIndex: 10000 };
+
 export const fireWelcomeConfetti = () => {
   confetti({
+    ...globalZ,
     particleCount: 40,
     angle: 60,
     spread: 55,
@@ -15,6 +19,7 @@ export const fireWelcomeConfetti = () => {
     scalar: 0.8,
   });
   confetti({
+    ...globalZ,
     particleCount: 40,
     angle: 120,
     spread: 55,
@@ -26,6 +31,7 @@ export const fireWelcomeConfetti = () => {
 
 export const fireCompletionConfetti = () => {
   confetti({
+    ...globalZ,
     particleCount: 150,
     spread: 90,
     startVelocity: 45,
@@ -34,10 +40,10 @@ export const fireCompletionConfetti = () => {
   });
 };
 
-// Graffiti-style burst: scattered, random angles, multi-shape — fired on entering Social page
 export const fireGraffitiConfetti = () => {
   const shoot = (originX: number) => {
     confetti({
+      ...globalZ,
       particleCount: 30,
       angle: 60 + Math.random() * 60,
       spread: 80,
@@ -67,6 +73,7 @@ export const fireFinaleConfetti = () => {
       return;
     }
     confetti({
+      ...globalZ,
       particleCount: 50,
       angle: 60,
       spread: 70,
@@ -74,6 +81,7 @@ export const fireFinaleConfetti = () => {
       colors: BRAND,
     });
     confetti({
+      ...globalZ,
       particleCount: 50,
       angle: 120,
       spread: 70,
