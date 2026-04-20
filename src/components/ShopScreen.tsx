@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,9 +24,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Database } from "@/integrations/supabase/types";
 
+// Updated Business type to include the new logo_url column
 type Business = Database["public"]["Tables"]["businesses"]["Row"] & {
   business_locations?: Database["public"]["Tables"]["business_locations"]["Row"][];
   ar_experiences?: Database["public"]["Tables"]["ar_experiences"]["Row"][];
+  logo_url?: string | null;
 };
 
 type Item = {
@@ -123,43 +125,38 @@ const ShopScreen = () => {
       if (existing) return prev.map((i) => (i.item.id === item.id ? { ...i, quantity: i.quantity + 1 } : i));
       return [...prev, { item, quantity: 1 }];
     });
-    toast({ title: "Added to Cart", description: `${item.name} added to your IDIA order.` });
+    toast({ title: "Added to Cart", description: `${item.name} added to your order.` });
   };
 
-  const getBusinessIcon = (type: string) => {
+  const getFallbackIcon = (type: string) => {
     switch (type.toLowerCase()) {
       case "restaurant":
         return <Utensils className="h-6 w-6 text-orange-500" />;
       case "coffee shop":
         return <Coffee className="h-6 w-6 text-orange-500" />;
-      case "electronics store":
-        return <Package className="h-6 w-6 text-teal-500" />;
-      case "gym":
-        return <Sparkles className="h-6 w-6 text-teal-500" />;
       default:
-        return <Store className="h-6 w-6 text-muted-foreground" />;
+        return <Store className="h-6 w-6 text-teal-600" />;
     }
   };
 
   if (loading)
     return (
-      <div className="space-y-4 animate-pulse p-4">
-        <div className="h-32 bg-muted rounded-xl" />
-        <div className="h-32 bg-muted rounded-xl" />
+      <div className="space-y-4 p-4">
+        <div className="h-24 bg-muted animate-pulse rounded-xl" />
       </div>
     );
 
   return (
     <div className="space-y-6 pb-20 bg-white min-h-screen">
-      {/* Marketplace Header */}
       {!selectedBusiness ? (
         <>
+          {/* Marketplace Header */}
           <div className="px-4 space-y-4 pt-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search IDIA Enterprises..."
-                className="pl-10 h-12 bg-white/80 backdrop-blur-sm border-teal-100 shadow-sm"
+                className="pl-10 h-12 bg-white/80 border-teal-100 shadow-sm rounded-xl"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -172,8 +169,8 @@ const ShopScreen = () => {
                   variant={selectedCategory === cat ? "default" : "outline"}
                   className={`cursor-pointer px-4 py-1.5 whitespace-nowrap transition-all ${
                     selectedCategory === cat
-                      ? "bg-teal-600"
-                      : "bg-white text-muted-foreground border-teal-50 hover:border-teal-200"
+                      ? "bg-teal-600 text-white border-teal-600"
+                      : "bg-white text-muted-foreground border-teal-50"
                   }`}
                   onClick={() => setSelectedCategory(cat)}
                 >
@@ -183,8 +180,8 @@ const ShopScreen = () => {
             </div>
           </div>
 
-          {/* Scalable Square Icon Grid: 4 tiles across, 4 tiles height visible */}
-          <div className="px-4 overflow-y-auto max-h-[440px] scrollbar-hide">
+          {/* High-Density Square Grid */}
+          <div className="px-4 overflow-y-auto max-h-[460px] scrollbar-hide">
             <div className="grid grid-cols-4 gap-x-3 gap-y-6">
               {filteredBusinesses.map((business) => (
                 <div
@@ -192,8 +189,13 @@ const ShopScreen = () => {
                   className="flex flex-col items-center gap-1.5 cursor-pointer group active:scale-95 transition-transform"
                   onClick={() => handleSelectBusiness(business)}
                 >
-                  <div className="aspect-square w-full rounded-2xl bg-white border border-teal-50 flex items-center justify-center shadow-sm group-hover:border-teal-200 transition-all overflow-hidden">
-                    {getBusinessIcon(business.business_type)}
+                  {/* Square Logo Container */}
+                  <div className="aspect-square w-full rounded-2xl bg-white border border-teal-50 flex items-center justify-center shadow-sm overflow-hidden group-hover:border-teal-300 transition-all">
+                    {business.logo_url ? (
+                      <img src={business.logo_url} alt={business.name} className="w-full h-full object-cover" />
+                    ) : (
+                      getFallbackIcon(business.business_type)
+                    )}
                   </div>
                   <p className="text-[10px] font-bold text-foreground text-center truncate w-full px-0.5">
                     {business.name}
@@ -204,7 +206,7 @@ const ShopScreen = () => {
           </div>
         </>
       ) : (
-        /* Business Detail View / Business Card */
+        /* Detailed Business Interface / Live Inventory */
         <div className="animate-in slide-in-from-right duration-300">
           <div className="p-4 bg-white sticky top-0 z-10 border-b flex items-center justify-between">
             <Button variant="ghost" size="icon" onClick={() => setSelectedBusiness(null)}>
@@ -222,6 +224,7 @@ const ShopScreen = () => {
           </div>
 
           <div className="p-4 space-y-6">
+            {/* Enterprise Card featuring IDIA Hub Image */}
             <div className="rounded-3xl bg-gradient-to-br from-teal-500 to-teal-700 p-6 text-white shadow-xl relative overflow-hidden">
               <div className="relative z-10 space-y-4">
                 <div className="flex justify-between items-start">
@@ -229,74 +232,71 @@ const ShopScreen = () => {
                     <h1 className="text-2xl font-black">{selectedBusiness.name}</h1>
                     <p className="opacity-80 text-sm">{selectedBusiness.business_type}</p>
                   </div>
-                  <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center">
-                    {getBusinessIcon(selectedBusiness.business_type)}
+                  {/* Prominent Logo Display */}
+                  <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center overflow-hidden border border-white/20">
+                    {selectedBusiness.logo_url ? (
+                      <img
+                        src={selectedBusiness.logo_url}
+                        alt={selectedBusiness.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      getFallbackIcon(selectedBusiness.business_type)
+                    )}
                   </div>
                 </div>
-                <div className="space-y-2 text-sm opacity-90">
-                  <p className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" /> {selectedBusiness.business_locations?.[0]?.address}
+                <div className="space-y-2 text-sm opacity-90 border-t border-white/10 pt-4">
+                  <p className="flex items-center gap-2 font-medium">
+                    <MapPin size={16} className="text-teal-200" /> {selectedBusiness.business_locations?.[0]?.address}
                   </p>
-                  <p className="flex items-center gap-2">
-                    <Clock className="h-4 w-4" /> Open • Until 9:00 PM
+                  <p className="flex items-center gap-2 font-medium">
+                    <Clock size={16} className="text-teal-200" /> Open • Database Synchronized
                   </p>
-                </div>
-                <div className="flex gap-4 pt-2">
-                  <div className="text-center">
-                    <p className="text-xs opacity-70">Loyalty</p>
-                    <p className="font-bold">Platinum</p>
-                  </div>
-                  <div className="text-center border-l border-white/20 pl-4">
-                    <p className="text-xs opacity-70">Rating</p>
-                    <p className="font-bold">4.9/5</p>
-                  </div>
                 </div>
               </div>
-              <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
             </div>
 
-            <Tabs defaultValue="shop" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 bg-teal-50/50">
-                <TabsTrigger value="shop">Live Inventory</TabsTrigger>
-                <TabsTrigger value="about">Info</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="shop" className="space-y-4 pt-4">
-                <div className="grid grid-cols-2 gap-4">
-                  {businessItems.map((item) => (
-                    <Card
-                      key={item.id}
-                      className="overflow-hidden border-teal-50 group hover:border-teal-200 transition-all"
-                    >
-                      <div className="h-24 bg-muted flex items-center justify-center">
-                        {item.image_url ? (
-                          <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <Package className="h-8 w-8 text-muted-foreground/30" />
-                        )}
+            <div className="space-y-4">
+              <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground px-1">
+                Live Inventory Grid
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                {businessItems.map((item) => (
+                  <Card
+                    key={item.id}
+                    className="overflow-hidden border-teal-50 group hover:border-teal-200 transition-all shadow-sm rounded-2xl"
+                  >
+                    <div className="aspect-square bg-muted flex items-center justify-center relative">
+                      {item.image_url ? (
+                        <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <Package className="h-8 w-8 text-muted-foreground/30" />
+                      )}
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="absolute bottom-2 right-2 h-8 w-8 p-0 rounded-full bg-teal-600 hover:bg-teal-700 shadow-md"
+                        onClick={() => addToCart(item)}
+                      >
+                        +
+                      </Button>
+                    </div>
+                    <CardContent className="p-3 space-y-1">
+                      <h4 className="font-bold text-xs line-clamp-1">{item.name}</h4>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-black text-teal-700">${item.price.toFixed(2)}</span>
+                        <Badge
+                          variant="secondary"
+                          className="text-[8px] h-4 bg-teal-50 text-teal-600 border-none uppercase"
+                        >
+                          {item.type}
+                        </Badge>
                       </div>
-                      <CardContent className="p-3 space-y-2">
-                        <div>
-                          <h4 className="font-bold text-sm line-clamp-1">{item.name}</h4>
-                          <p className="text-[10px] text-muted-foreground uppercase">{item.type}</p>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-black text-teal-700">${item.price.toFixed(2)}</span>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 w-7 p-0 border-teal-200 text-teal-700"
-                            onClick={() => addToCart(item)}
-                          >
-                            +
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </TabsContent>
-            </Tabs>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       )}
