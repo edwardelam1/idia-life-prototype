@@ -78,10 +78,13 @@ const EnhancedProfileSettings: React.FC = () => {
     );
   }
 
+  // LAW: Added fallback to prevent silent white-screen if profile data fails to resolve
   if (!profile) {
     return (
-      <div className="p-4 text-center">
-        <p className="text-muted-foreground">Profile not found</p>
+      <div className="p-10 text-center">
+        <p className="text-muted-foreground font-bold uppercase tracking-widest text-xs">
+          Profile Synchronization Failed
+        </p>
       </div>
     );
   }
@@ -108,7 +111,7 @@ const EnhancedProfileSettings: React.FC = () => {
     return <Badge variant={variants[status] || "secondary"}>{status}</Badge>;
   };
 
-  const getAccountTypeBadge = (type: string) => {
+  const getAccountTypeBadge = (type: string | undefined) => {
     const labels: Record<string, string> = {
       personal: "Personal",
       individual: "Personal",
@@ -117,7 +120,7 @@ const EnhancedProfileSettings: React.FC = () => {
     };
     return (
       <Badge variant="outline" className="font-bold uppercase tracking-wider">
-        {labels[type] || type}
+        {labels[type || "personal"] || "Personal"}
       </Badge>
     );
   };
@@ -210,13 +213,13 @@ const EnhancedProfileSettings: React.FC = () => {
   };
 
   return (
-    <div className="w-full px-3 sm:px-4 md:max-w-4xl md:mx-auto space-y-4 sm:space-y-6 pb-[env(safe-area-inset-bottom)] pt-2">
+    <div className="w-full px-3 sm:px-4 md:max-w-4xl md:mx-auto space-y-4 sm:space-y-6 pb-20 pt-2">
       <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl sm:text-3xl font-black tracking-tight uppercase">Identity</h1>
         {getAccountTypeBadge(profile.account_type)}
       </div>
 
-      {/* Trust Score Card - Refactored for Visual Weight */}
+      {/* Trust Score Card */}
       <Card className="border-2 border-primary/10 bg-gradient-to-br from-background to-muted/30">
         <CardContent className="pt-8 pb-8 text-center space-y-1">
           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
@@ -228,10 +231,10 @@ const EnhancedProfileSettings: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Avatar & Basic Info - Single Column Stack for Mobile */}
+      {/* Profile Information */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg uppercase font-bold">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg uppercase font-bold text-primary">
             <Upload className="w-5 h-5" />
             Attributes
           </CardTitle>
@@ -293,7 +296,6 @@ const EnhancedProfileSettings: React.FC = () => {
             </div>
           </div>
 
-          {/* Read-only KYC fields - Redesigned stack */}
           <div className="grid grid-cols-1 gap-4 p-4 bg-muted/50 rounded-2xl border">
             <div className="space-y-1">
               <Label className="text-[10px] font-black uppercase opacity-60">Legal Name</Label>
@@ -305,17 +307,11 @@ const EnhancedProfileSettings: React.FC = () => {
               <Label className="text-[10px] font-black uppercase opacity-60">Auth Email</Label>
               <p className="text-sm font-bold break-all">{profile.email}</p>
             </div>
-            {profile.phone_number && (
-              <div className="space-y-1">
-                <Label className="text-[10px] font-black uppercase opacity-60">Mobile</Label>
-                <p className="text-sm font-bold">{profile.phone_number}</p>
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* KYC Status Card */}
+      {/* Verification Status */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg uppercase font-bold">
@@ -328,18 +324,13 @@ const EnhancedProfileSettings: React.FC = () => {
             <span className="text-xs font-bold uppercase tracking-widest">Status:</span>
             {getKycStatusBadge(profile.kyc_status)}
           </div>
-          {profile.kyc_status === "pending" && (
-            <p className="text-[10px] text-muted-foreground mt-3 font-medium uppercase tracking-tight">
-              Complete verification to unlock high-stakes data features.
-            </p>
-          )}
         </CardContent>
       </Card>
 
-      {/* Wallet Information */}
+      {/* Ledger Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg uppercase font-bold">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg uppercase font-bold text-primary">
             <Wallet className="w-5 h-5" />
             Ledger
           </CardTitle>
@@ -359,16 +350,10 @@ const EnhancedProfileSettings: React.FC = () => {
               <p className="text-2xl font-black tabular-nums">{(balance.idia_token_balance || 0).toFixed(2)}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 px-1">
-            <Shield className="w-3.5 h-3.5" />
-            <span className="text-[10px] font-black uppercase tracking-wider">
-              Seed Status: {seedWallet?.is_seed_backed_up ? "Verified" : "Action Required"}
-            </span>
-          </div>
         </CardContent>
       </Card>
 
-      {/* Interests */}
+      {/* Interests Card */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base uppercase font-bold">Interests</CardTitle>
@@ -397,67 +382,39 @@ const EnhancedProfileSettings: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Account Management — Workflow Cards */}
+      {/* Account Lifecycle Cards */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base sm:text-lg uppercase font-bold">Account Lifecycle</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="rounded-xl border bg-muted/20 p-4">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-xs font-black uppercase tracking-widest">Active Type</span>
-              {getAccountTypeBadge(profile.account_type)}
-            </div>
-            <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-              Personal accounts include identity-verified KYC, data monetization payouts, and Pro feature access.
-            </p>
-          </div>
-
           {renderRequestStatus()}
-
-          {/* Business card */}
           <div className="rounded-2xl border-2 border-primary/5 bg-card p-4 space-y-4">
             <div className="flex items-start gap-3">
               <Building className="w-6 h-6 text-primary shrink-0 mt-0.5" />
               <div className="flex-1">
                 <h3 className="font-black text-sm uppercase">Business Upgrade</h3>
                 <p className="text-xs text-muted-foreground mt-1 font-medium">
-                  Enterprise client conversion. Unlocks multi-user team access and merchant IDIA Pay tools.
+                  Enterprise client conversion. Unlocks multi-user team access and IDIA Pay tools.
                 </p>
               </div>
             </div>
-
-            <ul className="text-[10px] font-black uppercase text-muted-foreground space-y-2 pl-1">
-              <li className="flex items-center gap-2">
-                <Users className="w-3 h-3 text-primary" /> Multi-user team management
-              </li>
-              <li className="flex items-center gap-2">
-                <BarChart3 className="w-3 h-3 text-primary" /> Business Health Index (BHI)
-              </li>
-              <li className="flex items-center gap-2">
-                <CreditCard className="w-3 h-3 text-primary" /> AR POS & IDIA Pay tools
-              </li>
-            </ul>
-
             <Button
               onClick={() => openUpgrade("business")}
               disabled={!!pendingRequest}
               className="w-full min-h-[44px] font-black uppercase rounded-xl"
             >
-              {pendingRequest && pendingRequest.request_type === "Personal to Business"
-                ? "Application Pending"
-                : "Start Business Conversion"}
+              Start Business Conversion
             </Button>
           </div>
 
-          {/* Non-profit card */}
           <div className="rounded-2xl border bg-card p-4 space-y-3">
             <div className="flex items-start gap-3">
               <Heart className="w-6 h-6 text-primary shrink-0 mt-0.5" />
               <div className="flex-1">
                 <h3 className="font-black text-sm uppercase">Non-Profit (501c3)</h3>
                 <p className="text-xs text-muted-foreground mt-1 font-medium">
-                  Verified mission-aligned enterprise configuration for 501(c)(3) organizations.
+                  Mission-aligned configuration for verified organizations.
                 </p>
               </div>
             </div>
@@ -467,15 +424,13 @@ const EnhancedProfileSettings: React.FC = () => {
               disabled={!!pendingRequest}
               className="w-full min-h-[44px] font-black uppercase rounded-xl border-2"
             >
-              {pendingRequest && pendingRequest.request_type === "Personal to Non-Profit"
-                ? "Application Pending"
-                : "Start NGO Conversion"}
+              Start NGO Conversion
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Upgrade Dialog - Mobile Responsive with Sticky Footer */}
+      {/* Conversion Dialog */}
       <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
         <DialogContent className="max-w-[calc(100vw-1.5rem)] sm:max-w-lg max-h-[90dvh] overflow-hidden flex flex-col p-0 rounded-t-3xl sm:rounded-2xl border-none">
           <div className="p-6 overflow-y-auto space-y-6">
@@ -484,23 +439,19 @@ const EnhancedProfileSettings: React.FC = () => {
                 {upgradeKind === "non-profit" ? "NGO Onboarding" : "Business Onboarding"}
               </DialogTitle>
               <DialogDescription className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Provide legal entity details. Signatory authority required.
+                Signatory authority required.
               </DialogDescription>
             </DialogHeader>
-
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase ml-1">
-                  {upgradeKind === "non-profit" ? "Organization Name" : "Legal Entity Name"}
-                </Label>
+                <Label className="text-[10px] font-black uppercase ml-1">Entity Name</Label>
                 <Input
                   value={upgradeForm.companyName}
                   onChange={(e) => setUpgradeForm({ ...upgradeForm, companyName: e.target.value })}
-                  placeholder="Entity Name"
+                  placeholder="Legal Name"
                   className="min-h-[44px] rounded-xl bg-muted/40 border-none px-4"
                 />
               </div>
-
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black uppercase ml-1">Industry</Label>
                 <Select
@@ -508,41 +459,25 @@ const EnhancedProfileSettings: React.FC = () => {
                   onValueChange={(v) => setUpgradeForm({ ...upgradeForm, industry: v })}
                 >
                   <SelectTrigger className="min-h-[44px] rounded-xl bg-muted/40 border-none px-4">
-                    <SelectValue placeholder="Select Industry" />
+                    <SelectValue placeholder="Select" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="technology">Technology</SelectItem>
                     <SelectItem value="retail">Retail</SelectItem>
                     <SelectItem value="healthcare">Healthcare</SelectItem>
                     <SelectItem value="non-profit">Non-Profit</SelectItem>
-                    <SelectItem value="finance">Financial Services</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="finance">Finance</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase ml-1">Officer Name</Label>
-                <Input
-                  value={upgradeForm.contactName}
-                  onChange={(e) => setUpgradeForm({ ...upgradeForm, contactName: e.target.value })}
-                  placeholder="Full Legal Name"
-                  className="min-h-[44px] rounded-xl bg-muted/40 border-none px-4"
-                />
-              </div>
-
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black uppercase ml-1">Legal Documents</Label>
-                <label
-                  htmlFor="upgrade-doc-upload"
-                  className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-primary/20 bg-muted/20 p-8 cursor-pointer hover:bg-muted/40 transition-colors min-h-[120px]"
-                >
+                <label className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-primary/20 bg-muted/20 p-8 cursor-pointer min-h-[120px]">
                   <FileUp className="w-8 h-8 text-primary" />
-                  <p className="text-[10px] font-black uppercase tracking-tighter text-center">
-                    {uploadFile ? uploadFile.name : "Tap to upload Articles of Incorporation"}
+                  <p className="text-[10px] font-black uppercase text-center">
+                    {uploadFile ? uploadFile.name : "Tap to upload"}
                   </p>
                   <input
-                    id="upgrade-doc-upload"
                     type="file"
                     accept=".pdf,.png,.jpg,.jpeg"
                     className="hidden"
@@ -552,22 +487,20 @@ const EnhancedProfileSettings: React.FC = () => {
               </div>
             </div>
           </div>
-
           <div className="p-4 border-t bg-background flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
             <Button
               variant="ghost"
               onClick={() => setShowUpgradeModal(false)}
-              className="w-full sm:w-auto min-h-[44px] font-black uppercase rounded-xl"
+              className="w-full sm:w-auto min-h-[44px] font-bold uppercase rounded-xl"
             >
-              <X className="w-4 h-4 mr-2" />
               Cancel
             </Button>
             <Button
               onClick={handleUpgradeSubmit}
               disabled={uploadingDoc}
-              className="w-full sm:w-auto min-h-[44px] font-black uppercase rounded-xl shadow-lg shadow-primary/20"
+              className="w-full sm:w-auto min-h-[44px] font-black uppercase rounded-xl shadow-lg"
             >
-              {uploadingDoc ? "Uploading..." : "Submit Application"}
+              Submit
             </Button>
           </div>
         </DialogContent>
