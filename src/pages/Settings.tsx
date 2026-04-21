@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, User, Palette, Shield, Bell } from "lucide-react";
+import { ArrowLeft, User, Palette, Shield, Bell, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,6 +10,7 @@ import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
 import { PrivacySettings } from "@/components/settings/PrivacySettings";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import EnhancedProfileSettings from "@/components/enhanced/EnhancedProfileSettings";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Settings() {
   const navigate = useNavigate();
