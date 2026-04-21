@@ -6,13 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { useToast } from "@/hooks/use-toast";
@@ -53,9 +47,7 @@ const EnhancedProfileSettings: React.FC = () => {
   const { balance } = useWalletBalance();
   const { toast } = useToast();
 
-  const [selectedInterests, setSelectedInterests] = useState<string[]>(
-    interests ? interests.map((i) => i.id) : [],
-  );
+  const [selectedInterests, setSelectedInterests] = useState<string[]>(interests ? interests.map((i) => i.id) : []);
 
   // Upgrade dialog state
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -150,8 +142,7 @@ const EnhancedProfileSettings: React.FC = () => {
 
     setUploadingDoc(true);
     try {
-      const requestType =
-        upgradeKind === "non-profit" ? "Personal to Non-Profit" : "Personal to Business";
+      const requestType = upgradeKind === "non-profit" ? "Personal to Non-Profit" : "Personal to Business";
 
       const { error } = await supabase.from("account_conversion_requests" as any).insert({
         user_id: profile.user_id,
@@ -198,9 +189,7 @@ const EnhancedProfileSettings: React.FC = () => {
     return (
       <div className="flex flex-col gap-1.5 rounded-md border bg-muted/40 p-3 text-sm">
         <div className="flex items-center justify-between gap-2">
-          <span className="font-medium">
-            {latestConversionRequest.request_type || "Conversion Request"}
-          </span>
+          <span className="font-medium">{latestConversionRequest.request_type || "Conversion Request"}</span>
           <Badge variant={c.variant} className="gap-1">
             {c.icon}
             {c.label}
@@ -210,9 +199,7 @@ const EnhancedProfileSettings: React.FC = () => {
           {latestConversionRequest.company_name} · Submitted {submitted}
         </div>
         {status === "pending" && (
-          <p className="text-xs text-muted-foreground">
-            Application under review by IDIA Corporate back office.
-          </p>
+          <p className="text-xs text-muted-foreground">Application under review by IDIA Corporate back office.</p>
         )}
       </div>
     );
@@ -297,9 +284,7 @@ const EnhancedProfileSettings: React.FC = () => {
             {profile.date_of_birth && (
               <div>
                 <Label>Date of Birth (Read-only)</Label>
-                <p className="text-sm font-medium">
-                  {new Date(profile.date_of_birth).toLocaleDateString()}
-                </p>
+                <p className="text-sm font-medium">{new Date(profile.date_of_birth).toLocaleDateString()}</p>
               </div>
             )}
             {profile.phone_number && (
@@ -328,9 +313,7 @@ const EnhancedProfileSettings: React.FC = () => {
                 {getKycStatusBadge(profile.kyc_status)}
               </div>
               {profile.kyc_status === "pending" && (
-                <p className="text-sm text-muted-foreground">
-                  Complete your verification to unlock all features.
-                </p>
+                <p className="text-sm text-muted-foreground">Complete your verification to unlock all features.</p>
               )}
             </div>
           </CardContent>
@@ -346,9 +329,7 @@ const EnhancedProfileSettings: React.FC = () => {
           <CardContent>
             <div className="flex items-baseline">
               <span className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tighter text-foreground tabular-nums break-words">
-                {profile?.trust_score !== null && profile?.trust_score !== undefined
-                  ? profile.trust_score
-                  : "NO SCORE"}
+                {profile?.trust_score !== null && profile?.trust_score !== undefined ? profile.trust_score : "NO SCORE"}
               </span>
             </div>
           </CardContent>
@@ -367,9 +348,7 @@ const EnhancedProfileSettings: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <div className="text-center p-3 sm:p-4 bg-muted rounded-lg">
               <p className="text-sm text-muted-foreground">Cash Balance</p>
-              <p className="text-base sm:text-xl font-bold tabular-nums">
-                ${(balance.cash_balance || 0).toFixed(2)}
-              </p>
+              <p className="text-base sm:text-xl font-bold tabular-nums">${(balance.cash_balance || 0).toFixed(2)}</p>
             </div>
             <div className="text-center p-3 sm:p-4 bg-muted rounded-lg">
               <p className="text-sm text-muted-foreground">IDIA-USD</p>
@@ -431,8 +410,8 @@ const EnhancedProfileSettings: React.FC = () => {
               {getAccountTypeBadge(profile.account_type)}
             </div>
             <p className="mt-2 text-xs sm:text-sm text-muted-foreground">
-              Personal accounts include identity-verified KYC, the IDIA Life wallet, data
-              monetization payouts, and access to social, governance, and Pro features.
+              Personal accounts include identity-verified KYC, the IDIA Life wallet, data monetization payouts, and
+              access to social, governance, and Pro features.
             </p>
           </div>
 
@@ -446,8 +425,8 @@ const EnhancedProfileSettings: React.FC = () => {
               <div className="flex-1">
                 <h3 className="font-semibold text-sm sm:text-base">Request a Business Account</h3>
                 <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                  Convert this account to an enterprise client of IDIA. Unlocks the merchant
-                  toolkit and back-office capabilities.
+                  Convert this account to an enterprise client of IDIA. Unlocks the merchant toolkit and back-office
+                  capabilities.
                 </p>
               </div>
             </div>
@@ -468,8 +447,8 @@ const EnhancedProfileSettings: React.FC = () => {
             </ul>
 
             <p className="text-xs text-muted-foreground italic">
-              Eligibility: requires a Controlling Partner or Authorized Signatory and legal
-              documentation (incorporation papers or business license).
+              Eligibility: requires a Controlling Partner or Authorized Signatory and legal documentation (incorporation
+              papers or business license).
             </p>
 
             <Button
@@ -489,18 +468,14 @@ const EnhancedProfileSettings: React.FC = () => {
             <div className="flex items-start gap-2">
               <Heart className="w-5 h-5 mt-0.5 text-primary" />
               <div className="flex-1">
-                <h3 className="font-semibold text-sm sm:text-base">
-                  Request a Non-Profit (501c3) Account
-                </h3>
+                <h3 className="font-semibold text-sm sm:text-base">Request a Non-Profit (501c3) Account</h3>
                 <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                  For verified 501(c)(3) organizations. Same enterprise plumbing, mission-aligned
-                  configuration.
+                  For verified 501(c)(3) organizations. Same enterprise plumbing, mission-aligned configuration.
                 </p>
               </div>
             </div>
             <p className="text-xs text-muted-foreground italic">
-              Eligibility: requires an IRS 501(c)(3) determination letter and an authorized
-              signatory.
+              Eligibility: requires an IRS 501(c)(3) determination letter and an authorized signatory.
             </p>
             <Button
               variant="outline"
@@ -522,28 +497,20 @@ const EnhancedProfileSettings: React.FC = () => {
         <DialogContent className="max-w-[calc(100vw-1.5rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>
-              {upgradeKind === "non-profit"
-                ? "Non-Profit Account Onboarding"
-                : "Business Account Onboarding"}
+              {upgradeKind === "non-profit" ? "Non-Profit Account Onboarding" : "Business Account Onboarding"}
             </DialogTitle>
             <DialogDescription>
-              Provide your{" "}
-              {upgradeKind === "non-profit" ? "non-profit organization" : "business"} details and
-              legal documentation. You must be a controlling partner or authorized signatory to
-              proceed.
+              Provide your {upgradeKind === "non-profit" ? "non-profit organization" : "business"} details and legal
+              documentation. You must be a controlling partner or authorized signatory to proceed.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-3">
             <div className="space-y-1.5">
-              <Label>
-                {upgradeKind === "non-profit" ? "Legal Organization Name" : "Legal Business Name"}
-              </Label>
+              <Label>{upgradeKind === "non-profit" ? "Legal Organization Name" : "Legal Business Name"}</Label>
               <Input
                 value={upgradeForm.companyName}
-                onChange={(e) =>
-                  setUpgradeForm({ ...upgradeForm, companyName: e.target.value })
-                }
+                onChange={(e) => setUpgradeForm({ ...upgradeForm, companyName: e.target.value })}
                 placeholder={upgradeKind === "non-profit" ? "Mission Foundation" : "Acme Corp"}
                 className="min-h-11"
               />
@@ -573,9 +540,7 @@ const EnhancedProfileSettings: React.FC = () => {
               <Label>Your Full Name</Label>
               <Input
                 value={upgradeForm.contactName}
-                onChange={(e) =>
-                  setUpgradeForm({ ...upgradeForm, contactName: e.target.value })
-                }
+                onChange={(e) => setUpgradeForm({ ...upgradeForm, contactName: e.target.value })}
                 placeholder="Jane Doe"
                 className="min-h-11"
               />
@@ -607,9 +572,7 @@ const EnhancedProfileSettings: React.FC = () => {
                 {uploadFile ? (
                   <div className="text-center">
                     <p className="text-sm font-medium break-all">{uploadFile.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {(uploadFile.size / 1024).toFixed(1)} KB
-                    </p>
+                    <p className="text-xs text-muted-foreground">{(uploadFile.size / 1024).toFixed(1)} KB</p>
                   </div>
                 ) : (
                   <div className="text-center">
@@ -634,19 +597,11 @@ const EnhancedProfileSettings: React.FC = () => {
           </div>
 
           <div className="sticky bottom-0 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 px-4 sm:px-6 pt-3 pb-3 border-t bg-background flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
-            <Button
-              variant="outline"
-              onClick={() => setShowUpgradeModal(false)}
-              className="w-full sm:w-auto min-h-11"
-            >
+            <Button variant="outline" onClick={() => setShowUpgradeModal(false)} className="w-full sm:w-auto min-h-11">
               <X className="w-4 h-4 mr-2" />
               Cancel
             </Button>
-            <Button
-              onClick={handleUpgradeSubmit}
-              disabled={uploadingDoc}
-              className="w-full sm:w-auto min-h-11"
-            >
+            <Button onClick={handleUpgradeSubmit} disabled={uploadingDoc} className="w-full sm:w-auto min-h-11">
               {uploadingDoc ? "Submitting…" : "Submit Application"}
             </Button>
           </div>
