@@ -16,6 +16,7 @@ export default function Settings() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [user, setUser] = useState<any>(null);
+  const { toast } = useToast();
   // Default to the IDIA profile tab since the standard one is removed
   const [activeTab, setActiveTab] = useState("idia-profile");
 
@@ -55,6 +56,15 @@ export default function Settings() {
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    toast({
+      title: "Signed out",
+      description: "You have been successfully signed out.",
+    });
+    navigate("/auth");
+  };
 
   return (
     <div className="min-h-screen bg-background pt-[max(0.5rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
