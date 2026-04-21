@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,7 +47,14 @@ const EnhancedProfileSettings: React.FC = () => {
   const { balance } = useWalletBalance();
   const { toast } = useToast();
 
-  const [selectedInterests, setSelectedInterests] = useState<string[]>(interests ? interests.map((i) => i.id) : []);
+  // LAW: Use local state and effect to break the render loop caused by hook-to-state mapping
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (interests && interests.length > 0 && selectedInterests.length === 0) {
+      setSelectedInterests(interests.map((i) => i.id));
+    }
+  }, [interests]);
 
   // Upgrade dialog state
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -78,13 +85,17 @@ const EnhancedProfileSettings: React.FC = () => {
     );
   }
 
-  // LAW: Added fallback to prevent silent white-screen if profile data fails to resolve
+  // LAW: Defensive check to prevent silent white-screen if profile data is missing
   if (!profile) {
     return (
-      <div className="p-10 text-center">
-        <p className="text-muted-foreground font-bold uppercase tracking-widest text-xs">
-          Profile Synchronization Failed
+      <div className="p-10 text-center flex flex-col items-center justify-center min-h-[400px]">
+        <Shield className="w-12 h-12 text-muted-foreground/20 mb-4" />
+        <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">
+          Profile Synchronization Delayed
         </p>
+        <Button variant="ghost" className="mt-4 text-[10px] font-bold" onClick={() => window.location.reload()}>
+          RETRY CONNECTION
+        </Button>
       </div>
     );
   }
@@ -108,7 +119,11 @@ const EnhancedProfileSettings: React.FC = () => {
       verified: "default",
       rejected: "destructive",
     };
-    return <Badge variant={variants[status] || "secondary"}>{status}</Badge>;
+    return (
+      <Badge variant={variants[status] || "secondary"} className="font-bold uppercase text-[10px]">
+        {status}
+      </Badge>
+    );
   };
 
   const getAccountTypeBadge = (type: string | undefined) => {
@@ -119,7 +134,7 @@ const EnhancedProfileSettings: React.FC = () => {
       "non-profit": "Non-Profit",
     };
     return (
-      <Badge variant="outline" className="font-bold uppercase tracking-wider">
+      <Badge variant="outline" className="font-black uppercase tracking-wider">
         {labels[type || "personal"] || "Personal"}
       </Badge>
     );
@@ -205,9 +220,6 @@ const EnhancedProfileSettings: React.FC = () => {
         <div className="text-xs text-muted-foreground">
           {latestConversionRequest.company_name} · Submitted {submitted}
         </div>
-        {status === "pending" && (
-          <p className="text-xs text-muted-foreground">Application under review by IDIA Corporate back office.</p>
-        )}
       </div>
     );
   };
@@ -219,8 +231,7 @@ const EnhancedProfileSettings: React.FC = () => {
         {getAccountTypeBadge(profile.account_type)}
       </div>
 
-      {/* Trust Score Card */}
-      <Card className="border-2 border-primary/10 bg-gradient-to-br from-background to-muted/30">
+      <Card className="border-2 border-primary/10 bg-gradient-to-br from-background to-muted/30 shadow-none">
         <CardContent className="pt-8 pb-8 text-center space-y-1">
           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
             Human Reliability Index
@@ -231,7 +242,6 @@ const EnhancedProfileSettings: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Profile Information */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg uppercase font-bold text-primary">
@@ -258,13 +268,9 @@ const EnhancedProfileSettings: React.FC = () => {
                 disabled={updating}
               />
               <Label htmlFor="avatar-upload" className="cursor-pointer w-full">
-                <Button
-                  variant="outline"
-                  asChild
-                  className="w-full sm:w-auto min-h-[44px] rounded-xl font-bold uppercase text-[10px]"
-                >
-                  <span>Change Photo</span>
-                </Button>
+                <div className="w-full sm:w-auto min-h-[44px] flex items-center justify-center border-2 rounded-xl px-6 text-[10px] font-black uppercase hover:bg-muted transition-colors">
+                  Change Photo
+                </div>
               </Label>
             </div>
           </div>
@@ -311,7 +317,6 @@ const EnhancedProfileSettings: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Verification Status */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg uppercase font-bold">
@@ -322,12 +327,11 @@ const EnhancedProfileSettings: React.FC = () => {
         <CardContent>
           <div className="flex justify-between items-center bg-muted/30 p-3 rounded-xl border">
             <span className="text-xs font-bold uppercase tracking-widest">Status:</span>
-            {getKycStatusBadge(profile.kyc_status)}
+            {getKycStatusBadge(profile.kyc_status || "pending")}
           </div>
         </CardContent>
       </Card>
 
-      {/* Ledger Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg uppercase font-bold text-primary">
@@ -353,7 +357,6 @@ const EnhancedProfileSettings: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Interests Card */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base uppercase font-bold">Interests</CardTitle>
@@ -382,7 +385,6 @@ const EnhancedProfileSettings: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Account Lifecycle Cards */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base sm:text-lg uppercase font-bold">Account Lifecycle</CardTitle>
@@ -394,7 +396,7 @@ const EnhancedProfileSettings: React.FC = () => {
               <Building className="w-6 h-6 text-primary shrink-0 mt-0.5" />
               <div className="flex-1">
                 <h3 className="font-black text-sm uppercase">Business Upgrade</h3>
-                <p className="text-xs text-muted-foreground mt-1 font-medium">
+                <p className="text-xs text-muted-foreground mt-1 font-medium leading-relaxed">
                   Enterprise client conversion. Unlocks multi-user team access and IDIA Pay tools.
                 </p>
               </div>
@@ -413,7 +415,7 @@ const EnhancedProfileSettings: React.FC = () => {
               <Heart className="w-6 h-6 text-primary shrink-0 mt-0.5" />
               <div className="flex-1">
                 <h3 className="font-black text-sm uppercase">Non-Profit (501c3)</h3>
-                <p className="text-xs text-muted-foreground mt-1 font-medium">
+                <p className="text-xs text-muted-foreground mt-1 font-medium leading-relaxed">
                   Mission-aligned configuration for verified organizations.
                 </p>
               </div>
@@ -430,7 +432,6 @@ const EnhancedProfileSettings: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Conversion Dialog */}
       <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
         <DialogContent className="max-w-[calc(100vw-1.5rem)] sm:max-w-lg max-h-[90dvh] overflow-hidden flex flex-col p-0 rounded-t-3xl sm:rounded-2xl border-none">
           <div className="p-6 overflow-y-auto space-y-6">
