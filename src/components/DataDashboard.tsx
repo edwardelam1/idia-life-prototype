@@ -12,6 +12,7 @@ import StravaConnectionModal from "./StravaConnectionModal";
 import FordConnectionModal from "./FordConnectionModal";
 import fordLogo from "@/assets/ford-logo.png";
 
+const [isActivelySyncing, setIsActivelySyncing] = useState(false);
 const DataDashboard = () => {
   const [connections, setConnections] = useState<any[]>([]);
   const [totalEarnings, setTotalEarnings] = useState(0);
@@ -42,27 +43,48 @@ const DataDashboard = () => {
       fetchConnections();
       fetchAcaRecords();
 
-      // DISCUSSION: Added Realtime Subscription for Live Data Screen Updates
+      // Existing Wallet Listener
       const dataWalletChannel = supabase
         .channel("data-dashboard-wallet")
         .on(
           "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "user_wallets", filter: `user_id=eq.${currentUserId}` },
+          (payload) => setTotalEarnings(payload.new.cash_balance || 0),
+        )
+        .subscribe();
+
+      // DISCUSSION: New Pipeline Activity Listener
+      const dataActivityChannel = supabase
+        .channel("data-dashboard-activity")
+        .on(
+          "postgres_changes",
           {
-            event: "UPDATE",
+            event: "INSERT",
             schema: "public",
-            table: "user_wallets",
+            table: "raw_health_data",
             filter: `user_id=eq.${currentUserId}`,
           },
           (payload) => {
-            console.log("Data Dashboard Wallet Update:", payload);
-            // Update the state directly to reflect the new balance instantly
-            setTotalEarnings(payload.new.cash_balance || 0);
+            console.log("⚡ Live Data Pipeline Triggered:", payload);
+
+            // 1. Turn on the "Receiving Data" UI
+            setIsActivelySyncing(true);
+
+            // 2. Refresh the audit log and last sync time
+            fetchAcaRecords();
+            fetchConnections();
+
+            // 3. Keep the indicator glowing for 3 seconds so the human eye can register it
+            setTimeout(() => {
+              setIsActivelySyncing(false);
+            }, 3000);
           },
         )
         .subscribe();
 
       return () => {
         supabase.removeChannel(dataWalletChannel);
+        supabase.removeChannel(dataActivityChannel); // Cleanup new channel
       };
     }
   }, [currentUserId]);
