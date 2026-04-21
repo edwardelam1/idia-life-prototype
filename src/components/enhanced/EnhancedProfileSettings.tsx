@@ -1,64 +1,48 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Upload,
-  Shield,
-  CreditCard,
-  Building,
-  Heart,
-  CheckCircle2,
-  Clock,
-  XCircle,
-  Users,
-  BarChart3,
-  Wallet,
-  FileUp,
-  X,
-} from "lucide-react";
-
-type UpgradeKind = "business" | "non-profit";
+import { Upload, Shield, CreditCard, Clock, Building } from "lucide-react";
 
 const EnhancedProfileSettings: React.FC = () => {
   const {
     profile,
-    wallet: seedWallet,
+    wallet: seedWallet, // keep to check backup status
     interests,
     availableInterests,
-    latestConversionRequest,
     loading,
     updating,
     updateProfile,
     updateInterests,
     uploadAvatar,
-    refetchConversionRequest,
   } = useEnhancedProfile();
 
+  // Bring in the live wallet data hook
   const { balance } = useWalletBalance();
   const { toast } = useToast();
 
-  // LAW: Use local state and effect to break the render loop caused by hook-to-state mapping
-  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [selectedInterests, setSelectedInterests] = useState<string[]>(interests ? interests.map((i) => i.id) : []);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
-  useEffect(() => {
-    if (interests && interests.length > 0 && selectedInterests.length === 0) {
-      setSelectedInterests(interests.map((i) => i.id));
-    }
-  }, [interests]);
-
-  // Upgrade dialog state
+  // Business Upgrade State
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [upgradeKind, setUpgradeKind] = useState<UpgradeKind>("business");
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [upgradeForm, setUpgradeForm] = useState({
@@ -68,14 +52,9 @@ const EnhancedProfileSettings: React.FC = () => {
     contactRole: "Controlling Partner",
   });
 
-  const pendingRequest = useMemo(
-    () => (latestConversionRequest?.status === "pending" ? latestConversionRequest : null),
-    [latestConversionRequest],
-  );
-
   if (loading) {
     return (
-      <div className="p-3 sm:p-4">
+      <div className="p-4">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-muted rounded w-1/3"></div>
           <div className="h-32 bg-muted rounded"></div>
@@ -85,24 +64,20 @@ const EnhancedProfileSettings: React.FC = () => {
     );
   }
 
-  // LAW: Defensive check to prevent silent white-screen if profile data is missing
   if (!profile) {
     return (
-      <div className="p-10 text-center flex flex-col items-center justify-center min-h-[400px]">
-        <Shield className="w-12 h-12 text-muted-foreground/20 mb-4" />
-        <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">
-          Profile Synchronization Delayed
-        </p>
-        <Button variant="ghost" className="mt-4 text-[10px] font-bold" onClick={() => window.location.reload()}>
-          RETRY CONNECTION
-        </Button>
+      <div className="p-4 text-center">
+        <p className="text-muted-foreground">Profile not found</p>
       </div>
     );
   }
 
   const handleAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) uploadAvatar(file);
+    if (file) {
+      setAvatarFile(file);
+      uploadAvatar(file);
+    }
   };
 
   const handleInterestToggle = (interestId: string) => {
@@ -111,7 +86,9 @@ const EnhancedProfileSettings: React.FC = () => {
     );
   };
 
-  const saveInterests = () => updateInterests(selectedInterests);
+  const saveInterests = () => {
+    updateInterests(selectedInterests);
+  };
 
   const getKycStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive"> = {
@@ -119,40 +96,19 @@ const EnhancedProfileSettings: React.FC = () => {
       verified: "default",
       rejected: "destructive",
     };
-    return (
-      <Badge variant={variants[status] || "secondary"} className="font-bold uppercase text-[10px]">
-        {status}
-      </Badge>
-    );
+    return <Badge variant={variants[status] || "secondary"}>{status}</Badge>;
   };
 
-  const getAccountTypeBadge = (type: string | undefined) => {
+  const getAccountTypeBadge = (type: string) => {
     const labels: Record<string, string> = {
       personal: "Personal",
-      individual: "Personal",
       business: "Business",
       "non-profit": "Non-Profit",
     };
-    return (
-      <Badge variant="outline" className="font-black uppercase tracking-wider">
-        {labels[type || "personal"] || "Personal"}
-      </Badge>
-    );
+    return <Badge variant="outline">{labels[type] || type}</Badge>;
   };
 
-  const openUpgrade = (kind: UpgradeKind) => {
-    setUpgradeKind(kind);
-    setUpgradeForm({
-      companyName: "",
-      industry: kind === "non-profit" ? "non-profit" : "",
-      contactName: "",
-      contactRole: "Controlling Partner",
-    });
-    setUploadFile(null);
-    setShowUpgradeModal(true);
-  };
-
-  const handleUpgradeSubmit = async () => {
+  const handleBusinessUpgrade = async () => {
     if (!upgradeForm.companyName || !upgradeForm.contactName || !uploadFile) {
       toast({
         title: "Missing Information",
@@ -164,26 +120,26 @@ const EnhancedProfileSettings: React.FC = () => {
 
     setUploadingDoc(true);
     try {
-      const requestType = upgradeKind === "non-profit" ? "Personal to Non-Profit" : "Personal to Business";
+      // In a full production env, you'd upload `uploadFile` to Supabase storage here.
 
+      // Dispatch the notification to the back office
       const { error } = await supabase.from("account_conversion_requests" as any).insert({
         user_id: profile.user_id,
         company_name: upgradeForm.companyName,
         industry: upgradeForm.industry,
         contact_name: upgradeForm.contactName,
         contact_role: upgradeForm.contactRole,
-        request_type: requestType,
+        request_type: "Personal to Business",
         status: "pending",
       });
 
-      if (error && error.code !== "42P01") throw error;
+      if (error && error.code !== "42P01") throw error; // Ignore if table isn't migrated yet locally
 
       toast({
         title: "Application Submitted",
-        description: "Your request has been sent to the IDIA Corporate back office.",
+        description: "Your business account request has been sent to the IDIA Corporate back office.",
       });
       setShowUpgradeModal(false);
-      await refetchConversionRequest();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
@@ -191,74 +147,31 @@ const EnhancedProfileSettings: React.FC = () => {
     }
   };
 
-  const renderRequestStatus = () => {
-    if (!latestConversionRequest) return null;
-    const status = latestConversionRequest.status || "pending";
-    const submitted = latestConversionRequest.created_at
-      ? new Date(latestConversionRequest.created_at).toLocaleDateString()
-      : "—";
-
-    const config: Record<
-      string,
-      { icon: React.ReactNode; variant: "default" | "secondary" | "destructive"; label: string }
-    > = {
-      pending: { icon: <Clock className="w-3.5 h-3.5" />, variant: "secondary", label: "Pending Review" },
-      approved: { icon: <CheckCircle2 className="w-3.5 h-3.5" />, variant: "default", label: "Approved" },
-      rejected: { icon: <XCircle className="w-3.5 h-3.5" />, variant: "destructive", label: "Rejected" },
-    };
-    const c = config[status] || config.pending;
-
-    return (
-      <div className="flex flex-col gap-1.5 rounded-md border bg-muted/40 p-3 text-sm mb-4">
-        <div className="flex items-center justify-between gap-2">
-          <span className="font-medium">{latestConversionRequest.request_type || "Conversion Request"}</span>
-          <Badge variant={c.variant} className="gap-1 font-bold">
-            {c.icon}
-            {c.label.toUpperCase()}
-          </Badge>
-        </div>
-        <div className="text-xs text-muted-foreground">
-          {latestConversionRequest.company_name} · Submitted {submitted}
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div className="w-full px-3 sm:px-4 md:max-w-4xl md:mx-auto space-y-4 sm:space-y-6 pb-20 pt-2">
-      <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl sm:text-3xl font-black tracking-tight uppercase">Identity</h1>
+    <div className="p-4 space-y-6 max-w-4xl mx-auto">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Enhanced Profile</h1>
         {getAccountTypeBadge(profile.account_type)}
       </div>
 
-      <Card className="border-2 border-primary/10 bg-gradient-to-br from-background to-muted/30 shadow-none">
-        <CardContent className="pt-8 pb-8 text-center space-y-1">
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
-            Human Reliability Index
-          </p>
-          <span className="text-7xl sm:text-8xl font-black tracking-tighter text-primary">
-            {profile?.trust_score ?? "--"}
-          </span>
-        </CardContent>
-      </Card>
-
+      {/* Avatar & Basic Info */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg uppercase font-bold text-primary">
+          <CardTitle className="flex items-center gap-2">
             <Upload className="w-5 h-5" />
-            Attributes
+            Profile Information
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-start">
-            <Avatar className="w-24 h-24 border-4 border-background shadow-xl">
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <Avatar className="w-20 h-20">
               <AvatarImage src={profile.avatar_url || ""} />
-              <AvatarFallback className="bg-primary text-primary-foreground font-black text-xl">
+              <AvatarFallback>
                 {profile.first_name?.[0]}
                 {profile.last_name?.[0]}
               </AvatarFallback>
             </Avatar>
-            <div className="w-full sm:w-auto">
+            <div>
               <input
                 type="file"
                 accept="image/*"
@@ -267,245 +180,257 @@ const EnhancedProfileSettings: React.FC = () => {
                 id="avatar-upload"
                 disabled={updating}
               />
-              <Label htmlFor="avatar-upload" className="cursor-pointer w-full">
-                <div className="w-full sm:w-auto min-h-[44px] flex items-center justify-center border-2 rounded-xl px-6 text-[10px] font-black uppercase hover:bg-muted transition-colors">
-                  Change Photo
-                </div>
+              <Label htmlFor="avatar-upload" className="cursor-pointer">
+                <Button variant="outline" asChild>
+                  <span>Change Avatar</span>
+                </Button>
               </Label>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="display_name" className="text-[10px] font-black uppercase ml-1">
-                Display Handle
-              </Label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="display_name">Display Name</Label>
               <Input
                 id="display_name"
                 value={profile.display_name || ""}
                 onChange={(e) => updateProfile({ display_name: e.target.value })}
-                placeholder="Handle"
-                className="min-h-[44px] rounded-xl font-medium"
+                placeholder="How others see you"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="ai_assistant_name" className="text-[10px] font-black uppercase ml-1">
-                Assistant Identifier
-              </Label>
+            <div>
+              <Label htmlFor="ai_assistant_name">AI Assistant Name</Label>
               <Input
                 id="ai_assistant_name"
                 value={profile.ai_assistant_name || ""}
                 onChange={(e) => updateProfile({ ai_assistant_name: e.target.value })}
                 placeholder="Friend"
-                className="min-h-[44px] rounded-xl font-medium"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 p-4 bg-muted/50 rounded-2xl border">
-            <div className="space-y-1">
-              <Label className="text-[10px] font-black uppercase opacity-60">Legal Name</Label>
-              <p className="text-sm font-bold break-words uppercase tracking-tight">
+          {/* Read-only KYC fields */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+            <div>
+              <Label>Legal Name (Read-only)</Label>
+              <p className="text-sm font-medium">
                 {profile.first_name} {profile.last_name}
               </p>
             </div>
-            <div className="space-y-1">
-              <Label className="text-[10px] font-black uppercase opacity-60">Auth Email</Label>
-              <p className="text-sm font-bold break-all">{profile.email}</p>
+            <div>
+              <Label>Email (Read-only)</Label>
+              <p className="text-sm font-medium">{profile.email}</p>
             </div>
+            {profile.date_of_birth && (
+              <div>
+                <Label>Date of Birth (Read-only)</Label>
+                <p className="text-sm font-medium">{new Date(profile.date_of_birth).toLocaleDateString()}</p>
+              </div>
+            )}
+            {profile.phone_number && (
+              <div>
+                <Label>Phone Number (Read-only)</Label>
+                <p className="text-sm font-medium">{profile.phone_number}</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
+      {/* KYC Status & Trust Score */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5" />
+              Verification Status
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span>KYC Status:</span>
+                {getKycStatusBadge(profile.kyc_status)}
+              </div>
+              {profile.kyc_status === "pending" && (
+                <p className="text-sm text-muted-foreground">Complete your verification to unlock all features.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="w-5 h-5" />
+              Credit & Trust
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-5xl font-bold tracking-tighter text-foreground">
+                  {profile?.trust_score !== null && profile?.trust_score !== undefined
+                    ? profile.trust_score
+                    : "NO SCORE"}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Wallet Information (Now Live) */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg uppercase font-bold">
-            <Shield className="w-5 h-5" />
-            Verification
-          </CardTitle>
+          <CardTitle>Wallet Information</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex justify-between items-center bg-muted/30 p-3 rounded-xl border">
-            <span className="text-xs font-bold uppercase tracking-widest">Status:</span>
-            {getKycStatusBadge(profile.kyc_status || "pending")}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground">Cash Balance</p>
+              <p className="text-xl font-bold">${(balance.cash_balance || 0).toFixed(2)}</p>
+            </div>
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground">IDIA-USD</p>
+              <p className="text-xl font-bold">${(balance.idia_usd_balance || 0).toFixed(2)}</p>
+            </div>
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground">IDIA Tokens</p>
+              <p className="text-xl font-bold">{(balance.idia_token_balance || 0).toFixed(2)}</p>
+            </div>
+          </div>
+          <div className="mt-4 flex items-center gap-2">
+            <Shield className="w-4 h-4" />
+            <span className="text-sm">
+              Seed Backup: {seedWallet?.is_seed_backed_up ? "✅ Completed" : "⚠️ Not backed up"}
+            </span>
           </div>
         </CardContent>
       </Card>
 
+      {/* Interests Selection */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg uppercase font-bold text-primary">
-            <Wallet className="w-5 h-5" />
-            Ledger
-          </CardTitle>
+          <CardTitle>Your Interests</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="text-center p-4 bg-muted/50 rounded-2xl border">
-              <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Cash</p>
-              <p className="text-2xl font-black tabular-nums">${(balance.cash_balance || 0).toFixed(2)}</p>
-            </div>
-            <div className="text-center p-4 bg-muted/50 rounded-2xl border">
-              <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">IDIA-USD</p>
-              <p className="text-2xl font-black tabular-nums">${(balance.idia_usd_balance || 0).toFixed(2)}</p>
-            </div>
-            <div className="text-center p-4 bg-muted/50 rounded-2xl border">
-              <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Tokens</p>
-              <p className="text-2xl font-black tabular-nums">{(balance.idia_token_balance || 0).toFixed(2)}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base uppercase font-bold">Interests</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
             {availableInterests.map((interest) => (
               <Button
                 key={interest.id}
                 variant={selectedInterests.includes(interest.id) ? "default" : "outline"}
                 size="sm"
                 onClick={() => handleInterestToggle(interest.id)}
-                className="text-[10px] font-bold uppercase min-h-[44px] rounded-xl"
+                className="text-xs"
               >
                 {interest.name}
               </Button>
             ))}
           </div>
-          <Button
-            onClick={saveInterests}
-            disabled={updating}
-            className="w-full sm:w-auto min-h-[44px] font-black uppercase rounded-xl"
-          >
-            Save Preferences
+          <Button onClick={saveInterests} disabled={updating}>
+            Save Interests
           </Button>
         </CardContent>
       </Card>
 
+      {/* Account Management with Business Upgrade */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base sm:text-lg uppercase font-bold">Account Lifecycle</CardTitle>
+          <CardTitle>Account Management</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-5">
-          {renderRequestStatus()}
-          <div className="rounded-2xl border-2 border-primary/5 bg-card p-4 space-y-4">
-            <div className="flex items-start gap-3">
-              <Building className="w-6 h-6 text-primary shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <h3 className="font-black text-sm uppercase">Business Upgrade</h3>
-                <p className="text-xs text-muted-foreground mt-1 font-medium leading-relaxed">
-                  Enterprise client conversion. Unlocks multi-user team access and IDIA Pay tools.
-                </p>
-              </div>
-            </div>
-            <Button
-              onClick={() => openUpgrade("business")}
-              disabled={!!pendingRequest}
-              className="w-full min-h-[44px] font-black uppercase rounded-xl"
-            >
-              Start Business Conversion
-            </Button>
-          </div>
+        <CardContent>
+          {profile.account_type === "personal" && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">Want to upgrade your account for business features?</p>
 
-          <div className="rounded-2xl border bg-card p-4 space-y-3">
-            <div className="flex items-start gap-3">
-              <Heart className="w-6 h-6 text-primary shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <h3 className="font-black text-sm uppercase">Non-Profit (501c3)</h3>
-                <p className="text-xs text-muted-foreground mt-1 font-medium leading-relaxed">
-                  Mission-aligned configuration for verified organizations.
-                </p>
-              </div>
+              <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="w-full sm:w-auto">
+                    <Building className="w-4 h-4 mr-2" />
+                    Upgrade to Business Account
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Business Account Onboarding</DialogTitle>
+                    <DialogDescription>
+                      Provide your business details and legal documentation. You must be a controlling partner or
+                      authorized signatory to proceed.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Legal Business Name</Label>
+                      <Input
+                        value={upgradeForm.companyName}
+                        onChange={(e) => setUpgradeForm({ ...upgradeForm, companyName: e.target.value })}
+                        placeholder="Acme Corp"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Industry</Label>
+                      <Select
+                        value={upgradeForm.industry}
+                        onValueChange={(v) => setUpgradeForm({ ...upgradeForm, industry: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select Industry" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="technology">Technology</SelectItem>
+                          <SelectItem value="retail">Retail</SelectItem>
+                          <SelectItem value="healthcare">Healthcare</SelectItem>
+                          <SelectItem value="non-profit">Non-Profit</SelectItem>
+                          <SelectItem value="finance">Financial Services</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Your Full Name</Label>
+                      <Input
+                        value={upgradeForm.contactName}
+                        onChange={(e) => setUpgradeForm({ ...upgradeForm, contactName: e.target.value })}
+                        placeholder="Jane Doe"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Your Role (Signatory Required)</Label>
+                      <Select
+                        value={upgradeForm.contactRole}
+                        onValueChange={(v) => setUpgradeForm({ ...upgradeForm, contactRole: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select Role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Controlling Partner">Controlling Partner</SelectItem>
+                          <SelectItem value="Authorized Signatory">Authorized Signatory</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Legal Documentation (Required)</Label>
+                      <Input
+                        type="file"
+                        accept=".pdf,.png,.jpg,.jpeg"
+                        onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Upload incorporation documents, 501(c)(3) letter, or business license.
+                      </p>
+                    </div>
+                    <Button className="w-full mt-4" onClick={handleBusinessUpgrade} disabled={uploadingDoc}>
+                      {uploadingDoc ? "Submitting Application..." : "Submit Application"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => openUpgrade("non-profit")}
-              disabled={!!pendingRequest}
-              className="w-full min-h-[44px] font-black uppercase rounded-xl border-2"
-            >
-              Start NGO Conversion
-            </Button>
-          </div>
+          )}
         </CardContent>
       </Card>
-
-      <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
-        <DialogContent className="max-w-[calc(100vw-1.5rem)] sm:max-w-lg max-h-[90dvh] overflow-hidden flex flex-col p-0 rounded-t-3xl sm:rounded-2xl border-none">
-          <div className="p-6 overflow-y-auto space-y-6">
-            <DialogHeader>
-              <DialogTitle className="font-black uppercase text-xl tracking-tight">
-                {upgradeKind === "non-profit" ? "NGO Onboarding" : "Business Onboarding"}
-              </DialogTitle>
-              <DialogDescription className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Signatory authority required.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase ml-1">Entity Name</Label>
-                <Input
-                  value={upgradeForm.companyName}
-                  onChange={(e) => setUpgradeForm({ ...upgradeForm, companyName: e.target.value })}
-                  placeholder="Legal Name"
-                  className="min-h-[44px] rounded-xl bg-muted/40 border-none px-4"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase ml-1">Industry</Label>
-                <Select
-                  value={upgradeForm.industry}
-                  onValueChange={(v) => setUpgradeForm({ ...upgradeForm, industry: v })}
-                >
-                  <SelectTrigger className="min-h-[44px] rounded-xl bg-muted/40 border-none px-4">
-                    <SelectValue placeholder="Select" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="technology">Technology</SelectItem>
-                    <SelectItem value="retail">Retail</SelectItem>
-                    <SelectItem value="healthcare">Healthcare</SelectItem>
-                    <SelectItem value="non-profit">Non-Profit</SelectItem>
-                    <SelectItem value="finance">Finance</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase ml-1">Legal Documents</Label>
-                <label className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-primary/20 bg-muted/20 p-8 cursor-pointer min-h-[120px]">
-                  <FileUp className="w-8 h-8 text-primary" />
-                  <p className="text-[10px] font-black uppercase text-center">
-                    {uploadFile ? uploadFile.name : "Tap to upload"}
-                  </p>
-                  <input
-                    type="file"
-                    accept=".pdf,.png,.jpg,.jpeg"
-                    className="hidden"
-                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                  />
-                </label>
-              </div>
-            </div>
-          </div>
-          <div className="p-4 border-t bg-background flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
-            <Button
-              variant="ghost"
-              onClick={() => setShowUpgradeModal(false)}
-              className="w-full sm:w-auto min-h-[44px] font-bold uppercase rounded-xl"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUpgradeSubmit}
-              disabled={uploadingDoc}
-              className="w-full sm:w-auto min-h-[44px] font-black uppercase rounded-xl shadow-lg"
-            >
-              Submit
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

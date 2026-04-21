@@ -47,7 +47,6 @@ export const useEnhancedProfile = () => {
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [interests, setInterests] = useState<UserInterests[]>([]);
   const [availableInterests, setAvailableInterests] = useState<UserInterests[]>([]);
-  const [latestConversionRequest, setLatestConversionRequest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const { toast } = useToast();
@@ -57,38 +56,26 @@ export const useEnhancedProfile = () => {
     loadAvailableInterests();
   }, []);
 
-  const fetchConversionRequest = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("account_conversion_requests")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) throw error;
-      setLatestConversionRequest(data);
-    } catch (err) {
-      console.error("Error fetching conversion status:", err);
-    }
-  };
-
   const loadProfileData = async () => {
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
       if (!user) {
         setLoading(false);
         return;
       }
 
-      const { data: profileData } = await supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle();
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
 
-      if (profileData) {
-        const p = profileData as any;
+      if (profileError && profileError.code !== "PGRST116") {
+        console.error("Error loading profile:", profileError);
+      } else if (profileData) {
+        const p = profileData as any; // Cast to any to resolve TS2339 property errors
         const displayName = user.user_metadata?.display_name || user.user_metadata?.full_name || user.email || "";
 
         setProfile({
@@ -115,20 +102,17 @@ export const useEnhancedProfile = () => {
         });
       }
 
-      // Chain conversion request check
-      await fetchConversionRequest(user.id);
-
       const { data: walletData } = await supabase.from("user_wallets").select("*").eq("user_id", user.id).maybeSingle();
 
       if (walletData) {
-        const w = walletData as any;
+        const w = walletData as any; // Cast to any to resolve TS2339/TS2551 errors
         setWallet({
           id: w.id,
           user_id: w.user_id,
           wallet_address: w.wallet_address || null,
           cash_balance: w.cash_balance || 0,
-          idia_usd_balance: w.total_earned || 0,
-          idia_token_balance: w.idia_beta_balance || 0,
+          idia_usd_balance: w.total_earned || 0, // Mapping total_earned to usd balance
+          idia_token_balance: w.idia_beta_balance || 0, // Mapping beta_balance to token balance
           is_seed_backed_up: w.is_seed_backed_up || false,
         });
       }
@@ -140,7 +124,6 @@ export const useEnhancedProfile = () => {
   };
 
   const loadAvailableInterests = async () => {
-    // Static definition as per implementation requirements
     setAvailableInterests([
       { id: "1", name: "Health & Fitness", category: "lifestyle" },
       { id: "2", name: "Technology", category: "professional" },
@@ -157,19 +140,41 @@ export const useEnhancedProfile = () => {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
+      const { trust_score, available_credit_line, ...rest } = updates;
+
       const { data, error } = await supabase
         .from("profiles")
-        .update({ ...updates, updated_at: new Date().toISOString() })
+        .update({
+          ...rest,
+          trust_score: trust_score,
+          available_credit_line: available_credit_line,
+          updated_at: new Date().toISOString(),
+        })
         .eq("user_id", user.id)
         .select()
         .single();
 
       if (error) throw error;
-      if (profile && data) setProfile({ ...profile, ...updates, ...(data as any) });
 
-      toast({ title: "Success", description: "Profile updated" });
+      if (profile && data) {
+        setProfile({
+          ...profile,
+          ...updates,
+          ...(data as any),
+        });
+      }
+
+      toast({
+        title: "Success",
+        description: "Profile updated successfully",
+      });
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      console.error("Error updating profile:", error.message);
+      toast({
+        title: "Error",
+        description: "Failed to update profile",
+        variant: "destructive",
+      });
     } finally {
       setUpdating(false);
     }
@@ -178,8 +183,13 @@ export const useEnhancedProfile = () => {
   const updateInterests = async (selectedInterestIds: string[]) => {
     setUpdating(true);
     try {
-      setInterests(availableInterests.filter((i) => selectedInterestIds.includes(i.id)));
-      toast({ title: "Success", description: "Interests updated" });
+      setInterests(availableInterests.filter((interest) => selectedInterestIds.includes(interest.id)));
+      toast({
+        title: "Success",
+        description: "Interests updated successfully",
+      });
+    } catch (error) {
+      console.error("Error updating interests:", error);
     } finally {
       setUpdating(false);
     }
@@ -206,9 +216,8 @@ export const useEnhancedProfile = () => {
       } = supabase.storage.from("avatars").getPublicUrl(filePath);
 
       await updateProfile({ avatar_url: publicUrl });
-    } catch (error: any) {
-      console.error("Avatar upload error:", error);
-      toast({ title: "Upload Failed", description: error.message, variant: "destructive" });
+    } catch (error) {
+      console.error("Error uploading avatar:", error);
     } finally {
       setUpdating(false);
     }
@@ -219,18 +228,11 @@ export const useEnhancedProfile = () => {
     wallet,
     interests,
     availableInterests,
-    latestConversionRequest,
     loading,
     updating,
     updateProfile,
     updateInterests,
     uploadAvatar,
-    refetchConversionRequest: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) await fetchConversionRequest(user.id);
-    },
     reload: loadProfileData,
   };
 };
