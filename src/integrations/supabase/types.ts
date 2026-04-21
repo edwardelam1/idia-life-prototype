@@ -2969,6 +2969,24 @@ export type Database = {
         }
         Relationships: []
       }
+      internal_secrets: {
+        Row: {
+          created_at: string | null
+          key_name: string
+          key_value: string
+        }
+        Insert: {
+          created_at?: string | null
+          key_name: string
+          key_value: string
+        }
+        Update: {
+          created_at?: string | null
+          key_name?: string
+          key_value?: string
+        }
+        Relationships: []
+      }
       inventory_adjustments: {
         Row: {
           adjustment_number: string
@@ -5495,6 +5513,7 @@ export type Database = {
           reward_amount: number | null
           reward_calculated: boolean | null
           settled_at: string | null
+          sovereign_uuid: string | null
           status: string | null
           steps_count: number | null
           synapse_weight_coefficient: number | null
@@ -5520,6 +5539,7 @@ export type Database = {
           reward_amount?: number | null
           reward_calculated?: boolean | null
           settled_at?: string | null
+          sovereign_uuid?: string | null
           status?: string | null
           steps_count?: number | null
           synapse_weight_coefficient?: number | null
@@ -5545,6 +5565,7 @@ export type Database = {
           reward_amount?: number | null
           reward_calculated?: boolean | null
           settled_at?: string | null
+          sovereign_uuid?: string | null
           status?: string | null
           steps_count?: number | null
           synapse_weight_coefficient?: number | null
@@ -6844,7 +6865,9 @@ export type Database = {
         }
         Returns: number
       }
-      generate_pseudonym: { Args: { input_text: string }; Returns: string }
+      generate_pseudonym:
+        | { Args: { input_id: string }; Returns: string }
+        | { Args: { input_text: string }; Returns: string }
       get_all_user_health_data: {
         Args: { p_user_id: string }
         Returns: {

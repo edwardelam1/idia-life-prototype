@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Activity, CheckCircle, DollarSign, Zap, FileKey } from "lucide-react";
+import { Activity, CheckCircle, DollarSign, Zap, FileKey, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import AppleHealthModal from "./AppleHealthModal";
 import StravaConnectionModal from "./StravaConnectionModal";
 import FordConnectionModal from "./FordConnectionModal";
@@ -23,6 +24,7 @@ const DataDashboard = () => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [acaRecords, setAcaRecords] = useState<any[]>([]);
   const [acaLoading, setAcaLoading] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     const getUser = async () => {
@@ -409,7 +411,23 @@ const DataDashboard = () => {
                           {formatSourceName(record.source_id || "unknown")}
                         </TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground">
-                          {record.aca_hash_key?.substring(0, 12)}...
+                          <div className="flex items-center gap-2">
+                            <span>{record.aca_hash_key?.substring(0, 12)}...</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => {
+                                navigator.clipboard.writeText(record.aca_hash_key || "");
+                                toast({
+                                  title: "Copied",
+                                  description: "ACA hash copied to clipboard",
+                                });
+                              }}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {new Date(record.created_at).toLocaleString()}
