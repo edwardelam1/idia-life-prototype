@@ -45,39 +45,56 @@ export const useWalletBalance = () => {
   };
 
   useEffect(() => {
-    // 1. Fetch initial balance
-    fetchBalance();
+    let channel: any;
 
-    // 2. FINANCIAL GRADE REAL-TIME SYNC
-    const channel = supabase
-      .channel("schema-db-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*", // Listen to all updates
-          schema: "public",
-          table: "user_wallets",
-        },
-        (payload) => {
-          console.log("Real-time wallet update received:", payload);
+    const setupRealtime = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
-          // FIX: Safely cast payload.new so TypeScript knows the properties exist
-          if (payload.new && Object.keys(payload.new).length > 0) {
-            const newData = payload.new as Record<string, any>;
+      // 1. Fetch initial balance first
+      await fetchBalance();
 
-            setBalance({
-              cash_balance: newData.cash_balance || 0,
-              idia_usd_balance: newData.idia_beta_balance || 0,
-              idia_token_balance: 0,
-              total_earned: newData.total_earned || 0,
-            });
-          }
-        },
-      )
-      .subscribe();
+      // 2. FINANCIAL GRADE REAL-TIME SYNC
+      // DISCUSSION: Use a unique channel string and explicitly filter by the authenticated user
+      channel = supabase
+        .channel(`wallet-sync-${user.id}-${Math.random()}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "user_wallets",
+            filter: `user_id=eq.${user.id}`, // Fix: Explicit RLS pass-through
+          },
+          (payload) => {
+            console.log("Real-time wallet update received:", payload);
+
+            if (payload.new && Object.keys(payload.new).length > 0) {
+              const newData = payload.new as Record<string, any>;
+
+              setBalance({
+                cash_balance: newData.cash_balance || 0,
+                idia_usd_balance: newData.idia_beta_balance || 0,
+                idia_token_balance: 0,
+                total_earned: newData.total_earned || 0,
+              });
+            }
+          },
+        )
+        .subscribe();
+    };
+
+    setupRealtime();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, []);
 
