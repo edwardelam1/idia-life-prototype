@@ -86,7 +86,11 @@ export const useWalletBalance = () => {
             }
           },
         )
-        .subscribe();
+        // DISCUSSION: Added explicit status logging to catch connection failures
+        .subscribe((status, err) => {
+          console.log("Realtime Wallet Channel Status:", status);
+          if (err) console.error("Realtime Wallet Channel Error:", err);
+        });
     };
 
     setupRealtime();
