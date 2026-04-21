@@ -79,6 +79,7 @@ export const useEnhancedProfile = () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
       if (!user) {
         setLoading(false);
         return;
@@ -114,9 +115,11 @@ export const useEnhancedProfile = () => {
         });
       }
 
+      // Chain conversion request check
       await fetchConversionRequest(user.id);
 
       const { data: walletData } = await supabase.from("user_wallets").select("*").eq("user_id", user.id).maybeSingle();
+
       if (walletData) {
         const w = walletData as any;
         setWallet({
@@ -137,6 +140,7 @@ export const useEnhancedProfile = () => {
   };
 
   const loadAvailableInterests = async () => {
+    // Static definition as per implementation requirements
     setAvailableInterests([
       { id: "1", name: "Health & Fitness", category: "lifestyle" },
       { id: "2", name: "Technology", category: "professional" },
@@ -152,14 +156,17 @@ export const useEnhancedProfile = () => {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
+
       const { data, error } = await supabase
         .from("profiles")
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq("user_id", user.id)
         .select()
         .single();
+
       if (error) throw error;
       if (profile && data) setProfile({ ...profile, ...updates, ...(data as any) });
+
       toast({ title: "Success", description: "Profile updated" });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -185,15 +192,23 @@ export const useEnhancedProfile = () => {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
+
       const fileExt = file.name.split(".").pop();
       const fileName = `${user.id}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
+
       const { error: uploadError } = await supabase.storage.from("avatars").upload(filePath, file, { upsert: true });
+
       if (uploadError) throw uploadError;
+
       const {
         data: { publicUrl },
       } = supabase.storage.from("avatars").getPublicUrl(filePath);
+
       await updateProfile({ avatar_url: publicUrl });
+    } catch (error: any) {
+      console.error("Avatar upload error:", error);
+      toast({ title: "Upload Failed", description: error.message, variant: "destructive" });
     } finally {
       setUpdating(false);
     }
