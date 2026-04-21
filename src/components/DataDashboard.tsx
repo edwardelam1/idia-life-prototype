@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Activity, CheckCircle, DollarSign, Zap, FileKey } from "lucide-react";
+import { Activity, CheckCircle, DollarSign, Zap, FileKey, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import AppleHealthModal from "./AppleHealthModal";
 import StravaConnectionModal from "./StravaConnectionModal";
