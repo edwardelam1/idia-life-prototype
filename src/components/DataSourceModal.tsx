@@ -11,9 +11,10 @@ interface DataSourceModalProps {
   source: any;
   isOpen: boolean;
   onClose: () => void;
+  onComplete?: () => void; // DISCUSSION: Added prop for real-time refresh
 }
 
-const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
+const DataSourceModal = ({ source, isOpen, onClose, onComplete }: DataSourceModalProps) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -78,8 +79,8 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
         }
         if (data?.oauthUrl) {
           window.open(data.oauthUrl, "_blank");
-          // Correctly trigger success state and close modal
           setConnected(true);
+          onComplete?.(); // DISCUSSION: Trigger UI refresh immediately
           setTimeout(() => {
             onClose();
             setConnected(false);
@@ -104,8 +105,8 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
         }
         if (data?.oauthUrl) {
           window.open(data.oauthUrl, "_blank");
-          // Correctly trigger success state and close modal
           setConnected(true);
+          onComplete?.(); // DISCUSSION: Trigger UI refresh immediately
           setTimeout(() => {
             onClose();
             setConnected(false);
@@ -126,7 +127,19 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
         last_sync_at: new Date().toISOString(),
       });
 
+      // DISCUSSION: DISSEMINATE JOINING FEE (The fix to use $.50 fiat bump)
+      await supabase.functions.invoke("credit-user-wallet", {
+        body: {
+          user_id: userId,
+          reward_amount: 0.5,
+          source: "joining_fee",
+          description: `Joining Fee: ${source.name} connected`,
+        },
+      });
+
       setConnected(true);
+      onComplete?.(); // DISCUSSION: Refresh dashboard balance
+
       setTimeout(() => {
         onClose();
         setConnected(false);
@@ -139,32 +152,7 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
       setIsConnecting(false);
     }
   };
-  useEffect(() => {
-    if (!currentUserId) return;
 
-    // Subscribe to real-time changes on the user_wallets table
-    const walletChannel = supabase
-      .channel("wallet-updates")
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "user_wallets",
-          filter: `user_id=eq.${currentUserId}`,
-        },
-        (payload) => {
-          console.log("Real-time wallet update detected:", payload.new);
-          // Refresh the local state with the new balance immediately
-          setTotalEarnings(payload.new.cash_balance || 0);
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(walletChannel);
-    };
-  }, [currentUserId]);
   const Icon = source.icon;
 
   const getPrivacyColor = (level: string) => {
