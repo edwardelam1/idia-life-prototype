@@ -115,7 +115,11 @@ const EnhancedProfileSettings: React.FC = () => {
       business: "Business",
       "non-profit": "Non-Profit",
     };
-    return <Badge variant="outline">{labels[type] || type}</Badge>;
+    return (
+      <Badge variant="outline" className="font-bold uppercase tracking-wider">
+        {labels[type] || type}
+      </Badge>
+    );
   };
 
   const openUpgrade = (kind: UpgradeKind) => {
@@ -187,12 +191,12 @@ const EnhancedProfileSettings: React.FC = () => {
     const c = config[status] || config.pending;
 
     return (
-      <div className="flex flex-col gap-1.5 rounded-md border bg-muted/40 p-3 text-sm">
+      <div className="flex flex-col gap-1.5 rounded-md border bg-muted/40 p-3 text-sm mb-4">
         <div className="flex items-center justify-between gap-2">
           <span className="font-medium">{latestConversionRequest.request_type || "Conversion Request"}</span>
-          <Badge variant={c.variant} className="gap-1">
+          <Badge variant={c.variant} className="gap-1 font-bold">
             {c.icon}
-            {c.label}
+            {c.label.toUpperCase()}
           </Badge>
         </div>
         <div className="text-xs text-muted-foreground">
@@ -206,25 +210,37 @@ const EnhancedProfileSettings: React.FC = () => {
   };
 
   return (
-    <div className="w-full px-3 sm:px-4 md:max-w-4xl md:mx-auto space-y-4 sm:space-y-6 pb-[env(safe-area-inset-bottom)]">
-      <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between pt-2">
-        <h1 className="text-xl sm:text-2xl font-bold">Enhanced Profile</h1>
+    <div className="w-full px-3 sm:px-4 md:max-w-4xl md:mx-auto space-y-4 sm:space-y-6 pb-[env(safe-area-inset-bottom)] pt-2">
+      <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl sm:text-3xl font-black tracking-tight uppercase">Identity</h1>
         {getAccountTypeBadge(profile.account_type)}
       </div>
 
-      {/* Avatar & Basic Info */}
+      {/* Trust Score Card - Refactored for Visual Weight */}
+      <Card className="border-2 border-primary/10 bg-gradient-to-br from-background to-muted/30">
+        <CardContent className="pt-8 pb-8 text-center space-y-1">
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
+            Human Reliability Index
+          </p>
+          <span className="text-7xl sm:text-8xl font-black tracking-tighter text-primary">
+            {profile?.trust_score ?? "--"}
+          </span>
+        </CardContent>
+      </Card>
+
+      {/* Avatar & Basic Info - Single Column Stack for Mobile */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg uppercase font-bold">
             <Upload className="w-5 h-5" />
-            Profile Information
+            Attributes
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
-            <Avatar className="w-20 h-20">
+        <CardContent className="space-y-6">
+          <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-start">
+            <Avatar className="w-24 h-24 border-4 border-background shadow-xl">
               <AvatarImage src={profile.avatar_url || ""} />
-              <AvatarFallback>
+              <AvatarFallback className="bg-primary text-primary-foreground font-black text-xl">
                 {profile.first_name?.[0]}
                 {profile.last_name?.[0]}
               </AvatarFallback>
@@ -238,135 +254,115 @@ const EnhancedProfileSettings: React.FC = () => {
                 id="avatar-upload"
                 disabled={updating}
               />
-              <Label htmlFor="avatar-upload" className="cursor-pointer">
-                <Button variant="outline" asChild className="w-full sm:w-auto min-h-11">
-                  <span>Change Avatar</span>
+              <Label htmlFor="avatar-upload" className="cursor-pointer w-full">
+                <Button
+                  variant="outline"
+                  asChild
+                  className="w-full sm:w-auto min-h-[44px] rounded-xl font-bold uppercase text-[10px]"
+                >
+                  <span>Change Photo</span>
                 </Button>
               </Label>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            <div>
-              <Label htmlFor="display_name">Display Name</Label>
+          <div className="grid grid-cols-1 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="display_name" className="text-[10px] font-black uppercase ml-1">
+                Display Handle
+              </Label>
               <Input
                 id="display_name"
                 value={profile.display_name || ""}
                 onChange={(e) => updateProfile({ display_name: e.target.value })}
-                placeholder="How others see you"
-                className="min-h-11"
+                placeholder="Handle"
+                className="min-h-[44px] rounded-xl font-medium"
               />
             </div>
-            <div>
-              <Label htmlFor="ai_assistant_name">AI Assistant Name</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="ai_assistant_name" className="text-[10px] font-black uppercase ml-1">
+                Assistant Identifier
+              </Label>
               <Input
                 id="ai_assistant_name"
                 value={profile.ai_assistant_name || ""}
                 onChange={(e) => updateProfile({ ai_assistant_name: e.target.value })}
                 placeholder="Friend"
-                className="min-h-11"
+                className="min-h-[44px] rounded-xl font-medium"
               />
             </div>
           </div>
 
-          {/* Read-only KYC fields */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 p-3 sm:p-4 bg-muted rounded-lg">
-            <div>
-              <Label>Legal Name (Read-only)</Label>
-              <p className="text-sm font-medium break-words">
+          {/* Read-only KYC fields - Redesigned stack */}
+          <div className="grid grid-cols-1 gap-4 p-4 bg-muted/50 rounded-2xl border">
+            <div className="space-y-1">
+              <Label className="text-[10px] font-black uppercase opacity-60">Legal Name</Label>
+              <p className="text-sm font-bold break-words uppercase tracking-tight">
                 {profile.first_name} {profile.last_name}
               </p>
             </div>
-            <div>
-              <Label>Email (Read-only)</Label>
-              <p className="text-sm font-medium break-all">{profile.email}</p>
+            <div className="space-y-1">
+              <Label className="text-[10px] font-black uppercase opacity-60">Auth Email</Label>
+              <p className="text-sm font-bold break-all">{profile.email}</p>
             </div>
-            {profile.date_of_birth && (
-              <div>
-                <Label>Date of Birth (Read-only)</Label>
-                <p className="text-sm font-medium">{new Date(profile.date_of_birth).toLocaleDateString()}</p>
-              </div>
-            )}
             {profile.phone_number && (
-              <div>
-                <Label>Phone Number (Read-only)</Label>
-                <p className="text-sm font-medium">{profile.phone_number}</p>
+              <div className="space-y-1">
+                <Label className="text-[10px] font-black uppercase opacity-60">Mobile</Label>
+                <p className="text-sm font-bold">{profile.phone_number}</p>
               </div>
             )}
           </div>
         </CardContent>
       </Card>
 
-      {/* KYC Status & Trust Score */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <Shield className="w-5 h-5" />
-              Verification Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span>KYC Status:</span>
-                {getKycStatusBadge(profile.kyc_status)}
-              </div>
-              {profile.kyc_status === "pending" && (
-                <p className="text-sm text-muted-foreground">Complete your verification to unlock all features.</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <CreditCard className="w-5 h-5" />
-              Credit & Trust
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-baseline">
-              <span className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tighter text-foreground tabular-nums break-words">
-                {profile?.trust_score !== null && profile?.trust_score !== undefined ? profile.trust_score : "NO SCORE"}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* KYC Status Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg uppercase font-bold">
+            <Shield className="w-5 h-5" />
+            Verification
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-between items-center bg-muted/30 p-3 rounded-xl border">
+            <span className="text-xs font-bold uppercase tracking-widest">Status:</span>
+            {getKycStatusBadge(profile.kyc_status)}
+          </div>
+          {profile.kyc_status === "pending" && (
+            <p className="text-[10px] text-muted-foreground mt-3 font-medium uppercase tracking-tight">
+              Complete verification to unlock high-stakes data features.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Wallet Information */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg uppercase font-bold">
             <Wallet className="w-5 h-5" />
-            Wallet Information
+            Ledger
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            <div className="text-center p-3 sm:p-4 bg-muted rounded-lg">
-              <p className="text-sm text-muted-foreground">Cash Balance</p>
-              <p className="text-base sm:text-xl font-bold tabular-nums">${(balance.cash_balance || 0).toFixed(2)}</p>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="text-center p-4 bg-muted/50 rounded-2xl border">
+              <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Cash</p>
+              <p className="text-2xl font-black tabular-nums">${(balance.cash_balance || 0).toFixed(2)}</p>
             </div>
-            <div className="text-center p-3 sm:p-4 bg-muted rounded-lg">
-              <p className="text-sm text-muted-foreground">IDIA-USD</p>
-              <p className="text-base sm:text-xl font-bold tabular-nums">
-                ${(balance.idia_usd_balance || 0).toFixed(2)}
-              </p>
+            <div className="text-center p-4 bg-muted/50 rounded-2xl border">
+              <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">IDIA-USD</p>
+              <p className="text-2xl font-black tabular-nums">${(balance.idia_usd_balance || 0).toFixed(2)}</p>
             </div>
-            <div className="text-center p-3 sm:p-4 bg-muted rounded-lg">
-              <p className="text-sm text-muted-foreground">IDIA Tokens</p>
-              <p className="text-base sm:text-xl font-bold tabular-nums">
-                {(balance.idia_token_balance || 0).toFixed(2)}
-              </p>
+            <div className="text-center p-4 bg-muted/50 rounded-2xl border">
+              <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Tokens</p>
+              <p className="text-2xl font-black tabular-nums">{(balance.idia_token_balance || 0).toFixed(2)}</p>
             </div>
           </div>
-          <div className="mt-4 flex items-center gap-2">
-            <Shield className="w-4 h-4" />
-            <span className="text-sm">
-              Seed Backup: {seedWallet?.is_seed_backed_up ? "✅ Completed" : "⚠️ Not backed up"}
+          <div className="flex items-center gap-2 px-1">
+            <Shield className="w-3.5 h-3.5" />
+            <span className="text-[10px] font-black uppercase tracking-wider">
+              Seed Status: {seedWallet?.is_seed_backed_up ? "Verified" : "Action Required"}
             </span>
           </div>
         </CardContent>
@@ -375,7 +371,7 @@ const EnhancedProfileSettings: React.FC = () => {
       {/* Interests */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base sm:text-lg">Your Interests</CardTitle>
+          <CardTitle className="text-base uppercase font-bold">Interests</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
@@ -385,224 +381,193 @@ const EnhancedProfileSettings: React.FC = () => {
                 variant={selectedInterests.includes(interest.id) ? "default" : "outline"}
                 size="sm"
                 onClick={() => handleInterestToggle(interest.id)}
-                className="text-xs w-full min-h-11"
+                className="text-[10px] font-bold uppercase min-h-[44px] rounded-xl"
               >
                 {interest.name}
               </Button>
             ))}
           </div>
-          <Button onClick={saveInterests} disabled={updating} className="w-full sm:w-auto min-h-11">
-            Save Interests
+          <Button
+            onClick={saveInterests}
+            disabled={updating}
+            className="w-full sm:w-auto min-h-[44px] font-black uppercase rounded-xl"
+          >
+            Save Preferences
           </Button>
         </CardContent>
       </Card>
 
-      {/* Account Management — Expanded */}
+      {/* Account Management — Workflow Cards */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base sm:text-lg">Account Management</CardTitle>
+          <CardTitle className="text-base sm:text-lg uppercase font-bold">Account Lifecycle</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
-          {/* Current account tile */}
-          <div className="rounded-lg border bg-card p-3 sm:p-4">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-medium">Current Account Type</span>
+          <div className="rounded-xl border bg-muted/20 p-4">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-xs font-black uppercase tracking-widest">Active Type</span>
               {getAccountTypeBadge(profile.account_type)}
             </div>
-            <p className="mt-2 text-xs sm:text-sm text-muted-foreground">
-              Personal accounts include identity-verified KYC, the IDIA Life wallet, data monetization payouts, and
-              access to social, governance, and Pro features.
+            <p className="text-xs text-muted-foreground font-medium leading-relaxed">
+              Personal accounts include identity-verified KYC, data monetization payouts, and Pro feature access.
             </p>
           </div>
 
-          {/* Latest request status */}
           {renderRequestStatus()}
 
-          {/* Business upgrade card */}
-          <div className="rounded-lg border bg-card p-3 sm:p-4 space-y-3">
-            <div className="flex items-start gap-2">
-              <Building className="w-5 h-5 mt-0.5 text-primary" />
+          {/* Business card */}
+          <div className="rounded-2xl border-2 border-primary/5 bg-card p-4 space-y-4">
+            <div className="flex items-start gap-3">
+              <Building className="w-6 h-6 text-primary shrink-0 mt-0.5" />
               <div className="flex-1">
-                <h3 className="font-semibold text-sm sm:text-base">Request a Business Account</h3>
-                <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                  Convert this account to an enterprise client of IDIA. Unlocks the merchant toolkit and back-office
-                  capabilities.
+                <h3 className="font-black text-sm uppercase">Business Upgrade</h3>
+                <p className="text-xs text-muted-foreground mt-1 font-medium">
+                  Enterprise client conversion. Unlocks multi-user team access and merchant IDIA Pay tools.
                 </p>
               </div>
             </div>
 
-            <ul className="text-xs sm:text-sm text-muted-foreground space-y-1.5 pl-1">
-              <li className="flex items-start gap-2">
-                <Users className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                Multi-user team access (owners, managers, staff)
+            <ul className="text-[10px] font-black uppercase text-muted-foreground space-y-2 pl-1">
+              <li className="flex items-center gap-2">
+                <Users className="w-3 h-3 text-primary" /> Multi-user team management
               </li>
-              <li className="flex items-start gap-2">
-                <BarChart3 className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                Business Health Index analytics & dashboards
+              <li className="flex items-center gap-2">
+                <BarChart3 className="w-3 h-3 text-primary" /> Business Health Index (BHI)
               </li>
-              <li className="flex items-start gap-2">
-                <CreditCard className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                IDIA Pay merchant tools (NFC, AR menus, POS)
+              <li className="flex items-center gap-2">
+                <CreditCard className="w-3 h-3 text-primary" /> AR POS & IDIA Pay tools
               </li>
             </ul>
-
-            <p className="text-xs text-muted-foreground italic">
-              Eligibility: requires a Controlling Partner or Authorized Signatory and legal documentation (incorporation
-              papers or business license).
-            </p>
 
             <Button
               onClick={() => openUpgrade("business")}
               disabled={!!pendingRequest}
-              className="w-full sm:w-auto min-h-11"
+              className="w-full min-h-[44px] font-black uppercase rounded-xl"
             >
-              <Building className="w-4 h-4 mr-2" />
               {pendingRequest && pendingRequest.request_type === "Personal to Business"
                 ? "Application Pending"
-                : "Request Business Account"}
+                : "Start Business Conversion"}
             </Button>
           </div>
 
-          {/* Non-profit upgrade card */}
-          <div className="rounded-lg border bg-card p-3 sm:p-4 space-y-3">
-            <div className="flex items-start gap-2">
-              <Heart className="w-5 h-5 mt-0.5 text-primary" />
+          {/* Non-profit card */}
+          <div className="rounded-2xl border bg-card p-4 space-y-3">
+            <div className="flex items-start gap-3">
+              <Heart className="w-6 h-6 text-primary shrink-0 mt-0.5" />
               <div className="flex-1">
-                <h3 className="font-semibold text-sm sm:text-base">Request a Non-Profit (501c3) Account</h3>
-                <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                  For verified 501(c)(3) organizations. Same enterprise plumbing, mission-aligned configuration.
+                <h3 className="font-black text-sm uppercase">Non-Profit (501c3)</h3>
+                <p className="text-xs text-muted-foreground mt-1 font-medium">
+                  Verified mission-aligned enterprise configuration for 501(c)(3) organizations.
                 </p>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground italic">
-              Eligibility: requires an IRS 501(c)(3) determination letter and an authorized signatory.
-            </p>
             <Button
               variant="outline"
               onClick={() => openUpgrade("non-profit")}
               disabled={!!pendingRequest}
-              className="w-full sm:w-auto min-h-11"
+              className="w-full min-h-[44px] font-black uppercase rounded-xl border-2"
             >
-              <Heart className="w-4 h-4 mr-2" />
               {pendingRequest && pendingRequest.request_type === "Personal to Non-Profit"
                 ? "Application Pending"
-                : "Request Non-Profit Account"}
+                : "Start NGO Conversion"}
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Upgrade Dialog */}
+      {/* Upgrade Dialog - Mobile Responsive with Sticky Footer */}
       <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
-        <DialogContent className="max-w-[calc(100vw-1.5rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
-          <DialogHeader>
-            <DialogTitle>
-              {upgradeKind === "non-profit" ? "Non-Profit Account Onboarding" : "Business Account Onboarding"}
-            </DialogTitle>
-            <DialogDescription>
-              Provide your {upgradeKind === "non-profit" ? "non-profit organization" : "business"} details and legal
-              documentation. You must be a controlling partner or authorized signatory to proceed.
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="max-w-[calc(100vw-1.5rem)] sm:max-w-lg max-h-[90dvh] overflow-hidden flex flex-col p-0 rounded-t-3xl sm:rounded-2xl border-none">
+          <div className="p-6 overflow-y-auto space-y-6">
+            <DialogHeader>
+              <DialogTitle className="font-black uppercase text-xl tracking-tight">
+                {upgradeKind === "non-profit" ? "NGO Onboarding" : "Business Onboarding"}
+              </DialogTitle>
+              <DialogDescription className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Provide legal entity details. Signatory authority required.
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="space-y-3 py-3">
-            <div className="space-y-1.5">
-              <Label>{upgradeKind === "non-profit" ? "Legal Organization Name" : "Legal Business Name"}</Label>
-              <Input
-                value={upgradeForm.companyName}
-                onChange={(e) => setUpgradeForm({ ...upgradeForm, companyName: e.target.value })}
-                placeholder={upgradeKind === "non-profit" ? "Mission Foundation" : "Acme Corp"}
-                className="min-h-11"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Industry</Label>
-              <Select
-                value={upgradeForm.industry}
-                onValueChange={(v) => setUpgradeForm({ ...upgradeForm, industry: v })}
-              >
-                <SelectTrigger className="min-h-11">
-                  <SelectValue placeholder="Select Industry" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="technology">Technology</SelectItem>
-                  <SelectItem value="retail">Retail</SelectItem>
-                  <SelectItem value="healthcare">Healthcare</SelectItem>
-                  <SelectItem value="non-profit">Non-Profit</SelectItem>
-                  <SelectItem value="finance">Financial Services</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Your Full Name</Label>
-              <Input
-                value={upgradeForm.contactName}
-                onChange={(e) => setUpgradeForm({ ...upgradeForm, contactName: e.target.value })}
-                placeholder="Jane Doe"
-                className="min-h-11"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Your Role (Signatory Required)</Label>
-              <Select
-                value={upgradeForm.contactRole}
-                onValueChange={(v) => setUpgradeForm({ ...upgradeForm, contactRole: v })}
-              >
-                <SelectTrigger className="min-h-11">
-                  <SelectValue placeholder="Select Role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Controlling Partner">Controlling Partner</SelectItem>
-                  <SelectItem value="Authorized Signatory">Authorized Signatory</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Legal Documentation (Required)</Label>
-              <label
-                htmlFor="upgrade-doc-upload"
-                className="flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-border bg-muted/30 p-4 cursor-pointer hover:bg-muted/50 transition-colors min-h-24"
-              >
-                <FileUp className="w-5 h-5 text-muted-foreground" />
-                {uploadFile ? (
-                  <div className="text-center">
-                    <p className="text-sm font-medium break-all">{uploadFile.name}</p>
-                    <p className="text-xs text-muted-foreground">{(uploadFile.size / 1024).toFixed(1)} KB</p>
-                  </div>
-                ) : (
-                  <div className="text-center">
-                    <p className="text-sm font-medium">Tap to upload document</p>
-                    <p className="text-xs text-muted-foreground">PDF, PNG, or JPG</p>
-                  </div>
-                )}
-                <input
-                  id="upgrade-doc-upload"
-                  type="file"
-                  accept=".pdf,.png,.jpg,.jpeg"
-                  className="hidden"
-                  onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase ml-1">
+                  {upgradeKind === "non-profit" ? "Organization Name" : "Legal Entity Name"}
+                </Label>
+                <Input
+                  value={upgradeForm.companyName}
+                  onChange={(e) => setUpgradeForm({ ...upgradeForm, companyName: e.target.value })}
+                  placeholder="Entity Name"
+                  className="min-h-[44px] rounded-xl bg-muted/40 border-none px-4"
                 />
-              </label>
-              <p className="text-xs text-muted-foreground">
-                {upgradeKind === "non-profit"
-                  ? "Upload IRS 501(c)(3) determination letter."
-                  : "Upload incorporation documents or business license."}
-              </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase ml-1">Industry</Label>
+                <Select
+                  value={upgradeForm.industry}
+                  onValueChange={(v) => setUpgradeForm({ ...upgradeForm, industry: v })}
+                >
+                  <SelectTrigger className="min-h-[44px] rounded-xl bg-muted/40 border-none px-4">
+                    <SelectValue placeholder="Select Industry" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="technology">Technology</SelectItem>
+                    <SelectItem value="retail">Retail</SelectItem>
+                    <SelectItem value="healthcare">Healthcare</SelectItem>
+                    <SelectItem value="non-profit">Non-Profit</SelectItem>
+                    <SelectItem value="finance">Financial Services</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase ml-1">Officer Name</Label>
+                <Input
+                  value={upgradeForm.contactName}
+                  onChange={(e) => setUpgradeForm({ ...upgradeForm, contactName: e.target.value })}
+                  placeholder="Full Legal Name"
+                  className="min-h-[44px] rounded-xl bg-muted/40 border-none px-4"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase ml-1">Legal Documents</Label>
+                <label
+                  htmlFor="upgrade-doc-upload"
+                  className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-primary/20 bg-muted/20 p-8 cursor-pointer hover:bg-muted/40 transition-colors min-h-[120px]"
+                >
+                  <FileUp className="w-8 h-8 text-primary" />
+                  <p className="text-[10px] font-black uppercase tracking-tighter text-center">
+                    {uploadFile ? uploadFile.name : "Tap to upload Articles of Incorporation"}
+                  </p>
+                  <input
+                    id="upgrade-doc-upload"
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    className="hidden"
+                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                  />
+                </label>
+              </div>
             </div>
           </div>
 
-          <div className="sticky bottom-0 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 px-4 sm:px-6 pt-3 pb-3 border-t bg-background flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
-            <Button variant="outline" onClick={() => setShowUpgradeModal(false)} className="w-full sm:w-auto min-h-11">
+          <div className="p-4 border-t bg-background flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+            <Button
+              variant="ghost"
+              onClick={() => setShowUpgradeModal(false)}
+              className="w-full sm:w-auto min-h-[44px] font-black uppercase rounded-xl"
+            >
               <X className="w-4 h-4 mr-2" />
               Cancel
             </Button>
-            <Button onClick={handleUpgradeSubmit} disabled={uploadingDoc} className="w-full sm:w-auto min-h-11">
-              {uploadingDoc ? "Submitting…" : "Submit Application"}
+            <Button
+              onClick={handleUpgradeSubmit}
+              disabled={uploadingDoc}
+              className="w-full sm:w-auto min-h-[44px] font-black uppercase rounded-xl shadow-lg shadow-primary/20"
+            >
+              {uploadingDoc ? "Uploading..." : "Submit Application"}
             </Button>
           </div>
         </DialogContent>
