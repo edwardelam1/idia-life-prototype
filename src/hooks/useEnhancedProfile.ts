@@ -268,11 +268,13 @@ export const useEnhancedProfile = () => {
     wallet,
     interests,
     availableInterests,
+    latestConversionRequest,
     loading,
     updating,
     updateProfile,
     updateInterests,
     uploadAvatar,
     reload: loadProfileData,
+    refetchConversionRequest: loadLatestConversionRequest,
   };
 };
