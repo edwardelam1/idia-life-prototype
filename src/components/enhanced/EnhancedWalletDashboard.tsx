@@ -61,7 +61,6 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [showSendRequestModal, setShowSendRequestModal] = useState(false);
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
 
-  // Trust Score Test State
   const [showTestModal, setShowTestModal] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
 
@@ -71,16 +70,34 @@ const EnhancedWalletDashboard: React.FC = () => {
 
   const fetchTransactions = async () => {
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // THE FIX: Query the fiat_ledger instead of the dead 'transactions' table
       const { data, error } = await supabase
-        .from("transactions")
+        .from("fiat_ledger")
         .select("*")
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(20);
 
       if (error) {
         console.error("Error fetching transactions:", error);
       } else {
-        setTransactions(data || []);
+        // Map the fiat_ledger schema to the UI's expected Transaction interface
+        const mappedTransactions = (data || []).map((tx) => ({
+          id: tx.id,
+          transaction_type: tx.transaction_type,
+          amount: tx.amount_usd,
+          description: tx.description,
+          source: "IDIA Protocol",
+          created_at: tx.created_at,
+          metadata: tx.metadata,
+        }));
+
+        setTransactions(mappedTransactions);
       }
     } catch (error) {
       console.error("Error fetching transactions:", error);
@@ -91,7 +108,7 @@ const EnhancedWalletDashboard: React.FC = () => {
     try {
       const taxableEvents = transactions.filter(
         (t) =>
-          t.transaction_type === "data_reward" ||
+          t.transaction_type === "DATA_SALE_PAYOUT" ||
           t.transaction_type === "crypto_sale" ||
           t.transaction_type === "income",
       );
@@ -118,10 +135,8 @@ const EnhancedWalletDashboard: React.FC = () => {
   const handleCalculateScore = async (moduleScores: Record<string, number>) => {
     setIsCalculating(true);
     try {
-      // 1. Filter out the tutorial module ('tut') to keep the telemetry pure
       const { tut, ...actualTelemetry } = moduleScores;
 
-      // 2. Invoke the Single Source of Truth (The Edge Function)
       const { data, error } = await supabase.functions.invoke("calculate-trust-score", {
         body: {
           user_id: profile?.user_id,
@@ -131,8 +146,6 @@ const EnhancedWalletDashboard: React.FC = () => {
 
       if (error) throw error;
 
-      // 3. Update Global Profile State
-      // This forces all screens to re-render with the new Trust Score & Credit Line
       if (updateProfile) {
         await updateProfile({
           trust_score: data.trust_score,
@@ -140,7 +153,6 @@ const EnhancedWalletDashboard: React.FC = () => {
         });
       }
 
-      // 4. (Optional) Local feedback for the Simulation UI in the Wallet
       if (typeof setCreditSimulation === "function") {
         setCreditSimulation({
           current_score: profile?.trust_score ?? "NO SCORE",
@@ -154,7 +166,6 @@ const EnhancedWalletDashboard: React.FC = () => {
       setIsCalculating(false);
       setShowTestModal(false);
 
-      // Delay the celebration to ensure the modal is closed
       setTimeout(() => {
         fireFinaleConfetti();
       }, 400);
@@ -163,6 +174,7 @@ const EnhancedWalletDashboard: React.FC = () => {
 
   const getTransactionIcon = (type: string) => {
     switch (type) {
+      case "DATA_SALE_PAYOUT":
       case "data_reward":
       case "data_earnings":
         return TrendingUp;
@@ -213,7 +225,7 @@ const EnhancedWalletDashboard: React.FC = () => {
             Complete the 9 telemetry modules to establish your cryptographic IDIA Trust Score.
           </DialogDescription>
         </DialogHeader>
-        <PsychometricTestingCenter onCompleteAll={handleCalculateScore} onCancel={() => setShowTestModal(false)} />
+        <PsychometricTestingCenter onCompleteAll={handleCalculateScore} />
       </DialogContent>
     </Dialog>
   );
