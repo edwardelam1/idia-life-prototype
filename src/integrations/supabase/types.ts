@@ -92,27 +92,33 @@ export type Database = {
       api_metrics: {
         Row: {
           endpoint: string
+          error_details: string | null
           id: string
           key_id: string | null
           latency_ms: number
           status_code: number
           timestamp: string | null
+          user_id: string | null
         }
         Insert: {
           endpoint: string
+          error_details?: string | null
           id?: string
           key_id?: string | null
           latency_ms: number
           status_code: number
           timestamp?: string | null
+          user_id?: string | null
         }
         Update: {
           endpoint?: string
+          error_details?: string | null
           id?: string
           key_id?: string | null
           latency_ms?: number
           status_code?: number
           timestamp?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
