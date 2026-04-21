@@ -90,6 +90,16 @@ export default function Settings() {
                 <p className="text-sm font-medium truncate">{user.user_metadata?.full_name || "User"}</p>
                 <p className="text-xs text-muted-foreground truncate">{user.email}</p>
               </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleSignOut}
+                className="text-muted-foreground hover:text-destructive"
+                title="Sign out"
+              >
+                <LogOut className="w-5 h-5" />
+                <span className="sr-only">Sign out</span>
+              </Button>
             </div>
           )}
         </div>
