@@ -42,25 +42,11 @@ export interface UserInterests {
   category: string | null;
 }
 
-export interface ConversionRequest {
-  id: string;
-  user_id: string | null;
-  company_name: string;
-  contact_name: string;
-  contact_role: string;
-  industry: string | null;
-  request_type: string | null;
-  status: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
-
 export const useEnhancedProfile = () => {
   const [profile, setProfile] = useState<EnhancedProfile | null>(null);
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [interests, setInterests] = useState<UserInterests[]>([]);
   const [availableInterests, setAvailableInterests] = useState<UserInterests[]>([]);
-  const [latestConversionRequest, setLatestConversionRequest] = useState<ConversionRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const { toast } = useToast();
@@ -68,33 +54,7 @@ export const useEnhancedProfile = () => {
   useEffect(() => {
     loadProfileData();
     loadAvailableInterests();
-    loadLatestConversionRequest();
   }, []);
-
-  const loadLatestConversionRequest = async () => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from("account_conversion_requests")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error && error.code !== "PGRST116" && error.code !== "42P01") {
-        console.error("Error loading conversion request:", error);
-        return;
-      }
-      setLatestConversionRequest((data as ConversionRequest) || null);
-    } catch (err) {
-      console.error("Error loading latest conversion request:", err);
-    }
-  };
 
   const loadProfileData = async () => {
     try {
@@ -268,13 +228,11 @@ export const useEnhancedProfile = () => {
     wallet,
     interests,
     availableInterests,
-    latestConversionRequest,
     loading,
     updating,
     updateProfile,
     updateInterests,
     uploadAvatar,
     reload: loadProfileData,
-    refetchConversionRequest: loadLatestConversionRequest,
   };
 };
