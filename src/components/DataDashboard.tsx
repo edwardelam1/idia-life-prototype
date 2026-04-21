@@ -176,7 +176,7 @@ const DataDashboard = () => {
       case "delayed":
         return (
           <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-            Sync Delayed
+            Idle
           </Badge>
         );
       case "stale":
