@@ -24,6 +24,7 @@ const DataDashboard = () => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [acaRecords, setAcaRecords] = useState<any[]>([]);
   const [acaLoading, setAcaLoading] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     const getUser = async () => {
