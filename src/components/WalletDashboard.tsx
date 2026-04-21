@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
-import { ArrowUpRight, ArrowDownLeft, CreditCard, TrendingUp } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
-import AddFundsModal from './AddFundsModal';
-import { eventTracker } from '@/utils/EventTracker';
+import { useState, useEffect } from "react";
+import { ArrowUpRight, ArrowDownLeft, CreditCard, TrendingUp } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import AddFundsModal from "./AddFundsModal";
+import { eventTracker } from "@/utils/EventTracker";
+import { useWalletBalance } from "@/hooks/useWalletBalance"; // Added import
 
 interface Transaction {
   id: string;
@@ -16,105 +17,62 @@ interface Transaction {
 }
 
 const WalletDashboard = () => {
-  const [balances, setBalances] = useState({
-    cash: 0,
-    idiaUsd: 0,
-    idiaToken: 0
-  });
+  // Integrated real-time hook and removed static balances state
+  const { balance, loading: balanceLoading } = useWalletBalance();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isAddFundsOpen, setIsAddFundsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchBalances();
+    // Removed fetchBalances() call as the hook now handles this
     fetchTransactions();
-    
-    // Track wallet view
+
     const startTime = Date.now();
     return () => {
       const duration = (Date.now() - startTime) / 1000;
       eventTracker.trackWalletView({
         view_duration: duration,
         balance_checked: true,
-        transactions_viewed: transactions.length
+        transactions_viewed: transactions.length,
       });
     };
   }, []);
 
-  const fetchBalances = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setBalances({
-          cash: 0,
-          idiaUsd: 0,
-          idiaToken: 0
-        });
-        return;
-      }
-
-      // Fetch real user wallet data - filter by authenticated user ID
-      const { data: walletData, error: walletError } = await supabase
-        .from('user_wallets')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (walletError && walletError.code !== 'PGRST116') {
-        console.error('Error fetching wallet:', walletError);
-        setBalances({
-          cash: 0,
-          idiaUsd: 0,
-          idiaToken: 0
-        });
-        return;
-      }
-
-      setBalances({
-        cash: 0, // Still not implemented
-        idiaUsd: walletData?.idia_beta_balance || 0,
-        idiaToken: 0 // Still not implemented
-      });
-    } catch (error) {
-      console.error('Error fetching balances:', error);
-      setBalances({
-        cash: 0,
-        idiaUsd: 0,
-        idiaToken: 0
-      });
-    }
-  };
+  // Removed fetchBalances function definition to prevent redundant logic
 
   const fetchTransactions = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         setTransactions([]);
         setLoading(false);
         return;
       }
 
-      // Fetch real transactions from database - filter by authenticated user ID
       const { data, error } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
+        .from("transactions")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
         .limit(10);
 
       if (error) {
-        console.log('Error fetching transactions:', error);
+        console.log("Error fetching transactions:", error);
         setTransactions([]);
       } else {
-        setTransactions((data || []).map(transaction => ({
-          ...transaction,
-          description: transaction.description.replace('Staged_data_reward', 'Health Data Contribution'),
-          source: transaction.source || 'IDIA Platform'
-        })));
+        setTransactions(
+          (data || []).map((transaction) => ({
+            ...transaction,
+            description: transaction.description.replace("Staged_data_reward", "Health Data Contribution"),
+            source: transaction.source || "IDIA Platform",
+          })),
+        );
       }
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching transactions:', error);
+      console.error("Error fetching transactions:", error);
       setTransactions([]);
       setLoading(false);
     }
@@ -122,13 +80,13 @@ const WalletDashboard = () => {
 
   const getTransactionIcon = (type: string) => {
     switch (type) {
-      case 'data_reward':
-      case 'data_earnings':
+      case "data_reward":
+      case "data_earnings":
         return TrendingUp;
-      case 'payment_sent':
+      case "payment_sent":
         return ArrowUpRight;
-      case 'payment_received':
-      case 'payroll':
+      case "payment_received":
+      case "payroll":
         return ArrowDownLeft;
       default:
         return CreditCard;
@@ -136,11 +94,11 @@ const WalletDashboard = () => {
   };
 
   const getTransactionColor = (amount: number) => {
-    return amount > 0 ? 'text-green-600' : 'text-red-600';
+    return amount > 0 ? "text-green-600" : "text-red-600";
   };
 
   const formatAmount = (amount: number) => {
-    const sign = amount > 0 ? '+' : '';
+    const sign = amount > 0 ? "+" : "";
     return `${sign}$${Math.abs(amount).toFixed(2)}`;
   };
 
@@ -152,17 +110,18 @@ const WalletDashboard = () => {
     const diffDays = Math.floor(diffHours / 24);
 
     if (diffHours < 1) {
-      return 'Just now';
+      return "Just now";
     } else if (diffHours < 24) {
       return `${diffHours} hours ago`;
     } else if (diffDays === 1) {
-      return '1 day ago';
+      return "1 day ago";
     } else {
       return `${diffDays} days ago`;
     }
   };
 
-  if (loading) {
+  if (loading || balanceLoading) {
+    // Added balanceLoading check
     return (
       <div className="p-4 space-y-6">
         <div className="animate-pulse">
@@ -179,31 +138,32 @@ const WalletDashboard = () => {
 
   return (
     <div className="p-4 space-y-6">
-      {/* Balance Card - Real Data */}
       <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white overflow-hidden">
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">Your Balances</h2>
           </div>
-          
+
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
               <p className="text-teal-100 text-xs font-medium">Cash</p>
-              <p className="text-xl font-bold">${balances.cash.toFixed(2)}</p>
+              {/* Updated to use balance from hook */}
+              <p className="text-xl font-bold">${balance.cash_balance.toFixed(2)}</p>
             </div>
             <div className="text-center">
               <p className="text-teal-100 text-xs font-medium">IDIA-BETA</p>
-              <p className="text-xl font-bold">${balances.idiaUsd.toFixed(2)}</p>
+              {/* Updated to use balance from hook */}
+              <p className="text-xl font-bold">${balance.idia_usd_balance.toFixed(2)}</p>
             </div>
             <div className="text-center">
               <p className="text-teal-100 text-xs font-medium">IDIA Token</p>
-              <p className="text-xl font-bold">{balances.idiaToken.toFixed(2)}</p>
+              {/* Updated to use balance from hook */}
+              <p className="text-xl font-bold">{balance.idia_token_balance.toFixed(2)}</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Quick Actions */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-gray-900">Quick Actions</h3>
         <div className="grid grid-cols-2 gap-3">
@@ -213,8 +173,8 @@ const WalletDashboard = () => {
               <span className="block text-sm font-semibold">Send Money</span>
             </div>
           </Button>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="py-6 rounded-xl border-2 hover:bg-gray-50"
             onClick={() => setIsAddFundsOpen(true)}
           >
@@ -226,7 +186,6 @@ const WalletDashboard = () => {
         </div>
       </div>
 
-      {/* Recent Transactions - Real Data */}
       <Card>
         <CardHeader>
           <CardTitle>Recent Activity</CardTitle>
@@ -261,10 +220,7 @@ const WalletDashboard = () => {
         </CardContent>
       </Card>
 
-      <AddFundsModal 
-        isOpen={isAddFundsOpen}
-        onClose={() => setIsAddFundsOpen(false)}
-      />
+      <AddFundsModal isOpen={isAddFundsOpen} onClose={() => setIsAddFundsOpen(false)} />
     </div>
   );
 };
