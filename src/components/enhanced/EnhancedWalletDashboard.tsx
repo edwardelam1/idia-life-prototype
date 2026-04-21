@@ -225,7 +225,7 @@ const EnhancedWalletDashboard: React.FC = () => {
             Complete the 9 telemetry modules to establish your cryptographic IDIA Trust Score.
           </DialogDescription>
         </DialogHeader>
-        <PsychometricTestingCenter onCompleteAll={handleCalculateScore} />
+        <PsychometricTestingCenter onCompleteAll={handleCalculateScore} onCancel={() => setShowTestModal(false)} />
       </DialogContent>
     </Dialog>
   );
