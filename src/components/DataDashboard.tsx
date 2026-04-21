@@ -409,7 +409,23 @@ const DataDashboard = () => {
                           {formatSourceName(record.source_id || "unknown")}
                         </TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground">
-                          {record.aca_hash_key?.substring(0, 12)}...
+                          <div className="flex items-center gap-2">
+                            <span>{record.aca_hash_key?.substring(0, 12)}...</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => {
+                                navigator.clipboard.writeText(record.aca_hash_key || "");
+                                toast({
+                                  title: "Copied",
+                                  description: "ACA hash copied to clipboard",
+                                });
+                              }}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {new Date(record.created_at).toLocaleString()}
