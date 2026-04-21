@@ -973,6 +973,7 @@ export type Database = {
           email: string | null
           franchise_parent_id: string | null
           id: string
+          logo_url: string | null
           name: string
           phone: string | null
           subscription_tier: string | null
@@ -988,6 +989,7 @@ export type Database = {
           email?: string | null
           franchise_parent_id?: string | null
           id?: string
+          logo_url?: string | null
           name: string
           phone?: string | null
           subscription_tier?: string | null
@@ -1003,6 +1005,7 @@ export type Database = {
           email?: string | null
           franchise_parent_id?: string | null
           id?: string
+          logo_url?: string | null
           name?: string
           phone?: string | null
           subscription_tier?: string | null
@@ -1396,6 +1399,77 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      dao_proposals: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          end_date: string | null
+          id: string
+          proposer_id: string | null
+          quorum_threshold: number | null
+          status: string | null
+          title: string
+          vote_type: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          proposer_id?: string | null
+          quorum_threshold?: number | null
+          status?: string | null
+          title: string
+          vote_type?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          proposer_id?: string | null
+          quorum_threshold?: number | null
+          status?: string | null
+          title?: string
+          vote_type?: string | null
+        }
+        Relationships: []
+      }
+      dao_votes: {
+        Row: {
+          created_at: string | null
+          credits_spent: number
+          id: string
+          proposal_id: string | null
+          user_id: string | null
+          vote_weight: number
+        }
+        Insert: {
+          created_at?: string | null
+          credits_spent: number
+          id?: string
+          proposal_id?: string | null
+          user_id?: string | null
+          vote_weight: number
+        }
+        Update: {
+          created_at?: string | null
+          credits_spent?: number
+          id?: string
+          proposal_id?: string | null
+          user_id?: string | null
+          vote_weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dao_votes_proposal_id_fkey"
+            columns: ["proposal_id"]
+            isOneToOne: false
+            referencedRelation: "dao_proposals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       data_connections: {
         Row: {
@@ -1854,6 +1928,7 @@ export type Database = {
           aca_record_references: string[]
           batch_checksum: string | null
           bundle_id: string | null
+          buyer_intent: string | null
           client_id: string | null
           consumption_weight: number | null
           country_of_origin: string
@@ -1882,6 +1957,7 @@ export type Database = {
           aca_record_references?: string[]
           batch_checksum?: string | null
           bundle_id?: string | null
+          buyer_intent?: string | null
           client_id?: string | null
           consumption_weight?: number | null
           country_of_origin?: string
@@ -1910,6 +1986,7 @@ export type Database = {
           aca_record_references?: string[]
           batch_checksum?: string | null
           bundle_id?: string | null
+          buyer_intent?: string | null
           client_id?: string | null
           consumption_weight?: number | null
           country_of_origin?: string
@@ -2249,30 +2326,39 @@ export type Database = {
       }
       fiat_ledger: {
         Row: {
+          amount: number | null
           amount_usd: number
           created_at: string
           description: string | null
           id: string
+          metadata: Json | null
+          reference_id: string | null
           source: string | null
           status: string | null
           transaction_type: string
           user_id: string
         }
         Insert: {
+          amount?: number | null
           amount_usd: number
           created_at?: string
           description?: string | null
           id?: string
+          metadata?: Json | null
+          reference_id?: string | null
           source?: string | null
           status?: string | null
           transaction_type: string
           user_id: string
         }
         Update: {
+          amount?: number | null
           amount_usd?: number
           created_at?: string
           description?: string | null
           id?: string
+          metadata?: Json | null
+          reference_id?: string | null
           source?: string | null
           status?: string | null
           transaction_type?: string
@@ -2650,6 +2736,36 @@ export type Database = {
           },
         ]
       }
+      governance_ledger: {
+        Row: {
+          amount: number
+          created_at: string | null
+          description: string | null
+          id: string
+          on_chain_tx_hash: string | null
+          transaction_type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          on_chain_tx_hash?: string | null
+          transaction_type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          on_chain_tx_hash?: string | null
+          transaction_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       health_metrics: {
         Row: {
           activity_type: string
@@ -2692,6 +2808,69 @@ export type Database = {
           recorded_at?: string | null
           step_count?: number | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      hri_baselines: {
+        Row: {
+          mean_value: number | null
+          metric_type: string
+          sample_size: number | null
+          std_dev: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          mean_value?: number | null
+          metric_type: string
+          sample_size?: number | null
+          std_dev?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          mean_value?: number | null
+          metric_type?: string
+          sample_size?: number | null
+          std_dev?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      hri_scores: {
+        Row: {
+          created_at: string | null
+          hrv_score: number | null
+          id: string
+          is_ghost_protocol: boolean | null
+          rt_score: number | null
+          sleep_score: number | null
+          total_score: number | null
+          user_id: string | null
+          vitals_snapshot: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          hrv_score?: number | null
+          id?: string
+          is_ghost_protocol?: boolean | null
+          rt_score?: number | null
+          sleep_score?: number | null
+          total_score?: number | null
+          user_id?: string | null
+          vitals_snapshot?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          hrv_score?: number | null
+          id?: string
+          is_ghost_protocol?: boolean | null
+          rt_score?: number | null
+          sleep_score?: number | null
+          total_score?: number | null
+          user_id?: string | null
+          vitals_snapshot?: Json | null
         }
         Relationships: []
       }
@@ -5301,6 +5480,7 @@ export type Database = {
           activity_type: string
           created_at: string | null
           data_quality_score: number | null
+          duration_seconds: number | null
           effort_score: number | null
           entity_id: string | null
           faculty: string | null
@@ -5325,6 +5505,7 @@ export type Database = {
           activity_type: string
           created_at?: string | null
           data_quality_score?: number | null
+          duration_seconds?: number | null
           effort_score?: number | null
           entity_id?: string | null
           faculty?: string | null
@@ -5349,6 +5530,7 @@ export type Database = {
           activity_type?: string
           created_at?: string | null
           data_quality_score?: number | null
+          duration_seconds?: number | null
           effort_score?: number | null
           entity_id?: string | null
           faculty?: string | null
@@ -5722,6 +5904,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      telemetry_logs: {
+        Row: {
+          created_at: string | null
+          credit_line_granted: number | null
+          final_trust_score: number | null
+          id: string
+          module_scores: Json
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          credit_line_granted?: number | null
+          final_trust_score?: number | null
+          id?: string
+          module_scores: Json
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          credit_line_granted?: number | null
+          final_trust_score?: number | null
+          id?: string
+          module_scores?: Json
+          user_id?: string | null
+        }
+        Relationships: []
       }
       transactions: {
         Row: {
@@ -6337,6 +6546,7 @@ export type Database = {
         Row: {
           cash_balance: number
           created_at: string
+          governance_tokens: number | null
           id: string
           idia_beta_balance: number | null
           platform_guid: string | null
@@ -6347,6 +6557,7 @@ export type Database = {
         Insert: {
           cash_balance?: number
           created_at?: string
+          governance_tokens?: number | null
           id?: string
           idia_beta_balance?: number | null
           platform_guid?: string | null
@@ -6357,6 +6568,7 @@ export type Database = {
         Update: {
           cash_balance?: number
           created_at?: string
+          governance_tokens?: number | null
           id?: string
           idia_beta_balance?: number | null
           platform_guid?: string | null
@@ -6702,6 +6914,15 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      process_idia_telemetry: {
+        Args: {
+          p_credit: number
+          p_raw_data: Json
+          p_score: number
+          p_user_id: string
+        }
+        Returns: undefined
       }
       process_stuck_raw_data: {
         Args: never

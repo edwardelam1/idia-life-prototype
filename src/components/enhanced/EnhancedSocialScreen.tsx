@@ -207,7 +207,7 @@ const EnhancedSocialScreen: React.FC = () => {
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto bg-white p-0 border-none">
-                      <PsychometricTestingCenter onCompleteAll={handleCalculateScore} />
+                      <PsychometricTestingCenter onCompleteAll={handleCalculateScore} onCancel={() => setShowTestModal(false)} />
                     </DialogContent>
                   </Dialog>
                 </div>
