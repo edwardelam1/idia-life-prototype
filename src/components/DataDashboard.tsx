@@ -41,6 +41,29 @@ const DataDashboard = () => {
     if (currentUserId) {
       fetchConnections();
       fetchAcaRecords();
+
+      // DISCUSSION: Added Realtime Subscription for Live Data Screen Updates
+      const dataWalletChannel = supabase
+        .channel("data-dashboard-wallet")
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "user_wallets",
+            filter: `user_id=eq.${currentUserId}`,
+          },
+          (payload) => {
+            console.log("Data Dashboard Wallet Update:", payload);
+            // Update the state directly to reflect the new balance instantly
+            setTotalEarnings(payload.new.cash_balance || 0);
+          },
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(dataWalletChannel);
+      };
     }
   }, [currentUserId]);
 
