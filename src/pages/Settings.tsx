@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, User, Palette, Shield, Bell } from "lucide-react";
+import { ArrowLeft, User, Palette, Shield, Bell, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,11 +10,13 @@ import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
 import { PrivacySettings } from "@/components/settings/PrivacySettings";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import EnhancedProfileSettings from "@/components/enhanced/EnhancedProfileSettings";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Settings() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [user, setUser] = useState<any>(null);
+  const { toast } = useToast();
   // Default to the IDIA profile tab since the standard one is removed
   const [activeTab, setActiveTab] = useState("idia-profile");
 
@@ -55,6 +57,15 @@ export default function Settings() {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    toast({
+      title: "Signed out",
+      description: "You have been successfully signed out.",
+    });
+    navigate("/auth");
+  };
+
   return (
     <div className="min-h-screen bg-background pt-[max(0.5rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
       <div className="container max-w-4xl mx-auto py-2 px-2">
@@ -79,6 +90,16 @@ export default function Settings() {
                 <p className="text-sm font-medium truncate">{user.user_metadata?.full_name || "User"}</p>
                 <p className="text-xs text-muted-foreground truncate">{user.email}</p>
               </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleSignOut}
+                className="text-muted-foreground hover:text-destructive"
+                title="Sign out"
+              >
+                <LogOut className="w-5 h-5" />
+                <span className="sr-only">Sign out</span>
+              </Button>
             </div>
           )}
         </div>
