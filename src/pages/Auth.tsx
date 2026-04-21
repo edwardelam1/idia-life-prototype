@@ -17,32 +17,7 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  // Step 1: Request the 6-Digit Code
-  const handleRequestOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsResetLoading(true);
 
-    try {
-      // DISCUSSION: Route through the God-Mode Edge Function instead of the client SDK.
-      // This forces the email to send even if the account is shadowed by Apple Sign-In.
-      const { data, error } = await supabase.functions.invoke("reset-password", {
-        body: { email: resetEmail },
-      });
-
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
-      toast({
-        title: "Code Sent!",
-        description: "Check your email for the 6-digit recovery code.",
-      });
-      setResetStep("verify");
-    } catch (error: any) {
-      toast({ title: "Failed to send code", description: error.message, variant: "destructive" });
-    } finally {
-      setIsResetLoading(false);
-    }
-  };
   // OTP Password Reset States
   const [isResetMode, setIsResetMode] = useState(false);
   const [resetStep, setResetStep] = useState<"request" | "verify">("request");
@@ -127,8 +102,14 @@ const Auth = () => {
     setIsResetLoading(true);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail);
+      // DISCUSSION: Route through the God-Mode Edge Function instead of the client SDK.
+      // This forces the email to send even if the account is shadowed by Apple Sign-In.
+      const { data, error } = await supabase.functions.invoke("reset-password", {
+        body: { email: resetEmail },
+      });
+
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       toast({
         title: "Code Sent!",
