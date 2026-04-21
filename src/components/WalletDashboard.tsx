@@ -28,6 +28,37 @@ const WalletDashboard = () => {
     fetchTransactions();
 
     const startTime = Date.now();
+
+    // DISCUSSION: Added Realtime Subscription for Live Transaction Updates
+    let transactionChannel: any;
+
+    const setupRealtime = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      transactionChannel = supabase
+        .channel("wallet-live-transactions")
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "transactions",
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            console.log("New Transaction Live!", payload);
+            // Refresh transactions list when a new one hits
+            fetchTransactions();
+          },
+        )
+        .subscribe();
+    };
+
+    setupRealtime();
+
     return () => {
       const duration = (Date.now() - startTime) / 1000;
       eventTracker.trackWalletView({
@@ -35,6 +66,9 @@ const WalletDashboard = () => {
         balance_checked: true,
         transactions_viewed: transactions.length,
       });
+
+      // DISCUSSION: Cleanup subscription on unmount
+      if (transactionChannel) supabase.removeChannel(transactionChannel);
     };
   }, []);
 
