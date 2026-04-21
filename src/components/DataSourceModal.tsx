@@ -139,7 +139,32 @@ const DataSourceModal = ({ source, isOpen, onClose }: DataSourceModalProps) => {
       setIsConnecting(false);
     }
   };
+  useEffect(() => {
+    if (!currentUserId) return;
 
+    // Subscribe to real-time changes on the user_wallets table
+    const walletChannel = supabase
+      .channel("wallet-updates")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "user_wallets",
+          filter: `user_id=eq.${currentUserId}`,
+        },
+        (payload) => {
+          console.log("Real-time wallet update detected:", payload.new);
+          // Refresh the local state with the new balance immediately
+          setTotalEarnings(payload.new.cash_balance || 0);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(walletChannel);
+    };
+  }, [currentUserId]);
   const Icon = source.icon;
 
   const getPrivacyColor = (level: string) => {
