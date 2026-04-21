@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ShieldCheck, Info } from "lucide-react";
+import { ShieldCheck, Info, X } from "lucide-react";
 import TestRunner from "./TestRunner";
 import { TEST_BANK, type TestId } from "./testBank";
 import { fireWelcomeConfetti, fireFinaleConfetti } from "./confetti";
 
 interface PsychometricTestingCenterProps {
   onCompleteAll: (scores: Record<string, number>) => void;
+  onCancel: () => void;
 }
 
-const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({ onCompleteAll }) => {
+const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({ onCompleteAll, onCancel }) => {
   // FIXED: Starts at index 0 which is now the "How to IDIA" Tutorial
   const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
   const [completedModules, setCompletedModules] = useState<Record<string, number>>({});
@@ -48,15 +50,15 @@ const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({ o
   };
 
   const handleExit = () => {
-    // Standard exit logic
+    onCancel();
   };
 
   if (isFinished) {
     return (
-      <div className="flex flex-col items-center justify-center h-[70vh] p-8 text-center space-y-6 bg-white">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background p-6 text-center space-y-6 sm:min-h-[70vh]">
         <div className="relative">
-          <div className="absolute inset-0 bg-teal-500/10 blur-2xl rounded-full" />
-          <ShieldCheck className="w-24 h-24 text-teal-600 relative z-10" />
+          <div className="absolute inset-0 rounded-full bg-primary/10 blur-2xl" />
+          <ShieldCheck className="relative z-10 h-20 w-20 text-primary sm:h-24 sm:w-24" />
         </div>
         <div className="space-y-2">
           <h2 className="text-2xl font-bold italic text-foreground">Telemetry Secured.</h2>
@@ -70,26 +72,31 @@ const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({ o
   const isTutorial = currentModule.id === "tut";
 
   return (
-    <div className="flex flex-col h-[90vh] md:h-auto overflow-hidden bg-white">
+    <div className="flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-background sm:h-[90vh] sm:max-h-[90vh] md:h-auto md:max-h-[90vh]">
       {/* Fixed Sticky Header */}
-      <div className="px-4 pt-6 pb-4 border-b bg-white/80 backdrop-blur-md z-20">
-        <div className="flex justify-between items-end mb-2">
-          <div className="space-y-1">
+      <div className="z-20 border-b bg-background/95 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-md sm:px-4 sm:pb-4 sm:pt-6">
+        <div className="mb-2 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 space-y-1">
             <span
-              className={`text-[10px] font-bold uppercase tracking-widest ${isTutorial ? "text-orange-500" : "text-teal-600"}`}
+              className={`text-[10px] font-bold uppercase ${isTutorial ? "text-accent" : "text-primary"}`}
             >
               {isTutorial ? "Training Module" : `Module ${currentModuleIndex} of ${totalModules - 1}`}
             </span>
-            <h2 className="text-lg font-bold leading-tight text-foreground">{currentModule.title}</h2>
+            <h2 className="line-clamp-2 text-base font-bold leading-tight text-foreground sm:text-lg">{currentModule.title}</h2>
           </div>
-          <span className="text-xs font-mono text-muted-foreground">{Math.round(progress)}%</span>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="text-xs font-mono text-muted-foreground">{Math.round(progress)}%</span>
+            <Button variant="ghost" size="icon" onClick={handleExit} aria-label="Cancel psychometric test" className="h-9 w-9">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-        <Progress value={progress} className={`h-1.5 ${isTutorial ? "bg-orange-100" : "bg-teal-100"}`} />
+        <Progress value={progress} className="h-1.5 bg-muted" />
 
         {isTutorial && (
-          <div className="mt-4 p-3 bg-orange-50 border border-orange-100 rounded-lg flex items-start gap-3">
-            <Info className="w-4 h-4 text-orange-500 mt-0.5" />
-            <p className="text-[11px] text-orange-800 leading-tight">
+          <div className="mt-3 flex items-start gap-3 rounded-lg border bg-muted/50 p-3 sm:mt-4">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+            <p className="text-[11px] leading-tight text-muted-foreground">
               <strong>Quick Tip:</strong> Use the buttons below to rate how much you agree with each statement. Be
               honest—the algorithm rewards consistency and truth, not high scores.
             </p>
@@ -98,8 +105,8 @@ const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({ o
       </div>
 
       {/* Responsive Scrollable Content Frame */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 bg-white">
-        <div className="max-w-xl mx-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto bg-background px-3 py-4 sm:px-4 sm:py-6">
+        <div className="mx-auto max-w-xl">
           <Card className="border-none shadow-none bg-transparent">
             <CardContent className="p-0">
               <TestRunner
@@ -113,7 +120,7 @@ const PsychometricTestingCenter: React.FC<PsychometricTestingCenterProps> = ({ o
         </div>
       </div>
 
-      <div className="h-4 bg-white border-t border-transparent" />
+      <div className="h-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-transparent bg-background" />
     </div>
   );
 };
