@@ -92,27 +92,33 @@ export type Database = {
       api_metrics: {
         Row: {
           endpoint: string
+          error_details: string | null
           id: string
           key_id: string | null
           latency_ms: number
           status_code: number
           timestamp: string | null
+          user_id: string | null
         }
         Insert: {
           endpoint: string
+          error_details?: string | null
           id?: string
           key_id?: string | null
           latency_ms: number
           status_code: number
           timestamp?: string | null
+          user_id?: string | null
         }
         Update: {
           endpoint?: string
+          error_details?: string | null
           id?: string
           key_id?: string | null
           latency_ms?: number
           status_code?: number
           timestamp?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -1481,6 +1487,7 @@ export type Database = {
           is_active: boolean | null
           last_successful_sync: string | null
           last_sync_at: string | null
+          metadata: Json | null
           refresh_token: string | null
           sync_failure_count: number | null
           sync_status: string | null
@@ -1497,6 +1504,7 @@ export type Database = {
           is_active?: boolean | null
           last_successful_sync?: string | null
           last_sync_at?: string | null
+          metadata?: Json | null
           refresh_token?: string | null
           sync_failure_count?: number | null
           sync_status?: string | null
@@ -1513,6 +1521,7 @@ export type Database = {
           is_active?: boolean | null
           last_successful_sync?: string | null
           last_sync_at?: string | null
+          metadata?: Json | null
           refresh_token?: string | null
           sync_failure_count?: number | null
           sync_status?: string | null
@@ -6954,16 +6963,27 @@ export type Database = {
           processed_count: number
         }[]
       }
-      settle_synapse_consumption: {
-        Args: {
-          p_aca_hashes: string[]
-          p_agent_type: string
-          p_liability_hash: string
-          p_pseudo_id: string
-          p_weight_coefficient: number
-        }
-        Returns: Json
-      }
+      settle_synapse_consumption:
+        | {
+            Args: {
+              p_aca_hashes: string[]
+              p_agent_type: string
+              p_liability_hash: string
+              p_pseudo_id: string
+              p_weight_coefficient: number
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_aca_hashes: string[]
+              p_agent_type: string
+              p_liability_hash: string
+              p_pseudo_id: string
+              p_weight_coefficient: number
+            }
+            Returns: Json
+          }
       trigger_daily_apple_health_sync: {
         Args: never
         Returns: {
