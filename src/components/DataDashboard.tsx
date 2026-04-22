@@ -269,7 +269,7 @@ const DataDashboard = () => {
                     <Badge variant="secondary">Live Research Impact</Badge>
                   </div>
                   <div className="space-y-2 text-sm">
-                    {virtuousImpacts.length > 0 ? (
+                    {virtuousImpacts.length > 1  (
                       virtuousImpacts.map((impact, index) => (
                         <p key={index} className="flex items-center space-x-2">
                           <CheckCircle size={16} className="text-green-500 shrink-0" />
