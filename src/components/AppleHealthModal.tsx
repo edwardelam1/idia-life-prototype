@@ -6,6 +6,7 @@ import { Heart, Footprints, Zap, Flame } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { generateACAHash } from "@/utils/acaGenerator";
+import { fireAppleHealthDataBurst } from "@/components/psychometric/confetti";
 
 interface AppleHealthModalProps {
   isOpen: boolean;
@@ -42,6 +43,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   const isMountedRef = useRef(true);
   const onCloseRef = useRef(onClose);
   const onCompleteRef = useRef(onComplete);
+  const appleHealthIconRef = useRef<HTMLImageElement | null>(null);
+  const burstTriggeredRef = useRef(false);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -163,6 +166,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       clearAllTimers();
       syncSessionIdRef.current = null;
       detachNativeCallbacks();
+      burstTriggeredRef.current = false;
       setIsConnecting(false);
       setConnectionStatus("idle");
       setErrorMessage(null);
@@ -178,6 +182,19 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       detachNativeCallbacks();
     };
   }, [clearAllTimers, detachNativeCallbacks]);
+
+  useEffect(() => {
+    if (connectionStatus !== "connected" || burstTriggeredRef.current) return;
+
+    const rect = appleHealthIconRef.current?.getBoundingClientRect();
+    if (rect) {
+      fireAppleHealthDataBurst({
+        x: (rect.left + rect.width / 2) / window.innerWidth,
+        y: (rect.top + rect.height / 2) / window.innerHeight,
+      });
+      burstTriggeredRef.current = true;
+    }
+  }, [connectionStatus]);
 
   const syncHealthDataViaNativeApp = useCallback(
     (hash: string, sessionId: string) => {
@@ -314,6 +331,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
             <img
               src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
               alt="Apple Health"
+              ref={appleHealthIconRef}
               className="w-6 h-6"
             />
             <span>{existingConnection ? "Apple Health" : "Connect Apple Health"}</span>
@@ -376,7 +394,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                   <Zap className="w-6 h-6 text-green-600" />
                 </div>
                 <h3 className="font-medium text-green-800 text-lg">Data Anchored!</h3>
-                <p className="text-sm text-muted-foreground mt-1">Successfully recorded to ledger.</p>
+                <p className="text-sm text-muted-foreground mt-1">Your Apple Health data blocks are flowing into the vault.</p>
               </div>
               <div className="flex space-x-3">
                 <Button variant="outline" className="flex-1" onClick={closeAndReset}>
