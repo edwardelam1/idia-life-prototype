@@ -84,3 +84,45 @@ export const fireFinaleConfetti = () => {
     });
   }, 250);
 };
+
+export const fireAppleHealthDataBurst = (origin: { x: number; y: number }) => {
+  const burstDefaults = {
+    ...globalDefaults,
+    origin,
+    gravity: 1.15,
+    drift: 0,
+    ticks: 180,
+  };
+
+  fire({
+    ...burstDefaults,
+    particleCount: 28,
+    spread: 42,
+    angle: 90,
+    startVelocity: 32,
+    scalar: 1.15,
+    shapes: ["square"],
+  });
+
+  fire({
+    ...burstDefaults,
+    particleCount: 22,
+    spread: 68,
+    angle: 70,
+    startVelocity: 24,
+    decay: 0.92,
+    scalar: 0.95,
+    shapes: ["square"],
+  });
+
+  fire({
+    ...burstDefaults,
+    particleCount: 22,
+    spread: 68,
+    angle: 110,
+    startVelocity: 24,
+    decay: 0.92,
+    scalar: 0.95,
+    shapes: ["square"],
+  });
+};

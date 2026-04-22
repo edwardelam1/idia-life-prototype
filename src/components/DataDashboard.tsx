@@ -8,17 +8,12 @@ import { Activity, CheckCircle, DollarSign, Zap, FileKey, Copy } from "lucide-re
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AppleHealthModal from "./AppleHealthModal";
-import StravaConnectionModal from "./StravaConnectionModal";
-import FordConnectionModal from "./FordConnectionModal";
-import fordLogo from "@/assets/ford-logo.png";
 
 const DataDashboard = () => {
   const [connections, setConnections] = useState<any[]>([]);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
-  const [showStravaModal, setShowStravaModal] = useState(false);
-  const [showFordModal, setShowFordModal] = useState(false);
   const [virtuousImpacts, setVirtuousImpacts] = useState<string[]>([]);
   const [lastSyncStatus, setLastSyncStatus] = useState<string>("unknown");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -198,27 +193,11 @@ const DataDashboard = () => {
     } catch {}
   };
 
-  const handleStravaComplete = async () => {
-    setShowStravaModal(false);
-    try {
-      await fetchConnections();
-      await fetchAcaRecords();
-      triggerFriendForDataEvent();
-    } catch {}
-  };
-
-  const handleFordComplete = async () => {
-    setShowFordModal(false);
-    try {
-      await fetchConnections();
-      await fetchAcaRecords();
-      triggerFriendForDataEvent();
-    } catch {}
-  };
-
   const getConnectionStatus = (connectionType: string) => {
     return connections.find((conn) => conn.connection_type === connectionType);
   };
+
+  const visibleConnections = connections.filter((connection) => connection.connection_type === "apple_health");
 
   const formatSourceName = (sourceId: string) => {
     return sourceId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -312,8 +291,8 @@ const DataDashboard = () => {
           {/* Available Data Sources */}
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">Available Data Sources</h2>
-            {!getConnectionStatus("apple_health") || !getConnectionStatus("strava") || !getConnectionStatus("ford") ? (
-              <div className="flex justify-center space-x-8">
+            {!getConnectionStatus("apple_health") ? (
+              <div className="flex justify-center">
                 {!getConnectionStatus("apple_health") && (
                   <div className="relative cursor-pointer group" onClick={() => setShowAppleHealthModal(true)}>
                     <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
@@ -323,25 +302,6 @@ const DataDashboard = () => {
                         className="w-full h-full object-contain p-2"
                       />
                     </div>
-                  </div>
-                )}
-                {!getConnectionStatus("strava") && (
-                  <div className="relative cursor-pointer group" onClick={() => setShowStravaModal(true)}>
-                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
-                      <img
-                        src="/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"
-                        alt="Strava"
-                        className="w-full h-full object-contain p-2"
-                      />
-                    </div>
-                  </div>
-                )}
-                {!getConnectionStatus("ford") && (
-                  <div className="relative cursor-pointer group" onClick={() => setShowFordModal(true)}>
-                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
-                      <img src={fordLogo} alt="Ford" className="w-full h-full object-contain p-1" />
-                    </div>
-                    <p className="text-xs text-center mt-1 text-muted-foreground">Ford</p>
                   </div>
                 )}
               </div>
@@ -357,32 +317,22 @@ const DataDashboard = () => {
           {/* Connected Data Sources */}
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">Connected Data Sources</h2>
-            {connections.length > 0 ? (
+            {visibleConnections.length > 0 ? (
               <div className="flex justify-center space-x-8">
-                {connections.map((connection) => (
+                {visibleConnections.map((connection) => (
                   <div
                     key={connection.id}
                     className="relative cursor-pointer group"
                     onClick={() => {
                       if (connection.connection_type === "apple_health") setShowAppleHealthModal(true);
-                      else if (connection.connection_type === "strava") setShowStravaModal(true);
-                      else if (connection.connection_type === "ford") setShowFordModal(true);
                     }}
                   >
                     <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border-2 border-green-500 transition-all group-hover:shadow-md group-hover:scale-105">
-                      {connection.connection_type === "ford" ? (
-                        <img src={fordLogo} alt="Ford" className="w-full h-full object-contain p-1" />
-                      ) : (
-                        <img
-                          src={
-                            connection.connection_type === "apple_health"
-                              ? "/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
-                              : "/lovable-uploads/1d14c6f9-fbbd-4462-84f8-b72a4e39b89d.png"
-                          }
-                          alt={connection.connection_type}
-                          className="w-full h-full object-contain p-2"
-                        />
-                      )}
+                      <img
+                        src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
+                        alt={connection.connection_type}
+                        className="w-full h-full object-contain p-2"
+                      />
                     </div>
                     <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background">
                       <CheckCircle className="w-3 h-3 text-white" />
@@ -470,20 +420,6 @@ const DataDashboard = () => {
         onClose={() => setShowAppleHealthModal(false)}
         onComplete={handleAppleHealthComplete}
         existingConnection={getConnectionStatus("apple_health")}
-        onDisconnect={fetchConnections}
-      />
-      <StravaConnectionModal
-        isOpen={showStravaModal}
-        onClose={() => setShowStravaModal(false)}
-        onComplete={handleStravaComplete}
-        existingConnection={getConnectionStatus("strava")}
-        onDisconnect={fetchConnections}
-      />
-      <FordConnectionModal
-        isOpen={showFordModal}
-        onClose={() => setShowFordModal(false)}
-        onComplete={handleFordComplete}
-        existingConnection={getConnectionStatus("ford")}
         onDisconnect={fetchConnections}
       />
     </div>
