@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Activity, CheckCircle, DollarSign, Zap, FileKey, Copy } from "lucide-react";
+import { Activity, CheckCircle, DollarSign, FileKey, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AppleHealthModal from "./AppleHealthModal";
@@ -14,7 +14,6 @@ const DataDashboard = () => {
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
-  const [virtuousImpacts, setVirtuousImpacts] = useState<string[]>([]);
   const [lastSyncStatus, setLastSyncStatus] = useState<string>("unknown");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [acaRecords, setAcaRecords] = useState<any[]>([]);
@@ -37,7 +36,6 @@ const DataDashboard = () => {
       fetchConnections();
       fetchAcaRecords();
 
-      // DISCUSSION: Added Realtime Subscription for Live Data Screen Updates
       const dataWalletChannel = supabase
         .channel("data-dashboard-wallet")
         .on(
@@ -50,7 +48,6 @@ const DataDashboard = () => {
           },
           (payload) => {
             console.log("Data Dashboard Wallet Update:", payload);
-            // Update the state directly to reflect the new balance instantly
             setTotalEarnings(payload.new.cash_balance || 0);
           },
         )
@@ -66,8 +63,6 @@ const DataDashboard = () => {
     if (!currentUserId) return;
     setAcaLoading(true);
     try {
-      // Unified Identity: Auth User ID === Platform GUID (enforced by DB trigger).
-      // Query strictly by currentUserId — no profile lookup, no fallback.
       const { data, error } = await supabase
         .from("user_aca_records")
         .select("*")
@@ -87,7 +82,6 @@ const DataDashboard = () => {
     if (!currentUserId) return;
 
     try {
-      // STRIPPED: Removed the dead pipeline-diagnostics edge function call
       const [connectionsResult, walletResult, recentDataResult] = await Promise.allSettled([
         supabase.from("data_connections").select("*").eq("user_id", currentUserId).eq("is_active", true),
         supabase.from("user_wallets").select("*").eq("user_id", currentUserId).maybeSingle(),
@@ -123,36 +117,12 @@ const DataDashboard = () => {
 
       setConnections(connectionsData);
       setTotalEarnings(totalEarned);
-
-      if (connectionsData.length > 0) {
-        fetchVirtuousImpacts().catch((error) => console.error("Non-critical: Virtuous impacts fetch failed:", error));
-      }
       setLoading(false);
     } catch (error) {
       console.error("Error fetching connections:", error);
       setConnections([]);
       setTotalEarnings(0);
       setLoading(false);
-    }
-  };
-
-  const fetchVirtuousImpacts = async () => {
-    const fallbackImpacts = [
-      "Your anonymized activity improved heart health model accuracy",
-      "Contributed to real-time wellness trend analysis",
-      "Enhanced data quality for community research",
-    ];
-    try {
-      const { data, error } = await supabase.functions.invoke("generate-virtuous-cycle-impacts", {
-        body: { user_id: currentUserId },
-      });
-      if (error) {
-        setVirtuousImpacts(fallbackImpacts);
-        return;
-      }
-      setVirtuousImpacts(data?.impacts?.length ? data.impacts : fallbackImpacts);
-    } catch {
-      setVirtuousImpacts(fallbackImpacts);
     }
   };
 
@@ -184,8 +154,6 @@ const DataDashboard = () => {
   };
 
   const handleAppleHealthComplete = async () => {
-    // Do NOT close the modal here — the modal owns its own connected-state UI
-    // and will be dismissed by the user via X / Close / overlay / Escape.
     try {
       await fetchConnections();
       await fetchAcaRecords();
@@ -219,7 +187,6 @@ const DataDashboard = () => {
 
   return (
     <div className="space-y-4">
-      {/* Data Earnings Summary */}
       <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
@@ -242,7 +209,6 @@ const DataDashboard = () => {
         </CardContent>
       </Card>
 
-      {/* Tabs: Connections + Audit Log */}
       <Tabs defaultValue="connections" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="connections">Connections</TabsTrigger>
@@ -253,42 +219,6 @@ const DataDashboard = () => {
         </TabsList>
 
         <TabsContent value="connections" className="space-y-4">
-          {/* Virtuous Cycle Report */}
-          {connections.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Zap className="w-5 h-5 text-yellow-500" />
-                  <span>Virtuous Cycle Impact</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Your data helped improve:</span>
-                    <Badge variant="secondary">Live Research Impact</Badge>
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    {virtuousImpacts.length > 1  (
-                      virtuousImpacts.map((impact, index) => (
-                        <p key={index} className="flex items-center space-x-2">
-                          <CheckCircle size={16} className="text-green-500 shrink-0" />
-                          <span>{impact}</span>
-                        </p>
-                      ))
-                    ) : (
-                      <p className="flex items-center space-x-2">
-                        <CheckCircle size={16} className="text-green-500 shrink-0" />
-                        <span>Generating live impact analysis...</span>
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Available Data Sources */}
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">Available Data Sources</h2>
             {!getConnectionStatus("apple_health") ? (
@@ -314,7 +244,6 @@ const DataDashboard = () => {
             )}
           </div>
 
-          {/* Connected Data Sources */}
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">Connected Data Sources</h2>
             {visibleConnections.length > 0 ? (
@@ -350,7 +279,6 @@ const DataDashboard = () => {
           </div>
         </TabsContent>
 
-        {/* Audit Log Tab */}
         <TabsContent value="audit">
           <Card>
             <CardHeader>
