@@ -62,7 +62,6 @@ const DataDashboard = () => {
   const fetchAcaRecords = async () => {
     if (!currentUserId) return;
     setAcaLoading(true);
-    console.log("🚀 [DASHBOARD_LOG] START: fetchAcaRecords");
     try {
       const { data, error } = await supabase
         .from("user_aca_records")
@@ -72,77 +71,86 @@ const DataDashboard = () => {
 
       if (error) throw error;
       if (data) setAcaRecords(data);
-      console.log("✅ [DASHBOARD_LOG] ACA records fetched");
-    } catch (err: any) {
-      console.error("🚨 [DASHBOARD_LOG] Failed to fetch ACA records:", err.message);
+    } catch (err) {
+      console.error("Failed to fetch ACA records:", err);
     } finally {
       setAcaLoading(false);
-      console.log("🏁 [DASHBOARD_LOG] END: fetchAcaRecords");
     }
   };
 
   const fetchConnections = async () => {
-    console.log("🚀 [DASHBOARD_LOG] START: fetchConnections");
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
-      const { data: connectionsData, error: connectionsError } = await supabase
-        .from("data_connections")
-        .select("*")
-        .eq("user_id", user.id);
+    // 1. Check for the connection status
+    const { data: connectionsData, error: connectionsError } = await supabase
+      .from('data_connections')
+      .select('*')
+      .eq('user_id', user.id);
 
-      if (connectionsError) throw connectionsError;
+    if (connectionsError) throw connectionsError;
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+    // 2. Audit the Ledger (user_aca_records) instead of raw ingestion
+    // This checks if a successful sync record was created today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-      const { data: recentAuditData, error: auditError } = await supabase
-        .from("user_aca_records")
-        .select("created_at")
-        .eq("user_id", user.id)
-        .eq("source_id", "apple_health")
-        .gte("created_at", today.toISOString())
-        .order("created_at", { ascending: false })
-        .limit(1);
+    const { data: recentAuditData, error: auditError } = await supabase
+      .from('user_aca_records')
+      .select('created_at')
+      .eq('user_id', user.id)
+      .eq('source_id', 'apple_health')
+      .gte('created_at', today.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1);
 
-      if (auditError) {
-        console.error("🚨 [DASHBOARD_LOG] Audit check failed:", auditError.message);
+    if (auditError) {
+      console.error("🚨 [DASHBOARD_LOG] Audit check failed:", auditError.message);
+    }
+
+    // 3. Map status based on the Audit Log proof
+    const updatedConnections = (connectionsData || []).map(conn => {
+      if (conn.platform === 'apple_health') {
+        return {
+          ...conn,
+          // If we found a record in the audit log from today, it's a success
+          status: recentAuditData && recentAuditData.length > 0 ? 'success' : 'no_data'
+        };
       }
+      return conn;
+    });
 
-      // Fix for TS2589 & TS2339: Map using a generic type and correct property name
-      const updatedConnections = ((connectionsData || []) as any[]).map((conn) => {
-        if (conn.connection_type === "apple_health") {
-          return {
-            ...conn,
-            status: recentAuditData && recentAuditData.length > 0 ? "success" : "no_data",
-          };
-        }
-        return conn;
-      });
+    setConnections(updatedConnections);
+  } catch (error: any) {
+    console.error('🚨 [DASHBOARD_LOG] Error fetching connections:', error.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
-      if (recentAuditData && recentAuditData.length > 0) {
-        setLastSyncStatus("recent");
+      const connectionsData = connectionsResult.value.data || [];
+      let totalEarned = 0;
+      if (walletResult.status === "fulfilled") totalEarned = walletResult.value.data?.cash_balance || 0;
+
+      if (recentDataResult.status === "fulfilled" && recentDataResult.value.data?.length > 0) {
+        const lastDataTime = new Date(recentDataResult.value.data[0].created_at);
+        const hoursSinceLastData = (Date.now() - lastDataTime.getTime()) / (1000 * 60 * 60);
+        if (hoursSinceLastData > 24) setLastSyncStatus("stale");
+        else if (hoursSinceLastData > 6) setLastSyncStatus("delayed");
+        else setLastSyncStatus("recent");
       } else {
         setLastSyncStatus("no_data");
       }
 
-      setConnections(updatedConnections);
-
-      const { data: walletData } = await supabase
-        .from("user_wallets")
-        .select("cash_balance")
-        .eq("user_id", user.id)
-        .single();
-
-      if (walletData) setTotalEarnings(walletData.cash_balance || 0);
-    } catch (error: any) {
-      console.error("🚨 [DASHBOARD_LOG] Error fetching connections:", error.message);
-    } finally {
+      setConnections(connectionsData);
+      setTotalEarnings(totalEarned);
       setLoading(false);
-      console.log("🏁 [DASHBOARD_LOG] END: fetchConnections");
+    } catch (error) {
+      console.error("Error fetching connections:", error);
+      setConnections([]);
+      setTotalEarnings(0);
+      setLoading(false);
     }
   };
 
@@ -243,15 +251,17 @@ const DataDashboard = () => {
             <h2 className="text-xl font-bold text-foreground">Available Data Sources</h2>
             {!getConnectionStatus("apple_health") ? (
               <div className="flex justify-center">
-                <div className="relative cursor-pointer group" onClick={() => setShowAppleHealthModal(true)}>
-                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
-                    <img
-                      src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
-                      alt="Apple Health"
-                      className="w-full h-full object-contain p-2"
-                    />
+                {!getConnectionStatus("apple_health") && (
+                  <div className="relative cursor-pointer group" onClick={() => setShowAppleHealthModal(true)}>
+                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
+                      <img
+                        src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
+                        alt="Apple Health"
+                        className="w-full h-full object-contain p-2"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
