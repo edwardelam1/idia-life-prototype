@@ -79,78 +79,89 @@ const DataDashboard = () => {
   };
 
   const fetchConnections = async () => {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    console.log("🚀 [DASHBOARD_LOG] START: fetchConnections");
+    setLoading(true); // Ensure loading state is active at start
 
-    // 1. Check for the connection status
-    const { data: connectionsData, error: connectionsError } = await supabase
-      .from('data_connections')
-      .select('*')
-      .eq('user_id', user.id);
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    if (connectionsError) throw connectionsError;
-
-    // 2. Audit the Ledger (user_aca_records) instead of raw ingestion
-    // This checks if a successful sync record was created today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const { data: recentAuditData, error: auditError } = await supabase
-      .from('user_aca_records')
-      .select('created_at')
-      .eq('user_id', user.id)
-      .eq('source_id', 'apple_health')
-      .gte('created_at', today.toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (auditError) {
-      console.error("🚨 [DASHBOARD_LOG] Audit check failed:", auditError.message);
-    }
-
-    // 3. Map status based on the Audit Log proof
-    const updatedConnections = (connectionsData || []).map(conn => {
-      if (conn.platform === 'apple_health') {
-        return {
-          ...conn,
-          // If we found a record in the audit log from today, it's a success
-          status: recentAuditData && recentAuditData.length > 0 ? 'success' : 'no_data'
-        };
+      if (userError) {
+        console.error("🚨 [DASHBOARD_LOG] Supabase Auth Error:", userError.message);
+        throw userError;
       }
-      return conn;
-    }); 
 
-    setConnections(updatedConnections);
-  } catch (error: any) {
-    console.error('🚨 [DASHBOARD_LOG] Error fetching connections:', error.message);
-  } finally {
-    setLoading(false);
-  }
-};
+      if (!user) {
+        console.log("⚠️ [DASHBOARD_LOG] No authenticated user found.");
+        return;
+      }
 
-      const connectionsData = connectionsResult.value.data || [];
-      let totalEarned = 0;
-      if (walletResult.status === "fulfilled") totalEarned = walletResult.value.data?.cash_balance || 0;
+      // 1. Fetch connection status
+      console.log("📡 [DASHBOARD_LOG] Fetching data_connections for user:", user.id);
+      const { data: connectionsData, error: connectionsError } = await supabase
+        .from("data_connections")
+        .select("*")
+        .eq("user_id", user.id);
 
-      if (recentDataResult.status === "fulfilled" && recentDataResult.value.data?.length > 0) {
-        const lastDataTime = new Date(recentDataResult.value.data[0].created_at);
-        const hoursSinceLastData = (Date.now() - lastDataTime.getTime()) / (1000 * 60 * 60);
-        if (hoursSinceLastData > 24) setLastSyncStatus("stale");
-        else if (hoursSinceLastData > 6) setLastSyncStatus("delayed");
-        else setLastSyncStatus("recent");
+      if (connectionsError) {
+        console.error("🚨 [DASHBOARD_LOG] Connections Fetch Error:", connectionsError.message);
+        throw connectionsError;
+      }
+
+      // 2. Audit the Ledger (ACA Records)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      console.log("⚖️ [DASHBOARD_LOG] Checking Audit Log for today's sync...");
+      const { data: recentAuditData, error: auditError } = await supabase
+        .from("user_aca_records")
+        .select("created_at")
+        .eq("user_id", user.id)
+        .eq("source_id", "apple_health")
+        .gte("created_at", today.toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (auditError) {
+        console.error("🚨 [DASHBOARD_LOG] Audit Log Error:", auditError.message);
+        // We don't throw here to allow the UI to still show basic connection info
+      }
+
+      // 3. Process and Map Statuses
+      console.log("🗺️ [DASHBOARD_LOG] Mapping results to state...");
+      const updatedConnections = (connectionsData || []).map((conn) => {
+        if (conn.platform === "apple_health") {
+          return {
+            ...conn,
+            status: recentAuditData && recentAuditData.length > 0 ? "success" : "no_data",
+          };
+        }
+        return conn;
+      });
+
+      setConnections(updatedConnections);
+
+      // Update Sync Status for the badge
+      if (recentAuditData && recentAuditData.length > 0) {
+        setLastSyncStatus("recent");
       } else {
         setLastSyncStatus("no_data");
       }
 
-      setConnections(connectionsData);
-      setTotalEarnings(totalEarned);
-      setLoading(false);
-    } catch (error) {
-      console.error("Error fetching connections:", error);
+      console.log("✅ [DASHBOARD_LOG] fetchConnections completed successfully");
+    } catch (error: any) {
+      console.error("🚨 [DASHBOARD_LOG] FATAL Error in fetchConnections:", error.message);
       setConnections([]);
-      setTotalEarnings(0);
+      toast({
+        title: "Connection Error",
+        description: "Failed to sync your data sources.",
+        variant: "destructive",
+      });
+    } finally {
       setLoading(false);
+      console.log("🏁 [DASHBOARD_LOG] END: fetchConnections");
     }
   };
 
