@@ -119,7 +119,7 @@ const DataDashboard = () => {
         };
       }
       return conn;
-    });
+    );
 
     setConnections(updatedConnections);
   } catch (error: any) {
