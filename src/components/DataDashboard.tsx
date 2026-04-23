@@ -9,8 +9,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AppleHealthModal from "./AppleHealthModal";
 
+// Explicit interface to prevent TS2589 recursion
+interface DashboardConnection {
+  id: string;
+  connection_type: string;
+  user_id: string;
+  status?: string;
+  [key: string]: any;
+}
+
 const DataDashboard = () => {
-  const [connections, setConnections] = useState<any[]>([]);
+  const [connections, setConnections] = useState<DashboardConnection[]>([]);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
@@ -87,7 +96,10 @@ const DataDashboard = () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        console.log("⚠️ [DASHBOARD_LOG] No user found in fetchConnections");
+        return;
+      }
 
       const { data: connectionsData, error: connectionsError } = await supabase
         .from("data_connections")
@@ -99,6 +111,7 @@ const DataDashboard = () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
+      console.log("⚖️ [DASHBOARD_LOG] Fetching Audit Proofs from user_aca_records");
       const { data: recentAuditData, error: auditError } = await supabase
         .from("user_aca_records")
         .select("created_at")
@@ -112,8 +125,10 @@ const DataDashboard = () => {
         console.error("🚨 [DASHBOARD_LOG] Audit check failed:", auditError.message);
       }
 
-      // Fix for TS2589 & TS2339: Map using a generic type and correct property name
-      const updatedConnections = ((connectionsData || []) as any[]).map((conn) => {
+      // Explicit cast to DashboardConnection[] reinforced to prevent TS2589
+      const rawConnections = (connectionsData || []) as DashboardConnection[];
+
+      const updatedConnections = rawConnections.map((conn) => {
         if (conn.connection_type === "apple_health") {
           return {
             ...conn,
@@ -131,6 +146,7 @@ const DataDashboard = () => {
 
       setConnections(updatedConnections);
 
+      console.log("📡 [DASHBOARD_LOG] Updating Cash Account balance");
       const { data: walletData } = await supabase
         .from("user_wallets")
         .select("cash_balance")
