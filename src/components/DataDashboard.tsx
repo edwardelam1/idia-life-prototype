@@ -5,9 +5,15 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Activity, CheckCircle, DollarSign, FileKey, Copy } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+// 1. Rename the import to intercept it
+import { supabase as typedSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AppleHealthModal from "./AppleHealthModal";
+
+// 2. THE ULTIMATE BYPASS:
+// By typing this as 'any' at the root, TypeScript will NEVER evaluate
+// the deep database schema when you type `supabase.from()`.
+const supabase: any = typedSupabase;
 
 // THE BLOCKER: Strictly flat type.
 interface DataBlocker {
@@ -54,7 +60,7 @@ const DataDashboard = () => {
             table: "user_wallets",
             filter: `user_id=eq.${currentUserId}`,
           },
-          (payload) => {
+          (payload: any) => {
             console.log("Data Dashboard Wallet Update:", payload);
             setTotalEarnings(payload.new.cash_balance || 0);
           },
@@ -72,11 +78,11 @@ const DataDashboard = () => {
     setAcaLoading(true);
     console.log("🚀 [DASHBOARD_LOG] START: fetchAcaRecords");
     try {
-      const { data, error } = await (supabase
+      const { data, error } = await supabase
         .from("user_aca_records")
         .select("*")
         .eq("platform_guid", currentUserId)
-        .order("created_at", { ascending: false }) as any);
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
       if (data) setAcaRecords(data);
@@ -95,8 +101,8 @@ const DataDashboard = () => {
       const user = authData?.user;
       if (!user) return;
 
-      // 1. Fetch data connections
-      const connRes = await (supabase.from("data_connections").select("*").eq("user_id", user.id) as any);
+      // 1. Fetch data connections (Clean and concise now)
+      const connRes = await supabase.from("data_connections").select("*").eq("user_id", user.id);
 
       if (connRes.error) throw connRes.error;
 
@@ -104,14 +110,14 @@ const DataDashboard = () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const auditRes = await (supabase
+      const auditRes = await supabase
         .from("user_aca_records")
         .select("created_at")
         .eq("user_id", user.id)
         .eq("source_id", "apple_health")
         .gte("created_at", today.toISOString())
         .order("created_at", { ascending: false })
-        .limit(1) as any);
+        .limit(1);
 
       // 3. Transform data using a plain-object intermediary to kill recursion
       const rawData = connRes.data || [];
@@ -138,11 +144,7 @@ const DataDashboard = () => {
       setConnections(cleaned);
 
       // 4. Fetch Wallet
-      const walletRes = await (supabase
-        .from("user_wallets")
-        .select("cash_balance")
-        .eq("user_id", user.id)
-        .single() as any);
+      const walletRes = await supabase.from("user_wallets").select("cash_balance").eq("user_id", user.id).single();
 
       if (walletRes.data) {
         setTotalEarnings(walletRes.data.cash_balance || 0);
