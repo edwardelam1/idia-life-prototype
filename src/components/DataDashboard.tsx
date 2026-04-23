@@ -209,13 +209,41 @@ const DataDashboard = () => {
   const handleAppleHealthDisconnect = async () => {
     try {
       console.log("🔌 [DASHBOARD_LOG] Apple Health disconnect triggered.");
-      await fetchConnections(); // Refresh state to confirm deletion
-      setShowAppleHealthModal(false); // Force close after disconnecting
+      if (!currentUserId) {
+        console.log("⚠️ [DASHBOARD_LOG] No user ID, aborting disconnect.");
+        return;
+      }
+
+      // THE MISSING COMMAND: Explicitly tell Supabase to destroy the connection
+      console.log("🗑️ [DASHBOARD_LOG] Executing database deletion for apple_health...");
+      const { error } = await supabase
+        .from("data_connections")
+        .delete()
+        .eq("user_id", currentUserId)
+        .eq("connection_type", "apple_health");
+
+      if (error) {
+        console.error("🚨 [DASHBOARD_LOG] Database deletion failed:", error.message);
+        throw error;
+      }
+
+      console.log("✅ [DASHBOARD_LOG] Deletion successful. Refreshing UI.");
+
+      // Now we refresh the local state and close the doors
+      await fetchConnections();
+      setShowAppleHealthModal(false);
+
       toast({
         title: "Source Disconnected",
         description: "Apple Health data has been unlinked.",
       });
-    } catch {}
+    } catch (err: any) {
+      toast({
+        title: "Disconnect Failed",
+        description: err.message || "Could not sever the connection.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getConnectionStatus = (connectionType: string) => {
