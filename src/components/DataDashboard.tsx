@@ -5,12 +5,26 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Activity, CheckCircle, DollarSign, FileKey, Copy } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+// 1. Rename the import to intercept it
+import { supabase as typedSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AppleHealthModal from "./AppleHealthModal";
 
+// 2. THE ULTIMATE BYPASS:
+// By typing this as 'any' at the root, TypeScript will NEVER evaluate
+// the deep database schema when you type `supabase.from()`.
+const supabase: any = typedSupabase;
+
+// THE BLOCKER: Strictly flat type.
+interface DataBlocker {
+  id: string;
+  connection_type: string;
+  user_id: string;
+  status?: string;
+}
+
 const DataDashboard = () => {
-  const [connections, setConnections] = useState<any[]>([]);
+  const [connections, setConnections] = useState<DataBlocker[]>([]);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
@@ -46,7 +60,7 @@ const DataDashboard = () => {
             table: "user_wallets",
             filter: `user_id=eq.${currentUserId}`,
           },
-          (payload) => {
+          (payload: any) => {
             console.log("Data Dashboard Wallet Update:", payload);
             setTotalEarnings(payload.new.cash_balance || 0);
           },
@@ -62,6 +76,7 @@ const DataDashboard = () => {
   const fetchAcaRecords = async () => {
     if (!currentUserId) return;
     setAcaLoading(true);
+    console.log("🚀 [DASHBOARD_LOG] START: fetchAcaRecords");
     try {
       const { data, error } = await supabase
         .from("user_aca_records")
@@ -71,86 +86,88 @@ const DataDashboard = () => {
 
       if (error) throw error;
       if (data) setAcaRecords(data);
-    } catch (err) {
-      console.error("Failed to fetch ACA records:", err);
+    } catch (err: any) {
+      console.error("🚨 [DASHBOARD_LOG] Failed to fetch ACA records:", err.message);
     } finally {
       setAcaLoading(false);
+      console.log("🏁 [DASHBOARD_LOG] END: fetchAcaRecords");
     }
   };
 
   const fetchConnections = async () => {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    console.log("🚀 [DASHBOARD_LOG] START: fetchConnections");
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const user = authData?.user;
+      if (!user) return;
 
-    // 1. Check for the connection status
-    const { data: connectionsData, error: connectionsError } = await supabase
-      .from('data_connections')
-      .select('*')
-      .eq('user_id', user.id);
+      // 1. Fetch data connections (Is the pipe open?)
+      const connRes = await supabase.from("data_connections").select("*").eq("user_id", user.id);
+      if (connRes.error) throw connRes.error;
 
-    if (connectionsError) throw connectionsError;
+      // 2. Fetch the SINGLE absolute latest audit record (When did water last flow?)
+      // Notice: We removed the 'today' filter entirely.
+      const auditRes = await supabase
+        .from("user_aca_records")
+        .select("created_at")
+        .eq("user_id", user.id)
+        .eq("source_id", "apple_health")
+        .order("created_at", { ascending: false })
+        .limit(1);
 
-    // 2. Audit the Ledger (user_aca_records) instead of raw ingestion
-    // This checks if a successful sync record was created today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+      const rawData = connRes.data || [];
+      const auditData = auditRes.data || [];
 
-    const { data: recentAuditData, error: auditError } = await supabase
-      .from('user_aca_records')
-      .select('created_at')
-      .eq('user_id', user.id)
-      .eq('source_id', 'apple_health')
-      .gte('created_at', today.toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1);
+      let calculatedSyncStatus = "no_data";
 
-    if (auditError) {
-      console.error("🚨 [DASHBOARD_LOG] Audit check failed:", auditError.message);
-    }
+      // 3. Time-Based Logic (The Burst Architect)
+      if (auditData.length > 0) {
+        const lastSyncTime = new Date(auditData[0].created_at).getTime();
+        const hoursSinceLastSync = (Date.now() - lastSyncTime) / (1000 * 60 * 60);
 
-    // 3. Map status based on the Audit Log proof
-    const updatedConnections = (connectionsData || []).map(conn => {
-      if (conn.platform === 'apple_health') {
-        return {
-          ...conn,
-          // If we found a record in the audit log from today, it's a success
-          status: recentAuditData && recentAuditData.length > 0 ? 'success' : 'no_data'
+        console.log(`⏱️ [DASHBOARD_LOG] Hours since last Apple Health sync: ${hoursSinceLastSync.toFixed(2)}`);
+
+        if (hoursSinceLastSync < 6) {
+          calculatedSyncStatus = "recent";
+        } else if (hoursSinceLastSync < 24) {
+          calculatedSyncStatus = "delayed"; // Idle
+        } else {
+          calculatedSyncStatus = "stale";
+        }
+      }
+
+      // 4. Map the UI State
+      const cleaned: DataBlocker[] = [];
+      for (let i = 0; i < rawData.length; i++) {
+        const item = rawData[i];
+        const entry: DataBlocker = {
+          id: String(item.id),
+          connection_type: String(item.connection_type),
+          user_id: String(item.user_id),
         };
-      }
-      return conn;
-    });
 
-    setConnections(updatedConnections);
-  } catch (error: any) {
-    console.error('🚨 [DASHBOARD_LOG] Error fetching connections:', error.message);
-  } finally {
-    setLoading(false);
-  }
-};
-
-      const connectionsData = connectionsResult.value.data || [];
-      let totalEarned = 0;
-      if (walletResult.status === "fulfilled") totalEarned = walletResult.value.data?.cash_balance || 0;
-
-      if (recentDataResult.status === "fulfilled" && recentDataResult.value.data?.length > 0) {
-        const lastDataTime = new Date(recentDataResult.value.data[0].created_at);
-        const hoursSinceLastData = (Date.now() - lastDataTime.getTime()) / (1000 * 60 * 60);
-        if (hoursSinceLastData > 24) setLastSyncStatus("stale");
-        else if (hoursSinceLastData > 6) setLastSyncStatus("delayed");
-        else setLastSyncStatus("recent");
-      } else {
-        setLastSyncStatus("no_data");
+        // If it exists in data_connections, it IS connected.
+        // We only show 'success' visually if the sync isn't completely dead.
+        if (entry.connection_type === "apple_health") {
+          entry.status = auditData.length > 0 ? "success" : "no_data";
+        }
+        cleaned.push(entry);
       }
 
-      setConnections(connectionsData);
-      setTotalEarnings(totalEarned);
+      setLastSyncStatus(calculatedSyncStatus);
+      setConnections(cleaned);
+
+      // 5. Fetch Wallet Balance
+      const walletRes = await supabase.from("user_wallets").select("cash_balance").eq("user_id", user.id).single();
+
+      if (walletRes.data) {
+        setTotalEarnings(walletRes.data.cash_balance || 0);
+      }
+    } catch (error: any) {
+      console.error("🚨 [DASHBOARD_LOG] Error in fetchConnections:", error.message);
+    } finally {
       setLoading(false);
-    } catch (error) {
-      console.error("Error fetching connections:", error);
-      setConnections([]);
-      setTotalEarnings(0);
-      setLoading(false);
+      console.log("🏁 [DASHBOARD_LOG] END: fetchConnections");
     }
   };
 
@@ -172,8 +189,6 @@ const DataDashboard = () => {
             Idle
           </Badge>
         );
-      case "stale":
-        return null;
       case "no_data":
         return <Badge variant="outline">No Data Found</Badge>;
       default:
@@ -183,17 +198,59 @@ const DataDashboard = () => {
 
   const handleAppleHealthComplete = async () => {
     try {
+      console.log("🔗 [DASHBOARD_LOG] Apple Health connection complete.");
       await fetchConnections();
       await fetchAcaRecords();
+      setShowAppleHealthModal(false); // Force close after connecting
       triggerFriendForDataEvent();
     } catch {}
+  };
+
+  const handleAppleHealthDisconnect = async () => {
+    try {
+      console.log("🔌 [DASHBOARD_LOG] Apple Health disconnect triggered.");
+      if (!currentUserId) {
+        console.log("⚠️ [DASHBOARD_LOG] No user ID, aborting disconnect.");
+        return;
+      }
+
+      // THE MISSING COMMAND: Explicitly tell Supabase to destroy the connection
+      console.log("🗑️ [DASHBOARD_LOG] Executing database deletion for apple_health...");
+      const { error } = await supabase
+        .from("data_connections")
+        .delete()
+        .eq("user_id", currentUserId)
+        .eq("connection_type", "apple_health");
+
+      if (error) {
+        console.error("🚨 [DASHBOARD_LOG] Database deletion failed:", error.message);
+        throw error;
+      }
+
+      console.log("✅ [DASHBOARD_LOG] Deletion successful. Refreshing UI.");
+
+      // Now we refresh the local state and close the doors
+      await fetchConnections();
+      setShowAppleHealthModal(false);
+
+      toast({
+        title: "Source Disconnected",
+        description: "Apple Health data has been unlinked.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Disconnect Failed",
+        description: err.message || "Could not sever the connection.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getConnectionStatus = (connectionType: string) => {
     return connections.find((conn) => conn.connection_type === connectionType);
   };
 
-  const visibleConnections = connections.filter((connection) => connection.connection_type === "apple_health");
+  const visibleConnections = connections.filter((c) => c.connection_type === "apple_health");
 
   const formatSourceName = (sourceId: string) => {
     return sourceId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -204,10 +261,7 @@ const DataDashboard = () => {
       <div className="space-y-6">
         <div className="animate-pulse">
           <div className="h-32 bg-muted rounded-lg mb-6"></div>
-          <div className="space-y-3">
-            <div className="h-4 bg-muted rounded w-1/4"></div>
-            <div className="h-24 bg-muted rounded"></div>
-          </div>
+          <div className="h-24 bg-muted rounded"></div>
         </div>
       </div>
     );
@@ -251,23 +305,20 @@ const DataDashboard = () => {
             <h2 className="text-xl font-bold text-foreground">Available Data Sources</h2>
             {!getConnectionStatus("apple_health") ? (
               <div className="flex justify-center">
-                {!getConnectionStatus("apple_health") && (
-                  <div className="relative cursor-pointer group" onClick={() => setShowAppleHealthModal(true)}>
-                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
-                      <img
-                        src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
-                        alt="Apple Health"
-                        className="w-full h-full object-contain p-2"
-                      />
-                    </div>
+                <div className="relative cursor-pointer group" onClick={() => setShowAppleHealthModal(true)}>
+                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
+                    <img
+                      src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
+                      alt="Apple Health"
+                      className="w-full h-full object-contain p-2"
+                    />
                   </div>
-                )}
+                </div>
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">All available data sources connected</p>
-                <p className="text-xs">Manage your connections below</p>
               </div>
             )}
           </div>
@@ -301,7 +352,6 @@ const DataDashboard = () => {
               <div className="text-center py-8 text-muted-foreground">
                 <Activity className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">No data sources connected yet</p>
-                <p className="text-xs">Click on an available source above to connect</p>
               </div>
             )}
           </div>
@@ -318,12 +368,6 @@ const DataDashboard = () => {
             <CardContent>
               {acaLoading ? (
                 <div className="text-center py-8 text-muted-foreground text-sm">Loading audit records...</div>
-              ) : acaRecords.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <FileKey className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No audit records yet</p>
-                  <p className="text-xs">ACA hashes are generated when you connect a data source</p>
-                </div>
               ) : (
                 <Table>
                   <TableHeader>
@@ -348,10 +392,7 @@ const DataDashboard = () => {
                               className="h-6 w-6"
                               onClick={() => {
                                 navigator.clipboard.writeText(record.aca_hash_key || "");
-                                toast({
-                                  title: "Copied",
-                                  description: "ACA hash copied to clipboard",
-                                });
+                                toast({ title: "Copied", description: "ACA hash copied to clipboard" });
                               }}
                             >
                               <Copy className="h-3 w-3" />
@@ -376,7 +417,7 @@ const DataDashboard = () => {
         onClose={() => setShowAppleHealthModal(false)}
         onComplete={handleAppleHealthComplete}
         existingConnection={getConnectionStatus("apple_health")}
-        onDisconnect={fetchConnections}
+        onDisconnect={handleAppleHealthDisconnect} // <-- The clean exit
       />
     </div>
   );
