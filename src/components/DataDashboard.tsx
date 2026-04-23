@@ -99,21 +99,34 @@ const DataDashboard = () => {
     try {
       const { data: authData } = await supabase.auth.getUser();
       const user = authData?.user;
-      if (!user) return;
+      if (!user) {
+        console.log("⚠️ [DASHBOARD_LOG] No user found in fetchConnections.");
+        return;
+      }
 
       // 1. Fetch data connections (Is the pipe open?)
+      console.log("📡 [DASHBOARD_LOG] Fetching data_connections...");
       const connRes = await supabase.from("data_connections").select("*").eq("user_id", user.id);
-      if (connRes.error) throw connRes.error;
 
-      // 2. Fetch the SINGLE absolute latest audit record (When did water last flow?)
-      // Notice: We removed the 'today' filter entirely.
+      if (connRes.error) {
+        console.error("🚨 [DASHBOARD_LOG] Connection fetch failed:", connRes.error.message);
+        throw connRes.error;
+      }
+
+      // 2. Fetch absolute latest audit record (When did water last flow?)
+      // CRITICAL FIX: Changed "user_id" to "platform_guid" and removed the "Today" filter.
+      console.log("⚖️ [DASHBOARD_LOG] Fetching latest ACA audit record for platform_guid...");
       const auditRes = await supabase
         .from("user_aca_records")
         .select("created_at")
-        .eq("user_id", user.id)
+        .eq("platform_guid", user.id) // <-- THE SMOKING GUN FIX
         .eq("source_id", "apple_health")
         .order("created_at", { ascending: false })
         .limit(1);
+
+      if (auditRes.error) {
+        console.error("🚨 [DASHBOARD_LOG] Audit fetch failed:", auditRes.error.message);
+      }
 
       const rawData = connRes.data || [];
       const auditData = auditRes.data || [];
@@ -134,9 +147,11 @@ const DataDashboard = () => {
         } else {
           calculatedSyncStatus = "stale";
         }
+      } else {
+        console.log("⚠️ [DASHBOARD_LOG] No ACA records found for this platform_guid.");
       }
 
-      // 4. Map the UI State
+      // 4. Map the UI State securely
       const cleaned: DataBlocker[] = [];
       for (let i = 0; i < rawData.length; i++) {
         const item = rawData[i];
@@ -146,8 +161,6 @@ const DataDashboard = () => {
           user_id: String(item.user_id),
         };
 
-        // If it exists in data_connections, it IS connected.
-        // We only show 'success' visually if the sync isn't completely dead.
         if (entry.connection_type === "apple_health") {
           entry.status = auditData.length > 0 ? "success" : "no_data";
         }
@@ -158,13 +171,17 @@ const DataDashboard = () => {
       setConnections(cleaned);
 
       // 5. Fetch Wallet Balance
+      console.log("💵 [DASHBOARD_LOG] Fetching wallet balance...");
       const walletRes = await supabase.from("user_wallets").select("cash_balance").eq("user_id", user.id).single();
 
-      if (walletRes.data) {
+      if (walletRes.error && walletRes.error.code !== "PGRST116") {
+        // PGRST116 is just "no rows returned", which is fine for a new user
+        console.error("🚨 [DASHBOARD_LOG] Wallet fetch error:", walletRes.error.message);
+      } else if (walletRes.data) {
         setTotalEarnings(walletRes.data.cash_balance || 0);
       }
     } catch (error: any) {
-      console.error("🚨 [DASHBOARD_LOG] Error in fetchConnections:", error.message);
+      console.error("🚨 [DASHBOARD_LOG] FATAL Error in fetchConnections:", error.message);
     } finally {
       setLoading(false);
       console.log("🏁 [DASHBOARD_LOG] END: fetchConnections");
