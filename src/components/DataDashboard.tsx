@@ -101,31 +101,43 @@ const DataDashboard = () => {
       const user = authData?.user;
       if (!user) return;
 
-      // 1. Fetch data connections (Clean and concise now)
+      // 1. Fetch data connections (Is the pipe open?)
       const connRes = await supabase.from("data_connections").select("*").eq("user_id", user.id);
-
       if (connRes.error) throw connRes.error;
 
-      // 2. Fetch audit records
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
+      // 2. Fetch the SINGLE absolute latest audit record (When did water last flow?)
+      // Notice: We removed the 'today' filter entirely.
       const auditRes = await supabase
         .from("user_aca_records")
         .select("created_at")
         .eq("user_id", user.id)
         .eq("source_id", "apple_health")
-        .gte("created_at", today.toISOString())
         .order("created_at", { ascending: false })
         .limit(1);
 
-      // 3. Transform data using a plain-object intermediary to kill recursion
       const rawData = connRes.data || [];
       const auditData = auditRes.data || [];
-      const syncStatus = auditData.length > 0 ? "recent" : "no_data";
 
+      let calculatedSyncStatus = "no_data";
+
+      // 3. Time-Based Logic (The Burst Architect)
+      if (auditData.length > 0) {
+        const lastSyncTime = new Date(auditData[0].created_at).getTime();
+        const hoursSinceLastSync = (Date.now() - lastSyncTime) / (1000 * 60 * 60);
+
+        console.log(`⏱️ [DASHBOARD_LOG] Hours since last Apple Health sync: ${hoursSinceLastSync.toFixed(2)}`);
+
+        if (hoursSinceLastSync < 6) {
+          calculatedSyncStatus = "recent";
+        } else if (hoursSinceLastSync < 24) {
+          calculatedSyncStatus = "delayed"; // Idle
+        } else {
+          calculatedSyncStatus = "stale";
+        }
+      }
+
+      // 4. Map the UI State
       const cleaned: DataBlocker[] = [];
-
       for (let i = 0; i < rawData.length; i++) {
         const item = rawData[i];
         const entry: DataBlocker = {
@@ -134,16 +146,18 @@ const DataDashboard = () => {
           user_id: String(item.user_id),
         };
 
+        // If it exists in data_connections, it IS connected.
+        // We only show 'success' visually if the sync isn't completely dead.
         if (entry.connection_type === "apple_health") {
           entry.status = auditData.length > 0 ? "success" : "no_data";
         }
         cleaned.push(entry);
       }
 
-      setLastSyncStatus(syncStatus);
+      setLastSyncStatus(calculatedSyncStatus);
       setConnections(cleaned);
 
-      // 4. Fetch Wallet
+      // 5. Fetch Wallet Balance
       const walletRes = await supabase.from("user_wallets").select("cash_balance").eq("user_id", user.id).single();
 
       if (walletRes.data) {
