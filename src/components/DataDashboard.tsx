@@ -62,6 +62,7 @@ const DataDashboard = () => {
   const fetchAcaRecords = async () => {
     if (!currentUserId) return;
     setAcaLoading(true);
+    console.log("🚀 [DASHBOARD_LOG] START: fetchAcaRecords");
     try {
       const { data, error } = await supabase
         .from("user_aca_records")
@@ -71,50 +72,33 @@ const DataDashboard = () => {
 
       if (error) throw error;
       if (data) setAcaRecords(data);
-    } catch (err) {
-      console.error("Failed to fetch ACA records:", err);
+      console.log("✅ [DASHBOARD_LOG] ACA records fetched");
+    } catch (err: any) {
+      console.error("🚨 [DASHBOARD_LOG] Failed to fetch ACA records:", err.message);
     } finally {
       setAcaLoading(false);
+      console.log("🏁 [DASHBOARD_LOG] END: fetchAcaRecords");
     }
   };
 
   const fetchConnections = async () => {
     console.log("🚀 [DASHBOARD_LOG] START: fetchConnections");
-    setLoading(true); // Ensure loading state is active at start
-
     try {
       const {
         data: { user },
-        error: userError,
       } = await supabase.auth.getUser();
+      if (!user) return;
 
-      if (userError) {
-        console.error("🚨 [DASHBOARD_LOG] Supabase Auth Error:", userError.message);
-        throw userError;
-      }
-
-      if (!user) {
-        console.log("⚠️ [DASHBOARD_LOG] No authenticated user found.");
-        return;
-      }
-
-      // 1. Fetch connection status
-      console.log("📡 [DASHBOARD_LOG] Fetching data_connections for user:", user.id);
       const { data: connectionsData, error: connectionsError } = await supabase
         .from("data_connections")
         .select("*")
         .eq("user_id", user.id);
 
-      if (connectionsError) {
-        console.error("🚨 [DASHBOARD_LOG] Connections Fetch Error:", connectionsError.message);
-        throw connectionsError;
-      }
+      if (connectionsError) throw connectionsError;
 
-      // 2. Audit the Ledger (ACA Records)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      console.log("⚖️ [DASHBOARD_LOG] Checking Audit Log for today's sync...");
       const { data: recentAuditData, error: auditError } = await supabase
         .from("user_aca_records")
         .select("created_at")
@@ -125,14 +109,12 @@ const DataDashboard = () => {
         .limit(1);
 
       if (auditError) {
-        console.error("🚨 [DASHBOARD_LOG] Audit Log Error:", auditError.message);
-        // We don't throw here to allow the UI to still show basic connection info
+        console.error("🚨 [DASHBOARD_LOG] Audit check failed:", auditError.message);
       }
 
-      // 3. Process and Map Statuses
-      console.log("🗺️ [DASHBOARD_LOG] Mapping results to state...");
-      const updatedConnections = (connectionsData || []).map((conn) => {
-        if (conn.platform === "apple_health") {
+      // Fix for TS2589 & TS2339: Map using a generic type and correct property name
+      const updatedConnections = (connectionsData || []).map((conn: any) => {
+        if (conn.connection_type === "apple_health") {
           return {
             ...conn,
             status: recentAuditData && recentAuditData.length > 0 ? "success" : "no_data",
@@ -141,24 +123,23 @@ const DataDashboard = () => {
         return conn;
       });
 
-      setConnections(updatedConnections);
-
-      // Update Sync Status for the badge
       if (recentAuditData && recentAuditData.length > 0) {
         setLastSyncStatus("recent");
       } else {
         setLastSyncStatus("no_data");
       }
 
-      console.log("✅ [DASHBOARD_LOG] fetchConnections completed successfully");
+      setConnections(updatedConnections);
+
+      const { data: walletData } = await supabase
+        .from("user_wallets")
+        .select("cash_balance")
+        .eq("user_id", user.id)
+        .single();
+
+      if (walletData) setTotalEarnings(walletData.cash_balance || 0);
     } catch (error: any) {
-      console.error("🚨 [DASHBOARD_LOG] FATAL Error in fetchConnections:", error.message);
-      setConnections([]);
-      toast({
-        title: "Connection Error",
-        description: "Failed to sync your data sources.",
-        variant: "destructive",
-      });
+      console.error("🚨 [DASHBOARD_LOG] Error fetching connections:", error.message);
     } finally {
       setLoading(false);
       console.log("🏁 [DASHBOARD_LOG] END: fetchConnections");
@@ -262,17 +243,15 @@ const DataDashboard = () => {
             <h2 className="text-xl font-bold text-foreground">Available Data Sources</h2>
             {!getConnectionStatus("apple_health") ? (
               <div className="flex justify-center">
-                {!getConnectionStatus("apple_health") && (
-                  <div className="relative cursor-pointer group" onClick={() => setShowAppleHealthModal(true)}>
-                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
-                      <img
-                        src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
-                        alt="Apple Health"
-                        className="w-full h-full object-contain p-2"
-                      />
-                    </div>
+                <div className="relative cursor-pointer group" onClick={() => setShowAppleHealthModal(true)}>
+                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
+                    <img
+                      src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
+                      alt="Apple Health"
+                      className="w-full h-full object-contain p-2"
+                    />
                   </div>
-                )}
+                </div>
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
