@@ -79,27 +79,55 @@ const DataDashboard = () => {
   };
 
   const fetchConnections = async () => {
-    if (!currentUserId) return;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
-    try {
-      const [connectionsResult, walletResult, recentDataResult] = await Promise.allSettled([
-        supabase.from("data_connections").select("*").eq("user_id", currentUserId).eq("is_active", true),
-        supabase.from("user_wallets").select("*").eq("user_id", currentUserId).maybeSingle(),
-        supabase
-          .from("raw_health_data")
-          .select("created_at")
-          .eq("user_id", currentUserId)
-          .order("created_at", { ascending: false })
-          .limit(1),
-      ]);
+    // 1. Check for the connection status
+    const { data: connectionsData, error: connectionsError } = await supabase
+      .from('data_connections')
+      .select('*')
+      .eq('user_id', user.id);
 
-      if (connectionsResult.status === "rejected") {
-        console.error("Error fetching connections:", connectionsResult.reason);
-        setConnections([]);
-        setTotalEarnings(0);
-        setLoading(false);
-        return;
+    if (connectionsError) throw connectionsError;
+
+    // 2. Audit the Ledger (user_aca_records) instead of raw ingestion
+    // This checks if a successful sync record was created today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const { data: recentAuditData, error: auditError } = await supabase
+      .from('user_aca_records')
+      .select('created_at')
+      .eq('user_id', user.id)
+      .eq('source_id', 'apple_health')
+      .gte('created_at', today.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (auditError) {
+      console.error("🚨 [DASHBOARD_LOG] Audit check failed:", auditError.message);
+    }
+
+    // 3. Map status based on the Audit Log proof
+    const updatedConnections = (connectionsData || []).map(conn => {
+      if (conn.platform === 'apple_health') {
+        return {
+          ...conn,
+          // If we found a record in the audit log from today, it's a success
+          status: recentAuditData && recentAuditData.length > 0 ? 'success' : 'no_data'
+        };
       }
+      return conn;
+    });
+
+    setConnections(updatedConnections);
+  } catch (error: any) {
+    console.error('🚨 [DASHBOARD_LOG] Error fetching connections:', error.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
       const connectionsData = connectionsResult.value.data || [];
       let totalEarned = 0;
