@@ -113,7 +113,7 @@ const DataDashboard = () => {
       }
 
       // Fix for TS2589 & TS2339: Map using a generic type and correct property name
-      const updatedConnections = (connectionsData || []).map((conn: any) => {
+      const updatedConnections = ((connectionsData || []) as any[]).map((conn) => {
         if (conn.connection_type === "apple_health") {
           return {
             ...conn,
