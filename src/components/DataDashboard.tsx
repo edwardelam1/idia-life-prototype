@@ -9,14 +9,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AppleHealthModal from "./AppleHealthModal";
 
-// Simplified local type to bypass Supabase's deep type tree
+// THE EXTERNAL BLOCKER:
+// This acts as a terminal point for the compiler to prevent infinite recursion.
 type DashboardConnection = {
   id: string;
   connection_type: string;
   user_id: string;
   status?: string;
-  [key: string]: any;
-};
+} & Record<string, any>;
 
 const DataDashboard = () => {
   const [connections, setConnections] = useState<DashboardConnection[]>([]);
@@ -97,7 +97,6 @@ const DataDashboard = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Use a raw response type to stop the recursion immediately
       const { data: connectionsData, error: connectionsError } = await supabase
         .from("data_connections")
         .select("*")
@@ -117,10 +116,9 @@ const DataDashboard = () => {
         .order("created_at", { ascending: false })
         .limit(1);
 
-      // --- RECURSION BYPASS START ---
-      // We process the data as a simple array of objects,
-      // completely ignoring the complex Supabase internal types.
-      const rawList: Record<string, any>[] = (connectionsData as any) || [];
+      // THE ONE-MOTION ACTION:
+      // We pass the data through the blocker to clip infinite relationship trees.
+      const rawList = (connectionsData as any[]) || [];
 
       const processed: DashboardConnection[] = rawList.map((item) => {
         const base: DashboardConnection = {
@@ -135,7 +133,6 @@ const DataDashboard = () => {
         }
         return base;
       });
-      // --- RECURSION BYPASS END ---
 
       setLastSyncStatus(recentAuditData && recentAuditData.length > 0 ? "recent" : "no_data");
       setConnections(processed);
