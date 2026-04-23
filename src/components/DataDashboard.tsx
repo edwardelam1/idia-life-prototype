@@ -389,7 +389,7 @@ const DataDashboard = () => {
         onClose={() => setShowAppleHealthModal(false)}
         onComplete={handleAppleHealthComplete}
         existingConnection={getConnectionStatus("apple_health")}
-        onDisconnect={fetchConnections}
+        onDisconnect={handleAppleHealthDisconnect} // <-- The clean exit
       />
     </div>
   );
