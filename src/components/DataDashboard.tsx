@@ -9,17 +9,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AppleHealthModal from "./AppleHealthModal";
 
-// THE EXTERNAL BLOCKER:
-// This acts as a terminal point for the compiler to prevent infinite recursion.
-type DashboardConnection = {
+// THE BLOCKER: Strictly flat type.
+interface DataBlocker {
   id: string;
   connection_type: string;
   user_id: string;
   status?: string;
-} & Record<string, any>;
+}
 
 const DataDashboard = () => {
-  const [connections, setConnections] = useState<DashboardConnection[]>([]);
+  const [connections, setConnections] = useState<DataBlocker[]>([]);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
@@ -73,11 +72,11 @@ const DataDashboard = () => {
     setAcaLoading(true);
     console.log("🚀 [DASHBOARD_LOG] START: fetchAcaRecords");
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase
         .from("user_aca_records")
         .select("*")
         .eq("platform_guid", currentUserId)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false }) as any);
 
       if (error) throw error;
       if (data) setAcaRecords(data);
@@ -92,59 +91,62 @@ const DataDashboard = () => {
   const fetchConnections = async () => {
     console.log("🚀 [DASHBOARD_LOG] START: fetchConnections");
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: authData } = await supabase.auth.getUser();
+      const user = authData?.user;
       if (!user) return;
 
-      // We cast the entire Supabase call to 'any' to kill the type recursion immediately.
-      const { data: connectionsData, error: connectionsError } = await (supabase
-        .from("data_connections")
-        .select("*")
-        .eq("user_id", user.id) as any);
+      // 1. Fetch data connections
+      const connRes = await (supabase.from("data_connections").select("*").eq("user_id", user.id) as any);
 
-      if (connectionsError) throw connectionsError;
+      if (connRes.error) throw connRes.error;
 
+      // 2. Fetch audit records
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const { data: recentAuditData } = await supabase
+      const auditRes = await (supabase
         .from("user_aca_records")
         .select("created_at")
         .eq("user_id", user.id)
         .eq("source_id", "apple_health")
         .gte("created_at", today.toISOString())
         .order("created_at", { ascending: false })
-        .limit(1);
+        .limit(1) as any);
 
-      // THE ONE-MOTION ACTION:
-      // We pass the data through the blocker to clip infinite relationship trees.
-      const rawList = (connectionsData as any[]) || [];
+      // 3. Transform data using a plain-object intermediary to kill recursion
+      const rawData = connRes.data || [];
+      const auditData = auditRes.data || [];
+      const syncStatus = auditData.length > 0 ? "recent" : "no_data";
 
-      const processed: DashboardConnection[] = rawList.map((item) => {
-        const base: DashboardConnection = {
+      const cleaned: DataBlocker[] = [];
+
+      for (let i = 0; i < rawData.length; i++) {
+        const item = rawData[i];
+        const entry: DataBlocker = {
           id: String(item.id),
           connection_type: String(item.connection_type),
           user_id: String(item.user_id),
-          ...item,
         };
 
-        if (base.connection_type === "apple_health") {
-          base.status = recentAuditData && recentAuditData.length > 0 ? "success" : "no_data";
+        if (entry.connection_type === "apple_health") {
+          entry.status = auditData.length > 0 ? "success" : "no_data";
         }
-        return base;
-      });
+        cleaned.push(entry);
+      }
 
-      setLastSyncStatus(recentAuditData && recentAuditData.length > 0 ? "recent" : "no_data");
-      setConnections(processed);
+      setLastSyncStatus(syncStatus);
+      setConnections(cleaned);
 
-      const { data: walletData } = await supabase
+      // 4. Fetch Wallet
+      const walletRes = await (supabase
         .from("user_wallets")
         .select("cash_balance")
         .eq("user_id", user.id)
-        .single();
+        .single() as any);
 
-      if (walletData) setTotalEarnings(walletData.cash_balance || 0);
+      if (walletRes.data) {
+        setTotalEarnings(walletRes.data.cash_balance || 0);
+      }
     } catch (error: any) {
       console.error("🚨 [DASHBOARD_LOG] Error in fetchConnections:", error.message);
     } finally {
