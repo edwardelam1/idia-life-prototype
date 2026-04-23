@@ -184,9 +184,23 @@ const DataDashboard = () => {
 
   const handleAppleHealthComplete = async () => {
     try {
+      console.log("🔗 [DASHBOARD_LOG] Apple Health connection complete.");
       await fetchConnections();
       await fetchAcaRecords();
+      setShowAppleHealthModal(false); // Force close after connecting
       triggerFriendForDataEvent();
+    } catch {}
+  };
+
+  const handleAppleHealthDisconnect = async () => {
+    try {
+      console.log("🔌 [DASHBOARD_LOG] Apple Health disconnect triggered.");
+      await fetchConnections(); // Refresh state to confirm deletion
+      setShowAppleHealthModal(false); // Force close after disconnecting
+      toast({
+        title: "Source Disconnected",
+        description: "Apple Health data has been unlinked.",
+      });
     } catch {}
   };
 
