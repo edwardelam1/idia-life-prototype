@@ -97,10 +97,11 @@ const DataDashboard = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: connectionsData, error: connectionsError } = await supabase
+      // We cast the entire Supabase call to 'any' to kill the type recursion immediately.
+      const { data: connectionsData, error: connectionsError } = await (supabase
         .from("data_connections")
         .select("*")
-        .eq("user_id", user.id);
+        .eq("user_id", user.id) as any);
 
       if (connectionsError) throw connectionsError;
 
