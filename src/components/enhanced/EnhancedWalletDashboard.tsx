@@ -64,18 +64,22 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [showTestModal, setShowTestModal] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
 
+  // IDIA Infrastructure State
+  const isProvisioned = !!profile?.circle_user_id;
+  const hasFBO = !!profile?.fbo_account_id;
+
   useEffect(() => {
     fetchTransactions();
   }, []);
 
   const fetchTransactions = async () => {
+    console.log("[START] Fetching transactions from fiat_ledger...");
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // THE FIX: Query the fiat_ledger instead of the dead 'transactions' table
       const { data, error } = await supabase
         .from("fiat_ledger")
         .select("*")
@@ -84,9 +88,8 @@ const EnhancedWalletDashboard: React.FC = () => {
         .limit(20);
 
       if (error) {
-        console.error("Error fetching transactions:", error);
+        console.error("[ERROR] Transaction fetch failed:", error);
       } else {
-        // Map the fiat_ledger schema to the UI's expected Transaction interface
         const mappedTransactions = (data || []).map((tx) => ({
           id: tx.id,
           transaction_type: tx.transaction_type,
@@ -96,11 +99,11 @@ const EnhancedWalletDashboard: React.FC = () => {
           created_at: tx.created_at,
           metadata: tx.metadata,
         }));
-
+        console.log("[SUCCESS] Transactions mapped to UI.");
         setTransactions(mappedTransactions);
       }
     } catch (error) {
-      console.error("Error fetching transactions:", error);
+      console.error("[ERROR] Silent stalling in fetchTransactions:", error);
     }
   };
 
@@ -136,16 +139,11 @@ const EnhancedWalletDashboard: React.FC = () => {
     setIsCalculating(true);
     try {
       const { tut, ...actualTelemetry } = moduleScores;
-
       const { data, error } = await supabase.functions.invoke("calculate-trust-score", {
-        body: {
-          user_id: profile?.user_id,
-          telemetry: actualTelemetry,
-        },
+        body: { user_id: profile?.user_id, telemetry: actualTelemetry },
       });
 
       if (error) throw error;
-
       if (updateProfile) {
         await updateProfile({
           trust_score: data.trust_score,
@@ -153,22 +151,17 @@ const EnhancedWalletDashboard: React.FC = () => {
         });
       }
 
-      if (typeof setCreditSimulation === "function") {
-        setCreditSimulation({
-          current_score: profile?.trust_score ?? "NO SCORE",
-          simulated_score: data.trust_score,
-          actions: ["Psychometric telemetry verified via IDIA Protocol", "Deterministic capital limit recalculated"],
-        });
-      }
+      setCreditSimulation({
+        current_score: profile?.trust_score ?? "NO SCORE",
+        simulated_score: data.trust_score,
+        actions: ["Psychometric telemetry verified via IDIA Protocol", "Deterministic capital limit recalculated"],
+      });
     } catch (err) {
       console.error("IDIA Algorithm Execution Failed:", err);
     } finally {
       setIsCalculating(false);
       setShowTestModal(false);
-
-      setTimeout(() => {
-        fireFinaleConfetti();
-      }, 400);
+      setTimeout(() => fireFinaleConfetti(), 400);
     }
   };
 
@@ -190,23 +183,15 @@ const EnhancedWalletDashboard: React.FC = () => {
     }
   };
 
-  const getTransactionColor = (amount: number) => {
-    return amount > 0 ? "text-green-600" : "text-red-600";
-  };
-
-  const formatAmount = (amount: number) => {
-    const sign = amount > 0 ? "+" : "";
-    return `${sign}$${Math.abs(amount).toFixed(2)}`;
-  };
+  const getTransactionColor = (amount: number) => (amount > 0 ? "text-green-600" : "text-red-600");
+  const formatAmount = (amount: number) => `${amount > 0 ? "+" : ""}$${Math.abs(amount).toFixed(2)}`;
 
   if (loading || balanceLoading) {
     return (
-      <div className="p-4">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-muted rounded w-1/3"></div>
-          <div className="h-32 bg-muted rounded"></div>
-          <div className="h-64 bg-muted rounded"></div>
-        </div>
+      <div className="p-4 space-y-4 animate-pulse">
+        <div className="h-8 bg-muted rounded w-1/3"></div>
+        <div className="h-32 bg-muted rounded"></div>
+        <div className="h-64 bg-muted rounded"></div>
       </div>
     );
   }
@@ -221,9 +206,7 @@ const EnhancedWalletDashboard: React.FC = () => {
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-background p-0 border-none">
         <DialogHeader className="sr-only">
           <DialogTitle>Psychometric Validation</DialogTitle>
-          <DialogDescription>
-            Complete the 9 telemetry modules to establish your cryptographic IDIA Trust Score.
-          </DialogDescription>
+          <DialogDescription>Establish your cryptographic IDIA Trust Score via telemetry modules.</DialogDescription>
         </DialogHeader>
         <PsychometricTestingCenter onCompleteAll={handleCalculateScore} onCancel={() => setShowTestModal(false)} />
       </DialogContent>
@@ -234,101 +217,86 @@ const EnhancedWalletDashboard: React.FC = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-foreground">IDIA Wallet</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={exportTaxableEvents}>
-            <Download className="w-4 h-4 mr-2" />
-            Tax Report
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" onClick={exportTaxableEvents}>
+          <Download className="w-4 h-4 mr-2" /> Tax Report
+        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid grid-cols-4 w-full">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="transactions">Transactions</TabsTrigger>
+          <TabsTrigger value="transactions">History</TabsTrigger>
           <TabsTrigger value="credit">Credit</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-          <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white">
+          <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white relative overflow-hidden">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold">Total Balance</h2>
-                <Wallet className="w-6 h-6" />
+                <Wallet className="w-6 h-6 opacity-50" />
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div className="text-center">
-                  <p className="text-teal-100 text-xs font-medium">Cash</p>
+                  <p className="text-teal-100 text-[10px] font-medium uppercase">Fiat (USD)</p>
                   <p className="text-xl font-bold">${walletBalance?.cash_balance?.toFixed(2) || "0.00"}</p>
                 </div>
-                <div className="text-center">
-                  <p className="text-teal-100 text-xs font-medium">USDC/p>
+                <div className="text-center border-x border-white/20">
+                  <p className="text-teal-100 text-[10px] font-medium uppercase">Circle USDC</p>
                   <p className="text-xl font-bold">${walletBalance?.idia_usd_balance?.toFixed(2) || "0.00"}</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-teal-100 text-xs font-medium">IDIA Token</p>
+                  <p className="text-teal-100 text-[10px] font-medium uppercase">IDIA (Test)</p>
                   <p className="text-xl font-bold">{walletBalance?.idia_token_balance?.toFixed(2) || "0.00"}</p>
                 </div>
               </div>
+              {!isProvisioned && (
+                <div className="mt-4 pt-2 border-t border-white/20 text-center">
+                  <p className="text-[10px] text-teal-50 italic">Infrastructure Setup Required for Liquidation</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
           <div className="grid grid-cols-3 gap-4">
             <Button
-              className="h-14 flex-col bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white text-sm py-0.5"
+              className="h-14 flex-col bg-teal-600 hover:bg-teal-700 text-xs"
               onClick={() => setShowSendRequestModal(true)}
             >
-              <div className="flex items-center space-x-1 mb-1">
+              <div className="flex space-x-1 mb-1">
                 <ArrowUpRight className="w-4 h-4" />
                 <ArrowDownLeft className="w-4 h-4" />
               </div>
-              Send / Request
+              Send/Req
             </Button>
-            <Button
-              variant="outline"
-              className="h-14 flex-col border border-teal-200 hover:bg-teal-50 hover:border-teal-300 text-teal-700 text-sm py-0.5"
-              onClick={() => setShowNFCModal(true)}
-            >
-              <Smartphone className="w-5 h-5 mb-1 text-teal-600" />
-              Tap To Payroll
+            <Button variant="outline" className="h-14 flex-col text-xs" onClick={() => setShowNFCModal(true)}>
+              <Smartphone className="w-5 h-5 mb-1" /> Tap Pay
             </Button>
-            <Button
-              variant="outline"
-              className="h-14 flex-col border border-cyan-200 hover:bg-cyan-50 hover:border-cyan-300 text-cyan-700 text-sm py-0.5"
-              onClick={() => setShowAddFundsModal(true)}
-            >
-              <Plus className="w-5 h-5 mb-1 text-cyan-600" />
-              Add Funds
+            <Button variant="outline" className="h-14 flex-col text-xs" onClick={() => setShowAddFundsModal(true)}>
+              <Plus className="w-5 h-5 mb-1" /> Add Funds
             </Button>
           </div>
 
           <Card>
             <CardHeader className="py-2 px-3">
-              <CardTitle className="flex items-center gap-2 text-sm text-foreground">
-                <TrendingUp className="w-4 h-4" />
-                Trust Score & Credit
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <TrendingUp className="w-4 h-4" /> Trust Score & Credit
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3">
               <div className="grid grid-cols-2 gap-4">
-                <div className="text-center border-r pr-2">
-                  <div className="text-xl font-bold text-primary">
-                    {profile?.trust_score !== null && profile?.trust_score !== undefined
-                      ? profile.trust_score
-                      : "NO SCORE"}
-                  </div>
-                  <Badge variant={profile?.trust_score != null ? "secondary" : "outline"} className="text-[10px]">
-                    {profile?.trust_score != null ? "Active" : "Unverified"}
+                <div className="text-center border-r">
+                  <div className="text-xl font-bold text-primary">{profile?.trust_score ?? "NO SCORE"}</div>
+                  <Badge variant={profile?.trust_score ? "secondary" : "outline"} className="text-[10px]">
+                    {profile?.trust_score ? "Active" : "Unverified"}
                   </Badge>
                 </div>
-                <div className="text-center pl-2">
+                <div className="text-center">
                   <div className="text-xl font-bold text-green-600">
                     ${profile?.available_credit_line?.toLocaleString() || 0}
                   </div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-tight text-foreground">
-                    Available Credit
-                  </p>
+                  <p className="text-[10px] text-muted-foreground uppercase">Available Credit</p>
                 </div>
               </div>
               <div className="mt-4">
@@ -341,30 +309,30 @@ const EnhancedWalletDashboard: React.FC = () => {
         <TabsContent value="transactions" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-foreground">Transaction History</CardTitle>
+              <CardTitle>History</CardTitle>
             </CardHeader>
             <CardContent>
               {transactions.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <p>No transactions yet</p>
+                <div className="text-center py-8 text-muted-foreground italic">
+                  No transactions found in fiat_ledger
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {transactions.map((transaction) => {
-                    const Icon = getTransactionIcon(transaction.transaction_type);
+                  {transactions.map((tx) => {
+                    const Icon = getTransactionIcon(tx.transaction_type);
                     return (
-                      <div key={transaction.id} className="flex items-center space-x-3 p-3 border rounded-lg">
+                      <div key={tx.id} className="flex items-center space-x-3 p-3 border rounded-lg">
                         <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
                           <Icon className="w-5 h-5 text-muted-foreground" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate text-foreground">{transaction.description}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {new Date(transaction.created_at).toLocaleDateString()}
+                          <p className="font-medium truncate">{tx.description}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(tx.created_at).toLocaleDateString()}
                           </p>
                         </div>
-                        <div className={`font-semibold ${getTransactionColor(transaction.amount)}`}>
-                          {formatAmount(transaction.amount)}
+                        <div className={`font-semibold ${getTransactionColor(tx.amount)}`}>
+                          {formatAmount(tx.amount)}
                         </div>
                       </div>
                     );
@@ -378,48 +346,32 @@ const EnhancedWalletDashboard: React.FC = () => {
         <TabsContent value="credit" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-foreground">Capital Advancement Control</CardTitle>
+              <CardTitle>Capital Advancement</CardTitle>
             </CardHeader>
             <CardContent>
               {creditSimulation ? (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="text-center p-4 border rounded-lg">
-                      <p className="text-sm text-muted-foreground">Current Score</p>
-                      <p className="text-2xl font-bold text-foreground">{creditSimulation.current_score}</p>
+                      <p className="text-xs text-muted-foreground">Current</p>
+                      <p className="text-xl font-bold">{creditSimulation.current_score}</p>
                     </div>
-                    <div className="text-center p-4 border rounded-lg bg-green-50/50">
-                      <p className="text-sm text-muted-foreground">New Score</p>
-                      <p className="text-2xl font-bold text-green-600">{creditSimulation.simulated_score}</p>
+                    <div className="text-center p-4 border rounded-lg bg-green-50/30">
+                      <p className="text-xs text-muted-foreground">Updated</p>
+                      <p className="text-xl font-bold text-green-600">{creditSimulation.simulated_score}</p>
                     </div>
-                  </div>
-                  <div>
-                    <h4 className="font-medium mb-2 text-foreground text-foreground">Actions Registered:</h4>
-                    <ul className="space-y-1">
-                      {creditSimulation.actions.map((action, index) => (
-                        <li
-                          key={index}
-                          className="text-sm flex items-center gap-2 text-muted-foreground text-foreground"
-                        >
-                          <div className="w-2 h-2 bg-primary rounded-full" />
-                          {action}
-                        </li>
-                      ))}
-                    </ul>
                   </div>
                   <div className="pt-4">
                     <TestModal />
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-8 space-y-4 flex flex-col items-center">
-                  <BrainCircuit className="w-12 h-12 text-muted-foreground mb-2 text-foreground" />
-                  <p className="text-sm text-muted-foreground max-w-sm text-foreground">
-                    Your advancement limits are calculated based on verifiable behavioral and social telemetry.
+                <div className="text-center py-8 flex flex-col items-center">
+                  <BrainCircuit className="w-12 h-12 text-muted-foreground mb-4" />
+                  <p className="text-sm text-muted-foreground max-w-xs mb-6">
+                    Limits are calculated via verifiable behavioral telemetry.
                   </p>
-                  <div className="w-full max-w-xs">
-                    <TestModal />
-                  </div>
+                  <TestModal />
                 </div>
               )}
             </CardContent>
@@ -427,49 +379,29 @@ const EnhancedWalletDashboard: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="security" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-foreground text-foreground">
-                  <Shield className="w-5 h-5 text-foreground" />
-                  Wallet Security
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4 text-foreground text-foreground">
-                <div className="flex items-center justify-between">
-                  <span>Seed Phrase Backup</span>
-                  <Badge variant="destructive">Not backed up</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>PIN Protection</span>
-                  <Badge variant="default">Enabled</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Biometric Auth</span>
-                  <Badge variant="secondary">Available</Badge>
-                </div>
-                <Button variant="outline" className="w-full">
-                  Backup Seed Phrase
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-foreground text-foreground">
-                  <Clock className="w-5 h-5 text-foreground" />
-                  Recent Activity
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm text-muted-foreground text-foreground">
-                  <p>Last login: Today at 2:30 PM</p>
-                  <p>Last transaction: 2 hours ago</p>
-                  <p>Device: Secure Enclave Verified</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="w-5 h-5" />
+                Security
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex justify-between items-center text-sm">
+                <span>Circle Vault Status</span>
+                <Badge variant={isProvisioned ? "default" : "destructive"}>
+                  {isProvisioned ? "Secure" : "Setup Required"}
+                </Badge>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span>FBO Rail Status</span>
+                <Badge variant={hasFBO ? "default" : "secondary"}>{hasFBO ? "Connected" : "Not Linked"}</Badge>
+              </div>
+              <Button variant="outline" className="w-full text-xs" disabled={isProvisioned}>
+                Manage Sovereign Keys
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
