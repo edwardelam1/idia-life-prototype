@@ -10,23 +10,34 @@ interface OnboardingModalProps {
 }
 
 const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: OnboardingModalProps) => {
-  // Setup locking states to prevent double-clicks during provisioning
   const [isProvisioningCircle, setIsProvisioningCircle] = useState(false);
   const [isProvisioningFBO, setIsProvisioningFBO] = useState(false);
+  const [sdkLoaded, setSdkLoaded] = useState(false);
 
+  // CLOUD INJECTION: Load Circle SDK from CDN for browser-side execution
   useEffect(() => {
-    if (isVisible) console.log(`[START] OnboardingModal Mounted.`);
+    if (isVisible && !(window as any).CircleWS) {
+      console.log("[START] Cloud Injector: Fetching Circle W3S SDK...");
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js";
+      script.async = true;
+      script.onload = () => {
+        console.log("[SUCCESS] Circle SDK injected into Global Window.");
+        setSdkLoaded(true);
+      };
+      document.head.appendChild(script);
+    } else if ((window as any).CircleWS) {
+      setSdkLoaded(true);
+    }
   }, [isVisible]);
 
   if (!isVisible) return null;
 
   const handleCloseClick = () => {
-    // Prevent closing if we are in the middle of a secure handshake
     if (isProvisioningCircle || isProvisioningFBO) {
       console.log("[INFO] Modal closure rejected: Provisioning handshake in progress.");
       return;
     }
-
     console.log("[START] User requested modal closure...");
     try {
       onClose();
@@ -44,29 +55,50 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
   };
 
   const handleCircleSetup = async () => {
+    if (!sdkLoaded) {
+      console.error("[ERROR] Circle SDK not yet initialized in the browser.");
+      return;
+    }
+
     console.log("[START] Initiating Circle Programmable Wallet Handshake...");
     setIsProvisioningCircle(true);
 
     try {
+      // 1. Invoke Edge Function to get session tokens and challengeId
       const { data, error: invokeError } = await supabase.functions.invoke("provision-circle-wallet", {
         method: "POST",
       });
 
       if (invokeError || data?.error) throw new Error(data?.error || "Handshake failed.");
 
-      console.log("[SUCCESS] Session Tokens acquired. Launching Circle Identity UI...");
+      console.log("[SUCCESS] Session Tokens acquired. Launching Regulatory UI...");
 
-      // STEP 3: Trigger the actual Circle Onboarding UI
-      // In a production environment, you'd use the Circle SDK here:
-      // circleSdk.execute(data.userToken, data.encryptionKey);
+      // 2. Initialize the SDK from the global window object
+      const CircleWS = (window as any).CircleWS;
+      const sdk = new CircleWS.W3SSDK();
 
-      console.log("[INFO] Proceeding to Circle Secure Webview...");
+      // REPLACE WITH YOUR ACTUAL APP ID FROM CIRCLE CONSOLE
+      sdk.setAppSettings({ appId: "YOUR_CIRCLE_APP_ID" });
 
-      // For now, we simulate the redirect to the onboarding flow
-      window.location.href = `https://id-onboarding.circle.com?token=${data.userToken}`;
+      sdk.setAuthentication({
+        userToken: data.userToken,
+        encryptionKey: data.encryptionKey,
+      });
+
+      // 3. Execute PIN/Recovery Challenge
+      sdk.execute(data.challengeId, (error: any, result: any) => {
+        if (error) {
+          console.error(`[ERROR] Circle UI aborted: ${error.message}`);
+          setIsProvisioningCircle(false);
+          return;
+        }
+
+        console.log("[SUCCESS] PIN/Recovery Set. Enclave synchronized.", result);
+        onClose(); // Handshake complete, exit modal
+      });
     } catch (error) {
       console.error("[ERROR] Fatal stall in Circle Handshake.");
-    } finally {
+      if (error instanceof Error) console.error(`[DETAILS] ${error.message}`);
       setIsProvisioningCircle(false);
     }
   };
@@ -75,8 +107,6 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
     console.log("[START] Initiating FBO (Fiat) Onboarding Sequence...");
     setIsProvisioningFBO(true);
     try {
-      // executeFBOProvisioning();
-      // Simulating a delay for now until the FBO logic is wired
       await new Promise((resolve) => setTimeout(resolve, 1000));
       console.log("[SUCCESS] FBO provisioning trigger fired.");
     } catch (error) {
@@ -118,7 +148,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
           {needsCircle && (
             <button
               onClick={handleCircleSetup}
-              disabled={isProvisioningCircle || isProvisioningFBO}
+              disabled={isProvisioningCircle || isProvisioningFBO || !sdkLoaded}
               className="w-full group relative flex items-center p-4 bg-secondary/50 hover:bg-secondary border border-border hover:border-primary/50 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="mr-4 p-2 bg-blue-500/10 rounded-full group-hover:scale-110 transition-transform">
@@ -137,7 +167,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
                     <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">Digital settlement & Testnet IDIA bridge</p>
+                <p className="text-xs text-muted-foreground">Requires Secure PIN & Recovery Setup</p>
               </div>
             </button>
           )}
