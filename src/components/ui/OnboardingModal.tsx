@@ -15,23 +15,23 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
   const [sdkLoaded, setSdkLoaded] = useState(false);
   const [sdkInstance, setSdkInstance] = useState<any>(null);
 
-  // CLOUD INJECTOR: Using Dynamic Import to bypass "exports" ReferenceError
+  // CLOUD COMPILER BYPASS: Fetching ESM-bundled SDK from Network to resolve build errors
   useEffect(() => {
     if (isVisible && !sdkLoaded) {
       const initializeCircle = async () => {
-        console.log("[START] Cloud Injector: Initializing Circle SDK Enclave...");
+        console.log("[START] Cloud Injector: Initializing Circle SDK Enclave via Network ESM...");
         try {
-          // Vite (Lovable) will automatically fetch this and polyfill 'exports' for us
-          const { W3SSDK } = await import("@circle-fin/w3s-pw-web-sdk");
+          // Using esm.sh to bypass local node_modules resolution and resolve "exports" ReferenceErrors
+          const module = await import("https://esm.sh/@circle-fin/w3s-pw-web-sdk@1.1.11");
 
-          if (W3SSDK) {
-            const instance = new W3SSDK();
+          if (module && module.W3SSDK) {
+            const instance = new module.W3SSDK();
             setSdkInstance(instance);
             setSdkLoaded(true);
             console.log("[SUCCESS] Circle SDK Enclave active and ready.");
           }
         } catch (error) {
-          console.error("[ERROR] Failed to initialize Circle SDK natively.");
+          console.error("[ERROR] Failed to initialize Circle SDK via Network ESM.");
           console.error(`[DETAILS] ${error instanceof Error ? error.message : String(error)}`);
         }
       };
@@ -82,11 +82,9 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
 
       console.log("[SUCCESS] Session Tokens acquired. Launching Regulatory UI...");
 
-      // 2. Use the Instance we initialized in useEffect
+      // 2. Configure SDK
       const sdk = sdkInstance;
-
-      // REPLACE WITH YOUR ACTUAL APP ID FROM CIRCLE CONSOLE
-      sdk.setAppSettings({ appId: "YOUR_CIRCLE_APP_ID" });
+      sdk.setAppSettings({ appId: "YOUR_CIRCLE_APP_ID" }); // ENSURE YOUR APP ID IS HERE
 
       sdk.setAuthentication({
         userToken: data.userToken,
@@ -103,7 +101,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
 
         console.log("[SUCCESS] PIN/Recovery Set. Enclave synchronized.", result);
 
-        // REGULATORY GATE: Only update the database AFTER the UI success
+        // REGULATORY GATE: Confirm status in database after physical verification
         const { data: userAuth } = await supabase.auth.getUser();
         if (userAuth.user) {
           await (supabase.from("profiles") as any)
@@ -111,7 +109,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
             .eq("user_id", userAuth.user.id);
         }
 
-        onClose(); // Handshake complete, exit modal
+        onClose();
       });
     } catch (error) {
       console.error("[ERROR] Fatal stall in Circle Handshake.");
