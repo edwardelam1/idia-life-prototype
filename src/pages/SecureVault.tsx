@@ -4,18 +4,27 @@ import { ShieldCheck, Loader2, Lock, Terminal, Zap, ArrowLeft, ShieldAlert } fro
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
-import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png";
+
+// --- SOVEREIGN INFRASTRUCTURE POLYFILLS ---
+// Cryptographic engines require backend Node.js variables to evaluate in a browser environment.
+import { Buffer } from "buffer";
+
+if (typeof window !== "undefined") {
+  window.global = window.global || window;
+  window.Buffer = window.Buffer || Buffer;
+  window.process = window.process || { env: {} };
+}
+// ------------------------------------------
 
 export default function SecureVault() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const [sdkConstructor, setSdkConstructor] = useState<any>(null);
-  const [status, setStatus] = useState("Isolating Native Core...");
+  const [status, setStatus] = useState("Hydrating Cryptographic Polyfills...");
   const [error, setError] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
 
-  // --- SOVEREIGN LOGGING: ASYNC MODULE ISOLATION ---
   useEffect(() => {
     console.log("[START] SecureVault: Initiating Dynamic Native Import...");
 
@@ -23,23 +32,18 @@ export default function SecureVault() {
       try {
         console.log("[INFO] Requesting @circle-fin/w3s-pw-web-sdk from Vite Bundler...");
 
-        // 1. DYNAMIC IMPORT: This isolates the module evaluation.
-        // If the SDK throws a "global is not defined" error, it gets trapped here
-        // instead of white-screening the whole React app.
         const CircleModule = await import("@circle-fin/w3s-pw-web-sdk");
-
         console.log("[SUCCESS] Module loaded. Extracting Constructor...");
 
         if (CircleModule && CircleModule.W3SSdk) {
           setSdkConstructor(() => CircleModule.W3SSdk);
           setStatus("AIRLOCK SEALED. NATIVE RAIL ACTIVE.");
-          console.log("[END] Native SDK successfully bound to state.");
         } else {
           throw new Error("Module loaded, but W3SSdk constructor is missing.");
         }
       } catch (err: any) {
         console.error(`[FATAL] Native Module Evaluation Failed:`, err);
-        setError(`MODULE CRASH: ${err.message}. (Check Browser Console for full stack trace)`);
+        setError(`MODULE CRASH: ${err.message}`);
         setStatus("INFRASTRUCTURE SEVERED.");
       }
     };
@@ -48,7 +52,6 @@ export default function SecureVault() {
   }, []);
 
   const executeChallenge = () => {
-    console.log("[START] Physical Confirmation: Engaging PIN Enclave");
     if (!sdkConstructor) return;
 
     setIsExecuting(true);
@@ -60,7 +63,6 @@ export default function SecureVault() {
     const challengeId = searchParams.get("challengeId");
 
     if (!userToken || !encryptionKey) {
-      console.error("[CRITICAL] Missing URL credentials.");
       setError("UNAUTHORIZED: TOKENS MISSING.");
       setIsExecuting(false);
       return;
@@ -73,25 +75,19 @@ export default function SecureVault() {
     }
 
     try {
-      console.log(`[INFO] Instantiating Circle Web SDK...`);
       const sdkInstance = new sdkConstructor({
         appSettings: { appId: "f8df0c7a-0d24-5103-9acd-82a88e5f18e8" },
       });
 
-      console.log(`[INFO] Applying Cryptographic Payloads...`);
       sdkInstance.setAuthentication({ userToken, encryptionKey });
-
-      console.log(`[INFO] SDK Execution Triggered for Challenge: ${challengeId}`);
       sdkInstance.execute(challengeId, async (err: any) => {
         if (err) {
-          console.error(`[ERROR] Secure Handshake Aborted: ${err.message}`);
           setError(`HANDSHAKE ABORTED: ${err.message}`);
           setIsExecuting(false);
           setStatus("AIRLOCK SEALED. READY.");
           return;
         }
 
-        console.log("[SUCCESS] PIN Authenticated. Initializing database sync.");
         setStatus("HANDSHAKE CONFIRMED. SYNCING IDENTITY...");
 
         try {
@@ -105,11 +101,9 @@ export default function SecureVault() {
           console.error("[ERROR] Database synchronization interrupted.");
         }
 
-        console.log("[END] Operation Success. Redirecting to Root.");
         navigate("/");
       });
     } catch (e: any) {
-      console.error(`[FATAL] Execution Failure: ${e.message}`);
       setError(`EXECUTION FAILED: ${e.message}`);
       setIsExecuting(false);
     }
@@ -140,7 +134,11 @@ export default function SecureVault() {
 
           <div className="bg-muted/30 border border-border rounded-2xl p-5 font-mono">
             <div className="flex items-center gap-3">
-              <Terminal className="w-4 h-4 text-primary" />
+              {!sdkConstructor && !error ? (
+                <Loader2 className="w-4 h-4 text-primary animate-spin" />
+              ) : (
+                <Terminal className="w-4 h-4 text-primary" />
+              )}
               <p className="text-[10px] font-black uppercase tracking-widest text-foreground truncate">{status}</p>
             </div>
           </div>
@@ -184,13 +182,6 @@ export default function SecureVault() {
               <ArrowLeft className="w-3 h-3" />
               Return to Dashboard
             </button>
-          </div>
-
-          <div className="pt-8 border-t border-border/50 text-center opacity-40">
-            <div className="flex items-center justify-center gap-2">
-              <Lock className="w-3 h-3 text-primary" />
-              <span className="text-[9px] font-black uppercase tracking-[0.4em]">IDIA Data Native Infrastructure</span>
-            </div>
           </div>
         </div>
       </main>
