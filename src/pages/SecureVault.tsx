@@ -1,41 +1,17 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import SecureVault from "./pages/SecureVault";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { ShieldCheck, Loader2, AlertCircle, Lock, Terminal } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function SecureVault() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const queryClient = new QueryClient();
+
   const [sdkInstance, setSdkInstance] = useState<any>(null);
   const [status, setStatus] = useState("Synchronizing core infrastructure...");
   const [error, setError] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
 
-  const App = () => (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-
-            {/* 2. REGISTER THE SECURE VAULT ROUTE */}
-            <Route path="/secure-vault" element={<SecureVault />} />
-
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  );
-
-  export default App;
   // --- CORE INFRASTRUCTURE HYDRATION ---
   useEffect(() => {
     console.log("[START] SecureVault: Initializing Airlock Environment...");
@@ -51,11 +27,10 @@ export default function SecureVault() {
 
     console.log("[INFO] SecureVault: Security tokens confirmed. Injecting Circle Web SDK...");
 
-    // 1. Inject the SDK Script natively into the top-level DOM
     const script = document.createElement("script");
     script.src = "https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js";
     script.async = true;
-    script.crossOrigin = "anonymous"; // Bypasses CORS/ITP tracking flags
+    script.crossOrigin = "anonymous";
 
     script.onload = () => {
       console.log("[INFO] SecureVault: SDK script loaded. Hunting for W3SSDK namespace...");
@@ -106,7 +81,6 @@ export default function SecureVault() {
     const encryptionKey = searchParams.get("encryptionKey");
     const challengeId = searchParams.get("challengeId");
 
-    // Edge Case: The backend generated tokens, but the user has no pending challenges (Wallet is already active)
     if (!challengeId || challengeId === "null") {
       console.log("[INFO] SecureVault: No pending challenge. Wallet is already active.");
       setStatus("Wallet already initialized. Redirecting...");
@@ -160,7 +134,6 @@ export default function SecureVault() {
           console.log("[SUCCESS] SecureVault: Profile synchronized with Circle ID.");
         } catch (dbError: any) {
           console.error(`[ERROR] SecureVault: Database sync failed - ${dbError.message}`);
-          // We don't block the redirect here, because the Circle setup actually succeeded
         }
 
         console.log("[END] SecureVault: Operation complete. Returning to application.");
