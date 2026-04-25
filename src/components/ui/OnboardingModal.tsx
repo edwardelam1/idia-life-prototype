@@ -17,14 +17,12 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
   const [loadError, setLoadError] = useState<string | null>(null);
   const [handshakeTimedOut, setHandshakeTimedOut] = useState(false);
 
-  // ARCHITECTURAL TELEMETRY: Infrastructure Handshake with Heartbeat
   useEffect(() => {
     if (isVisible && !sdkLoaded) {
-      console.log("[START] OnboardingModal: Initiating Enclave Infrastructure Handshake...");
+      console.log("[START] OnboardingModal: Executing Enclave Infrastructure Handshake...");
       setHandshakeTimedOut(false);
       setLoadError(null);
 
-      // 10s HEARTBEAT: Catching Domain Whitelist Stalls
       const timer = setTimeout(() => {
         if (!sdkLoaded) {
           console.warn("[TIMEOUT] OnboardingModal: Handshake heartbeat stopped. Verify Circle Console Whitelist.");
@@ -33,7 +31,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
       }, 10000);
 
       const initializeEnclave = async () => {
-        // PATH A: Dynamic ESM Import
+        // PATH A: ESM Dynamic Import
         try {
           console.log("[INFO] Path A: Attempting Network ESM Import...");
           const sdkUrl = `https://esm.sh/@circle-fin/w3s-pw-web-sdk@1.1.11?bundle`;
@@ -51,34 +49,46 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
           console.warn("[WARN] Path A blocked. Initiating Path B (Global Fallback)...");
         }
 
-        // PATH B: Script Injection Fallback
+        // PATH B: Aggressive Script Injection Fallback
         try {
           console.log("[INFO] Path B: Injecting physical script tag...");
           const script = document.createElement("script");
-          script.src = "https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/src/index.js";
+          // Updated to the most reliable UMD bundle path
+          script.src = "https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js";
           script.async = true;
+
           script.onload = () => {
-            const CircleWS = (window as any).CircleWS || (window as any).CircleW3S;
-            if (CircleWS?.W3SSDK) {
-              setSdkInstance(new CircleWS.W3SSDK());
+            const global = window as any;
+            console.log("[TELEMETRY] Script loaded. Scanning global namespace...");
+
+            // AGGRESSIVE SEARCH: Circle uses different namespaces depending on the bundle type
+            const CircleWS = global.CircleWS || global.CircleW3S || global.Circle;
+            const Constructor = CircleWS?.W3SSDK || global.W3SSDK || (typeof CircleWS === "function" ? CircleWS : null);
+
+            console.log(
+              `[DEBUG] CircleWS: ${!!global.CircleWS}, CircleW3S: ${!!global.CircleW3S}, Constructor: ${!!Constructor}`,
+            );
+
+            if (Constructor) {
+              setSdkInstance(new (Constructor as any)());
               setSdkLoaded(true);
               clearTimeout(timer);
-              console.log("[SUCCESS] Path B: SDK Enclave active via Global Namespace.");
+              console.log("[SUCCESS] Path B: SDK Enclave active via Aggressive Search.");
             } else {
-              console.error("[ERROR] Path B: Script loaded but W3SSDK namespace not found.");
-              setLoadError("Namespace Collision: W3SSDK missing.");
+              console.error("[ERROR] Path B: Namespace Search Failed. No W3SSDK constructor found.");
+              setLoadError("Enclave Error: Namespace Mismatch (W3SSDK not found)");
             }
           };
+
           script.onerror = () => {
-            console.error("[ERROR] Path B: Network blocked script injection.");
+            console.error("[ERROR] Path B: Network blocked script injection or 404.");
             setLoadError("Network Block: Infrastructure unreachable.");
           };
+
           document.head.appendChild(script);
         } catch (fallbackError) {
-          console.error("[FATAL] Total Handshake Failure. Check network permissions.");
+          console.error("[FATAL] Total Handshake Failure.");
           setLoadError("Infrastructure Outage: Dual-Path Failure.");
-        } finally {
-          console.log("[END] OnboardingModal: Handshake sequence block resolved.");
         }
       };
 
@@ -99,7 +109,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
     setIsProvisioningCircle(true);
 
     try {
-      console.log("[INFO] OnboardingModal: Invoking provision-circle-wallet Edge Function...");
+      console.log("[INFO] OnboardingModal: Calling provision-circle-wallet Edge Function...");
       const { data, error: invokeError } = await supabase.functions.invoke("provision-circle-wallet", {
         method: "POST",
       });
@@ -111,7 +121,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
       console.log("[SUCCESS] OnboardingModal: Challenge Tokens acquired. Engaging Regulatory UI...");
 
       const sdk = sdkInstance;
-      // VERIFIED APP ID
+      // ARCHITECTURAL IDENTITY: Your Verified App ID
       sdk.setAppSettings({ appId: "6b051463-ed70-5b48-9758-4f1d0e58bf24" });
 
       sdk.setAuthentication({
@@ -149,7 +159,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
   };
 
   const handleFBOSetup = async () => {
-    console.log("[START] OnboardingModal: Initiating FBO (Fiat) Provisioning...");
+    console.log("[START] OnboardingModal: Initiating FBO Provisioning...");
     setIsProvisioningFBO(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -160,17 +170,12 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
     }
   };
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && !isProvisioningCircle && !isProvisioningFBO) {
-      console.log("[INFO] OnboardingModal: Backdrop click detected. Dismissing Modal.");
-      onClose();
-    }
-  };
-
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300"
-      onClick={handleBackdropClick}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isProvisioningCircle && !isProvisioningFBO) onClose();
+      }}
     >
       <div
         className="relative w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
@@ -199,15 +204,15 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
         <div className="p-6 space-y-4">
           {(loadError || handshakeTimedOut) && (
             <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg flex flex-col gap-2">
-              <div className="flex items-center gap-2 text-xs text-red-400">
+              <div className="flex items-center gap-2 text-xs text-red-400 font-mono">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{handshakeTimedOut ? "Handshake Timed Out: Verify Circle Domain Whitelist" : loadError}</span>
+                <span>{handshakeTimedOut ? "TIMED OUT: Verify Circle Whitelist" : loadError}</span>
               </div>
               <button
                 onClick={() => window.location.reload()}
                 className="text-[10px] uppercase tracking-widest font-bold text-red-500 hover:text-red-400 flex items-center gap-1 w-fit"
               >
-                <RefreshCw className="w-3 h-3" /> Retry Infrastructure Sync
+                <RefreshCw className="w-3 h-3" /> Force Infrastructure Sync
               </button>
             </div>
           )}
@@ -258,12 +263,6 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
               </div>
             </button>
           )}
-        </div>
-
-        <div className="p-4 bg-muted/30 text-center">
-          <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">
-            Architectural Computing OEM - IDIA Data
-          </p>
         </div>
       </div>
     </div>
