@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X, ShieldCheck, Landmark, ArrowRight, Zap, Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { X, ShieldCheck, Landmark, ArrowRight, Zap, Loader2, AlertCircle, RefreshCw, Activity } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface OnboardingModalProps {
@@ -20,18 +20,18 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
   // --- ARCHITECTURAL TELEMETRY: TRIPLE-RAIL + NUCLEAR BLOB BYPASS ---
   useEffect(() => {
     if (isVisible && !sdkLoaded) {
-      console.log("[START] OnboardingModal: Initiating Enclave Infrastructure Handshake...");
+      console.log("[START] OnboardingModal: Executing Multi-Rail Infrastructure Handshake...");
       setHandshakeTimedOut(false);
       setLoadError(null);
 
       const timer = setTimeout(() => {
         if (!sdkLoaded) {
           console.warn(
-            "[TIMEOUT] OnboardingModal: Handshake heartbeat stopped. Verify Testnet Whitelist for idia-life-ui.lovable.app",
+            "[TIMEOUT] OnboardingModal: Handshake heartbeat stopped. Likely a CSP or Domain Whitelist block.",
           );
           setHandshakeTimedOut(true);
         }
-      }, 15000); // 15s Heartbeat for Cloud Latency
+      }, 15000);
 
       const initializeEnclave = async () => {
         console.log("[INFO] Enclave Handshake: Commencing Multi-Path Execution...");
@@ -49,7 +49,6 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
             setSdkLoaded(true);
             clearTimeout(timer);
             console.log("[SUCCESS] Path A: Enclave active via ESM.");
-            console.log("[END] Path A Handshake resolved.");
             return;
           }
         } catch (e) {
@@ -75,7 +74,6 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
                 setSdkLoaded(true);
                 clearTimeout(timer);
                 console.log(`[SUCCESS] ${label}: Enclave active.`);
-                console.log(`[END] ${label} Handshake resolved.`);
                 resolve(true);
               } else {
                 console.error(`[ERROR] ${label}: Namespace search failed.`);
@@ -91,7 +89,6 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
           });
         };
 
-        console.log("[INFO] Enclave Handshake: Pivoting to Secondary Script Rails...");
         if (await tryScript("https://unpkg.com/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js", "Path B (Unpkg)"))
           return;
         if (
@@ -122,7 +119,6 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
               setSdkLoaded(true);
               clearTimeout(timer);
               console.log("[SUCCESS] Path D: Enclave active via Local Blob Bypass.");
-              console.log("[END] Path D Handshake resolved.");
             }
           };
           document.head.appendChild(script);
@@ -133,10 +129,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
       };
 
       initializeEnclave();
-      return () => {
-        console.log("[CLEANUP] OnboardingModal: Clearing Handshake timer.");
-        clearTimeout(timer);
-      };
+      return () => clearTimeout(timer);
     }
   }, [isVisible, sdkLoaded]);
 
@@ -166,7 +159,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
       const sdk = sdkInstance;
 
       console.log("[INFO] Step 2: Configuring SDK Application Identity (Testnet)...");
-      // IDENTIFIER: 6b051463-ed70-5b48-9758-4f1d0e58bf24
+      // CRITICAL: Verify this is the TESTNET App ID from Circle Console
       sdk.setAppSettings({ appId: "6b051463-ed70-5b48-9758-4f1d0e58bf24" });
 
       console.log("[INFO] Step 3: Synchronizing Authentication Enclave...");
@@ -180,7 +173,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
         console.log("[START] Circle UI Callback: Evaluating result...");
 
         if (error) {
-          console.error(`[ERROR] Circle UI: Challenge aborted - ${error.message}`);
+          console.error(`[ERROR] Circle UI Callback Failed: ${error.message}`);
           setIsProvisioningCircle(false);
           return;
         }
@@ -201,7 +194,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
           }
         }
 
-        console.log("[END] Circle Handshake: Enclave setup complete. Closing perimeter.");
+        console.log("[END] Circle Handshake: Enclave setup complete.");
         onClose();
       });
     } catch (error: any) {
@@ -213,7 +206,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
   };
 
   const handleFBOSetup = async () => {
-    console.log("[START] OnboardingModal: Initiating FBO Provisioning Sequence...");
+    console.log("[START] OnboardingModal: Initiating FBO Provisioning...");
     setIsProvisioningFBO(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -264,9 +257,13 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <span>{handshakeTimedOut ? "TIMED OUT: Verify Circle Whitelist" : loadError}</span>
               </div>
+              <p className="text-[10px] text-red-400/80 leading-tight">
+                Current Host: <span className="font-bold underline">{window.location.hostname}</span>. Ensure this
+                exactly matches the "Allowed Domain" in Circle Console.
+              </p>
               <button
                 onClick={() => window.location.reload()}
-                className="text-[10px] uppercase tracking-widest font-bold text-red-500 hover:text-red-400 flex items-center gap-1 w-fit"
+                className="text-[10px] uppercase tracking-widest font-bold text-red-500 hover:text-red-400 flex items-center gap-1 w-fit mt-1"
               >
                 <RefreshCw className="w-3 h-3" /> Force Infrastructure Sync
               </button>
@@ -321,10 +318,13 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
           )}
         </div>
 
-        <div className="p-4 bg-muted/30 border-t border-border/10 text-center">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold">
-            Architectural Computing OEM - Test Rail Alpha
-          </p>
+        <div className="p-4 bg-muted/30 border-t border-border/10">
+          <div className="flex items-center justify-center gap-2 opacity-50">
+            <Activity className="w-3 h-3 text-primary" />
+            <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold">
+              IDIA Data - Test Rail Alpha
+            </span>
+          </div>
         </div>
       </div>
     </div>
