@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ShieldCheck, Loader2, AlertCircle, Lock, Terminal, Cpu, Zap } from "lucide-react";
+import { ShieldCheck, Loader2, AlertCircle, Lock, Terminal, Cpu, Zap, Shield } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button"; // Standard UI component
+import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png"; // Brand consistency
 
 export default function SecureVault() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const [sdkInstance, setSdkInstance] = useState<any>(null);
-  const [status, setStatus] = useState("Initializing Multi-Rail Handshake...");
+  const [status, setStatus] = useState("Initializing Secure Handshake...");
   const [error, setError] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
 
@@ -41,10 +43,9 @@ export default function SecureVault() {
 
       const currentRail = rails[index];
       setStatus(`Engaging ${currentRail.label}...`);
-      console.log(`[INFO] SecureVault: Attempting injection via ${currentRail.label}`);
 
       const script = document.createElement("script");
-      script.src = `${currentRail.url}?v=${Date.now()}`; // Cache buster
+      script.src = `${currentRail.url}?v=${Date.now()}`;
       script.async = true;
       script.crossOrigin = "anonymous";
 
@@ -53,20 +54,15 @@ export default function SecureVault() {
         const Constructor = (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
 
         if (Constructor) {
-          console.log(`[SUCCESS] SecureVault: Handshake established via ${currentRail.label}`);
+          console.log(`[SUCCESS] SecureVault: established via ${currentRail.label}`);
           setSdkInstance(new Constructor());
-          setStatus("Airlock sealed. Ready for physical confirmation.");
+          setStatus("Airlock sealed. Ready for confirmation.");
         } else {
-          console.warn(`[WARN] Namespace missing on ${currentRail.label}. Rotating...`);
           loadScript(index + 1);
         }
       };
 
-      script.onerror = () => {
-        console.warn(`[BLOCK] ${currentRail.label} blocked by network. Rotating...`);
-        loadScript(index + 1);
-      };
-
+      script.onerror = () => loadScript(index + 1);
       document.head.appendChild(script);
     };
 
@@ -84,27 +80,23 @@ export default function SecureVault() {
           const global = window as any;
           const Constructor = (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
           if (Constructor) {
-            console.log("[SUCCESS] SecureVault: Perimeter breached via Blob Proxy.");
             setSdkInstance(new Constructor());
-            setStatus("Airlock sealed (Proxy Mode). Ready.");
+            setStatus("Airlock sealed (Proxy Mode).");
           }
         };
         document.head.appendChild(script);
       } catch (e) {
-        console.error("[FATAL] All infrastructure rails severed.");
-        setError("Total Infrastructure Block: Circle security scripts cannot be injected.");
+        setError("Total Infrastructure Block: External security scripts cannot be injected.");
       }
     };
 
     loadScript();
-    return () => console.log("[END] SecureVault: Cleaning up script rails.");
   }, [searchParams]);
 
   // --- CRYPTOGRAPHIC EXECUTION ---
   const executeChallenge = () => {
     if (!sdkInstance) return;
 
-    console.log("[START] SecureVault: Engaging PIN Enclave...");
     setIsExecuting(true);
     setStatus("Engaging secure perimeter...");
     setError(null);
@@ -114,7 +106,7 @@ export default function SecureVault() {
     const challengeId = searchParams.get("challengeId");
 
     if (!challengeId || challengeId === "null") {
-      setStatus("Wallet already initialized. Redirecting...");
+      setStatus("Vault already active. Redirecting...");
       setTimeout(() => navigate("/"), 2000);
       return;
     }
@@ -135,7 +127,7 @@ export default function SecureVault() {
           return;
         }
 
-        setStatus("Handshake Confirmed. Finalizing identity...");
+        setStatus("Handshake Confirmed. Syncing Identity...");
 
         try {
           const { data: userAuth } = await (supabase.auth as any).getUser();
@@ -154,65 +146,83 @@ export default function SecureVault() {
     } catch (e: any) {
       setError(`Execution failed: ${e.message}`);
       setIsExecuting(false);
-      setStatus("Airlock sealed. Ready for physical confirmation.");
+      setStatus("Airlock sealed. Ready.");
     }
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-4 transition-colors duration-500">
-      <div className="max-w-md w-full space-y-8 text-center bg-card p-10 rounded-3xl border border-border shadow-2xl relative overflow-hidden">
-        {/* Adaptive Primary Glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-32 bg-primary/5 blur-[80px] pointer-events-none" />
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 sm:p-12 transition-colors duration-500">
+      {/* Absolute Logo Placement mirroring Landing Screen */}
+      <div className="absolute top-12 left-1/2 transform -translate-x-1/2">
+        <img src={polishedLogo} alt="IDIA Life Logo" className="w-16 h-16 rounded-2xl shadow-lg" />
+      </div>
 
-        <div className="flex justify-center relative z-10">
-          <div className="p-5 bg-muted border border-border rounded-full shadow-inner">
-            <Cpu className={`w-10 h-10 text-primary ${!sdkInstance ? "animate-pulse" : ""}`} />
-          </div>
+      <div className="max-w-md w-full space-y-8 bg-card border border-border rounded-3xl shadow-2xl p-10 relative overflow-hidden">
+        {/* Subtle Background Glow mirroring Landing aesthetics */}
+        <div className="absolute inset-0 opacity-10 pointer-events-none">
+          <div className="absolute top-0 left-0 w-32 h-32 rounded-full bg-primary/20 blur-2xl" />
+          <div className="absolute bottom-0 right-0 w-24 h-24 rounded-full bg-primary/30 blur-xl" />
         </div>
 
-        <div className="space-y-3 relative z-10">
-          <h1 className="text-3xl font-black tracking-tighter uppercase italic">
-            Sovereign <span className="text-primary underline decoration-primary/30 underline-offset-8">Airlock</span>
-          </h1>
-          <div className="flex items-center justify-center gap-2 text-muted-foreground">
-            <Terminal className="w-4 h-4" />
-            <p className="text-[10px] font-mono font-black tracking-widest uppercase">{status}</p>
+        <div className="text-center relative z-10">
+          <div className="inline-flex items-center justify-center p-4 bg-primary/10 rounded-2xl mb-6">
+            <ShieldCheck className="w-10 h-10 text-primary" />
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2 leading-tight">Sovereign Vault</h1>
+          <p className="text-muted-foreground text-sm font-medium">Non-Custodial Data Encryption Protocol</p>
+        </div>
+
+        {/* Status Indicator Bar */}
+        <div className="relative z-10 bg-muted/50 rounded-xl p-4 border border-border">
+          <div className="flex items-center gap-3">
+            {!sdkInstance ? (
+              <Loader2 className="w-4 h-4 text-primary animate-spin" />
+            ) : (
+              <Terminal className="w-4 h-4 text-primary" />
+            )}
+            <p className="text-[10px] font-mono font-bold tracking-widest uppercase truncate">{status}</p>
           </div>
         </div>
 
         {error && (
-          <div className="p-4 bg-destructive/10 border border-destructive/50 rounded-xl flex items-start gap-3 text-left relative z-10 animate-in fade-in zoom-in duration-300">
+          <div className="relative z-10 p-4 bg-destructive/10 border border-destructive/50 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
             <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-destructive font-mono font-bold leading-tight uppercase">{error}</p>
+            <p className="text-xs text-destructive font-semibold uppercase tracking-wide">{error}</p>
           </div>
         )}
 
-        <div className="relative z-10 pt-4">
-          <button
+        <div className="relative z-10 space-y-4">
+          <Button
             onClick={executeChallenge}
             disabled={!sdkInstance || isExecuting}
-            className="w-full group relative py-5 bg-primary text-primary-foreground font-black uppercase tracking-[0.2em] text-xs rounded-xl hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-30 shadow-[0_10px_30px_-10px_rgba(var(--primary),0.5)] flex justify-center items-center gap-3"
+            className="w-full py-7 text-lg font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] disabled:opacity-50"
           >
             {isExecuting ? (
-              <>
+              <span className="flex items-center gap-2">
                 <Loader2 className="w-5 h-5 animate-spin" />
-                HANDSHAKE ACTIVE
-              </>
+                Validating...
+              </span>
             ) : (
-              <>
-                <Zap className="w-4 h-4" />
-                INITIATE VAULT SYNC
-              </>
+              <span className="flex items-center gap-2 uppercase tracking-widest">Authorize Secure PIN</span>
             )}
-          </button>
+          </Button>
+
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/")}
+            disabled={isExecuting}
+            className="w-full text-muted-foreground hover:text-foreground"
+          >
+            Cancel and Return
+          </Button>
         </div>
 
-        <div className="pt-6 border-t border-border relative z-10 opacity-40">
-          <div className="flex items-center justify-center gap-2">
-            <Lock className="w-3 h-3 text-primary" />
-            <p className="text-[9px] text-muted-foreground uppercase tracking-[0.5em] font-black">
-              IDIA Data Infrastructure Rail
-            </p>
+        <div className="pt-6 border-t border-border/50 text-center relative z-10">
+          <div className="flex items-center justify-center gap-2 opacity-50">
+            <Lock className="w-3 h-3" />
+            <span className="text-[10px] font-black uppercase tracking-[0.3em]">
+              IDIA Data Inc. Infrastructure Rail
+            </span>
           </div>
         </div>
       </div>
