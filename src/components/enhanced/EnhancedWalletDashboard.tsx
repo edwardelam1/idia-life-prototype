@@ -244,7 +244,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                 </div>
                 <div className="text-center border-x border-white/20">
                   <p className="text-teal-100 text-[10px] font-medium uppercase">Circle USDC</p>
-                  <p className="text-xl font-bold">${walletBalance?.idia_usd_balance?.toFixed(2) || "0.00"}</p>
+                  <p className="text-xl font-bold">${walletBalance?.idia_beta_balance?.toFixed(2) || "0.00"}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-teal-100 text-[10px] font-medium uppercase">IDIA (Test)</p>
