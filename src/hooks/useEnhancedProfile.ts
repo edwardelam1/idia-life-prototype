@@ -102,18 +102,22 @@ export const useEnhancedProfile = () => {
         });
       }
 
-      const { data: walletData } = await supabase.from("user_wallets").select("*").eq("user_id", user.id).maybeSingle();
+      const { data: walletData } = await supabase
+        .from("wallets")
+        .select("id, user_id, wallet_address, cash_balance, idia_usd_balance, idia_token_balance")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
       if (walletData) {
-        const w = walletData as any; // Cast to any to resolve TS2339/TS2551 errors
+        const w = walletData as any;
         setWallet({
           id: w.id,
           user_id: w.user_id,
           wallet_address: w.wallet_address || null,
-          cash_balance: w.cash_balance || 0,
-          idia_usd_balance: w.total_earned || 0, // Mapping total_earned to usd balance
-          idia_token_balance: w.idia_beta_balance || 0, // Mapping beta_balance to token balance
-          is_seed_backed_up: w.is_seed_backed_up || false,
+          cash_balance: Number(w.cash_balance) || 0,
+          idia_usd_balance: Number(w.idia_usd_balance) || 0,
+          idia_token_balance: Number(w.idia_token_balance) || 0,
+          is_seed_backed_up: false,
         });
       }
     } catch (error) {

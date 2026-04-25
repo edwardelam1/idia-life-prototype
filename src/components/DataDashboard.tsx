@@ -55,14 +55,14 @@ const DataDashboard = () => {
         .on(
           "postgres_changes",
           {
-            event: "UPDATE",
+            event: "*",
             schema: "public",
-            table: "user_wallets",
+            table: "wallets",
             filter: `user_id=eq.${currentUserId}`,
           },
           (payload: any) => {
-            console.log("Data Dashboard Wallet Update:", payload);
-            setTotalEarnings(payload.new.cash_balance || 0);
+            console.log("Data Dashboard Vault Update:", payload);
+            setTotalEarnings(Number(payload.new?.cash_balance) || 0);
           },
         )
         .subscribe();
@@ -170,15 +170,19 @@ const DataDashboard = () => {
       setLastSyncStatus(calculatedSyncStatus);
       setConnections(cleaned);
 
-      // 5. Fetch Wallet Balance
-      console.log("💵 [DASHBOARD_LOG] Fetching wallet balance...");
-      const walletRes = await supabase.from("user_wallets").select("cash_balance").eq("user_id", user.id).single();
+      // 5. Fetch Vault Balance from public.wallets (ground truth)
+      console.log("💵 [DASHBOARD_LOG] Fetching vault balance from public.wallets...");
+      const walletRes = await supabase
+        .from("wallets")
+        .select("cash_balance")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
-      if (walletRes.error && walletRes.error.code !== "PGRST116") {
-        // PGRST116 is just "no rows returned", which is fine for a new user
-        console.error("🚨 [DASHBOARD_LOG] Wallet fetch error:", walletRes.error.message);
-      } else if (walletRes.data) {
-        setTotalEarnings(walletRes.data.cash_balance || 0);
+      if (walletRes.error) {
+        console.error("[FATAL: Vault_Sync] Unreachable state. Check Supabase connection.", walletRes.error.message);
+        setTotalEarnings(0);
+      } else {
+        setTotalEarnings(Number(walletRes.data?.cash_balance) || 0);
       }
     } catch (error: any) {
       console.error("🚨 [DASHBOARD_LOG] FATAL Error in fetchConnections:", error.message);
