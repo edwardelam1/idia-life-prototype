@@ -10,9 +10,12 @@ import Header from "@/components/Header";
 import { Buffer } from "buffer";
 
 if (typeof window !== "undefined") {
-  window.global = window.global || window;
-  window.Buffer = window.Buffer || Buffer;
-  window.process = window.process || { env: {} };
+  console.log("[START] Hydrating Global Cryptographic Polyfills...");
+  // Bypassing TypeScript strict window definitions to inject the bare minimum runtime variables
+  (window as any).global = (window as any).global || window;
+  (window as any).Buffer = (window as any).Buffer || Buffer;
+  (window as any).process = (window as any).process || { env: {} };
+  console.log("[END] Polyfills Hydrated Successfully.");
 }
 // ------------------------------------------
 
@@ -38,6 +41,7 @@ export default function SecureVault() {
         if (CircleModule && CircleModule.W3SSdk) {
           setSdkConstructor(() => CircleModule.W3SSdk);
           setStatus("AIRLOCK SEALED. NATIVE RAIL ACTIVE.");
+          console.log("[END] Native SDK successfully bound to state.");
         } else {
           throw new Error("Module loaded, but W3SSdk constructor is missing.");
         }
@@ -52,6 +56,7 @@ export default function SecureVault() {
   }, []);
 
   const executeChallenge = () => {
+    console.log("[START] Physical Confirmation: Engaging PIN Enclave");
     if (!sdkConstructor) return;
 
     setIsExecuting(true);
@@ -63,47 +68,61 @@ export default function SecureVault() {
     const challengeId = searchParams.get("challengeId");
 
     if (!userToken || !encryptionKey) {
+      console.error("[CRITICAL] Missing URL credentials.");
       setError("UNAUTHORIZED: TOKENS MISSING.");
       setIsExecuting(false);
       return;
     }
 
     if (!challengeId || challengeId === "null") {
+      console.log("[INFO] No pending challenge. Vault is already active.");
       setStatus("VAULT ACTIVE. REDIRECTING...");
       setTimeout(() => navigate("/"), 1500);
       return;
     }
 
     try {
+      console.log(`[INFO] Instantiating Circle Web SDK...`);
       const sdkInstance = new sdkConstructor({
         appSettings: { appId: "f8df0c7a-0d24-5103-9acd-82a88e5f18e8" },
       });
 
+      console.log(`[INFO] Applying Cryptographic Payloads...`);
       sdkInstance.setAuthentication({ userToken, encryptionKey });
+
+      console.log(`[INFO] SDK Execution Triggered for Challenge: ${challengeId}`);
       sdkInstance.execute(challengeId, async (err: any) => {
+        console.log("[START] Circle UI Callback Response");
+
         if (err) {
+          console.error(`[ERROR] Secure Handshake Aborted: ${err.message}`);
           setError(`HANDSHAKE ABORTED: ${err.message}`);
           setIsExecuting(false);
           setStatus("AIRLOCK SEALED. READY.");
           return;
         }
 
+        console.log("[SUCCESS] PIN Authenticated. Initializing database sync.");
         setStatus("HANDSHAKE CONFIRMED. SYNCING IDENTITY...");
 
         try {
           const { data: userAuth } = await (supabase.auth as any).getUser();
           if (userAuth?.user) {
+            console.log(`[INFO] Syncing Circle ID for user: ${userAuth.user.id}`);
             await (supabase.from("profiles") as any)
               .update({ circle_user_id: userAuth.user.id })
               .eq("user_id", userAuth.user.id);
+            console.log("[SUCCESS] Profile database sync complete.");
           }
         } catch (dbError) {
           console.error("[ERROR] Database synchronization interrupted.");
         }
 
+        console.log("[END] Operation Success. Redirecting to Root.");
         navigate("/");
       });
     } catch (e: any) {
+      console.error(`[FATAL] Execution Failure: ${e.message}`);
       setError(`EXECUTION FAILED: ${e.message}`);
       setIsExecuting(false);
     }
