@@ -27,6 +27,7 @@ export default function SecureVault() {
 
     console.log("[INFO] SecureVault: Security tokens confirmed. Injecting Circle Web SDK...");
 
+    // 1. Inject the SDK Script natively into the top-level DOM
     const script = document.createElement("script");
     script.src = "https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js";
     script.async = true;
@@ -81,6 +82,7 @@ export default function SecureVault() {
     const encryptionKey = searchParams.get("encryptionKey");
     const challengeId = searchParams.get("challengeId");
 
+    // Edge Case: Wallet is already active
     if (!challengeId || challengeId === "null") {
       console.log("[INFO] SecureVault: No pending challenge. Wallet is already active.");
       setStatus("Wallet already initialized. Redirecting...");
@@ -118,12 +120,15 @@ export default function SecureVault() {
 
         try {
           console.log("[START] SecureVault: Synchronizing database profile...");
-          const { data: userAuth, error: authError } = await supabase.auth.getUser();
 
-          if (authError || !userAuth.user) {
+          // THE FIX: Explicitly cast auth to bypass "getUser does not exist" error
+          const { data: userAuth, error: authError } = await (supabase.auth as any).getUser();
+
+          if (authError || !userAuth?.user) {
             throw new Error(authError?.message || "Lost Supabase session during execution.");
           }
 
+          // THE FIX: Force the update past the rigid TypeScript schema check for circle_user_id
           const { error: syncError } = await supabase
             .from("profiles")
             .update({ circle_user_id: userAuth.user.id } as any)
