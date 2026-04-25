@@ -126,7 +126,7 @@ export default function SecureVault() {
 
           const { error: syncError } = await supabase
             .from("profiles")
-            .update({ circle_user_id: userAuth.user.id })
+            .update({ circle_user_id: userAuth.user.id } as any)
             .eq("user_id", userAuth.user.id);
 
           if (syncError) throw syncError;
