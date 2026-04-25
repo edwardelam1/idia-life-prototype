@@ -78,7 +78,6 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
       console.log("[SUCCESS] Session Tokens acquired. Launching Regulatory UI...");
 
       // 2. Initialize the SDK from the global window object
-      // If the CDN version uses a different name, the system will look for CircleW3S as a fallback
       const CircleWS = (window as any).CircleWS || (window as any).CircleW3S;
       if (!CircleWS) throw new Error("Circle SDK loaded but global namespace not found.");
 
@@ -92,15 +91,31 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
         encryptionKey: data.encryptionKey,
       });
 
-      // 3. Execute PIN/Recovery Challenge
-      sdk.execute(data.challengeId, (error: any, result: any) => {
+      // 3. Execute PIN/Recovery Challenge (REGULATORY HANDSHAKE)
+      sdk.execute(data.challengeId, async (error: any, result: any) => {
         if (error) {
           console.error(`[ERROR] Circle UI aborted: ${error.message}`);
           setIsProvisioningCircle(false);
           return;
         }
 
-        console.log("[SUCCESS] PIN/Recovery Set. Enclave synchronized.", result);
+        console.log("[SUCCESS] PIN/Recovery Set. Executing Final Sovereignty Sync...");
+
+        // 4. REGULATORY GATE: Only update the database AFTER the UI success confirmed by SDK
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) throw new Error("User session lost during handshake.");
+
+        const { error: syncError } = await (supabase.from("profiles") as any)
+          .update({ circle_user_id: userData.user.id })
+          .eq("user_id", userData.user.id);
+
+        if (syncError) {
+          console.error("[ERROR] Database sync failed after successful PIN setup.");
+          setIsProvisioningCircle(false);
+          return;
+        }
+
+        console.log("[SUCCESS] Enclave synchronized. Vault Access Granted.");
         onClose(); // Handshake complete, exit modal
       });
     } catch (error) {
