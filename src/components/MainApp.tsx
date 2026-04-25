@@ -1,22 +1,18 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Wallet, Database, Users, ShoppingBag, Vote, Crown } from "lucide-react";
-import WalletDashboard from "./WalletDashboard";
 import EnhancedWalletDashboard from "./enhanced/EnhancedWalletDashboard";
 import DataDashboard from "./DataDashboard";
-import SocialScreen from "./SocialScreen";
 import EnhancedSocialScreen from "./enhanced/EnhancedSocialScreen";
 import ShopScreen from "./ShopScreen";
 import GovernanceScreen from "./GovernanceScreen";
 import ProScreen from "./pro/ProScreen";
 import Header from "./Header";
 import FriendAssistant from "./FriendAssistant";
-
-// FIX 1: Strict relative path to avoid Vite/Lovable ENOENT build errors
 import OnboardingModal from "./ui/OnboardingModal";
 
 const MainApp = () => {
-  const [activeTab, setActiveTab] = useState("data"); // Default to Data to prevent initial load lock
+  const [activeTab, setActiveTab] = useState("data");
   const [showFriend, setShowFriend] = useState(false);
   const [friendTrigger, setFriendTrigger] = useState<"social" | "wallet" | "data" | "achievement" | undefined>();
 
@@ -25,13 +21,13 @@ const MainApp = () => {
   const [hasDismissedOnboarding, setHasDismissedOnboarding] = useState(false);
   const [isProvisioned, setIsProvisioned] = useState({ circle: false, fbo: false });
   const [auditComplete, setAuditComplete] = useState(false);
+  const [sovereignOverride, setSovereignOverride] = useState(false); // DEV BYPASS
 
   // 1. The Isolated Infrastructure Audit
   useEffect(() => {
     const verifySovereignInfrastructure = async () => {
       console.log("[START] MainApp: Executing infrastructure audit...");
       try {
-        // @ts-ignore
         const { data, error: authError } = await supabase.auth.getUser();
 
         if (authError || !data?.user) {
@@ -39,7 +35,7 @@ const MainApp = () => {
           return;
         }
 
-        // FIX 2: VULNERABILITY PATCHED: Casting to 'any' bypasses Lovable's outdated local schema cache
+        // Bypassing local schema cache via 'as any'
         const { data: profileData, error: profileError } = await (supabase.from("profiles") as any)
           .select("circle_user_id, fbo_account_id")
           .eq("user_id", data.user.id)
@@ -65,42 +61,32 @@ const MainApp = () => {
     verifySovereignInfrastructure();
   }, []);
 
-  // 2. THE "FLOOR SENSOR" - Scoped strictly to the Wallet tab
+  // 2. THE "FLOOR SENSOR" - Respects Sovereign Override
   useEffect(() => {
-    if (auditComplete && activeTab === "wallet") {
-      // Logic Update: They are only fully locked if they have NEITHER rail.
+    if (auditComplete && activeTab === "wallet" && !sovereignOverride) {
       const isFullyLocked = !isProvisioned.circle && !isProvisioned.fbo;
 
       if (isFullyLocked && !hasDismissedOnboarding && !showOnboarding) {
-        console.log("[INFO] Floor Sensor Triggered: 0 Rails detected. Deploying Modal.");
+        console.log("[INFO] Floor Sensor Triggered: Deploying Modal.");
         setShowOnboarding(true);
       }
     }
-  }, [activeTab, isProvisioned, auditComplete, hasDismissedOnboarding, showOnboarding]);
+  }, [activeTab, isProvisioned, auditComplete, hasDismissedOnboarding, showOnboarding, sovereignOverride]);
 
   // 3. TAB-LOCK BYPASS: Close onboarding if the user navigates away from wallet
   useEffect(() => {
     if (activeTab !== "wallet" && showOnboarding) {
-      console.log("[INFO] User navigated away from Wallet. Deactivating Onboarding Gate.");
       setShowOnboarding(false);
     }
   }, [activeTab, showOnboarding]);
 
-  const tabs = [
-    { id: "wallet", label: "Wallet", icon: Wallet, component: EnhancedWalletDashboard },
-    { id: "data", label: "My Data", icon: Database, component: DataDashboard },
-    { id: "social", label: "Social", icon: Users, component: EnhancedSocialScreen },
-    { id: "shop", label: "Shop", icon: ShoppingBag, component: ShopScreen },
-    { id: "vote", label: "Vote", icon: Vote, component: GovernanceScreen },
-    { id: "pro", label: "Pro", icon: Crown, component: ProScreen },
-  ];
-
+  // AI Assistant Triggers
   useEffect(() => {
     if (activeTab === "social") {
       setFriendTrigger("social");
       setShowFriend(true);
-    } else {
-      if (friendTrigger === "social") setShowFriend(false);
+    } else if (friendTrigger === "social") {
+      setShowFriend(false);
     }
   }, [activeTab, friendTrigger]);
 
@@ -115,26 +101,39 @@ const MainApp = () => {
     return () => window.removeEventListener("showFriend", handleShowFriend as EventListener);
   }, []);
 
+  const tabs = [
+    { id: "wallet", label: "Wallet", icon: Wallet, component: EnhancedWalletDashboard },
+    { id: "data", label: "My Data", icon: Database, component: DataDashboard },
+    { id: "social", label: "Social", icon: Users, component: EnhancedSocialScreen },
+    { id: "shop", label: "Shop", icon: ShoppingBag, component: ShopScreen },
+    { id: "vote", label: "Vote", icon: Vote, component: GovernanceScreen },
+    { id: "pro", label: "Pro", icon: Crown, component: ProScreen },
+  ];
+
   const ActiveComponent = tabs.find((tab) => tab.id === activeTab)?.component || EnhancedWalletDashboard;
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background">
-      {/* Header is now completely isolated from MainApp's state updates */}
-      <Header />
+      {/* HEADER WITH OVERRIDE: Shift + Click Header triggers bypass */}
+      <div onMouseDown={(e) => e.shiftKey && setSovereignOverride(true)}>
+        <Header />
+      </div>
 
-      {/* Added 'relative' to main to contain the Glass Shield */}
       <main className="flex-1 overflow-hidden pt-[calc(3.5rem+env(safe-area-inset-top))] relative">
-        {/* THE GLASS SHIELD: Intercepts all physical touches if they have 0 rails setup */}
-        {activeTab === "wallet" && !isProvisioned.circle && !isProvisioned.fbo && !showOnboarding && (
-          <div
-            className="absolute inset-0 z-40 bg-background/20 backdrop-blur-[1px] cursor-pointer"
-            onClick={() => {
-              console.log("[INFO] Wallet touch intercepted. Relaunching Modal.");
-              setShowOnboarding(true);
-              setHasDismissedOnboarding(false); // Reset dismissal on manual trigger
-            }}
-          />
-        )}
+        {/* THE GLASS SHIELD: Intercepts touches if 0 rails are setup AND no override is active */}
+        {activeTab === "wallet" &&
+          !isProvisioned.circle &&
+          !isProvisioned.fbo &&
+          !showOnboarding &&
+          !sovereignOverride && (
+            <div
+              className="absolute inset-0 z-40 bg-background/20 backdrop-blur-[1px] cursor-pointer"
+              onClick={() => {
+                setShowOnboarding(true);
+                setHasDismissedOnboarding(false);
+              }}
+            />
+          )}
 
         <div className="h-full max-w-4xl mx-auto">
           <div className="h-full px-2 pb-2 overflow-y-auto">
@@ -166,12 +165,10 @@ const MainApp = () => {
         </div>
       </nav>
 
-      {/* Scope OnboardingModal strictly to the active Wallet tab */}
       {showOnboarding && activeTab === "wallet" && (
         <OnboardingModal
           isVisible={showOnboarding}
           onClose={() => {
-            console.log("[INFO] Modal dismissed. Engaging the Glass Shield.");
             setShowOnboarding(false);
             setHasDismissedOnboarding(true);
           }}
