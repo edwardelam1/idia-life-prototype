@@ -38,7 +38,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
       setLoadError(null);
 
       const timer = setTimeout(() => {
-        if (!sdkLoaded) {
+        if (!scriptDelivered) {
           console.warn("[TIMEOUT] OnboardingModal: Handshake heartbeat stopped. Verify Whitelist.");
           setHandshakeTimedOut(true);
         }
@@ -62,16 +62,11 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
               window.parent !== window ? "Iframe (Lovable Editor)" : "Standalone Tab",
             );
 
+            // STOP EXECUTION HERE: Cache the constructor, do not instantiate yet
+            (window as any)._CircleConstructor = module.W3SSDK;
             setScriptDelivered(true);
-            try {
-              setSdkInstance(new module.W3SSDK());
-              setSdkLoaded(true);
-              clearTimeout(timer);
-              console.log("[SUCCESS] Path A: Enclave active via ESM.");
-            } catch (err: any) {
-              console.error(`[CRITICAL] Constructor Crash (Path A): ${err.message}`);
-              setLoadError(`Constructor Crash: ${err.message}`);
-            }
+            clearTimeout(timer);
+            console.log("[SUCCESS] Path A: Script cached via ESM. Awaiting user engagement.");
             return;
           }
         } catch (e) {
@@ -90,7 +85,6 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
 
             script.onload = () => {
               console.log(`[INFO] ${label}: Script delivery confirmed.`);
-              setScriptDelivered(true);
               const global = window as any;
               const Constructor = (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
 
@@ -98,17 +92,11 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
                 console.log(`[INFO] ${label}: Namespace identified.`);
                 console.log(`[AUDIT] Reported Hostname (${label}):`, window.location.hostname);
 
-                try {
-                  setSdkInstance(new Constructor());
-                  setSdkLoaded(true);
-                  clearTimeout(timer);
-                  console.log(`[SUCCESS] ${label}: Enclave active.`);
-                  resolve(true);
-                } catch (err: any) {
-                  console.error(`[CRITICAL] Constructor Crash (${label}): ${err.message}`);
-                  setLoadError(`Constructor Crash (${label}): ${err.message}`);
-                  resolve(false);
-                }
+                // STOP EXECUTION HERE: Do not instantiate yet
+                setScriptDelivered(true);
+                clearTimeout(timer);
+                console.log(`[SUCCESS] ${label}: Enclave script ready in memory. Awaiting user engagement.`);
+                resolve(true);
               } else {
                 console.error(`[ERROR] ${label}: Namespace search failed.`);
                 resolve(false);
@@ -144,20 +132,15 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
           const script = document.createElement("script");
           script.src = blobUrl;
           script.onload = () => {
-            setScriptDelivered(true);
             const global = window as any;
             const Constructor = (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
             if (Constructor) {
               console.log("[AUDIT] Reported Hostname (Path D):", window.location.hostname);
-              try {
-                setSdkInstance(new Constructor());
-                setSdkLoaded(true);
-                clearTimeout(timer);
-                console.log("[SUCCESS] Path D: Enclave active via Local Blob Bypass.");
-              } catch (err: any) {
-                console.error(`[CRITICAL] Constructor Crash (Path D): ${err.message}`);
-                setLoadError(`Constructor Crash (Path D): ${err.message}`);
-              }
+
+              // STOP EXECUTION HERE: Do not instantiate yet
+              setScriptDelivered(true);
+              clearTimeout(timer);
+              console.log("[SUCCESS] Path D: Enclave script ready via Blob. Awaiting user engagement.");
             }
           };
           document.head.appendChild(script);
@@ -183,32 +166,37 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
       return;
     }
 
+    console.log("[START] OnboardingModal: Initiating Secure PIN Handshake sequence...");
+    setIsProvisioningCircle(true);
+    setLoadError(null);
+
     let activeSdk = sdkInstance;
 
-    // LAZY INITIALIZATION FALLBACK (Unlocks perpetual sync)
+    // PHYSICAL MOUNT ON CLICK: This triggers Circle's server ping ONLY when engaged.
     if (!activeSdk) {
-      console.log("[INFO] Lazy Initialization: Attempting to mount Constructor on click...");
+      console.log("[INFO] Click Engagement: Attempting to mount Constructor...");
       const global = window as any;
-      const Constructor = (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
+      const Constructor =
+        global._CircleConstructor || (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
+
       if (Constructor) {
         try {
           activeSdk = new Constructor();
           setSdkInstance(activeSdk);
           setSdkLoaded(true);
+          console.log("[SUCCESS] Constructor mounted successfully.");
         } catch (err: any) {
-          console.error(`[CRITICAL] Lazy Constructor Crash: ${err.message}`);
+          console.error(`[CRITICAL] Constructor Crash during mount: ${err.message}`);
           setLoadError(`Constructor Crash: ${err.message}`);
+          setIsProvisioningCircle(false);
           return;
         }
       } else {
         setLoadError("Fatal: W3SSDK Namespace is missing.");
+        setIsProvisioningCircle(false);
         return;
       }
     }
-
-    console.log("[START] OnboardingModal: Initiating Secure PIN Handshake sequence...");
-    setIsProvisioningCircle(true);
-    setLoadError(null); // Clear errors on active attempt
 
     try {
       console.log("[INFO] Step 1: Invoking provision-circle-wallet Edge Function...");
