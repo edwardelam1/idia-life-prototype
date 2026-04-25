@@ -92,7 +92,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
 
       const sdk = sdkInstance;
       // REPLACE with your actual App ID
-      sdk.setAppSettings({ appId: "YOUR_CIRCLE_APP_ID" });
+      sdk.setAppSettings({ appId: "6b051463-ed70-5b48-9758-4f1d0e58bf24" });
 
       sdk.setAuthentication({
         userToken: data.userToken,
