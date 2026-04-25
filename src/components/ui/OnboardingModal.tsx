@@ -20,20 +20,19 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
   // --- TRIPLE-RAIL HANDSHAKE PROTOCOL ---
   useEffect(() => {
     if (isVisible && !sdkLoaded) {
-      console.log("[START] OnboardingModal: Executing Triple-Rail Infrastructure Handshake...");
+      console.log("[START] OnboardingModal: Executing Multi-Rail Infrastructure Handshake...");
       setHandshakeTimedOut(false);
       setLoadError(null);
 
-      // 12s HEARTBEAT: Catching CSP or Domain Whitelist blocks
       const timer = setTimeout(() => {
         if (!sdkLoaded) {
           console.warn("[TIMEOUT] Handshake heartbeat stopped. Likely a CSP or Domain Whitelist block.");
           setHandshakeTimedOut(true);
         }
-      }, 12000);
+      }, 15000); // Extended for high-latency cloud proxying
 
       const initializeEnclave = async () => {
-        // --- PATH A: ESM.SH (Primary Modern Rail) ---
+        // --- PATH A: ESM.SH (Modern Rail) ---
         try {
           console.log("[INFO] Path A: Attempting ESM.sh...");
           const sdkUrl = `https://esm.sh/@circle-fin/w3s-pw-web-sdk@1.1.11?bundle&v=${Date.now()}`;
@@ -43,14 +42,14 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
             setSdkInstance(new module.W3SSDK());
             setSdkLoaded(true);
             clearTimeout(timer);
-            console.log("[SUCCESS] Path A: Resolved.");
+            console.log("[SUCCESS] Path A Resolved.");
             return;
           }
         } catch (e) {
-          console.warn("[WARN] Path A blocked.");
+          console.warn("[BLOCK] Path A failed.");
         }
 
-        // Helper for script-based injection
+        // --- PATH B & C: Standard Script Injection ---
         const tryScript = (url: string, label: string): Promise<boolean> => {
           return new Promise((resolve) => {
             console.log(`[INFO] ${label}: Attempting injection...`);
@@ -59,44 +58,54 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
             script.async = true;
             script.onload = () => {
               const global = window as any;
-              // AGGRESSIVE SEARCH for the W3SSDK Constructor
-              const CircleWS = global.CircleWS || global.CircleW3S || global.Circle;
-              const Constructor =
-                CircleWS?.W3SSDK || global.W3SSDK || (typeof CircleWS === "function" ? CircleWS : null);
-
+              const Constructor = (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
               if (Constructor) {
                 setSdkInstance(new Constructor());
                 setSdkLoaded(true);
                 clearTimeout(timer);
-                console.log(`[SUCCESS] ${label}: Resolved via Aggressive Search.`);
+                console.log(`[SUCCESS] ${label} Resolved.`);
                 resolve(true);
               } else {
-                console.error(`[ERROR] ${label}: Namespace search failed.`);
                 resolve(false);
               }
             };
             script.onerror = () => {
-              console.error(`[ERROR] ${label}: Network Block (Infrastructure Unreachable).`);
+              console.error(`[BLOCK] ${label} Unreachable.`);
               resolve(false);
             };
             document.head.appendChild(script);
           });
         };
 
-        // --- PATH B: UNPKG (Secondary Rail) ---
-        if (await tryScript("https://unpkg.com/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js", "Path B (Unpkg)"))
+        if (await tryScript("https://unpkg.com/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js", "Path B")) return;
+        if (await tryScript("https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js", "Path C"))
           return;
 
-        // --- PATH C: JSDELIVR (Tertiary Rail) ---
-        if (
-          await tryScript(
-            "https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js",
-            "Path C (jsDelivr)",
-          )
-        )
-          return;
+        // --- PATH D: THE BLOB BYPASS (Nuclear Rail) ---
+        try {
+          console.log("[INFO] Path D: Attempting Blob Proxy Bypass...");
+          const response = await fetch("https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js");
+          const code = await response.text();
+          const blob = new Blob([code], { type: "application/javascript" });
+          const blobUrl = URL.createObjectURL(blob);
 
-        setLoadError("Total Infrastructure Block: All network rails unreachable.");
+          const script = document.createElement("script");
+          script.src = blobUrl;
+          script.onload = () => {
+            const global = window as any;
+            const Constructor = (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
+            if (Constructor) {
+              setSdkInstance(new Constructor());
+              setSdkLoaded(true);
+              clearTimeout(timer);
+              console.log("[SUCCESS] Path D Resolved via Local Blob.");
+            }
+          };
+          document.head.appendChild(script);
+        } catch (e) {
+          console.error("[FATAL] Path D Blocked. Network is fully severed.");
+          setLoadError("TOTAL NETWORK BLOCK: All Infrastructure Unreachable.");
+        }
       };
 
       initializeEnclave();
