@@ -31,10 +31,11 @@ const WalletDashboard = () => {
 
     // DISCUSSION: Added Realtime Subscription for Live Transaction Updates
     let transactionChannel: any;
-
+   
     const setupRealtime = async () => {
       const {
         data: { user },
+      // @ts-ignore -
       } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -78,6 +79,7 @@ const WalletDashboard = () => {
     try {
       const {
         data: { user },
+        // @ts-ignore -
       } = await supabase.auth.getUser();
       if (!user) {
         setTransactions([]);

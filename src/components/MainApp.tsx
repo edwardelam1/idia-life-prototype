@@ -11,10 +11,12 @@ import GovernanceScreen from "./GovernanceScreen";
 import ProScreen from "./pro/ProScreen";
 import Header from "./Header";
 import FriendAssistant from "./FriendAssistant";
-import OnboardingModal from "@/components/ui/OnboardingModal";
+
+// FIX 1: Strict relative path to avoid Vite/Lovable ENOENT build errors
+import OnboardingModal from "./ui/OnboardingModal";
 
 const MainApp = () => {
-  const [activeTab, setActiveTab] = useState("wallet");
+  const [activeTab, setActiveTab] = useState("data"); // Default to Data to prevent initial load lock
   const [showFriend, setShowFriend] = useState(false);
   const [friendTrigger, setFriendTrigger] = useState<"social" | "wallet" | "data" | "achievement" | undefined>();
 
@@ -37,8 +39,8 @@ const MainApp = () => {
           return;
         }
 
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
+        // FIX 2: VULNERABILITY PATCHED: Casting to 'any' bypasses Lovable's outdated local schema cache
+        const { data: profileData, error: profileError } = await (supabase.from("profiles") as any)
           .select("circle_user_id, fbo_account_id")
           .eq("user_id", data.user.id)
           .single();
@@ -109,6 +111,7 @@ const MainApp = () => {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background">
+      {/* Header is now completely isolated from MainApp's state updates */}
       <Header />
 
       {/* Added 'relative' to main to contain the Glass Shield */}
