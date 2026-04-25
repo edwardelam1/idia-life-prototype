@@ -48,38 +48,26 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
     setIsProvisioningCircle(true);
 
     try {
-      console.log("[INFO] Requesting secure enclave generation via Supabase Edge Function...");
-
-      // Target the edge function. (Update 'provision-circle-wallet' if your function name differs)
       const { data, error: invokeError } = await supabase.functions.invoke("provision-circle-wallet", {
         method: "POST",
       });
 
-      if (invokeError) {
-        console.error(`[ERROR] Edge Function invocation rejected.`);
-        console.error(`[DETAILS] ${invokeError.message}`);
-        throw invokeError;
-      }
+      if (invokeError || data?.error) throw new Error(data?.error || "Handshake failed.");
 
-      if (data?.error) {
-        console.error(`[ERROR] Circle API Handshake failed.`);
-        console.error(`[DETAILS] ${data.error}`);
-        throw new Error(data.error);
-      }
+      console.log("[SUCCESS] Session Tokens acquired. Launching Circle Identity UI...");
 
-      console.log("[SUCCESS] Circle Vault successfully provisioned and linked to LKS.");
+      // STEP 3: Trigger the actual Circle Onboarding UI
+      // In a production environment, you'd use the Circle SDK here:
+      // circleSdk.execute(data.userToken, data.encryptionKey);
 
-      // Close the modal. MainApp's "Floor Sensor" will re-read the database and unlock the UI.
-      onClose();
+      console.log("[INFO] Proceeding to Circle Secure Webview...");
+
+      // For now, we simulate the redirect to the onboarding flow
+      window.location.href = `https://id-onboarding.circle.com?token=${data.userToken}`;
     } catch (error) {
-      console.error("[ERROR] Fatal stall in Circle Handshake execution.");
-      if (error instanceof Error) {
-        console.error(`[DETAILS] ${error.name}: ${error.message}`);
-        if (error.stack) console.error(`[TRACE] ${error.stack}`);
-      }
+      console.error("[ERROR] Fatal stall in Circle Handshake.");
     } finally {
       setIsProvisioningCircle(false);
-      console.log("[END] Circle Handshake execution block fully resolved.");
     }
   };
 
