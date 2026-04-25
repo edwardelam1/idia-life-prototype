@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { X, ShieldCheck, Landmark, ArrowRight, Zap, Loader2, Activity, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -13,6 +14,8 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
   const [isProvisioningCircle, setIsProvisioningCircle] = useState(false);
   const [isProvisioningFBO, setIsProvisioningFBO] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const navigate = useNavigate();
 
   if (!isVisible) return null;
 
@@ -42,7 +45,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
       });
 
       // 3. Execute the internal redirect (Bypasses DNS errors & Modal Z-Index traps)
-      window.location.assign(`/secure-vault?${params.toString()}`);
+      navigate(`/secure-vault?${params.toString()}`);
     } catch (error: any) {
       console.error(`[FATAL] Airlock Failure: ${error.message}`);
       setLoadError(error.message);
