@@ -1,5 +1,17 @@
 import { useState, useEffect } from "react";
-import { X, ShieldCheck, Landmark, ArrowRight, Zap, Loader2, AlertCircle, RefreshCw, Activity } from "lucide-react";
+import {
+  X,
+  ShieldCheck,
+  Landmark,
+  ArrowRight,
+  Zap,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
+  Activity,
+  Globe,
+  Key,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface OnboardingModalProps {
@@ -43,8 +55,6 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
 
           if (module?.W3SSDK) {
             console.log("[INFO] Path A: W3SSDK Module detected.");
-
-            // --- DEEP TELEMETRY: ORIGIN AUDIT ---
             console.log("[AUDIT] Reported Hostname:", window.location.hostname);
             console.log(
               "[AUDIT] Execution Context:",
@@ -55,7 +65,6 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
             setSdkLoaded(true);
             clearTimeout(timer);
             console.log("[SUCCESS] Path A: Enclave active via ESM.");
-            console.log("[END] Path A: Handshake resolved.");
             return;
           }
         } catch (e) {
@@ -77,19 +86,12 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
 
               if (Constructor) {
                 console.log(`[INFO] ${label}: Namespace identified.`);
-
-                // --- DEEP TELEMETRY: ORIGIN AUDIT ---
                 console.log(`[AUDIT] Reported Hostname (${label}):`, window.location.hostname);
-                console.log(
-                  `[AUDIT] Execution Context (${label}):`,
-                  window.parent !== window ? "Iframe" : "Standalone",
-                );
 
                 setSdkInstance(new Constructor());
                 setSdkLoaded(true);
                 clearTimeout(timer);
                 console.log(`[SUCCESS] ${label}: Enclave active.`);
-                console.log(`[END] ${label}: Handshake resolved.`);
                 resolve(true);
               } else {
                 console.error(`[ERROR] ${label}: Namespace search failed.`);
@@ -115,13 +117,11 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
         )
           return;
 
-        // --- PATH D: THE BLOB BYPASS ---
+        // --- PATH D: THE BLOB BYPASS (Nuclear Option) ---
         try {
           console.log("[START] Path D: Executing Blob Proxy Nuclear Bypass...");
           const response = await fetch("https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js");
           const code = await response.text();
-          console.log("[INFO] Path D: Binary stream captured. Constructing Blob...");
-
           const blob = new Blob([code], { type: "application/javascript" });
           const blobUrl = URL.createObjectURL(blob);
 
@@ -131,14 +131,10 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
             const global = window as any;
             const Constructor = (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
             if (Constructor) {
-              // --- DEEP TELEMETRY: ORIGIN AUDIT ---
-              console.log("[AUDIT] Reported Hostname (Path D):", window.location.hostname);
-
               setSdkInstance(new Constructor());
               setSdkLoaded(true);
               clearTimeout(timer);
               console.log("[SUCCESS] Path D: Enclave active via Local Blob Bypass.");
-              console.log("[END] Path D: Handshake resolved.");
             }
           };
           document.head.appendChild(script);
@@ -149,10 +145,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
       };
 
       initializeEnclave();
-      return () => {
-        console.log("[CLEANUP] OnboardingModal: Clearing Handshake timer.");
-        clearTimeout(timer);
-      };
+      return () => clearTimeout(timer);
     }
   }, [isVisible, sdkLoaded]);
 
@@ -181,9 +174,12 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
 
       const sdk = sdkInstance;
 
-      console.log("[INFO] Step 2: Configuring SDK Application Identity (Testnet)...");
-      // VERIFIED TESTNET ID: f8df0c7a-0d24-5103-9acd-82a88e5f18e8
-      sdk.setAppSettings({ appId: "f8df0c7a-0d24-5103-9acd-82a88e5f18e8" });
+      console.log("[INFO] Step 2: Configuring SDK Application Identity & Client Key (Testnet)...");
+      // DUAL-CREDENTIAL INITIALIZATION: Required for Domain Whitelist Resolution
+      sdk.setAppSettings({
+        appId: "f8df0c7a-0d24-5103-9acd-82a88e5f18e8",
+        clientKey: "TEST_CLIENT_KEY:713c965e89a558509893d5a15152a553",
+      });
 
       console.log("[INFO] Step 3: Synchronizing Authentication Enclave...");
       sdk.setAuthentication({
@@ -276,14 +272,18 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
         <div className="p-6 space-y-4">
           {(loadError || handshakeTimedOut) && (
             <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg flex flex-col gap-2">
-              <div className="flex items-center gap-2 text-xs text-red-400 font-mono">
+              <div className="flex items-center gap-2 text-xs text-red-400 font-mono font-bold">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{handshakeTimedOut ? "TIMED OUT: Verify Circle Whitelist" : loadError}</span>
+                <span>{handshakeTimedOut ? "HANDSHAKE TIMEOUT" : loadError}</span>
               </div>
-              <p className="text-[10px] text-red-400/80 leading-tight">
-                Current Host: <span className="font-bold underline">{window.location.hostname}</span>. Ensure this
-                exactly matches the "Allowed Domain" in Circle Console.
-              </p>
+              <div className="p-2 bg-black/20 rounded text-[9px] text-red-400/90 font-mono space-y-1">
+                <p className="flex items-center gap-1 font-bold">
+                  <Globe className="w-3 h-3 text-red-400" /> Host: {window.location.hostname}
+                </p>
+                <p className="flex items-center gap-1 font-bold">
+                  <Key className="w-3 h-3 text-red-400" /> App ID: f8df0c7a...5f18e8
+                </p>
+              </div>
               <button
                 onClick={() => window.location.reload()}
                 className="text-[10px] uppercase tracking-widest font-bold text-red-500 hover:text-red-400 flex items-center gap-1 w-fit mt-1"
@@ -314,7 +314,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
                   {!isProvisioningCircle && sdkLoaded && <ArrowRight className="w-4 h-4 text-muted-foreground" />}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {!sdkLoaded ? "Waiting for test enclave sync..." : "Requires Test PIN Setup"}
+                  {!sdkLoaded ? "Awaiting test enclave sync..." : "Requires Test PIN Setup"}
                 </p>
               </div>
             </button>
