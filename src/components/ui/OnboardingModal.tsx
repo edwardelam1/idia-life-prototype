@@ -25,6 +25,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
   const [isProvisioningCircle, setIsProvisioningCircle] = useState(false);
   const [isProvisioningFBO, setIsProvisioningFBO] = useState(false);
   const [sdkLoaded, setSdkLoaded] = useState(false);
+  const [scriptDelivered, setScriptDelivered] = useState(false); // DECOUPLES PERPETUAL SYNC
   const [sdkInstance, setSdkInstance] = useState<any>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [handshakeTimedOut, setHandshakeTimedOut] = useState(false);
@@ -61,10 +62,16 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
               window.parent !== window ? "Iframe (Lovable Editor)" : "Standalone Tab",
             );
 
-            setSdkInstance(new module.W3SSDK());
-            setSdkLoaded(true);
-            clearTimeout(timer);
-            console.log("[SUCCESS] Path A: Enclave active via ESM.");
+            setScriptDelivered(true);
+            try {
+              setSdkInstance(new module.W3SSDK());
+              setSdkLoaded(true);
+              clearTimeout(timer);
+              console.log("[SUCCESS] Path A: Enclave active via ESM.");
+            } catch (err: any) {
+              console.error(`[CRITICAL] Constructor Crash (Path A): ${err.message}`);
+              setLoadError(`Constructor Crash: ${err.message}`);
+            }
             return;
           }
         } catch (e) {
@@ -78,11 +85,12 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
             const script = document.createElement("script");
             script.src = `${url}?v=${Date.now()}`;
             script.async = true;
-            // CRITICAL FOR PRODUCTION: Force origin headers for whitelisting
+            // CRITICAL FOR SAFARI: Forces origin headers
             script.crossOrigin = "anonymous";
 
             script.onload = () => {
               console.log(`[INFO] ${label}: Script delivery confirmed.`);
+              setScriptDelivered(true);
               const global = window as any;
               const Constructor = (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
 
@@ -90,11 +98,17 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
                 console.log(`[INFO] ${label}: Namespace identified.`);
                 console.log(`[AUDIT] Reported Hostname (${label}):`, window.location.hostname);
 
-                setSdkInstance(new Constructor());
-                setSdkLoaded(true);
-                clearTimeout(timer);
-                console.log(`[SUCCESS] ${label}: Enclave active.`);
-                resolve(true);
+                try {
+                  setSdkInstance(new Constructor());
+                  setSdkLoaded(true);
+                  clearTimeout(timer);
+                  console.log(`[SUCCESS] ${label}: Enclave active.`);
+                  resolve(true);
+                } catch (err: any) {
+                  console.error(`[CRITICAL] Constructor Crash (${label}): ${err.message}`);
+                  setLoadError(`Constructor Crash (${label}): ${err.message}`);
+                  resolve(false);
+                }
               } else {
                 console.error(`[ERROR] ${label}: Namespace search failed.`);
                 resolve(false);
@@ -130,14 +144,20 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
           const script = document.createElement("script");
           script.src = blobUrl;
           script.onload = () => {
+            setScriptDelivered(true);
             const global = window as any;
             const Constructor = (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
             if (Constructor) {
               console.log("[AUDIT] Reported Hostname (Path D):", window.location.hostname);
-              setSdkInstance(new Constructor());
-              setSdkLoaded(true);
-              clearTimeout(timer);
-              console.log("[SUCCESS] Path D: Enclave active via Local Blob Bypass.");
+              try {
+                setSdkInstance(new Constructor());
+                setSdkLoaded(true);
+                clearTimeout(timer);
+                console.log("[SUCCESS] Path D: Enclave active via Local Blob Bypass.");
+              } catch (err: any) {
+                console.error(`[CRITICAL] Constructor Crash (Path D): ${err.message}`);
+                setLoadError(`Constructor Crash (Path D): ${err.message}`);
+              }
             }
           };
           document.head.appendChild(script);
@@ -158,13 +178,37 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
   if (!isVisible) return null;
 
   const handleCircleSetup = async () => {
-    if (!sdkLoaded || !sdkInstance) {
+    if (!scriptDelivered) {
       console.warn("[WARN] OnboardingModal: Setup blocked - Infrastructure not synchronized.");
       return;
     }
 
+    let activeSdk = sdkInstance;
+
+    // LAZY INITIALIZATION FALLBACK (Unlocks perpetual sync)
+    if (!activeSdk) {
+      console.log("[INFO] Lazy Initialization: Attempting to mount Constructor on click...");
+      const global = window as any;
+      const Constructor = (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
+      if (Constructor) {
+        try {
+          activeSdk = new Constructor();
+          setSdkInstance(activeSdk);
+          setSdkLoaded(true);
+        } catch (err: any) {
+          console.error(`[CRITICAL] Lazy Constructor Crash: ${err.message}`);
+          setLoadError(`Constructor Crash: ${err.message}`);
+          return;
+        }
+      } else {
+        setLoadError("Fatal: W3SSDK Namespace is missing.");
+        return;
+      }
+    }
+
     console.log("[START] OnboardingModal: Initiating Secure PIN Handshake sequence...");
     setIsProvisioningCircle(true);
+    setLoadError(null); // Clear errors on active attempt
 
     try {
       console.log("[INFO] Step 1: Invoking provision-circle-wallet Edge Function...");
@@ -178,7 +222,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
       }
       console.log("[SUCCESS] Step 1: Challenge tokens acquired.");
 
-      const sdk = sdkInstance;
+      const sdk = activeSdk;
 
       console.log("[INFO] Step 2: Configuring SDK Application Identity & Client Key (Testnet)...");
       // DUAL-CREDENTIAL INITIALIZATION: Required for Domain Whitelist Resolution
@@ -225,6 +269,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
     } catch (error: any) {
       console.error(`[FATAL] Handshake Execution Stall: ${error.message}`);
       setIsProvisioningCircle(false);
+      setLoadError(`Execution Stall: ${error.message}`);
     } finally {
       console.log("[END] OnboardingModal: Handshake logic block finished.");
     }
@@ -271,7 +316,9 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
             </h2>
           </div>
           <p className="text-sm text-muted-foreground">
-            {sdkLoaded ? "Infrastructure synced. Initialize your vault." : "Connecting to test liquidity rails..."}
+            {scriptDelivered
+              ? "Infrastructure synced. Initialize your vault."
+              : "Connecting to test liquidity rails..."}
           </p>
         </div>
 
@@ -302,11 +349,11 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
           {needsCircle && (
             <button
               onClick={handleCircleSetup}
-              disabled={isProvisioningCircle || isProvisioningFBO || !sdkLoaded}
+              disabled={isProvisioningCircle || isProvisioningFBO || !scriptDelivered}
               className="w-full group relative flex items-center p-4 bg-secondary/50 hover:bg-secondary border border-border hover:border-primary/50 rounded-xl transition-all duration-200 disabled:opacity-50"
             >
               <div className="mr-4 p-2 bg-blue-500/10 rounded-full group-hover:scale-110 transition-transform">
-                {isProvisioningCircle || (!sdkLoaded && !handshakeTimedOut) ? (
+                {isProvisioningCircle || (!scriptDelivered && !handshakeTimedOut) ? (
                   <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
                 ) : (
                   <Zap className="w-5 h-5 text-blue-500" />
@@ -317,10 +364,10 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
                   <span className="font-semibold text-foreground">
                     {isProvisioningCircle ? "Securing Enclave..." : "Circle USDC Wallet"}
                   </span>
-                  {!isProvisioningCircle && sdkLoaded && <ArrowRight className="w-4 h-4 text-muted-foreground" />}
+                  {!isProvisioningCircle && scriptDelivered && <ArrowRight className="w-4 h-4 text-muted-foreground" />}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {!sdkLoaded ? "Waiting for test enclave sync..." : "Requires Test PIN Setup"}
+                  {!scriptDelivered ? "Waiting for test enclave sync..." : "Requires Test PIN Setup"}
                 </p>
               </div>
             </button>
