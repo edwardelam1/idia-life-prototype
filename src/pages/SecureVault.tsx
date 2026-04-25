@@ -5,26 +5,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
 
-// --- SOVEREIGN INFRASTRUCTURE POLYFILLS ---
-// Cryptographic engines require backend Node.js variables to evaluate in a browser environment.
-import { Buffer } from "buffer";
-
-if (typeof window !== "undefined") {
-  console.log("[START] Hydrating Global Cryptographic Polyfills...");
-  // Bypassing TypeScript strict window definitions to inject the bare minimum runtime variables
-  (window as any).global = (window as any).global || window;
-  (window as any).Buffer = (window as any).Buffer || Buffer;
-  (window as any).process = (window as any).process || { env: {} };
-  console.log("[END] Polyfills Hydrated Successfully.");
-}
-// ------------------------------------------
-
 export default function SecureVault() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const [sdkConstructor, setSdkConstructor] = useState<any>(null);
-  const [status, setStatus] = useState("Hydrating Cryptographic Polyfills...");
+  const [status, setStatus] = useState("Isolating Native Core...");
   const [error, setError] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
 
@@ -33,8 +19,23 @@ export default function SecureVault() {
 
     const loadNativeEnclave = async () => {
       try {
-        console.log("[INFO] Requesting @circle-fin/w3s-pw-web-sdk from Vite Bundler...");
+        // --- STEALTH POLYFILL INJECTION ---
+        // Bypasses Vite's static AST parser and TypeScript's strict DOM interfaces
+        if (typeof window !== "undefined") {
+          console.log("[INFO] Hydrating stealth polyfills...");
+          window["global"] = window["global"] || window;
+          window["process"] = window["process"] || { env: {} };
 
+          try {
+            const bufferMod = await import("buffer");
+            window["Buffer"] = window["Buffer"] || bufferMod.Buffer;
+          } catch (bErr) {
+            console.warn("[WARN] Buffer module fetch failed, cryptographic engine may stall.");
+          }
+        }
+        // ----------------------------------
+
+        console.log("[INFO] Requesting @circle-fin/w3s-pw-web-sdk from Vite Bundler...");
         const CircleModule = await import("@circle-fin/w3s-pw-web-sdk");
         console.log("[SUCCESS] Module loaded. Extracting Constructor...");
 
@@ -75,7 +76,6 @@ export default function SecureVault() {
     }
 
     if (!challengeId || challengeId === "null") {
-      console.log("[INFO] No pending challenge. Vault is already active.");
       setStatus("VAULT ACTIVE. REDIRECTING...");
       setTimeout(() => navigate("/"), 1500);
       return;
@@ -92,8 +92,6 @@ export default function SecureVault() {
 
       console.log(`[INFO] SDK Execution Triggered for Challenge: ${challengeId}`);
       sdkInstance.execute(challengeId, async (err: any) => {
-        console.log("[START] Circle UI Callback Response");
-
         if (err) {
           console.error(`[ERROR] Secure Handshake Aborted: ${err.message}`);
           setError(`HANDSHAKE ABORTED: ${err.message}`);
@@ -108,11 +106,9 @@ export default function SecureVault() {
         try {
           const { data: userAuth } = await (supabase.auth as any).getUser();
           if (userAuth?.user) {
-            console.log(`[INFO] Syncing Circle ID for user: ${userAuth.user.id}`);
             await (supabase.from("profiles") as any)
               .update({ circle_user_id: userAuth.user.id })
               .eq("user_id", userAuth.user.id);
-            console.log("[SUCCESS] Profile database sync complete.");
           }
         } catch (dbError) {
           console.error("[ERROR] Database synchronization interrupted.");
@@ -201,6 +197,13 @@ export default function SecureVault() {
               <ArrowLeft className="w-3 h-3" />
               Return to Dashboard
             </button>
+          </div>
+
+          <div className="pt-8 border-t border-border/50 text-center opacity-40">
+            <div className="flex items-center justify-center gap-2">
+              <Lock className="w-3 h-3 text-primary" />
+              <span className="text-[9px] font-black uppercase tracking-[0.4em]">IDIA Data Native Infrastructure</span>
+            </div>
           </div>
         </div>
       </main>
