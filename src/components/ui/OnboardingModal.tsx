@@ -1,5 +1,6 @@
-import { useEffect } from "react";
-import { X, ShieldCheck, Landmark, ArrowRight, Zap } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, ShieldCheck, Landmark, ArrowRight, Zap, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface OnboardingModalProps {
   isVisible: boolean;
@@ -8,80 +9,112 @@ interface OnboardingModalProps {
   needsFBO: boolean;
 }
 
-const OnboardingModal = ({
-  isVisible,
-  onClose,
-  needsCircle,
-  needsFBO,
-}: OnboardingModalProps) => {
-  
-  // Granular lifecycle logging to detect silent rendering stalls
+const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: OnboardingModalProps) => {
+  // Setup locking states to prevent double-clicks during provisioning
+  const [isProvisioningCircle, setIsProvisioningCircle] = useState(false);
+  const [isProvisioningFBO, setIsProvisioningFBO] = useState(false);
+
   useEffect(() => {
-    if (isVisible) {
-      console.log(`[START] OnboardingModal Mounted. State -> Circle Needed: ${needsCircle}, FBO Needed: ${needsFBO}`);
-    }
-    return () => {
-      if (isVisible) {
-        console.log("[END] OnboardingModal Unmounted/Hidden from view.");
-      }
-    };
-  }, [isVisible, needsCircle, needsFBO]);
+    if (isVisible) console.log(`[START] OnboardingModal Mounted.`);
+  }, [isVisible]);
 
   if (!isVisible) return null;
 
   const handleCloseClick = () => {
+    // Prevent closing if we are in the middle of a secure handshake
+    if (isProvisioningCircle || isProvisioningFBO) {
+      console.log("[INFO] Modal closure rejected: Provisioning handshake in progress.");
+      return;
+    }
+
     console.log("[START] User requested modal closure...");
     try {
       onClose();
       console.log("[SUCCESS] Modal closure callback executed.");
     } catch (error) {
       console.error("[ERROR] Silent stall during modal closure.");
-      if (error instanceof Error) console.error(`[DETAILS] ${error.message}`);
-    } finally {
-      console.log("[END] Modal closure sequence resolved.");
     }
   };
 
-  const handleCircleSetup = () => {
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      console.log("[INFO] Backdrop click detected. Evaluating closure...");
+      handleCloseClick();
+    }
+  };
+
+  const handleCircleSetup = async () => {
     console.log("[START] Initiating Circle Programmable Wallet Handshake...");
+    setIsProvisioningCircle(true);
+
     try {
-      // Logic to trigger Circle SDK or navigate to specific Circle setup route
-      // executeCircleProvisioning();
-      console.log("[SUCCESS] Circle provisioning trigger fired.");
+      console.log("[INFO] Requesting secure enclave generation via Supabase Edge Function...");
+
+      // Target the edge function. (Update 'provision-circle-wallet' if your function name differs)
+      const { data, error: invokeError } = await supabase.functions.invoke("provision-circle-wallet", {
+        method: "POST",
+      });
+
+      if (invokeError) {
+        console.error(`[ERROR] Edge Function invocation rejected.`);
+        console.error(`[DETAILS] ${invokeError.message}`);
+        throw invokeError;
+      }
+
+      if (data?.error) {
+        console.error(`[ERROR] Circle API Handshake failed.`);
+        console.error(`[DETAILS] ${data.error}`);
+        throw new Error(data.error);
+      }
+
+      console.log("[SUCCESS] Circle Vault successfully provisioned and linked to LKS.");
+
+      // Close the modal. MainApp's "Floor Sensor" will re-read the database and unlock the UI.
+      onClose();
     } catch (error) {
-      console.error("[ERROR] Silent stall in Circle Handshake.");
-      if (error instanceof Error) console.error(`[DETAILS] ${error.message}`);
+      console.error("[ERROR] Fatal stall in Circle Handshake execution.");
+      if (error instanceof Error) {
+        console.error(`[DETAILS] ${error.name}: ${error.message}`);
+        if (error.stack) console.error(`[TRACE] ${error.stack}`);
+      }
     } finally {
-      console.log("[END] Circle Handshake execution block resolved.");
+      setIsProvisioningCircle(false);
+      console.log("[END] Circle Handshake execution block fully resolved.");
     }
   };
 
-  const handleFBOSetup = () => {
+  const handleFBOSetup = async () => {
     console.log("[START] Initiating FBO (Fiat) Onboarding Sequence...");
+    setIsProvisioningFBO(true);
     try {
-      // Logic to trigger banking rail/KYC flow
       // executeFBOProvisioning();
+      // Simulating a delay for now until the FBO logic is wired
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       console.log("[SUCCESS] FBO provisioning trigger fired.");
     } catch (error) {
       console.error("[ERROR] Silent stall in FBO Onboarding.");
       if (error instanceof Error) console.error(`[DETAILS] ${error.message}`);
     } finally {
+      setIsProvisioningFBO(false);
       console.log("[END] FBO Onboarding execution block resolved.");
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300"
+      onClick={handleBackdropClick}
+    >
       <div className="relative w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
-        {/* Header Section */}
         <div className="p-6 border-b border-border bg-gradient-to-br from-primary/5 to-transparent">
-          <button 
+          <button
             onClick={handleCloseClick}
-            className="absolute top-4 right-4 p-1 rounded-full hover:bg-muted transition-colors"
+            disabled={isProvisioningCircle || isProvisioningFBO}
+            className="absolute top-4 right-4 p-1 rounded-full hover:bg-muted transition-colors disabled:opacity-50"
           >
             <X className="w-5 h-5 text-muted-foreground" />
           </button>
-          
+
           <div className="flex items-center space-x-3 mb-2">
             <div className="p-2 bg-primary/10 rounded-lg">
               <ShieldCheck className="w-6 h-6 text-primary" />
@@ -89,54 +122,66 @@ const OnboardingModal = ({
             <h2 className="text-xl font-bold tracking-tight">Initialize Sovereign Vault</h2>
           </div>
           <p className="text-sm text-muted-foreground">
-            To manage your Data Yields and settle assets, complete your infrastructure setup.
+            To manage your Data Yields and settle assets, select a liquidity rail to initialize.
           </p>
         </div>
 
-        {/* Action Items */}
         <div className="p-6 space-y-4">
-          
-          {/* Circle USDC Path */}
           {needsCircle && (
-            <button 
+            <button
               onClick={handleCircleSetup}
-              className="w-full group relative flex items-center p-4 bg-secondary/50 hover:bg-secondary border border-border hover:border-primary/50 rounded-xl transition-all duration-200"
+              disabled={isProvisioningCircle || isProvisioningFBO}
+              className="w-full group relative flex items-center p-4 bg-secondary/50 hover:bg-secondary border border-border hover:border-primary/50 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="mr-4 p-2 bg-blue-500/10 rounded-full group-hover:scale-110 transition-transform">
-                <Zap className="w-5 h-5 text-blue-500" />
+                {isProvisioningCircle ? (
+                  <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+                ) : (
+                  <Zap className="w-5 h-5 text-blue-500" />
+                )}
               </div>
               <div className="flex-1 text-left">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-foreground">Circle USDC Wallet</span>
-                  <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                  <span className="font-semibold text-foreground">
+                    {isProvisioningCircle ? "Securing Enclave..." : "Circle USDC Wallet"}
+                  </span>
+                  {!isProvisioningCircle && (
+                    <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">Digital settlement & Testnet IDIA bridge</p>
               </div>
             </button>
           )}
 
-          {/* FBO Fiat Path */}
           {needsFBO && (
-            <button 
+            <button
               onClick={handleFBOSetup}
-              className="w-full group relative flex items-center p-4 bg-secondary/50 hover:bg-secondary border border-border hover:border-primary/50 rounded-xl transition-all duration-200"
+              disabled={isProvisioningCircle || isProvisioningFBO}
+              className="w-full group relative flex items-center p-4 bg-secondary/50 hover:bg-secondary border border-border hover:border-primary/50 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="mr-4 p-2 bg-green-500/10 rounded-full group-hover:scale-110 transition-transform">
-                <Landmark className="w-5 h-5 text-green-500" />
+                {isProvisioningFBO ? (
+                  <Loader2 className="w-5 h-5 text-green-500 animate-spin" />
+                ) : (
+                  <Landmark className="w-5 h-5 text-green-500" />
+                )}
               </div>
               <div className="flex-1 text-left">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-foreground">Fiat Rail (FBO)</span>
-                  <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                  <span className="font-semibold text-foreground">
+                    {isProvisioningFBO ? "Linking..." : "Fiat Rail (FBO)"}
+                  </span>
+                  {!isProvisioningFBO && (
+                    <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">Link traditional banking for USD liquidation</p>
               </div>
             </button>
           )}
-
         </div>
 
-        {/* Footer Note */}
         <div className="p-4 bg-muted/30 text-center">
           <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">
             Sovereign Identity Protocol Secured
