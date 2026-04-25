@@ -65,7 +65,7 @@ const MainApp = () => {
     verifySovereignInfrastructure();
   }, []);
 
-  // 2. THE "FLOOR SENSOR" - 1 of 2 required to bypass.
+  // 2. THE "FLOOR SENSOR" - Scoped strictly to the Wallet tab
   useEffect(() => {
     if (auditComplete && activeTab === "wallet") {
       // Logic Update: They are only fully locked if they have NEITHER rail.
@@ -77,6 +77,14 @@ const MainApp = () => {
       }
     }
   }, [activeTab, isProvisioned, auditComplete, hasDismissedOnboarding, showOnboarding]);
+
+  // 3. TAB-LOCK BYPASS: Close onboarding if the user navigates away from wallet
+  useEffect(() => {
+    if (activeTab !== "wallet" && showOnboarding) {
+      console.log("[INFO] User navigated away from Wallet. Deactivating Onboarding Gate.");
+      setShowOnboarding(false);
+    }
+  }, [activeTab, showOnboarding]);
 
   const tabs = [
     { id: "wallet", label: "Wallet", icon: Wallet, component: EnhancedWalletDashboard },
@@ -123,6 +131,7 @@ const MainApp = () => {
             onClick={() => {
               console.log("[INFO] Wallet touch intercepted. Relaunching Modal.");
               setShowOnboarding(true);
+              setHasDismissedOnboarding(false); // Reset dismissal on manual trigger
             }}
           />
         )}
@@ -157,14 +166,14 @@ const MainApp = () => {
         </div>
       </nav>
 
-      {showOnboarding && (
+      {/* Scope OnboardingModal strictly to the active Wallet tab */}
+      {showOnboarding && activeTab === "wallet" && (
         <OnboardingModal
           isVisible={showOnboarding}
           onClose={() => {
             console.log("[INFO] Modal dismissed. Engaging the Glass Shield.");
             setShowOnboarding(false);
             setHasDismissedOnboarding(true);
-            // Notice: We NO LONGER eject them to "data". They stay on wallet.
           }}
           needsCircle={!isProvisioned.circle}
           needsFBO={!isProvisioned.fbo}
