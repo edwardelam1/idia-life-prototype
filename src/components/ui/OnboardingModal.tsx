@@ -160,7 +160,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
 
       console.log("[INFO] Step 2: Configuring SDK Application Identity (Testnet)...");
       // CRITICAL: Verify this is the TESTNET App ID from Circle Console
-      sdk.setAppSettings({ appId: "6b051463-ed70-5b48-9758-4f1d0e58bf24" });
+      sdk.setAppSettings({ appId: "f8df0c7a-0d24-5103-9acd-82a88e5f18e8" });
 
       console.log("[INFO] Step 3: Synchronizing Authentication Enclave...");
       sdk.setAuthentication({
