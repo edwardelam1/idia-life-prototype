@@ -14,16 +14,20 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
   const [isProvisioningFBO, setIsProvisioningFBO] = useState(false);
   const [sdkLoaded, setSdkLoaded] = useState(false);
 
-  // CLOUD INJECTION: Load Circle SDK from CDN for browser-side execution
+  // CLOUD INJECTION: Fixed CDN path to resolve 404 and MIME mismatch
   useEffect(() => {
     if (isVisible && !(window as any).CircleWS) {
       console.log("[START] Cloud Injector: Fetching Circle W3S SDK...");
       const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js";
+      // CORRECTED PATH: Points to the specific dist/src entry point required for version 1.1.11
+      script.src = "https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/src/index.js";
       script.async = true;
       script.onload = () => {
         console.log("[SUCCESS] Circle SDK injected into Global Window.");
         setSdkLoaded(true);
+      };
+      script.onerror = () => {
+        console.error("[ERROR] Failed to load Circle SDK from CDN. Path or connectivity issue.");
       };
       document.head.appendChild(script);
     } else if ((window as any).CircleWS) {
@@ -74,7 +78,10 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
       console.log("[SUCCESS] Session Tokens acquired. Launching Regulatory UI...");
 
       // 2. Initialize the SDK from the global window object
-      const CircleWS = (window as any).CircleWS;
+      // If the CDN version uses a different name, the system will look for CircleW3S as a fallback
+      const CircleWS = (window as any).CircleWS || (window as any).CircleW3S;
+      if (!CircleWS) throw new Error("Circle SDK loaded but global namespace not found.");
+
       const sdk = new CircleWS.W3SSDK();
 
       // REPLACE WITH YOUR ACTUAL APP ID FROM CIRCLE CONSOLE
