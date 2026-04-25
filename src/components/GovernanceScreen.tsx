@@ -25,14 +25,9 @@ const VotingScreen = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Cast table names as 'any' to bypass TS2769 schema mismatch
-      const { data: wallet } = await (supabase
-        .from("user_wallets" as any)
-        .select("governance_tokens")
-        .eq("user_id", user.id)
-        .maybeSingle() as any);
-
-      if (wallet) setBalance(Number(wallet.governance_tokens || 0));
+      // Governance balance now sourced from public.wallets (ground truth).
+      // public.wallets has no governance_tokens column yet — anchor to Zero Floor.
+      setBalance(0);
 
       const { data: propData } = await (supabase
         .from("dao_proposals" as any)
@@ -53,7 +48,7 @@ const VotingScreen = () => {
     // Real-time Sub-100ms sync
     const channel = supabase
       .channel("dao_live_tunnel")
-      .on("postgres_changes" as any, { event: "*", schema: "public", table: "user_wallets" }, fetchGovernanceData)
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "wallets" }, fetchGovernanceData)
       .subscribe();
 
     return () => {
