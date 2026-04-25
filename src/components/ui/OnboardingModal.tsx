@@ -17,79 +17,86 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
   const [loadError, setLoadError] = useState<string | null>(null);
   const [handshakeTimedOut, setHandshakeTimedOut] = useState(false);
 
+  // --- TRIPLE-RAIL HANDSHAKE PROTOCOL ---
   useEffect(() => {
     if (isVisible && !sdkLoaded) {
-      console.log("[START] OnboardingModal: Executing Enclave Infrastructure Handshake...");
+      console.log("[START] OnboardingModal: Executing Triple-Rail Infrastructure Handshake...");
       setHandshakeTimedOut(false);
       setLoadError(null);
 
+      // 12s HEARTBEAT: Catching CSP or Domain Whitelist blocks
       const timer = setTimeout(() => {
         if (!sdkLoaded) {
-          console.warn("[TIMEOUT] OnboardingModal: Handshake heartbeat stopped. Verify Circle Console Whitelist.");
+          console.warn("[TIMEOUT] Handshake heartbeat stopped. Likely a CSP or Domain Whitelist block.");
           setHandshakeTimedOut(true);
         }
-      }, 10000);
+      }, 12000);
 
       const initializeEnclave = async () => {
-        // PATH A: ESM Dynamic Import
+        // --- PATH A: ESM.SH (Primary Modern Rail) ---
         try {
-          console.log("[INFO] Path A: Attempting Network ESM Import...");
-          const sdkUrl = `https://esm.sh/@circle-fin/w3s-pw-web-sdk@1.1.11?bundle`;
+          console.log("[INFO] Path A: Attempting ESM.sh...");
+          const sdkUrl = `https://esm.sh/@circle-fin/w3s-pw-web-sdk@1.1.11?bundle&v=${Date.now()}`;
           // @ts-ignore
           const module = await import(/* @vite-ignore */ sdkUrl);
-
           if (module?.W3SSDK) {
             setSdkInstance(new module.W3SSDK());
             setSdkLoaded(true);
             clearTimeout(timer);
-            console.log("[SUCCESS] Path A: SDK Enclave active via ESM.");
+            console.log("[SUCCESS] Path A: Resolved.");
             return;
           }
-        } catch (esmError) {
-          console.warn("[WARN] Path A blocked. Initiating Path B (Global Fallback)...");
+        } catch (e) {
+          console.warn("[WARN] Path A blocked.");
         }
 
-        // PATH B: Aggressive Script Injection Fallback
-        try {
-          console.log("[INFO] Path B: Injecting physical script tag...");
-          const script = document.createElement("script");
-          // Updated to the most reliable UMD bundle path
-          script.src = "https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js";
-          script.async = true;
+        // Helper for script-based injection
+        const tryScript = (url: string, label: string): Promise<boolean> => {
+          return new Promise((resolve) => {
+            console.log(`[INFO] ${label}: Attempting injection...`);
+            const script = document.createElement("script");
+            script.src = `${url}?v=${Date.now()}`;
+            script.async = true;
+            script.onload = () => {
+              const global = window as any;
+              // AGGRESSIVE SEARCH for the W3SSDK Constructor
+              const CircleWS = global.CircleWS || global.CircleW3S || global.Circle;
+              const Constructor =
+                CircleWS?.W3SSDK || global.W3SSDK || (typeof CircleWS === "function" ? CircleWS : null);
 
-          script.onload = () => {
-            const global = window as any;
-            console.log("[TELEMETRY] Script loaded. Scanning global namespace...");
+              if (Constructor) {
+                setSdkInstance(new Constructor());
+                setSdkLoaded(true);
+                clearTimeout(timer);
+                console.log(`[SUCCESS] ${label}: Resolved via Aggressive Search.`);
+                resolve(true);
+              } else {
+                console.error(`[ERROR] ${label}: Namespace search failed.`);
+                resolve(false);
+              }
+            };
+            script.onerror = () => {
+              console.error(`[ERROR] ${label}: Network Block (Infrastructure Unreachable).`);
+              resolve(false);
+            };
+            document.head.appendChild(script);
+          });
+        };
 
-            // AGGRESSIVE SEARCH: Circle uses different namespaces depending on the bundle type
-            const CircleWS = global.CircleWS || global.CircleW3S || global.Circle;
-            const Constructor = CircleWS?.W3SSDK || global.W3SSDK || (typeof CircleWS === "function" ? CircleWS : null);
+        // --- PATH B: UNPKG (Secondary Rail) ---
+        if (await tryScript("https://unpkg.com/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js", "Path B (Unpkg)"))
+          return;
 
-            console.log(
-              `[DEBUG] CircleWS: ${!!global.CircleWS}, CircleW3S: ${!!global.CircleW3S}, Constructor: ${!!Constructor}`,
-            );
+        // --- PATH C: JSDELIVR (Tertiary Rail) ---
+        if (
+          await tryScript(
+            "https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js",
+            "Path C (jsDelivr)",
+          )
+        )
+          return;
 
-            if (Constructor) {
-              setSdkInstance(new (Constructor as any)());
-              setSdkLoaded(true);
-              clearTimeout(timer);
-              console.log("[SUCCESS] Path B: SDK Enclave active via Aggressive Search.");
-            } else {
-              console.error("[ERROR] Path B: Namespace Search Failed. No W3SSDK constructor found.");
-              setLoadError("Enclave Error: Namespace Mismatch (W3SSDK not found)");
-            }
-          };
-
-          script.onerror = () => {
-            console.error("[ERROR] Path B: Network blocked script injection or 404.");
-            setLoadError("Network Block: Infrastructure unreachable.");
-          };
-
-          document.head.appendChild(script);
-        } catch (fallbackError) {
-          console.error("[FATAL] Total Handshake Failure.");
-          setLoadError("Infrastructure Outage: Dual-Path Failure.");
-        }
+        setLoadError("Total Infrastructure Block: All network rails unreachable.");
       };
 
       initializeEnclave();
@@ -121,7 +128,6 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
       console.log("[SUCCESS] OnboardingModal: Challenge Tokens acquired. Engaging Regulatory UI...");
 
       const sdk = sdkInstance;
-      // ARCHITECTURAL IDENTITY: Your Verified App ID
       sdk.setAppSettings({ appId: "6b051463-ed70-5b48-9758-4f1d0e58bf24" });
 
       sdk.setAuthentication({
