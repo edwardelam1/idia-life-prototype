@@ -15,61 +15,83 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
   const [sdkLoaded, setSdkLoaded] = useState(false);
   const [sdkInstance, setSdkInstance] = useState<any>(null);
 
-  // ARCHITECTURAL BYPASS: Fetching ESM-bundled SDK from Network
+  // ARCHITECTURAL TELEMETRY: Dual-Path Handshake
   useEffect(() => {
     if (isVisible && !sdkLoaded) {
-      const initializeCircle = async () => {
-        console.log("[START] OnboardingModal: Initializing Circle SDK Enclave...");
-        try {
-          // Dynamic import with network path to bypass local build stalls
-          const sdkUrl = `https://esm.sh/@circle-fin/w3s-pw-web-sdk@1.1.11`;
+      const initializeEnclave = async () => {
+        console.log("[START] OnboardingModal: Executing Enclave Handshake...");
 
+        // PATH A: Dynamic ESM Import
+        try {
+          console.log("[INFO] Path A: Attempting Network ESM Import...");
+          const sdkUrl = `https://esm.sh/@circle-fin/w3s-pw-web-sdk@1.1.11?bundle`;
           // @ts-ignore
           const module = await import(/* @vite-ignore */ sdkUrl);
 
-          if (module && module.W3SSDK) {
-            console.log("[INFO] OnboardingModal: Circle W3SSDK binary verified.");
-            const instance = new module.W3SSDK();
-            setSdkInstance(instance);
+          if (module?.W3SSDK) {
+            setSdkInstance(new module.W3SSDK());
             setSdkLoaded(true);
-            console.log("[SUCCESS] OnboardingModal: SDK Enclave active.");
-          } else {
-            console.error("[ERROR] OnboardingModal: Module loaded but W3SSDK export not found.");
+            console.log("[SUCCESS] Path A: SDK Enclave active via ESM.");
+            return;
           }
-        } catch (error) {
-          console.error("[ERROR] OnboardingModal: Network ESM import failed.");
-          if (error instanceof Error) console.error(`[DETAILS] ${error.message}`);
+        } catch (esmError) {
+          console.warn("[WARN] Path A blocked. Initiating Path B (Global Fallback)...");
+        }
+
+        // PATH B: Script Injection Fallback
+        try {
+          console.log("[INFO] Path B: Injecting physical script tag...");
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/src/index.js";
+          script.async = true;
+          script.onload = () => {
+            const CircleWS = (window as any).CircleWS || (window as any).CircleW3S;
+            if (CircleWS?.W3SSDK) {
+              setSdkInstance(new CircleWS.W3SSDK());
+              setSdkLoaded(true);
+              console.log("[SUCCESS] Path B: SDK Enclave active via Global Namespace.");
+            } else {
+              console.error("[ERROR] Path B: Script loaded but namespace not found.");
+            }
+          };
+          script.onerror = () => console.error("[ERROR] Path B: Network blocked script injection.");
+          document.head.appendChild(script);
+        } catch (fallbackError) {
+          console.error("[FATAL] Total Handshake Failure. Check network permissions.");
+        } finally {
+          console.log("[END] OnboardingModal: Handshake sequence resolved.");
         }
       };
 
-      initializeCircle();
+      initializeEnclave();
     }
   }, [isVisible, sdkLoaded]);
 
   if (!isVisible) return null;
 
   const handleCircleSetup = async () => {
-    // If the button was somehow clickable before SDK was ready
     if (!sdkLoaded || !sdkInstance) {
-      console.warn("[WARN] OnboardingModal: Handshake blocked - SDK Instance missing.");
+      console.warn("[WARN] OnboardingModal: Setup blocked - Enclave not ready.");
       return;
     }
 
-    console.log("[START] OnboardingModal: Initiating Circle Programmable Wallet Handshake...");
+    console.log("[START] OnboardingModal: Initiating Circle Handshake...");
     setIsProvisioningCircle(true);
 
     try {
+      console.log("[INFO] OnboardingModal: Calling provision-circle-wallet...");
       const { data, error: invokeError } = await supabase.functions.invoke("provision-circle-wallet", {
         method: "POST",
       });
 
-      if (invokeError || data?.error) throw new Error(data?.error || "Handshake failed.");
+      if (invokeError || data?.error) {
+        throw new Error(data?.error || "Edge Function Handshake failed.");
+      }
 
-      console.log("[SUCCESS] OnboardingModal: Session Tokens acquired. Launching UI...");
+      console.log("[SUCCESS] OnboardingModal: Tokens acquired. Handoff to Regulatory UI.");
 
       const sdk = sdkInstance;
-
-      // MANDATORY: Swap this with your actual App ID
+      // REPLACE with your actual App ID
       sdk.setAppSettings({ appId: "YOUR_CIRCLE_APP_ID" });
 
       sdk.setAuthentication({
@@ -79,12 +101,12 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
 
       sdk.execute(data.challengeId, async (error: any, result: any) => {
         if (error) {
-          console.error(`[ERROR] OnboardingModal: Circle UI Handshake aborted: ${error.message}`);
+          console.error(`[ERROR] OnboardingModal: Circle UI aborted: ${error.message}`);
           setIsProvisioningCircle(false);
           return;
         }
 
-        console.log("[SUCCESS] OnboardingModal: PIN Set. Syncing status...");
+        console.log("[SUCCESS] OnboardingModal: PIN Confirmed. Finalizing Sovereignty Sync...");
 
         const { data: userAuth } = await supabase.auth.getUser();
         if (userAuth.user) {
@@ -92,14 +114,16 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
             .update({ circle_user_id: userAuth.user.id })
             .eq("user_id", userAuth.user.id);
 
-          if (syncError) console.error("[ERROR] Post-PIN Database sync failed.");
+          if (syncError) console.error("[ERROR] Post-PIN sync failed.");
         }
 
         onClose();
       });
-    } catch (error) {
-      console.error("[ERROR] OnboardingModal: Fatal stall in Handshake.");
+    } catch (error: any) {
+      console.error(`[ERROR] OnboardingModal: Fatal stall - ${error.message}`);
       setIsProvisioningCircle(false);
+    } finally {
+      console.log("[END] OnboardingModal: Handshake block finished.");
     }
   };
 
@@ -107,7 +131,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
     setIsProvisioningFBO(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      console.log("[SUCCESS] FBO provisioning trigger fired.");
+      console.log("[SUCCESS] FBO Handshake fired.");
     } finally {
       setIsProvisioningFBO(false);
     }
