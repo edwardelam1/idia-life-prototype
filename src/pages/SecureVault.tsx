@@ -1,104 +1,104 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ShieldCheck, Loader2, AlertCircle, Lock, Terminal, Cpu, Zap, Shield } from "lucide-react";
+import { ShieldCheck, Loader2, AlertCircle, Lock, Terminal, Cpu, Zap, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button"; // Standard UI component
-import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png"; // Brand consistency
+import { Button } from "@/components/ui/button";
+import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png";
 
 export default function SecureVault() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-
   const [sdkInstance, setSdkInstance] = useState<any>(null);
-  const [status, setStatus] = useState("Initializing Secure Handshake...");
+  const [status, setStatus] = useState("Initializing Sovereign Handshake...");
   const [error, setError] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const retryCount = useRef(0);
 
-  // --- ARCHITECTURAL FAILOVER: TRIPLE-RAIL SDK INJECTION ---
+  // --- THE SOVEREIGN BRIDGE: ULTRA-RESILIENT LOADER ---
   useEffect(() => {
-    console.log("[START] SecureVault: Deploying Failover Infrastructure...");
+    console.log("[START] SecureVault: Deploying Multi-Path Infrastructure...");
 
     const userToken = searchParams.get("userToken");
     const encryptionKey = searchParams.get("encryptionKey");
 
     if (!userToken || !encryptionKey) {
-      console.error("[ERROR] SecureVault: Missing cryptographic URL parameters.");
-      setError("Unauthorized Protocol: Security tokens missing from Airlock.");
+      setError("UNAUTHORIZED: SECURITY TOKENS MISSING FROM HANDSHAKE.");
       return;
     }
 
     const rails = [
-      {
-        url: "https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js",
-        label: "Rail A (jsDelivr)",
-      },
-      { url: "https://unpkg.com/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js", label: "Rail B (Unpkg)" },
+      "https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js",
+      "https://unpkg.com/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js",
     ];
 
-    const loadScript = async (index = 0) => {
+    const loadWithFailover = async (index: number) => {
       if (index >= rails.length) {
-        console.log("[CRITICAL] CDN Rails Severed. Attempting Nuclear Blob Bypass...");
-        return attemptNuclearBypass();
+        console.warn("[WARN] CDN Rails exhausted. Triggering Nuclear Memory Injection...");
+        return attemptNuclearInjection(rails[0]);
       }
 
-      const currentRail = rails[index];
-      setStatus(`Engaging ${currentRail.label}...`);
+      const currentUrl = rails[index];
+      const railLabel = index === 0 ? "PRIMARY RAIL" : "SECONDARY RAIL";
+      setStatus(`ENGAGING ${railLabel}...`);
 
-      const script = document.createElement("script");
-      script.src = `${currentRail.url}?v=${Date.now()}`;
-      script.async = true;
-      script.crossOrigin = "anonymous";
-
-      script.onload = () => {
-        const global = window as any;
-        const Constructor = (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
-
-        if (Constructor) {
-          console.log(`[SUCCESS] SecureVault: established via ${currentRail.label}`);
-          setSdkInstance(new Constructor());
-          setStatus("Airlock sealed. Ready for confirmation.");
-        } else {
-          loadScript(index + 1);
-        }
-      };
-
-      script.onerror = () => loadScript(index + 1);
-      document.head.appendChild(script);
-    };
-
-    const attemptNuclearBypass = async () => {
-      setStatus("Executing Nuclear Blob Bypass...");
       try {
-        const response = await fetch("https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js");
-        const code = await response.text();
-        const blob = new Blob([code], { type: "application/javascript" });
-        const blobUrl = URL.createObjectURL(blob);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s Kill-switch
 
-        const script = document.createElement("script");
-        script.src = blobUrl;
-        script.onload = () => {
-          const global = window as any;
-          const Constructor = (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
-          if (Constructor) {
-            setSdkInstance(new Constructor());
-            setStatus("Airlock sealed (Proxy Mode).");
-          }
-        };
-        document.head.appendChild(script);
+        console.log(`[INFO] Attempting fetch from: ${currentUrl}`);
+        const response = await fetch(currentUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) throw new Error("Rail unreachable.");
+
+        const code = await response.text();
+        injectAndVerify(code, railLabel);
       } catch (e) {
-        setError("Total Infrastructure Block: External security scripts cannot be injected.");
+        console.error(`[BLOCK] ${railLabel} failed. Rotating rails...`);
+        loadWithFailover(index + 1);
       }
     };
 
-    loadScript();
+    const injectAndVerify = (code: string, source: string) => {
+      console.log(`[INFO] Injecting Enclave Code from ${source}...`);
+      const script = document.createElement("script");
+      script.textContent = code; // Direct injection bypasses 'blob:' CSP issues
+      document.head.appendChild(script);
+
+      // Immediate Namespace Audit
+      const global = window as any;
+      const Constructor = (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
+
+      if (Constructor) {
+        console.log(`[SUCCESS] Enclave mounted via ${source}.`);
+        setSdkInstance(new Constructor());
+        setStatus("AIRLOCK SEALED. READY FOR PHYSICAL PIN.");
+      } else {
+        console.error(`[FATAL] Namespace missing in source ${source}.`);
+        setError("CRYPTOGRAPHIC LIBRARY CORRUPTED OR BLOCKED.");
+      }
+    };
+
+    const attemptNuclearInjection = async (fallbackUrl: string) => {
+      setStatus("EXECUTING NUCLEAR MEMORY INJECTION...");
+      try {
+        // Final attempt: No-cors fetch to try and sneak past domain blocks
+        const response = await fetch(fallbackUrl, { mode: "cors" });
+        const code = await response.text();
+        injectAndVerify(code, "NUCLEAR RAIL");
+      } catch (e) {
+        setError("TOTAL INFRASTRUCTURE BLOCK: ALL RAILS SEVERED.");
+      }
+    };
+
+    loadWithFailover(0);
+    return () => console.log("[END] SecureVault: Cleaning up script rails.");
   }, [searchParams]);
 
-  // --- CRYPTOGRAPHIC EXECUTION ---
   const executeChallenge = () => {
     if (!sdkInstance) return;
-
     setIsExecuting(true);
-    setStatus("Engaging secure perimeter...");
+    setStatus("ENGAGING SECURE PERIMETER...");
     setError(null);
 
     const userToken = searchParams.get("userToken");
@@ -106,8 +106,8 @@ export default function SecureVault() {
     const challengeId = searchParams.get("challengeId");
 
     if (!challengeId || challengeId === "null") {
-      setStatus("Vault already active. Redirecting...");
-      setTimeout(() => navigate("/"), 2000);
+      setStatus("VAULT ACTIVE. REDIRECTING...");
+      setTimeout(() => navigate("/"), 1500);
       return;
     }
 
@@ -121,14 +121,13 @@ export default function SecureVault() {
 
       sdkInstance.execute(challengeId, async (err: any) => {
         if (err) {
-          setError(`Handshake Aborted: ${err.message}`);
+          setError(`HANDSHAKE ABORTED: ${err.message}`);
           setIsExecuting(false);
-          setStatus("Airlock sealed. Ready.");
+          setStatus("AIRLOCK SEALED. READY.");
           return;
         }
 
-        setStatus("Handshake Confirmed. Syncing Identity...");
-
+        setStatus("HANDSHAKE CONFIRMED. SYNCING IDENTITY...");
         try {
           const { data: userAuth } = await (supabase.auth as any).getUser();
           if (userAuth?.user) {
@@ -137,91 +136,99 @@ export default function SecureVault() {
               .update({ circle_user_id: userAuth.user.id } as any)
               .eq("user_id", userAuth.user.id);
           }
-        } catch (dbError: any) {
-          console.error(`[ERROR] Database sync failed - ${dbError.message}`);
+        } catch (dbError) {
+          console.error("[ERROR] Database sync failed.");
         }
-
         navigate("/");
       });
     } catch (e: any) {
-      setError(`Execution failed: ${e.message}`);
+      setError(`EXECUTION FAILED: ${e.message}`);
       setIsExecuting(false);
-      setStatus("Airlock sealed. Ready.");
     }
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 sm:p-12 transition-colors duration-500">
-      {/* Absolute Logo Placement mirroring Landing Screen */}
-      <div className="absolute top-12 left-1/2 transform -translate-x-1/2">
-        <img src={polishedLogo} alt="IDIA Life Logo" className="w-16 h-16 rounded-2xl shadow-lg" />
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 transition-colors duration-500">
+      {/* Brand Alignment - Mirroring LandingScreen.tsx */}
+      <div className="absolute top-12 left-1/2 transform -translate-x-1/2 z-20">
+        <img src={polishedLogo} alt="IDIA Life" className="w-16 h-16 rounded-2xl shadow-xl" />
       </div>
 
-      <div className="max-w-md w-full space-y-8 bg-card border border-border rounded-3xl shadow-2xl p-10 relative overflow-hidden">
-        {/* Subtle Background Glow mirroring Landing aesthetics */}
+      <div className="max-w-md w-full space-y-8 bg-card border border-border rounded-[2.5rem] shadow-2xl p-10 relative overflow-hidden">
+        {/* Mirroring Landing Screen Gradient Energy */}
         <div className="absolute inset-0 opacity-10 pointer-events-none">
-          <div className="absolute top-0 left-0 w-32 h-32 rounded-full bg-primary/20 blur-2xl" />
-          <div className="absolute bottom-0 right-0 w-24 h-24 rounded-full bg-primary/30 blur-xl" />
+          <div className="absolute top-0 left-0 w-48 h-48 rounded-full bg-teal-500 blur-[80px]" />
+          <div className="absolute bottom-0 right-0 w-32 h-32 rounded-full bg-emerald-500 blur-[60px]" />
         </div>
 
         <div className="text-center relative z-10">
-          <div className="inline-flex items-center justify-center p-4 bg-primary/10 rounded-2xl mb-6">
-            <ShieldCheck className="w-10 h-10 text-primary" />
+          <div className="inline-flex items-center justify-center p-5 bg-primary/10 rounded-3xl mb-6 group">
+            <ShieldCheck className="w-12 h-12 text-primary group-hover:scale-110 transition-transform duration-300" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2 leading-tight">Sovereign Vault</h1>
-          <p className="text-muted-foreground text-sm font-medium">Non-Custodial Data Encryption Protocol</p>
+          <h1 className="text-3xl font-black tracking-tight text-foreground uppercase italic leading-none mb-2">
+            Sovereign <span className="text-primary">Vault</span>
+          </h1>
+          <p className="text-muted-foreground text-xs font-bold uppercase tracking-[0.2em]">
+            Non-Custodial Encryption Rail
+          </p>
         </div>
 
-        {/* Status Indicator Bar */}
-        <div className="relative z-10 bg-muted/50 rounded-xl p-4 border border-border">
+        {/* Real-time Status Terminal */}
+        <div className="relative z-10 bg-muted/30 border border-border rounded-2xl p-5 font-mono">
           <div className="flex items-center gap-3">
-            {!sdkInstance ? (
+            {!sdkInstance && !error ? (
               <Loader2 className="w-4 h-4 text-primary animate-spin" />
             ) : (
               <Terminal className="w-4 h-4 text-primary" />
             )}
-            <p className="text-[10px] font-mono font-bold tracking-widest uppercase truncate">{status}</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-foreground truncate">{status}</p>
           </div>
         </div>
 
         {error && (
-          <div className="relative z-10 p-4 bg-destructive/10 border border-destructive/50 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+          <div className="relative z-10 p-4 bg-destructive/10 border border-destructive/50 rounded-2xl flex items-start gap-3 animate-in fade-in zoom-in duration-300">
             <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-destructive font-semibold uppercase tracking-wide">{error}</p>
+            <div className="space-y-1">
+              <p className="text-[10px] font-black text-destructive uppercase">Security Violation</p>
+              <p className="text-[11px] text-destructive/90 font-medium leading-tight">{error}</p>
+            </div>
           </div>
         )}
 
-        <div className="relative z-10 space-y-4">
+        <div className="relative z-10 space-y-4 pt-4">
           <Button
             onClick={executeChallenge}
             disabled={!sdkInstance || isExecuting}
-            className="w-full py-7 text-lg font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] disabled:opacity-50"
+            className="w-full py-8 text-lg font-black uppercase tracking-[0.15em] rounded-2xl shadow-[0_20px_40px_-15px_rgba(var(--primary),0.3)] hover:translate-y-[-2px] active:translate-y-[0px] transition-all"
           >
             {isExecuting ? (
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-3">
                 <Loader2 className="w-5 h-5 animate-spin" />
                 Validating...
               </span>
             ) : (
-              <span className="flex items-center gap-2 uppercase tracking-widest">Authorize Secure PIN</span>
+              <span className="flex items-center gap-3">
+                <Zap className="w-5 h-5 fill-current" />
+                Initialize PIN
+              </span>
             )}
           </Button>
 
-          <Button
-            variant="ghost"
+          <button
             onClick={() => navigate("/")}
             disabled={isExecuting}
-            className="w-full text-muted-foreground hover:text-foreground"
+            className="w-full flex items-center justify-center gap-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
           >
+            <ArrowLeft className="w-3 h-3" />
             Cancel and Return
-          </Button>
+          </button>
         </div>
 
-        <div className="pt-6 border-t border-border/50 text-center relative z-10">
-          <div className="flex items-center justify-center gap-2 opacity-50">
+        <div className="pt-8 border-t border-border/50 text-center relative z-10">
+          <div className="flex items-center justify-center gap-2 opacity-40">
             <Lock className="w-3 h-3" />
-            <span className="text-[10px] font-black uppercase tracking-[0.3em]">
-              IDIA Data Inc. Infrastructure Rail
+            <span className="text-[9px] font-black uppercase tracking-[0.4em]">
+              IDIA Data - Architectural Computing OEM
             </span>
           </div>
         </div>
