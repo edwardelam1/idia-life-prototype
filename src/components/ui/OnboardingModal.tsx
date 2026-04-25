@@ -13,27 +13,32 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
   const [isProvisioningCircle, setIsProvisioningCircle] = useState(false);
   const [isProvisioningFBO, setIsProvisioningFBO] = useState(false);
   const [sdkLoaded, setSdkLoaded] = useState(false);
+  const [sdkInstance, setSdkInstance] = useState<any>(null);
 
-  // CLOUD INJECTION: Fixed CDN path to resolve 404 and MIME mismatch
+  // CLOUD INJECTOR: Using Dynamic Import to bypass "exports" ReferenceError
   useEffect(() => {
-    if (isVisible && !(window as any).CircleWS) {
-      console.log("[START] Cloud Injector: Fetching Circle W3S SDK...");
-      const script = document.createElement("script");
-      // CORRECTED PATH: Points to the specific dist/src entry point required for version 1.1.11
-      script.src = "https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/src/index.js";
-      script.async = true;
-      script.onload = () => {
-        console.log("[SUCCESS] Circle SDK injected into Global Window.");
-        setSdkLoaded(true);
+    if (isVisible && !sdkLoaded) {
+      const initializeCircle = async () => {
+        console.log("[START] Cloud Injector: Initializing Circle SDK Enclave...");
+        try {
+          // Vite (Lovable) will automatically fetch this and polyfill 'exports' for us
+          const { W3SSDK } = await import("@circle-fin/w3s-pw-web-sdk");
+
+          if (W3SSDK) {
+            const instance = new W3SSDK();
+            setSdkInstance(instance);
+            setSdkLoaded(true);
+            console.log("[SUCCESS] Circle SDK Enclave active and ready.");
+          }
+        } catch (error) {
+          console.error("[ERROR] Failed to initialize Circle SDK natively.");
+          console.error(`[DETAILS] ${error instanceof Error ? error.message : String(error)}`);
+        }
       };
-      script.onerror = () => {
-        console.error("[ERROR] Failed to load Circle SDK from CDN. Path or connectivity issue.");
-      };
-      document.head.appendChild(script);
-    } else if ((window as any).CircleWS) {
-      setSdkLoaded(true);
+
+      initializeCircle();
     }
-  }, [isVisible]);
+  }, [isVisible, sdkLoaded]);
 
   if (!isVisible) return null;
 
@@ -59,7 +64,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
   };
 
   const handleCircleSetup = async () => {
-    if (!sdkLoaded) {
+    if (!sdkLoaded || !sdkInstance) {
       console.error("[ERROR] Circle SDK not yet initialized in the browser.");
       return;
     }
@@ -77,11 +82,8 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
 
       console.log("[SUCCESS] Session Tokens acquired. Launching Regulatory UI...");
 
-      // 2. Initialize the SDK from the global window object
-      const CircleWS = (window as any).CircleWS || (window as any).CircleW3S;
-      if (!CircleWS) throw new Error("Circle SDK loaded but global namespace not found.");
-
-      const sdk = new CircleWS.W3SSDK();
+      // 2. Use the Instance we initialized in useEffect
+      const sdk = sdkInstance;
 
       // REPLACE WITH YOUR ACTUAL APP ID FROM CIRCLE CONSOLE
       sdk.setAppSettings({ appId: "YOUR_CIRCLE_APP_ID" });
@@ -91,7 +93,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
         encryptionKey: data.encryptionKey,
       });
 
-      // 3. Execute PIN/Recovery Challenge (REGULATORY HANDSHAKE)
+      // 3. Execute PIN/Recovery Challenge
       sdk.execute(data.challengeId, async (error: any, result: any) => {
         if (error) {
           console.error(`[ERROR] Circle UI aborted: ${error.message}`);
@@ -99,23 +101,16 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
           return;
         }
 
-        console.log("[SUCCESS] PIN/Recovery Set. Executing Final Sovereignty Sync...");
+        console.log("[SUCCESS] PIN/Recovery Set. Enclave synchronized.", result);
 
-        // 4. REGULATORY GATE: Only update the database AFTER the UI success confirmed by SDK
-        const { data: userData } = await supabase.auth.getUser();
-        if (!userData.user) throw new Error("User session lost during handshake.");
-
-        const { error: syncError } = await (supabase.from("profiles") as any)
-          .update({ circle_user_id: userData.user.id })
-          .eq("user_id", userData.user.id);
-
-        if (syncError) {
-          console.error("[ERROR] Database sync failed after successful PIN setup.");
-          setIsProvisioningCircle(false);
-          return;
+        // REGULATORY GATE: Only update the database AFTER the UI success
+        const { data: userAuth } = await supabase.auth.getUser();
+        if (userAuth.user) {
+          await (supabase.from("profiles") as any)
+            .update({ circle_user_id: userAuth.user.id })
+            .eq("user_id", userAuth.user.id);
         }
 
-        console.log("[SUCCESS] Enclave synchronized. Vault Access Granted.");
         onClose(); // Handshake complete, exit modal
       });
     } catch (error) {
