@@ -17,75 +17,98 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
   const [loadError, setLoadError] = useState<string | null>(null);
   const [handshakeTimedOut, setHandshakeTimedOut] = useState(false);
 
-  // --- TRIPLE-RAIL HANDSHAKE PROTOCOL ---
+  // --- ARCHITECTURAL TELEMETRY: TRIPLE-RAIL + NUCLEAR BLOB BYPASS ---
   useEffect(() => {
     if (isVisible && !sdkLoaded) {
-      console.log("[START] OnboardingModal: Executing Multi-Rail Infrastructure Handshake...");
+      console.log("[START] OnboardingModal: Initiating Enclave Infrastructure Handshake...");
       setHandshakeTimedOut(false);
       setLoadError(null);
 
       const timer = setTimeout(() => {
         if (!sdkLoaded) {
-          console.warn("[TIMEOUT] Handshake heartbeat stopped. Likely a CSP or Domain Whitelist block.");
+          console.warn(
+            "[TIMEOUT] OnboardingModal: Handshake heartbeat stopped. Verify Testnet Whitelist for idia-life-ui.lovable.app",
+          );
           setHandshakeTimedOut(true);
         }
-      }, 15000); // Extended for high-latency cloud proxying
+      }, 15000); // 15s Heartbeat for Cloud Latency
 
       const initializeEnclave = async () => {
+        console.log("[INFO] Enclave Handshake: Commencing Multi-Path Execution...");
+
         // --- PATH A: ESM.SH (Modern Rail) ---
         try {
-          console.log("[INFO] Path A: Attempting ESM.sh...");
+          console.log("[START] Path A: Attempting Network ESM Import...");
           const sdkUrl = `https://esm.sh/@circle-fin/w3s-pw-web-sdk@1.1.11?bundle&v=${Date.now()}`;
           // @ts-ignore
           const module = await import(/* @vite-ignore */ sdkUrl);
+
           if (module?.W3SSDK) {
+            console.log("[INFO] Path A: W3SSDK Module detected.");
             setSdkInstance(new module.W3SSDK());
             setSdkLoaded(true);
             clearTimeout(timer);
-            console.log("[SUCCESS] Path A Resolved.");
+            console.log("[SUCCESS] Path A: Enclave active via ESM.");
+            console.log("[END] Path A Handshake resolved.");
             return;
           }
         } catch (e) {
-          console.warn("[BLOCK] Path A failed.");
+          console.warn("[BLOCK] Path A: ESM Rail unreachable or CSP blocked.");
         }
 
-        // --- PATH B & C: Standard Script Injection ---
+        // --- PATH B & C: Standard Script Injection Helper ---
         const tryScript = (url: string, label: string): Promise<boolean> => {
           return new Promise((resolve) => {
-            console.log(`[INFO] ${label}: Attempting injection...`);
+            console.log(`[START] ${label}: Attempting injection...`);
             const script = document.createElement("script");
             script.src = `${url}?v=${Date.now()}`;
             script.async = true;
+
             script.onload = () => {
+              console.log(`[INFO] ${label}: Script delivery confirmed.`);
               const global = window as any;
               const Constructor = (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
+
               if (Constructor) {
+                console.log(`[INFO] ${label}: Namespace identified.`);
                 setSdkInstance(new Constructor());
                 setSdkLoaded(true);
                 clearTimeout(timer);
-                console.log(`[SUCCESS] ${label} Resolved.`);
+                console.log(`[SUCCESS] ${label}: Enclave active.`);
+                console.log(`[END] ${label} Handshake resolved.`);
                 resolve(true);
               } else {
+                console.error(`[ERROR] ${label}: Namespace search failed.`);
                 resolve(false);
               }
             };
+
             script.onerror = () => {
-              console.error(`[BLOCK] ${label} Unreachable.`);
+              console.error(`[BLOCK] ${label}: Network or CORS block.`);
               resolve(false);
             };
             document.head.appendChild(script);
           });
         };
 
-        if (await tryScript("https://unpkg.com/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js", "Path B")) return;
-        if (await tryScript("https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js", "Path C"))
+        console.log("[INFO] Enclave Handshake: Pivoting to Secondary Script Rails...");
+        if (await tryScript("https://unpkg.com/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js", "Path B (Unpkg)"))
+          return;
+        if (
+          await tryScript(
+            "https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js",
+            "Path C (jsDelivr)",
+          )
+        )
           return;
 
         // --- PATH D: THE BLOB BYPASS (Nuclear Rail) ---
         try {
-          console.log("[INFO] Path D: Attempting Blob Proxy Bypass...");
+          console.log("[START] Path D: Executing Blob Proxy Nuclear Bypass...");
           const response = await fetch("https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/index.js");
           const code = await response.text();
+          console.log("[INFO] Path D: Binary stream captured. Constructing Blob...");
+
           const blob = new Blob([code], { type: "application/javascript" });
           const blobUrl = URL.createObjectURL(blob);
 
@@ -98,18 +121,22 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
               setSdkInstance(new Constructor());
               setSdkLoaded(true);
               clearTimeout(timer);
-              console.log("[SUCCESS] Path D Resolved via Local Blob.");
+              console.log("[SUCCESS] Path D: Enclave active via Local Blob Bypass.");
+              console.log("[END] Path D Handshake resolved.");
             }
           };
           document.head.appendChild(script);
         } catch (e) {
-          console.error("[FATAL] Path D Blocked. Network is fully severed.");
+          console.error("[FATAL] Path D: Nuclear rail severed. Total infrastructure block.");
           setLoadError("TOTAL NETWORK BLOCK: All Infrastructure Unreachable.");
         }
       };
 
       initializeEnclave();
-      return () => clearTimeout(timer);
+      return () => {
+        console.log("[CLEANUP] OnboardingModal: Clearing Handshake timer.");
+        clearTimeout(timer);
+      };
     }
   }, [isVisible, sdkLoaded]);
 
@@ -117,68 +144,80 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
 
   const handleCircleSetup = async () => {
     if (!sdkLoaded || !sdkInstance) {
-      console.warn("[WARN] OnboardingModal: Setup blocked - Enclave infrastructure not synchronized.");
+      console.warn("[WARN] OnboardingModal: Setup blocked - Infrastructure not synchronized.");
       return;
     }
 
-    console.log("[START] OnboardingModal: Initiating Secure PIN Handshake...");
+    console.log("[START] OnboardingModal: Initiating Secure PIN Handshake sequence...");
     setIsProvisioningCircle(true);
 
     try {
-      console.log("[INFO] OnboardingModal: Calling provision-circle-wallet Edge Function...");
+      console.log("[INFO] Step 1: Invoking provision-circle-wallet with TEST keys...");
       const { data, error: invokeError } = await supabase.functions.invoke("provision-circle-wallet", {
         method: "POST",
       });
 
       if (invokeError || data?.error) {
+        console.error(`[ERROR] Step 1: Edge Function stall - ${invokeError?.message || data?.error}`);
         throw new Error(data?.error || "Edge Function Handshake failed.");
       }
-
-      console.log("[SUCCESS] OnboardingModal: Challenge Tokens acquired. Engaging Regulatory UI...");
+      console.log("[SUCCESS] Step 1: Challenge tokens and session state acquired.");
 
       const sdk = sdkInstance;
+
+      console.log("[INFO] Step 2: Configuring SDK Application Identity (Testnet)...");
+      // IDENTIFIER: 6b051463-ed70-5b48-9758-4f1d0e58bf24
       sdk.setAppSettings({ appId: "6b051463-ed70-5b48-9758-4f1d0e58bf24" });
 
+      console.log("[INFO] Step 3: Synchronizing Authentication Enclave...");
       sdk.setAuthentication({
         userToken: data.userToken,
         encryptionKey: data.encryptionKey,
       });
 
+      console.log("[INFO] Step 4: Launching Physical PIN Challenge UI...");
       sdk.execute(data.challengeId, async (error: any, result: any) => {
+        console.log("[START] Circle UI Callback: Evaluating result...");
+
         if (error) {
-          console.error(`[ERROR] OnboardingModal: Circle UI Handshake aborted: ${error.message}`);
+          console.error(`[ERROR] Circle UI: Challenge aborted - ${error.message}`);
           setIsProvisioningCircle(false);
           return;
         }
 
-        console.log("[SUCCESS] OnboardingModal: PIN Confirmed. Executing Sovereignty Sync...");
+        console.log("[SUCCESS] Circle UI: PIN entry confirmed by user.");
 
+        console.log("[INFO] Step 5: Finalizing Database Sovereignty Sync...");
         const { data: userAuth } = await supabase.auth.getUser();
         if (userAuth.user) {
           const { error: syncError } = await (supabase.from("profiles") as any)
             .update({ circle_user_id: userAuth.user.id })
             .eq("user_id", userAuth.user.id);
 
-          if (syncError) console.error("[ERROR] Post-PIN Database sync failed.");
+          if (syncError) {
+            console.error(`[ERROR] Step 5: Database sync failed - ${syncError.message}`);
+          } else {
+            console.log("[SUCCESS] Step 5: Identity profile updated.");
+          }
         }
 
-        console.log("[END] OnboardingModal: Circle Setup complete. Perimeter deactivating.");
+        console.log("[END] Circle Handshake: Enclave setup complete. Closing perimeter.");
         onClose();
       });
     } catch (error: any) {
-      console.error(`[ERROR] OnboardingModal: Fatal stall in handshake execution - ${error.message}`);
+      console.error(`[FATAL] Handshake Execution Stall: ${error.message}`);
       setIsProvisioningCircle(false);
     } finally {
-      console.log("[END] OnboardingModal: Handshake block finished.");
+      console.log("[END] OnboardingModal: Handshake logic block finished.");
     }
   };
 
   const handleFBOSetup = async () => {
-    console.log("[START] OnboardingModal: Initiating FBO Provisioning...");
+    console.log("[START] OnboardingModal: Initiating FBO Provisioning Sequence...");
     setIsProvisioningFBO(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      console.log("[SUCCESS] FBO Handshake fired.");
+      console.log("[SUCCESS] FBO: Handshake fired.");
     } finally {
       setIsProvisioningFBO(false);
       console.log("[END] OnboardingModal: FBO sequence resolved.");
@@ -209,10 +248,12 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
             <div className="p-2 bg-primary/10 rounded-lg">
               <ShieldCheck className="w-6 h-6 text-primary" />
             </div>
-            <h2 className="text-xl font-bold tracking-tight">Sovereign Vault</h2>
+            <h2 className="text-xl font-bold tracking-tight text-foreground">
+              Sovereign Vault <span className="text-[10px] text-orange-500 uppercase align-top font-bold">Testnet</span>
+            </h2>
           </div>
           <p className="text-sm text-muted-foreground">
-            {sdkLoaded ? "Infrastructure synced. Initialize your vault." : "Connecting to global liquidity rails..."}
+            {sdkLoaded ? "Infrastructure synced. Initialize your vault." : "Connecting to test liquidity rails..."}
           </p>
         </div>
 
@@ -253,7 +294,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
                   {!isProvisioningCircle && sdkLoaded && <ArrowRight className="w-4 h-4 text-muted-foreground" />}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {!sdkLoaded ? "Waiting for enclave sync..." : "Requires Secure PIN & Recovery Setup"}
+                  {!sdkLoaded ? "Waiting for test enclave sync..." : "Requires Test PIN Setup"}
                 </p>
               </div>
             </button>
@@ -278,6 +319,12 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
               </div>
             </button>
           )}
+        </div>
+
+        <div className="p-4 bg-muted/30 border-t border-border/10 text-center">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold">
+            Architectural Computing OEM - Test Rail Alpha
+          </p>
         </div>
       </div>
     </div>
