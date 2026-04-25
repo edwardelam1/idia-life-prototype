@@ -15,113 +15,170 @@ export default function SecureVault() {
   const [isExecuting, setIsExecuting] = useState(false);
 
   useEffect(() => {
-    console.log("[START] SecureVault: Initiating Dynamic Native Import...");
+    console.log("[START] SecureVault: Initiating Dynamic Native Import Sequence");
 
     const loadNativeEnclave = async () => {
+      console.log("[START] loadNativeEnclave execution");
       try {
-        // --- STEALTH POLYFILL INJECTION ---
-        // Bypasses Vite's static AST parser and TypeScript's strict DOM interfaces
         if (typeof window !== "undefined") {
-          console.log("[INFO] Hydrating stealth polyfills...");
-          window["global"] = window["global"] || window;
-          window["process"] = window["process"] || { env: {} };
+          console.log("[START] Hydrating stealth polyfills");
 
+          console.log("[START] Polyfill window.global");
+          window["global"] = window["global"] || window;
+          console.log("[END] Polyfill window.global");
+
+          console.log("[START] Polyfill window.process");
+          // FIX applied here: Casting to any to satisfy strict DOM/Node interfaces
+          window["process"] = window["process"] || ({ env: {} } as any);
+          console.log("[END] Polyfill window.process");
+
+          console.log("[START] Import buffer module");
           try {
             const bufferMod = await import("buffer");
+            console.log("[START] Assign Buffer to window");
             window["Buffer"] = window["Buffer"] || bufferMod.Buffer;
+            console.log("[END] Assign Buffer to window");
           } catch (bErr) {
-            console.warn("[WARN] Buffer module fetch failed, cryptographic engine may stall.");
+            console.error("[START] Buffer module error handler");
+            console.warn("[WARN] Buffer module fetch failed, cryptographic engine may stall.", bErr);
+            console.error("[END] Buffer module error handler");
           }
+          console.log("[END] Import buffer module");
+
+          console.log("[END] Hydrating stealth polyfills");
         }
-        // ----------------------------------
 
-        console.log("[INFO] Requesting @circle-fin/w3s-pw-web-sdk from Vite Bundler...");
+        console.log("[START] Requesting @circle-fin/w3s-pw-web-sdk from Vite Bundler");
         const CircleModule = await import("@circle-fin/w3s-pw-web-sdk");
-        console.log("[SUCCESS] Module loaded. Extracting Constructor...");
+        console.log("[END] Requesting @circle-fin/w3s-pw-web-sdk from Vite Bundler");
 
+        console.log("[START] Validating CircleModule Constructor");
         if (CircleModule && CircleModule.W3SSdk) {
+          console.log("[START] Binding W3SSdk to state");
           setSdkConstructor(() => CircleModule.W3SSdk);
           setStatus("AIRLOCK SEALED. NATIVE RAIL ACTIVE.");
-          console.log("[END] Native SDK successfully bound to state.");
+          console.log("[END] Binding W3SSdk to state");
         } else {
-          throw new Error("Module loaded, but W3SSdk constructor is missing.");
+          throw new Error("Module loaded, but W3SSdk constructor is missing in the payload.");
         }
+        console.log("[END] Validating CircleModule Constructor");
       } catch (err: any) {
+        console.error("[START] Native Module Evaluation Error Handler");
         console.error(`[FATAL] Native Module Evaluation Failed:`, err);
         setError(`MODULE CRASH: ${err.message}`);
         setStatus("INFRASTRUCTURE SEVERED.");
+        console.error("[END] Native Module Evaluation Error Handler");
       }
+      console.log("[END] loadNativeEnclave execution");
     };
 
     loadNativeEnclave();
+    console.log("[END] SecureVault: Initiating Dynamic Native Import Sequence");
   }, []);
 
   const executeChallenge = () => {
-    console.log("[START] Physical Confirmation: Engaging PIN Enclave");
-    if (!sdkConstructor) return;
+    console.log("[START] executeChallenge: Engaging PIN Enclave");
+
+    if (!sdkConstructor) {
+      console.warn("[WARN] executeChallenge aborted: sdkConstructor is null");
+      return;
+    }
 
     setIsExecuting(true);
     setStatus("ENGAGING SECURE PERIMETER...");
     setError(null);
 
+    console.log("[START] Extracting URL Credentials");
     const userToken = searchParams.get("userToken");
     const encryptionKey = searchParams.get("encryptionKey");
     const challengeId = searchParams.get("challengeId");
+    console.log("[END] Extracting URL Credentials");
 
     if (!userToken || !encryptionKey) {
-      console.error("[CRITICAL] Missing URL credentials.");
+      console.error("[START] Missing URL credentials error handler");
+      console.error("[CRITICAL] Missing userToken or encryptionKey.");
       setError("UNAUTHORIZED: TOKENS MISSING.");
       setIsExecuting(false);
+      console.error("[END] Missing URL credentials error handler");
       return;
     }
 
     if (!challengeId || challengeId === "null") {
+      console.log("[START] Challenge bypass redirect");
       setStatus("VAULT ACTIVE. REDIRECTING...");
-      setTimeout(() => navigate("/"), 1500);
+      setTimeout(() => {
+        console.log("[START] Executing navigate to root");
+        navigate("/");
+        console.log("[END] Executing navigate to root");
+      }, 1500);
+      console.log("[END] Challenge bypass redirect");
       return;
     }
 
     try {
-      console.log(`[INFO] Instantiating Circle Web SDK...`);
+      console.log("[START] Instantiating Circle Web SDK");
       const sdkInstance = new sdkConstructor({
         appSettings: { appId: "f8df0c7a-0d24-5103-9acd-82a88e5f18e8" },
       });
+      console.log("[END] Instantiating Circle Web SDK");
 
-      console.log(`[INFO] Applying Cryptographic Payloads...`);
+      console.log("[START] Applying Cryptographic Payloads");
       sdkInstance.setAuthentication({ userToken, encryptionKey });
+      console.log("[END] Applying Cryptographic Payloads");
 
-      console.log(`[INFO] SDK Execution Triggered for Challenge: ${challengeId}`);
+      console.log(`[START] SDK Execution Triggered for Challenge: ${challengeId}`);
       sdkInstance.execute(challengeId, async (err: any) => {
+        console.log("[START] SDK Execute Callback Handler");
+
         if (err) {
+          console.error("[START] SDK Execute Error Handler");
           console.error(`[ERROR] Secure Handshake Aborted: ${err.message}`);
           setError(`HANDSHAKE ABORTED: ${err.message}`);
           setIsExecuting(false);
           setStatus("AIRLOCK SEALED. READY.");
+          console.error("[END] SDK Execute Error Handler");
           return;
         }
 
         console.log("[SUCCESS] PIN Authenticated. Initializing database sync.");
         setStatus("HANDSHAKE CONFIRMED. SYNCING IDENTITY...");
 
+        console.log("[START] Supabase Identity Sync");
         try {
+          console.log("[START] Fetching Supabase User");
           const { data: userAuth } = await (supabase.auth as any).getUser();
+          console.log("[END] Fetching Supabase User");
+
           if (userAuth?.user) {
+            console.log(`[START] Updating profiles table for user_id: ${userAuth.user.id}`);
             await (supabase.from("profiles") as any)
               .update({ circle_user_id: userAuth.user.id })
               .eq("user_id", userAuth.user.id);
+            console.log("[END] Updating profiles table");
           }
         } catch (dbError) {
-          console.error("[ERROR] Database synchronization interrupted.");
+          console.error("[START] Supabase Database Error Handler");
+          console.error("[ERROR] Database synchronization interrupted.", dbError);
+          console.error("[END] Supabase Database Error Handler");
         }
+        console.log("[END] Supabase Identity Sync");
 
-        console.log("[END] Operation Success. Redirecting to Root.");
+        console.log("[START] Final Redirect Operation");
         navigate("/");
+        console.log("[END] Final Redirect Operation");
+
+        console.log("[END] SDK Execute Callback Handler");
       });
+      console.log(`[END] SDK Execution Triggered for Challenge: ${challengeId}`);
     } catch (e: any) {
+      console.error("[START] Main Execution Block Error Handler");
       console.error(`[FATAL] Execution Failure: ${e.message}`);
       setError(`EXECUTION FAILED: ${e.message}`);
       setIsExecuting(false);
+      console.error("[END] Main Execution Block Error Handler");
     }
+
+    console.log("[END] executeChallenge: Engaging PIN Enclave");
   };
 
   return (
