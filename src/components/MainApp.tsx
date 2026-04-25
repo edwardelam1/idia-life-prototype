@@ -10,7 +10,7 @@ import GovernanceScreen from "./GovernanceScreen";
 import ProScreen from "./pro/ProScreen";
 import Header from "./Header";
 import FriendAssistant from "./FriendAssistant";
-import OnboardingModal from "./OnboardingModal"; // Component for Circle/FBO links
+import OnboardingModal from "./components/ui/OnboardingModal";
 
 const MainApp = () => {
   const [activeTab, setActiveTab] = useState("data"); // Default to Data to allow background yield
