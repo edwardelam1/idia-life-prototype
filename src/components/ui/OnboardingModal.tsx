@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, ShieldCheck, Landmark, ArrowRight, Zap, Loader2, Activity } from "lucide-react";
+import { X, ShieldCheck, Landmark, ArrowRight, Zap, Loader2, Activity, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface OnboardingModalProps {
@@ -12,15 +12,18 @@ interface OnboardingModalProps {
 const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: OnboardingModalProps) => {
   const [isProvisioningCircle, setIsProvisioningCircle] = useState(false);
   const [isProvisioningFBO, setIsProvisioningFBO] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   if (!isVisible) return null;
 
   const handleCircleSetup = async () => {
     setIsProvisioningCircle(true);
-    console.log("[START] Sovereign Airlock: Initiating secure redirect...");
+    setLoadError(null);
+    console.log("[START] Sovereign Airlock: Initiating in-app redirect...");
 
     try {
       // 1. Generate the Challenge Tokens on the backend
+      console.log("[INFO] Invoking Edge Function...");
       const { data, error: invokeError } = await supabase.functions.invoke("provision-circle-wallet", {
         method: "POST",
       });
@@ -29,22 +32,21 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
         throw new Error(data?.error || invokeError?.message || "Failed to provision wallet challenge.");
       }
 
-      console.log("[SUCCESS] Tokens acquired. Opening Airlock...");
+      console.log("[SUCCESS] Tokens acquired. Opening Internal Airlock...");
 
-      // 2. Redirect to the pristine, standalone PIN portal
-      // You will host a simple HTML file at this URL that runs the Circle SDK cleanly
-      const userToken = encodeURIComponent(data.userToken);
-      const encryptionKey = encodeURIComponent(data.encryptionKey);
-      const challengeId = encodeURIComponent(data.challengeId);
+      // 2. Construct URL parameters to pass securely to the new page
+      const params = new URLSearchParams({
+        userToken: data.userToken,
+        encryptionKey: data.encryptionKey,
+        challengeId: data.challengeId || "",
+      });
 
-      // Construct the secure URL
-      const securePortalUrl = `https://vault.thebigidia.com/auth?userToken=${userToken}&encryptionKey=${encryptionKey}&challengeId=${challengeId}`;
-
-      // Execute the top-level redirect (Bypasses all Iframe/ITP restrictions)
-      window.location.assign(securePortalUrl);
+      // 3. Execute the internal redirect (Bypasses DNS errors & Modal Z-Index traps)
+      window.location.assign(`/secure-vault?${params.toString()}`);
     } catch (error: any) {
       console.error(`[FATAL] Airlock Failure: ${error.message}`);
-      setIsProvisioningCircle(false);
+      setLoadError(error.message);
+      setIsProvisioningCircle(false); // Unlocks the button instantly on failure
     }
   };
 
@@ -69,7 +71,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
         <div className="p-6 border-b border-border bg-gradient-to-br from-primary/5 to-transparent">
           <button
             onClick={onClose}
-            disabled={isProvisioningCircle}
+            disabled={isProvisioningCircle || isProvisioningFBO}
             className="absolute top-4 right-4 p-1 rounded-full hover:bg-muted transition-colors disabled:opacity-50"
           >
             <X className="w-5 h-5 text-muted-foreground" />
@@ -84,6 +86,13 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
         </div>
 
         <div className="p-6 space-y-4">
+          {loadError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg flex items-center gap-2 text-xs text-red-400 font-mono font-bold">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{loadError}</span>
+            </div>
+          )}
+
           {needsCircle && (
             <button
               onClick={handleCircleSetup}
