@@ -3,93 +3,50 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ShieldCheck, Loader2, AlertCircle, Lock, Terminal, Zap, ArrowLeft, ShieldAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import Header from "@/components/Header"; // cite: edwardelam1/idia-life-prototype/.../src/components/Header.tsx
+import Header from "@/components/Header";
 import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png";
+
+// 1. THE NATIVE INFRASTRUCTURE UPGRADE
+// By importing natively, the Lovable/Vite bundler automatically translates
+// the CommonJS module into secure, browser-safe code. No CDN required.
+import { W3SSDK } from "@circle-fin/w3s-pw-web-sdk";
 
 export default function SecureVault() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [sdkInstance, setSdkInstance] = useState<any>(null);
-  const [status, setStatus] = useState("Initializing Sovereign Handshake...");
+  const [status, setStatus] = useState("Initializing Native Enclave...");
   const [error, setError] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
 
-  // --- THE SOVEREIGN ENGINE: INTELLIGENT MULTI-PATH LOADER ---
   useEffect(() => {
-    console.log("[START] SecureVault: Deploying Path-Sensing Infrastructure...");
+    console.log("[START] SecureVault: Mounting Native Infrastructure...");
 
     const userToken = searchParams.get("userToken");
     const encryptionKey = searchParams.get("encryptionKey");
 
     if (!userToken || !encryptionKey) {
-      setError("UNAUTHORIZED: SECURITY TOKENS MISSING FROM HANDSHAKE.");
+      console.error("[CRITICAL] Missing URL credentials.");
+      setError("UNAUTHORIZED: TOKENS MISSING.");
       return;
     }
 
-    // Version 1.1.11 specific structure includes /src/ in the dist path
-    const rails = [
-      "https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/src/index.js",
-      "https://unpkg.com/@circle-fin/w3s-pw-web-sdk@1.1.11/dist/src/index.js",
-      "https://cdn.jsdelivr.net/npm/@circle-fin/w3s-pw-web-sdk@latest/dist/src/index.js",
-    ];
-
-    const loadWithIntelligence = async (index: number) => {
-      if (index >= rails.length) {
-        setError("TOTAL INFRASTRUCTURE BLOCK: ALL RAILS SEVERED.");
-        return;
-      }
-
-      const url = rails[index];
-      setStatus(`SYNCING RAIL ${index + 1}...`);
-
-      try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("404 Path Mismatch");
-
-        const code = await response.text();
-
-        // Safety check: ensure we didn't fetch an HTML 404 page
-        if (code.trim().startsWith("<!DOCTYPE") || code.includes("<html")) {
-          throw new Error("Invalid Resource: Received HTML instead of SDK.");
-        }
-
-        const script = document.createElement("script");
-        script.id = "circle-vault-enclave";
-        script.textContent = code;
-        document.head.appendChild(script);
-
-        // Verification Loop
-        let attempts = 0;
-        const check = setInterval(() => {
-          const global = window as any;
-          const Constructor = global.W3SSDK || (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK;
-
-          if (Constructor) {
-            clearInterval(check);
-            console.log(`[SUCCESS] Enclave mounted via Rail ${index + 1}.`);
-            setSdkInstance(new Constructor());
-            setStatus("AIRLOCK SEALED. READY.");
-          } else if (attempts > 15) {
-            clearInterval(check);
-            console.warn(`[WARN] Rail ${index + 1} timed out. Rotating...`);
-            loadWithIntelligence(index + 1);
-          }
-          attempts++;
-        }, 200);
-      } catch (e) {
-        console.error(`[BLOCK] Rail ${index + 1} failed: ${url}`);
-        loadWithIntelligence(index + 1);
-      }
-    };
-
-    loadWithIntelligence(0);
-    return () => {
-      const script = document.getElementById("circle-vault-enclave");
-      if (script) script.remove();
-    };
+    try {
+      // 2. IMMEDIATE INSTANTIATION
+      // Because it's bundled directly into your app, there is zero network delay,
+      // zero CSP blocking, and zero 'exports' syntax errors.
+      const sdk = new W3SSDK();
+      setSdkInstance(sdk);
+      setStatus("AIRLOCK SEALED. NATIVE RAIL ACTIVE.");
+      console.log("[SUCCESS] Native Enclave mounted seamlessly.");
+    } catch (err: any) {
+      console.error(`[FATAL] Enclave Mount Error: ${err.message}`);
+      setError("INFRASTRUCTURE BREACH: SDK FAILED TO INITIALIZE.");
+    }
   }, [searchParams]);
 
   const executeChallenge = () => {
+    console.log("[START] Physical Confirmation: Engaging PIN Enclave");
     if (!sdkInstance) return;
     setIsExecuting(true);
     setStatus("ENGAGING SECURE PERIMETER...");
@@ -115,27 +72,31 @@ export default function SecureVault() {
 
       sdkInstance.execute(challengeId, async (err: any) => {
         if (err) {
+          console.error(`[ERROR] Secure Handshake Aborted: ${err.message}`);
           setError(`HANDSHAKE ABORTED: ${err.message}`);
           setIsExecuting(false);
           setStatus("AIRLOCK SEALED. READY.");
           return;
         }
 
+        console.log("[SUCCESS] PIN Authenticated. Initializing database sync.");
         setStatus("HANDSHAKE CONFIRMED. SYNCING IDENTITY...");
+
         try {
           const { data: userAuth } = await (supabase.auth as any).getUser();
           if (userAuth?.user) {
-            // Force the update past the rigid schema
             await (supabase.from("profiles") as any)
               .update({ circle_user_id: userAuth.user.id })
               .eq("user_id", userAuth.user.id);
           }
         } catch (dbError) {
-          console.error("[ERROR] Database sync failed.");
+          console.error("[ERROR] Database synchronization interrupted.");
         }
+
         navigate("/");
       });
     } catch (e: any) {
+      console.error(`[FATAL] Execution Failure: ${e.message}`);
       setError(`EXECUTION FAILED: ${e.message}`);
       setIsExecuting(false);
     }
@@ -143,9 +104,9 @@ export default function SecureVault() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col transition-colors duration-500">
-      <Header /> {/* cite: edwardelam1/idia-life-prototype/.../src/components/Header.tsx */}
+      <Header />
+
       <main className="flex-1 flex flex-col items-center justify-center p-6 mt-16 relative">
-        {/* Landing Screen Gradient Energy: cite: edwardelam1/idia-life-prototype/.../src/components/LandingScreen.tsx */}
         <div className="absolute inset-0 opacity-10 pointer-events-none overflow-hidden">
           <div className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full bg-teal-600 blur-[100px]" />
           <div className="absolute bottom-1/4 right-1/4 w-48 h-48 rounded-full bg-emerald-600 blur-[80px]" />
@@ -153,14 +114,14 @@ export default function SecureVault() {
 
         <div className="max-w-md w-full space-y-8 bg-card border border-border rounded-[2.5rem] shadow-2xl p-10 relative z-10">
           <div className="text-center">
-            <div className="inline-flex items-center justify-center p-5 bg-primary/10 rounded-3xl mb-6">
-              <ShieldCheck className="w-12 h-12 text-primary" />
+            <div className="inline-flex items-center justify-center p-5 bg-primary/10 rounded-3xl mb-6 group transition-all duration-300">
+              <ShieldCheck className="w-12 h-12 text-primary group-hover:scale-110" />
             </div>
             <h1 className="text-3xl font-black tracking-tight text-foreground uppercase italic leading-none mb-2">
               Sovereign <span className="text-primary">Vault</span>
             </h1>
             <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-[0.3em]">
-              Non-Custodial Encryption Rail
+              Native Cryptographic Infrastructure
             </p>
           </div>
 
@@ -176,11 +137,11 @@ export default function SecureVault() {
           </div>
 
           {error && (
-            <div className="p-4 bg-destructive/10 border border-destructive/50 rounded-2xl flex items-start gap-3 animate-in fade-in zoom-in duration-300">
+            <div className="p-4 bg-destructive/10 border border-destructive/50 rounded-2xl flex items-start gap-3 animate-in fade-in zoom-in">
               <ShieldAlert className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <p className="text-[10px] font-black text-destructive uppercase tracking-tighter">
-                  Infrastructure Violation
+                  Infrastructure Breach
                 </p>
                 <p className="text-[11px] text-destructive/90 font-medium leading-tight">{error}</p>
               </div>
@@ -219,7 +180,7 @@ export default function SecureVault() {
           <div className="pt-8 border-t border-border/50 text-center opacity-40">
             <div className="flex items-center justify-center gap-2">
               <Lock className="w-3 h-3 text-primary" />
-              <span className="text-[9px] font-black uppercase tracking-[0.4em]">IDIA Data Infrastructure</span>
+              <span className="text-[9px] font-black uppercase tracking-[0.4em]">IDIA Data Native Infrastructure</span>
             </div>
           </div>
         </div>
