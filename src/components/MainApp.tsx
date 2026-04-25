@@ -10,11 +10,16 @@ import GovernanceScreen from "./GovernanceScreen";
 import ProScreen from "./pro/ProScreen";
 import Header from "./Header";
 import FriendAssistant from "./FriendAssistant";
+import OnboardingModal from "./OnboardingModal"; // Component for Circle/FBO links
 
 const MainApp = () => {
-  const [activeTab, setActiveTab] = useState("wallet");
+  const [activeTab, setActiveTab] = useState("data"); // Default to Data to allow background yield
   const [showFriend, setShowFriend] = useState(false);
   const [friendTrigger, setFriendTrigger] = useState<"social" | "wallet" | "data" | "achievement" | undefined>();
+
+  // Infrastructure State
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [isProvisioned, setIsProvisioned] = useState({ circle: false, fbo: false });
 
   const tabs = [
     { id: "wallet", label: "Wallet", icon: Wallet, component: EnhancedWalletDashboard },
@@ -24,6 +29,24 @@ const MainApp = () => {
     { id: "vote", label: "Vote", icon: Vote, component: GovernanceScreen },
     { id: "pro", label: "Pro", icon: Crown, component: ProScreen },
   ];
+
+  // Logic Gate for Wallet Access
+  const handleTabChange = (tabId: string) => {
+    console.log(`[START] Attempting navigation to: ${tabId}`);
+
+    if (tabId === "wallet") {
+      console.log("[INFO] Verifying Circle/FBO infrastructure...");
+      // Check against current provisioned state
+      if (!isProvisioned.circle || !isProvisioned.fbo) {
+        console.log("[INFO] Infrastructure missing. Blocking Wallet Page and launching Onboarding Modal.");
+        setShowOnboarding(true);
+        return; // Stop navigation
+      }
+    }
+
+    console.log(`[SUCCESS] Navigation allowed for: ${tabId}`);
+    setActiveTab(tabId);
+  };
 
   // Automated trigger when entering the Social tab
   useEffect(() => {
@@ -37,7 +60,7 @@ const MainApp = () => {
     }
   }, [activeTab, friendTrigger]);
 
-  // Listener for legitimate app-wide events (e.g., from the Edge Function completion)
+  // Listener for app-wide events
   useEffect(() => {
     const handleShowFriend = (event: CustomEvent) => {
       const { trigger } = event.detail;
@@ -51,7 +74,7 @@ const MainApp = () => {
     };
   }, []);
 
-  const ActiveComponent = tabs.find((tab) => tab.id === activeTab)?.component || EnhancedWalletDashboard;
+  const ActiveComponent = tabs.find((tab) => tab.id === activeTab)?.component || DataDashboard;
 
   const handleCloseFriend = () => {
     setShowFriend(false);
@@ -77,7 +100,7 @@ const MainApp = () => {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleTabChange(tab.id)}
                   className={`flex flex-col items-center space-y-0.5 transition-colors ${
                     activeTab === tab.id ? "text-primary" : "text-muted-foreground hover:text-foreground"
                   }`}
@@ -90,6 +113,19 @@ const MainApp = () => {
           </div>
         </div>
       </nav>
+
+      {/* The Unified Onboarding Gate */}
+      {showOnboarding && (
+        <OnboardingModal
+          isVisible={showOnboarding}
+          onClose={() => {
+            console.log("[INFO] Onboarding Modal closed by user.");
+            setShowOnboarding(false);
+          }}
+          needsCircle={!isProvisioned.circle}
+          needsFBO={!isProvisioned.fbo}
+        />
+      )}
 
       <FriendAssistant isVisible={showFriend} onClose={handleCloseFriend} trigger={friendTrigger} />
     </div>
