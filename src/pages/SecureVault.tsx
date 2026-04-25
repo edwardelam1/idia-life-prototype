@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ShieldCheck, Loader2, Lock, Terminal, Zap, ArrowLeft, ShieldAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,20 +6,51 @@ import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
 import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png";
 
-// THE NATIVE IMPORT
-import { W3SSdk } from "@circle-fin/w3s-pw-web-sdk";
-
 export default function SecureVault() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Native import means zero network delay. The Airlock is sealed the millisecond the page renders.
-  const [status, setStatus] = useState("AIRLOCK SEALED. NATIVE RAIL ACTIVE.");
+  const [sdkConstructor, setSdkConstructor] = useState<any>(null);
+  const [status, setStatus] = useState("Isolating Native Core...");
   const [error, setError] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
 
+  // --- SOVEREIGN LOGGING: ASYNC MODULE ISOLATION ---
+  useEffect(() => {
+    console.log("[START] SecureVault: Initiating Dynamic Native Import...");
+
+    const loadNativeEnclave = async () => {
+      try {
+        console.log("[INFO] Requesting @circle-fin/w3s-pw-web-sdk from Vite Bundler...");
+
+        // 1. DYNAMIC IMPORT: This isolates the module evaluation.
+        // If the SDK throws a "global is not defined" error, it gets trapped here
+        // instead of white-screening the whole React app.
+        const CircleModule = await import("@circle-fin/w3s-pw-web-sdk");
+
+        console.log("[SUCCESS] Module loaded. Extracting Constructor...");
+
+        if (CircleModule && CircleModule.W3SSdk) {
+          setSdkConstructor(() => CircleModule.W3SSdk);
+          setStatus("AIRLOCK SEALED. NATIVE RAIL ACTIVE.");
+          console.log("[END] Native SDK successfully bound to state.");
+        } else {
+          throw new Error("Module loaded, but W3SSdk constructor is missing.");
+        }
+      } catch (err: any) {
+        console.error(`[FATAL] Native Module Evaluation Failed:`, err);
+        setError(`MODULE CRASH: ${err.message}. (Check Browser Console for full stack trace)`);
+        setStatus("INFRASTRUCTURE SEVERED.");
+      }
+    };
+
+    loadNativeEnclave();
+  }, []);
+
   const executeChallenge = () => {
     console.log("[START] Physical Confirmation: Engaging PIN Enclave");
+    if (!sdkConstructor) return;
+
     setIsExecuting(true);
     setStatus("ENGAGING SECURE PERIMETER...");
     setError(null);
@@ -43,9 +74,7 @@ export default function SecureVault() {
 
     try {
       console.log(`[INFO] Instantiating Circle Web SDK...`);
-
-      // Native Instantiation per official type declarations
-      const sdkInstance = new W3SSdk({
+      const sdkInstance = new sdkConstructor({
         appSettings: { appId: "f8df0c7a-0d24-5103-9acd-82a88e5f18e8" },
       });
 
@@ -131,7 +160,7 @@ export default function SecureVault() {
           <div className="space-y-4 pt-4">
             <Button
               onClick={executeChallenge}
-              disabled={isExecuting}
+              disabled={!sdkConstructor || isExecuting}
               className="w-full py-8 text-lg font-black uppercase tracking-[0.15em] rounded-2xl shadow-xl transition-all"
             >
               {isExecuting ? (
