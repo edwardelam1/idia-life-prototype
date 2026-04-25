@@ -1,53 +1,25 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ShieldCheck, Loader2, AlertCircle, Lock, Terminal, Zap, ArrowLeft, ShieldAlert } from "lucide-react";
+import { ShieldCheck, Loader2, Lock, Terminal, Zap, ArrowLeft, ShieldAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
 import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png";
 
-// 1. THE NATIVE INFRASTRUCTURE UPGRADE
-// By importing natively, the Lovable/Vite bundler automatically translates
-// the CommonJS module into secure, browser-safe code. No CDN required.
-import { W3SSDK } from "@circle-fin/w3s-pw-web-sdk";
+// THE NATIVE IMPORT
+import { W3SSdk } from "@circle-fin/w3s-pw-web-sdk";
 
 export default function SecureVault() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [sdkInstance, setSdkInstance] = useState<any>(null);
-  const [status, setStatus] = useState("Initializing Native Enclave...");
+
+  // Native import means zero network delay. The Airlock is sealed the millisecond the page renders.
+  const [status, setStatus] = useState("AIRLOCK SEALED. NATIVE RAIL ACTIVE.");
   const [error, setError] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
 
-  useEffect(() => {
-    console.log("[START] SecureVault: Mounting Native Infrastructure...");
-
-    const userToken = searchParams.get("userToken");
-    const encryptionKey = searchParams.get("encryptionKey");
-
-    if (!userToken || !encryptionKey) {
-      console.error("[CRITICAL] Missing URL credentials.");
-      setError("UNAUTHORIZED: TOKENS MISSING.");
-      return;
-    }
-
-    try {
-      // 2. IMMEDIATE INSTANTIATION
-      // Because it's bundled directly into your app, there is zero network delay,
-      // zero CSP blocking, and zero 'exports' syntax errors.
-      const sdk = new W3SSDK();
-      setSdkInstance(sdk);
-      setStatus("AIRLOCK SEALED. NATIVE RAIL ACTIVE.");
-      console.log("[SUCCESS] Native Enclave mounted seamlessly.");
-    } catch (err: any) {
-      console.error(`[FATAL] Enclave Mount Error: ${err.message}`);
-      setError("INFRASTRUCTURE BREACH: SDK FAILED TO INITIALIZE.");
-    }
-  }, [searchParams]);
-
   const executeChallenge = () => {
     console.log("[START] Physical Confirmation: Engaging PIN Enclave");
-    if (!sdkInstance) return;
     setIsExecuting(true);
     setStatus("ENGAGING SECURE PERIMETER...");
     setError(null);
@@ -56,6 +28,13 @@ export default function SecureVault() {
     const encryptionKey = searchParams.get("encryptionKey");
     const challengeId = searchParams.get("challengeId");
 
+    if (!userToken || !encryptionKey) {
+      console.error("[CRITICAL] Missing URL credentials.");
+      setError("UNAUTHORIZED: TOKENS MISSING.");
+      setIsExecuting(false);
+      return;
+    }
+
     if (!challengeId || challengeId === "null") {
       setStatus("VAULT ACTIVE. REDIRECTING...");
       setTimeout(() => navigate("/"), 1500);
@@ -63,13 +42,17 @@ export default function SecureVault() {
     }
 
     try {
-      sdkInstance.setAppSettings({
-        appId: "f8df0c7a-0d24-5103-9acd-82a88e5f18e8",
-        clientKey: "TEST_CLIENT_KEY:713c965e89a558509893d5a15152a553",
+      console.log(`[INFO] Instantiating Circle Web SDK...`);
+
+      // Native Instantiation per official type declarations
+      const sdkInstance = new W3SSdk({
+        appSettings: { appId: "f8df0c7a-0d24-5103-9acd-82a88e5f18e8" },
       });
 
+      console.log(`[INFO] Applying Cryptographic Payloads...`);
       sdkInstance.setAuthentication({ userToken, encryptionKey });
 
+      console.log(`[INFO] SDK Execution Triggered for Challenge: ${challengeId}`);
       sdkInstance.execute(challengeId, async (err: any) => {
         if (err) {
           console.error(`[ERROR] Secure Handshake Aborted: ${err.message}`);
@@ -93,6 +76,7 @@ export default function SecureVault() {
           console.error("[ERROR] Database synchronization interrupted.");
         }
 
+        console.log("[END] Operation Success. Redirecting to Root.");
         navigate("/");
       });
     } catch (e: any) {
@@ -127,11 +111,7 @@ export default function SecureVault() {
 
           <div className="bg-muted/30 border border-border rounded-2xl p-5 font-mono">
             <div className="flex items-center gap-3">
-              {!sdkInstance && !error ? (
-                <Loader2 className="w-4 h-4 text-primary animate-spin" />
-              ) : (
-                <Terminal className="w-4 h-4 text-primary" />
-              )}
+              <Terminal className="w-4 h-4 text-primary" />
               <p className="text-[10px] font-black uppercase tracking-widest text-foreground truncate">{status}</p>
             </div>
           </div>
@@ -151,7 +131,7 @@ export default function SecureVault() {
           <div className="space-y-4 pt-4">
             <Button
               onClick={executeChallenge}
-              disabled={!sdkInstance || isExecuting}
+              disabled={isExecuting}
               className="w-full py-8 text-lg font-black uppercase tracking-[0.15em] rounded-2xl shadow-xl transition-all"
             >
               {isExecuting ? (
