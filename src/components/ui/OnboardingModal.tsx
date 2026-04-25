@@ -172,48 +172,45 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
 
     let activeSdk = sdkInstance;
 
-    // PHYSICAL MOUNT ON CLICK: This triggers Circle's server ping ONLY when engaged.
-    if (!activeSdk) {
-      console.log("[INFO] Click Engagement: Attempting to mount Constructor...");
-      const global = window as any;
-      const Constructor =
-        global._CircleConstructor || (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
+    try {
+      // PHYSICAL MOUNT ON CLICK
+      if (!activeSdk) {
+        console.log("[INFO] Click Engagement: Attempting to mount Constructor...");
+        const global = window as any;
+        const Constructor =
+          global._CircleConstructor || (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
 
-      if (Constructor) {
-        try {
+        if (Constructor) {
           activeSdk = new Constructor();
           setSdkInstance(activeSdk);
           setSdkLoaded(true);
           console.log("[SUCCESS] Constructor mounted successfully.");
-        } catch (err: any) {
-          console.error(`[CRITICAL] Constructor Crash during mount: ${err.message}`);
-          setLoadError(`Constructor Crash: ${err.message}`);
-          setIsProvisioningCircle(false);
-          return;
+        } else {
+          throw new Error("Fatal: W3SSDK Namespace is missing.");
         }
-      } else {
-        setLoadError("Fatal: W3SSDK Namespace is missing.");
-        setIsProvisioningCircle(false);
-        return;
       }
-    }
 
-    try {
       console.log("[INFO] Step 1: Invoking provision-circle-wallet Edge Function...");
-      const { data, error: invokeError } = await supabase.functions.invoke("provision-circle-wallet", {
-        method: "POST",
-      });
+
+      // --- THE CIRCUIT BREAKER: Forces a timeout if Supabase silently hangs ---
+      const invokePromise = supabase.functions.invoke("provision-circle-wallet", { method: "POST" });
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Network timeout: Edge Function did not respond within 8 seconds.")), 8000),
+      );
+
+      const response: any = await Promise.race([invokePromise, timeoutPromise]);
+      const data = response?.data;
+      const invokeError = response?.error;
 
       if (invokeError || data?.error) {
         console.error(`[ERROR] Step 1: Edge Function stall - ${invokeError?.message || data?.error}`);
-        throw new Error(data?.error || "Edge Function Handshake failed.");
+        throw new Error(data?.error || invokeError?.message || "Edge Function Handshake failed.");
       }
       console.log("[SUCCESS] Step 1: Challenge tokens acquired.");
 
       const sdk = activeSdk;
 
       console.log("[INFO] Step 2: Configuring SDK Application Identity & Client Key (Testnet)...");
-      // DUAL-CREDENTIAL INITIALIZATION: Required for Domain Whitelist Resolution
       sdk.setAppSettings({
         appId: "f8df0c7a-0d24-5103-9acd-82a88e5f18e8",
         clientKey: "TEST_CLIENT_KEY:713c965e89a558509893d5a15152a553",
@@ -231,8 +228,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
 
         if (error) {
           console.error(`[ERROR] Circle UI Callback Failed: ${error.message}`);
-          setIsProvisioningCircle(false);
-          return;
+          throw new Error(`Enclave UI aborted: ${error.message}`);
         }
 
         console.log("[SUCCESS] Circle UI: PIN entry confirmed.");
@@ -255,9 +251,10 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
         onClose();
       });
     } catch (error: any) {
+      // THIS CATCH BLOCK GUARANTEES THE BUTTON UNLOCKS ON FAILURE
       console.error(`[FATAL] Handshake Execution Stall: ${error.message}`);
-      setIsProvisioningCircle(false);
       setLoadError(`Execution Stall: ${error.message}`);
+      setIsProvisioningCircle(false);
     } finally {
       console.log("[END] OnboardingModal: Handshake logic block finished.");
     }
@@ -326,10 +323,10 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
                 </p>
               </div>
               <button
-                onClick={() => window.location.reload()}
+                onClick={() => setLoadError(null)}
                 className="text-[10px] uppercase tracking-widest font-bold text-red-500 hover:text-red-400 flex items-center gap-1 w-fit mt-1"
               >
-                <RefreshCw className="w-3 h-3" /> Force Infrastructure Sync
+                <RefreshCw className="w-3 h-3" /> Clear Error & Retry
               </button>
             </div>
           )}
