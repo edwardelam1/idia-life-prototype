@@ -145,7 +145,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
     setIsProvisioningCircle(true);
 
     try {
-      console.log("[INFO] Step 1: Invoking provision-circle-wallet with TEST keys...");
+      console.log("[INFO] OnboardingModal: Calling provision-circle-wallet Edge Function...");
       const { data, error: invokeError } = await supabase.functions.invoke("provision-circle-wallet", {
         method: "POST",
       });
@@ -154,12 +154,12 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
         console.error(`[ERROR] Step 1: Edge Function stall - ${invokeError?.message || data?.error}`);
         throw new Error(data?.error || "Edge Function Handshake failed.");
       }
-      console.log("[SUCCESS] Step 1: Challenge tokens and session state acquired.");
+      console.log("[SUCCESS] OnboardingModal: Challenge tokens acquired. Engaging Regulatory UI...");
 
       const sdk = sdkInstance;
 
       console.log("[INFO] Step 2: Configuring SDK Application Identity (Testnet)...");
-      // CRITICAL: Verify this is the TESTNET App ID from Circle Console
+      // UPDATED TESTNET IDENTITY
       sdk.setAppSettings({ appId: "f8df0c7a-0d24-5103-9acd-82a88e5f18e8" });
 
       console.log("[INFO] Step 3: Synchronizing Authentication Enclave...");
