@@ -78,6 +78,8 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
             const script = document.createElement("script");
             script.src = `${url}?v=${Date.now()}`;
             script.async = true;
+            // CRITICAL FOR PRODUCTION: Force origin headers for whitelisting
+            script.crossOrigin = "anonymous";
 
             script.onload = () => {
               console.log(`[INFO] ${label}: Script delivery confirmed.`);
@@ -131,6 +133,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
             const global = window as any;
             const Constructor = (global.CircleWS || global.CircleW3S || global.Circle)?.W3SSDK || global.W3SSDK;
             if (Constructor) {
+              console.log("[AUDIT] Reported Hostname (Path D):", window.location.hostname);
               setSdkInstance(new Constructor());
               setSdkLoaded(true);
               clearTimeout(timer);
@@ -145,7 +148,10 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
       };
 
       initializeEnclave();
-      return () => clearTimeout(timer);
+      return () => {
+        console.log("[CLEANUP] OnboardingModal: Clearing Handshake timer.");
+        clearTimeout(timer);
+      };
     }
   }, [isVisible, sdkLoaded]);
 
@@ -314,7 +320,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
                   {!isProvisioningCircle && sdkLoaded && <ArrowRight className="w-4 h-4 text-muted-foreground" />}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {!sdkLoaded ? "Awaiting test enclave sync..." : "Requires Test PIN Setup"}
+                  {!sdkLoaded ? "Waiting for test enclave sync..." : "Requires Test PIN Setup"}
                 </p>
               </div>
             </button>
