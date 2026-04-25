@@ -185,7 +185,7 @@ const WalletDashboard = () => {
               <p className="text-xl font-bold">${balance.cash_balance.toFixed(2)}</p>
             </div>
             <div className="text-center">
-              <p className="text-teal-100 text-xs font-medium">IDIA-BETA</p>
+              <p className="text-teal-100 text-xs font-medium">USDC</p>
               {/* Updated to use balance from hook */}
               <p className="text-xl font-bold">${balance.idia_usd_balance.toFixed(2)}</p>
             </div>
