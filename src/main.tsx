@@ -1,60 +1,71 @@
-/** * [START] Sovereign Infrastructure: Manual Global Hydration
- * Top-level imports for ESM compliance.
+/** * [START] Sovereign Infrastructure: Absolute Entry Point
+ * ATTACHING EMERGENCY LISTENERS BEFORE ANY IMPORTS
  */
+window.onerror = function (message, source, lineno, colno, error) {
+  console.error("[CRITICAL] Uncaught Global Error Detected:");
+  console.error(`[MESSAGE]: ${message}`);
+  console.error(`[SOURCE]: ${source} @ ${lineno}:${colno}`);
+  return false;
+};
+
+window.onunhandledrejection = function (event) {
+  console.error("[CRITICAL] Unhandled Promise Rejection:");
+  console.error(event.reason);
+};
+
+console.log("[START] main.tsx: Initializing Native Core");
+
+// 1. Force the Buffer import immediately
 import { Buffer } from "buffer";
-import { createRoot } from "react-dom/client";
-import App from "./App.tsx";
-import "./index.css";
-import "./utils/AuthEventTracker";
 
-console.log("[START] main.tsx: Script Execution Initiated");
-
+// 2. Immediate Global Sealing
 try {
-  console.log("[START] Global Polyfill Assignment Sequence");
-
-  if (typeof window !== "undefined") {
-    console.log("[START] window.global assignment");
-    (window as any).global = window;
-    console.log("[END] window.global assignment");
-
-    console.log("[START] window.Buffer assignment");
-    (window as any).Buffer = Buffer;
-    console.log("[END] window.Buffer assignment");
-
-    console.log("[START] window.process assignment");
-    (window as any).process = (window as any).process || {
-      env: { NODE_ENV: "development" },
-      browser: true,
-    };
-    console.log("[END] window.process assignment");
-
-    console.log("[SUCCESS] Sovereign Infrastructure: Globals Hydrated.");
-  } else {
-    console.warn("[WARN] Execution context is not a window; skipping polyfills.");
-  }
-
-  console.log("[END] Global Polyfill Assignment Sequence");
+  console.log("[START] Sealing Native Globals");
+  (window as any).global = window;
+  (window as any).Buffer = Buffer;
+  (window as any).process = (window as any).process || { env: { NODE_ENV: "development" }, browser: true };
+  console.log("[SUCCESS] Native Globals Sealed.");
 } catch (e) {
-  console.error("[START] Global Hydration Error Handler");
-  console.error("[FATAL] Core Infrastructure Stall: Global injection failed.", e);
-  console.error("[END] Global Hydration Error Handler");
+  console.error("[FATAL] Global Sealing Failed:", e);
 }
 
-console.log("[START] React Root Mounting Sequence");
-try {
-  const container = document.getElementById("root");
-  console.log(`[INFO] DOM Root Search: ${container ? "FOUND" : "MISSING"}`);
+/**
+ * 3. Dynamic App Loading
+ * We use dynamic imports here to ensure the Globals above are 100% defined
+ * before the App components (and the Circle SDK) are even parsed.
+ */
+const bootSequence = async () => {
+  console.log("[START] bootSequence: Dynamic Module Loading");
 
-  if (container) {
-    createRoot(container).render(<App />);
-    console.log("[END] React Root Mounting Sequence");
-  } else {
-    throw new Error("Target container #root not found.");
+  try {
+    console.log("[START] Loading App Infrastructure");
+    const [{ createRoot }, { default: App }, _css, _tracker] = await Promise.all([
+      import("react-dom/client"),
+      import("./App.tsx"),
+      import("./index.css"),
+      import("./utils/AuthEventTracker"),
+    ]);
+    console.log("[END] Loading App Infrastructure");
+
+    const container = document.getElementById("root");
+    console.log(`[INFO] DOM Container Search: ${container ? "FOUND" : "MISSING"}`);
+
+    if (container) {
+      console.log("[START] React Mount: createRoot.render");
+      createRoot(container).render(<App />);
+      console.log("[END] React Mount: createRoot.render");
+    } else {
+      throw new Error("Target container #root not found in the DOM.");
+    }
+  } catch (err: any) {
+    console.error("[START] Boot Sequence Error Handler");
+    console.error("[FATAL] Sovereign Boot Interrupted:", err.message);
+    console.error("[STACK]:", err.stack);
+    console.error("[END] Boot Sequence Error Handler");
   }
-} catch (mountError) {
-  console.error("[START] React Mount Error Handler");
-  console.error("[FATAL] React failed to mount to DOM:", mountError);
-  console.error("[END] React Mount Error Handler");
-}
 
-console.log("[END] main.tsx: Script Execution Initiated");
+  console.log("[END] bootSequence: Dynamic Module Loading");
+};
+
+bootSequence();
+console.log("[END] main.tsx: Initializing Native Core");
