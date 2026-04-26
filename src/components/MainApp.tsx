@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Wallet, Database, Users, ShoppingBag, Vote, Crown } from "lucide-react";
+import { useEnhancedProfile } from "@/hooks/useEnhancedProfile"; // Import the hook
 import EnhancedWalletDashboard from "./enhanced/EnhancedWalletDashboard";
 import DataDashboard from "./DataDashboard";
 import EnhancedSocialScreen from "./enhanced/EnhancedSocialScreen";
@@ -16,64 +17,49 @@ const MainApp = () => {
   const [showFriend, setShowFriend] = useState(false);
   const [friendTrigger, setFriendTrigger] = useState<"social" | "wallet" | "data" | "achievement" | undefined>();
 
+  // 1. HYDRATE PROFILE DATA
+  // Pulling profile into scope fixes the "Cannot find name 'profile'" error
+  const { profile, loading: profileLoading } = useEnhancedProfile();
+
   // Infrastructure State
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [hasDismissedOnboarding, setHasDismissedOnboarding] = useState(false);
-  const [isProvisioned, setIsProvisioned] = useState({ circle: false, fbo: false });
+  const [isProvisioned, setIsProvisioned] = useState({ wallet: false, fbo: false });
   const [auditComplete, setAuditComplete] = useState(false);
-  const [sovereignOverride, setSovereignOverride] = useState(false); // DEV BYPASS
+  const [sovereignOverride, setSovereignOverride] = useState(false);
 
-  // 1. The Isolated Infrastructure Audit
+  // 2. THE SOVEREIGN AUDIT (Self-Custody Update)
   useEffect(() => {
-    const verifySovereignInfrastructure = async () => {
+    if (!profileLoading) {
       console.log("[START] MainApp: Executing infrastructure audit...");
-      try {
-        const { data, error: authError } = await supabase.auth.getUser();
 
-        if (authError || !data?.user) {
-          setAuditComplete(true);
-          return;
-        }
+      const hasWallet = !!profile?.wallet_address;
+      const hasFBO = !!profile?.fbo_account_id;
 
-        // Bypassing local schema cache via 'as any'
-        const { data: profileData, error: profileError } = await (supabase.from("profiles") as any)
-          .select("circle_user_id, fbo_account_id")
-          .eq("user_id", data.user.id)
-          .single();
+      setIsProvisioned({
+        wallet: hasWallet,
+        fbo: hasFBO,
+      });
 
-        if (profileError) throw profileError;
+      console.log(`[SUCCESS] MainApp Audit Complete - Vault: ${hasWallet}, FBO: ${hasFBO}`);
+      setAuditComplete(true);
+    }
+  }, [profile, profileLoading]);
 
-        setIsProvisioned({
-          circle: !!profileData?.circle_user_id,
-          fbo: !!profileData?.fbo_account_id,
-        });
-
-        console.log(
-          `[SUCCESS] MainApp Audit Complete - Circle: ${!!profileData?.circle_user_id}, FBO: ${!!profileData?.fbo_account_id}`,
-        );
-      } catch (error) {
-        console.error("[ERROR] MainApp: Infrastructure audit failed.", error);
-      } finally {
-        setAuditComplete(true);
-      }
-    };
-
-    verifySovereignInfrastructure();
-  }, []);
-
-  // 2. THE "FLOOR SENSOR" - Respects Sovereign Override
+  // 3. THE "FLOOR SENSOR" - Respects Sovereign Override
   useEffect(() => {
     if (auditComplete && activeTab === "wallet" && !sovereignOverride) {
-      const isFullyLocked = !isProvisioned.circle && !isProvisioned.fbo;
+      // If 0 rails are setup, trigger onboarding
+      const isFullyLocked = !isProvisioned.wallet && !isProvisioned.fbo;
 
       if (isFullyLocked && !hasDismissedOnboarding && !showOnboarding) {
-        console.log("[INFO] Floor Sensor Triggered: Deploying Modal.");
+        console.log("[INFO] Floor Sensor Triggered: Deploying Onboarding Modal.");
         setShowOnboarding(true);
       }
     }
   }, [activeTab, isProvisioned, auditComplete, hasDismissedOnboarding, showOnboarding, sovereignOverride]);
 
-  // 3. TAB-LOCK BYPASS: Close onboarding if the user navigates away from wallet
+  // Tab-Lock Cleanup
   useEffect(() => {
     if (activeTab !== "wallet" && showOnboarding) {
       setShowOnboarding(false);
@@ -114,15 +100,14 @@ const MainApp = () => {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background">
-      {/* HEADER WITH OVERRIDE: Shift + Click Header triggers bypass */}
       <div onMouseDown={(e) => e.shiftKey && setSovereignOverride(true)}>
         <Header />
       </div>
 
       <main className="flex-1 overflow-hidden pt-[calc(3.5rem+env(safe-area-inset-top))] relative">
-        {/* THE GLASS SHIELD: Intercepts touches if 0 rails are setup AND no override is active */}
+        {/* THE GLASS SHIELD: Intercepts touches if not provisioned */}
         {activeTab === "wallet" &&
-          !isProvisioned.circle &&
+          !isProvisioned.wallet &&
           !isProvisioned.fbo &&
           !showOnboarding &&
           !sovereignOverride && (
@@ -142,7 +127,6 @@ const MainApp = () => {
         </div>
       </main>
 
-      {/* FORTIFIED NAVIGATION */}
       <nav className="fixed bottom-0 left-0 right-0 bg-background border-t border-border pb-[env(safe-area-inset-bottom)] z-[9999] isolate pointer-events-auto shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
         <div className="max-w-4xl mx-auto px-2">
           <div className="flex justify-around py-2">
@@ -169,8 +153,8 @@ const MainApp = () => {
         <OnboardingModal
           isVisible={showOnboarding}
           onClose={() => setShowOnboarding(false)}
-          needsWallet={!profile?.wallet_address} // Aligned with the new schema
-          needsFBO={!profile?.fbo_account_id}
+          needsWallet={!isProvisioned.wallet}
+          needsFBO={!isProvisioned.fbo}
         />
       )}
 
