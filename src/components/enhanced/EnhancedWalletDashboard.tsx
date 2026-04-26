@@ -81,17 +81,13 @@ const EnhancedWalletDashboard: React.FC = () => {
       updateProfile({ wallet_address: address });
     }
   }, [address, isConnected]);
-  // Add this effect to break the deadlock
+  // Notify app that vault is linked
   useEffect(() => {
     if (isConnected && address) {
-      console.log("[SUCCESS] Sovereign Handshake Detected. Forcing Modal Close.");
-      // 1. Manually trigger the close
-      onClose();
-
-      // 2. Dispatch a custom event to tell MainApp the 'Floor' is now solid
+      console.log("[SUCCESS] Sovereign Handshake Detected.");
       window.dispatchEvent(new CustomEvent("vault-linked", { detail: { address } }));
     }
-  }, [isConnected, address, onClose]);
+  }, [isConnected, address]);
   const fetchTransactions = async () => {
     console.log("[START] Fetching transactions from fiat_ledger...");
     try {
