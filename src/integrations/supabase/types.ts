@@ -6047,52 +6047,19 @@ export type Database = {
         }
         Relationships: []
       }
-      user_wallets: {
-        Row: {
-          cash_balance: number
-          created_at: string
-          governance_tokens: number | null
-          id: string
-          idia_beta_balance: number | null
-          platform_guid: string | null
-          total_earned: number | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          cash_balance?: number
-          created_at?: string
-          governance_tokens?: number | null
-          id?: string
-          idia_beta_balance?: number | null
-          platform_guid?: string | null
-          total_earned?: number | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          cash_balance?: number
-          created_at?: string
-          governance_tokens?: number | null
-          id?: string
-          idia_beta_balance?: number | null
-          platform_guid?: string | null
-          total_earned?: number | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       wallets: {
         Row: {
           cash_balance: number | null
           created_at: string | null
+          governance_tokens: number | null
           hub_cash_balance: number | null
           id: string
           idia_beta_balance: number | null
           idia_token_balance: number | null
           idia_usd_balance: number | null
           life_cash_balance: number | null
+          platform_guid: string | null
+          total_earned: number | null
           updated_at: string | null
           user_id: string
           wallet_address: string
@@ -6100,12 +6067,15 @@ export type Database = {
         Insert: {
           cash_balance?: number | null
           created_at?: string | null
+          governance_tokens?: number | null
           hub_cash_balance?: number | null
           id?: string
           idia_beta_balance?: number | null
           idia_token_balance?: number | null
           idia_usd_balance?: number | null
           life_cash_balance?: number | null
+          platform_guid?: string | null
+          total_earned?: number | null
           updated_at?: string | null
           user_id: string
           wallet_address: string
@@ -6113,12 +6083,15 @@ export type Database = {
         Update: {
           cash_balance?: number | null
           created_at?: string | null
+          governance_tokens?: number | null
           hub_cash_balance?: number | null
           id?: string
           idia_beta_balance?: number | null
           idia_token_balance?: number | null
           idia_usd_balance?: number | null
           life_cash_balance?: number | null
+          platform_guid?: string | null
+          total_earned?: number | null
           updated_at?: string | null
           user_id?: string
           wallet_address?: string
