@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { X, ShieldCheck, Landmark, ArrowRight, Zap, Loader2, Activity, AlertCircle, Wallet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useAccount } from "wagmi";
 
 interface OnboardingModalProps {
   isVisible: boolean;
@@ -12,19 +13,21 @@ interface OnboardingModalProps {
 }
 
 const OnboardingModal = ({ isVisible, onClose, needsWallet, needsFBO }: OnboardingModalProps) => {
-  const [isProvisioningFBO, setIsProvisioningFBO] = useState(false);
+  const [isSyncingFBO, setIsSyncingFBO] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const navigate = useNavigate();
+  // Drive vault connection state from wagmi (self-custody, non-custodial)
+  const { isConnected: vaultLinked } = useAccount();
 
   if (!isVisible) return null;
 
   const handleFBOSetup = async () => {
-    setIsProvisioningFBO(true);
+    setIsSyncingFBO(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
     } finally {
-      setIsProvisioningFBO(false);
+      setIsSyncingFBO(false);
     }
   };
 
