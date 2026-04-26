@@ -115,7 +115,7 @@ const SecureVault = () => {
     <div className="min-h-screen bg-black p-8">
       <header className="border-b border-white/10 pb-4 mb-8 flex justify-between items-end">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Sovereign Vault</h1>
+          <h1 className="text-2xl font-bold text-white tracking-tight">Sovereign Wallet</h1>
           <div className="flex items-center gap-2 mt-1">
             <ShieldCheck className="w-3 h-3 text-teal-500" />
             <p className="text-[10px] text-white/40 uppercase tracking-widest">
