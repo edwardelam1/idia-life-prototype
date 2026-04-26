@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.life-pii-bridge]
 verify_jwt = false
+
+[functions.stablecoin-rails]
+verify_jwt = false
