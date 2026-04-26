@@ -88,8 +88,9 @@ Respond with a JSON object: {"score": number, "feedback": "explanation"}
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error('Error in validate-proposal function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
