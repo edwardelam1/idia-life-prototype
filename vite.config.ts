@@ -8,9 +8,8 @@ export default defineConfig(({ mode }) => ({
   server: { host: "::", port: 8080 },
   plugins: [
     react(),
-    // This plugin solves the "Object prototype" error by properly polyfilling Node 'util'
     nodePolyfills({
-      include: ["buffer", "util", "stream", "events", "process", "crypto"],
+      include: ["buffer", "crypto", "stream", "util", "events", "process"],
       globals: {
         Buffer: true,
         global: true,
@@ -25,6 +24,19 @@ export default defineConfig(({ mode }) => ({
     },
   },
   define: {
-    "process.env": {},
+    // Ensures global is available at runtime
+    global: "globalThis",
+  },
+  build: {
+    commonjsOptions: {
+      transformMixedEsModules: true, // Fixes module.exports vs import collisions
+    },
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      define: {
+        global: "globalThis",
+      },
+    },
   },
 }));
