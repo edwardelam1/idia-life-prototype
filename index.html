@@ -10,7 +10,6 @@
       window.global = window;
       window.process = { env: { NODE_ENV: 'development' }, browser: true };
     </script>
-
       if (window.buffer) {
         window.Buffer = window.buffer.Buffer;
         console.log("[SUCCESS] index.html: window.Buffer hydrated via CDN.");
