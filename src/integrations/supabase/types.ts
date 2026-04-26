@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 export type Json =
   | string
   | number
@@ -6659,3 +6660,32 @@ export const Constants = {
     },
   },
 } as const
+=======
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+
+export interface Database {
+  public: {
+    Tables: {
+      profiles: {
+        Row: {
+          id: string;
+          wallet_address: string | null;
+          // Add other columns here as needed or keep empty for now
+        };
+        Insert: {
+          id: string;
+          wallet_address?: string | null;
+        };
+        Update: {
+          id?: string;
+          wallet_address?: string | null;
+        };
+      };
+    };
+    Views: { [_ in never]: never };
+    Functions: { [_ in never]: never };
+    Enums: { [_ in never]: never };
+    CompositeTypes: { [_ in never]: never };
+  };
+}
+>>>>>>> 1d7db5babfdf5d527f977bd720a04bd7b3ebcdb3
