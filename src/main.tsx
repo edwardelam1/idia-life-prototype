@@ -1,30 +1,25 @@
-/** * [START] Sovereign Infrastructure: Stealth Hydration
- * Importing via stealth alias to bypass Vite's "buffer" scanner.
+/** * [START] Sovereign Infrastructure: Unified Entry Point
+ * Polyfills are now handled via vite-plugin-node-polyfills
  */
-// @ts-ignore
-import { Buffer } from "native-buffer";
-
-console.log("[START] main.tsx: Initializing Native Core");
-
-try {
-  console.log("[START] sealAirlock: Injecting Native Globals");
-  window.Buffer = Buffer;
-  console.log("[SUCCESS] sealAirlock: Buffer Hydrated via Stealth Alias.");
-} catch (e) {
-  console.error("[FATAL] sealAirlock: Stealth Injection Failed.", e);
-}
-
-// React Infrastructure
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import "./utils/AuthEventTracker";
 
+console.log("[START] main.tsx: Initializing Sovereign Vault");
+
 const container = document.getElementById("root");
+
 if (container) {
-  console.log("[START] React Mount");
-  createRoot(container).render(<App />);
-  console.log("[END] React Mount");
+  try {
+    console.log("[START] React Mount Sequence");
+    createRoot(container).render(<App />);
+    console.log("[END] React Mount Sequence");
+  } catch (err) {
+    console.error("[FATAL] Render Engine Collapse:", err);
+  }
+} else {
+  console.error("[CRITICAL] #root element missing. Check index.html.");
 }
 
-console.log("[END] main.tsx: Initializing Native Core");
+console.log("[END] main.tsx: Initializing Sovereign Vault");
