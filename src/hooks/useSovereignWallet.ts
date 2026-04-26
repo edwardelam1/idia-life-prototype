@@ -18,11 +18,10 @@ export const useSovereignWallet = (userId: string | undefined) => {
 
       console.log(`🌐 [HYDRATION_LOG] START: Querying Supabase for sovereign wallet state. UserID: ${userId}`);
       try {
-        // CHANGED: .single() -> .maybeSingle() to prevent "no rows returned" crashes
+        // Bypass strict TS typing for the new column using `as any`
         const { data, error } = await supabase
           .from("profiles")
-          .select("wallet_address")
-          // Double check if your table uses 'id' or 'user_id' for the foreign key. Usually it's 'id' in profiles.
+          .select("wallet_address" as any)
           .eq("id", userId)
           .maybeSingle();
 
@@ -33,13 +32,13 @@ export const useSovereignWallet = (userId: string | undefined) => {
           throw error;
         }
 
-        if (data && data.wallet_address) {
-          setGlobalWalletAddress(data.wallet_address);
-          console.log(`🌐 [HYDRATION_LOG] END: Successfully hydrated global wallet address: ${data.wallet_address}`);
+        const rawData = data as { wallet_address?: string } | null;
+
+        if (rawData && rawData.wallet_address) {
+          setGlobalWalletAddress(rawData.wallet_address);
+          console.log(`🌐 [HYDRATION_LOG] END: Successfully hydrated global wallet address: ${rawData.wallet_address}`);
         } else {
-          console.log(
-            `🌐 [HYDRATION_LOG] END: Profile fetched, but no wallet_address found (or row doesn't exist yet). User is a blank slate.`,
-          );
+          console.log(`🌐 [HYDRATION_LOG] END: Profile fetched, but no wallet_address found. User is a blank slate.`);
         }
       } catch (err: any) {
         console.error(`🚨 [HYDRATION_LOG] ERROR_START: Unexpected exception during hydration.`);
@@ -64,7 +63,10 @@ export const useSovereignWallet = (userId: string | undefined) => {
       `🌐 [SUPABASE_SYNC_LOG] START: Attempting to upsert wallet address ${newAddress} for UserID: ${userId}`,
     );
     try {
-      const { error } = await supabase.from("profiles").update({ wallet_address: newAddress }).eq("id", userId);
+      // Bypass strict TS typing for the update payload using `as any`
+      const updatePayload: any = { wallet_address: newAddress };
+
+      const { error } = await supabase.from("profiles").update(updatePayload).eq("id", userId);
 
       if (error) {
         console.error(`🚨 [SUPABASE_SYNC_LOG] ERROR_START: Supabase update failed.`);
