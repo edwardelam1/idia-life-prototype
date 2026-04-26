@@ -101,7 +101,7 @@ export const useEnhancedProfile = () => {
           updated_at: p.updated_at,
           kyc_status: p.kyc_status || "pending",
           ssn_last4: p.ssn_last4 || null,
-          circle_user_id: p.circle_user_id || null,
+          
           fbo_account_id: p.fbo_account_id || null,
         });
       }
