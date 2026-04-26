@@ -16,9 +16,6 @@ const SecureVault = () => {
       console.log("[START] initCircleVault: Executing Sequence");
       try {
         console.log("[INFO] Checking for Global Infrastructure...");
-        if (typeof window.Buffer === "undefined") {
-          throw new Error("Infrastructure Stall: Buffer not found in global scope.");
-        }
 
         console.log("[START] Circle SDK: Instantiating W3SSdk");
         const sdk = new W3SSdk(); // Corrected Casing
