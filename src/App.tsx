@@ -71,8 +71,9 @@ const App = () => {
 
   if (!isFetched) return null;
 
+  // MARK: - IDIA Protocol: Unified Entry Point (Hydrated)
   return (
-    <WagmiProvider config={config}>
+    <WagmiProvider config={config} reconnectOnMount={false}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider theme={darkTheme({ accentColor: "#14b8a6" })}>
           <ThemeProvider
