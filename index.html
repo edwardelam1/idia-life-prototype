@@ -1,7 +1,3 @@
-<script>
-  window.global = window;
-  window.process = { env: { NODE_ENV: 'development' }, browser: true };
-</script>
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -11,6 +7,17 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <title>IDIA Life - Data Monetization Platform</title>
+
+    <script>
+      console.log("[START] index.html: Inline Polyfill Sequence");
+      try {
+        window.global = window;
+        window.process = { env: { NODE_ENV: 'development' }, browser: true };
+        console.log("[SUCCESS] index.html: window.global and window.process injected.");
+      } catch (e) {
+        console.error("[FATAL] index.html: Inline Polyfill Failure", e);
+      }
+    </script>
     <meta name="description" content="Earn from your data, payments with purpose, fairer credit" />
     <meta name="author" content="IDIA Ecosystem" />
     <link rel="icon" type="image/png" href="/images/IDIA_Life_Logo_Polished.png" />
@@ -20,15 +27,15 @@
       property="og:image"
       content="https://storage.googleapis.com/gpt-engineer-file-uploads/MWen9JhzLcbIug0B63nPGgVP2Qg2/social-images/social-1773865203453-IDIA_Life_Logo_Polished.webp"
     />
+    <meta property="og:title" content="IDIA Life - Data Monetization Platform" />
+    <meta property="og:description" content="Earn from your data, payments with purpose, fairer credit" />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta
       name="twitter:image"
       content="https://storage.googleapis.com/gpt-engineer-file-uploads/MWen9JhzLcbIug0B63nPGgVP2Qg2/social-images/social-1773865203453-IDIA_Life_Logo_Polished.webp"
     />
-    <meta property="og:title" content="IDIA Life - Data Monetization Platform" />
     <meta name="twitter:title" content="IDIA Life - Data Monetization Platform" />
-    <meta property="og:description" content="Earn from your data, payments with purpose, fairer credit" />
     <meta name="twitter:description" content="Earn from your data, payments with purpose, fairer credit" />
   </head>
 
