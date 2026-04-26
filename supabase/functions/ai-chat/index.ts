@@ -125,9 +125,10 @@ serve(async (req) => {
     });
 
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error("AI Chat error:", error);
     return new Response(
-      JSON.stringify({ error: "Chat processing failed", details: error.message }),
+      JSON.stringify({ error: "Chat processing failed", details: message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

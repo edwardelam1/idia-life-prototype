@@ -328,8 +328,9 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("Apple Health Sync Error:", error.message);
-    return new Response(JSON.stringify({ error: error.message, success: false }), {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Apple Health Sync Error:", message);
+    return new Response(JSON.stringify({ error: message, success: false }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });
