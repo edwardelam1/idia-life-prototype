@@ -1,37 +1,67 @@
 /** * [START] SecureVault: Sovereign Infrastructure Page
- * Logic: Self-Custodial Vault Verification & UI Entry
+ * Logic: Self-Custodial Vault Verification, Database Sync & Hub Entry
  */
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
 import { useToast } from "@/components/ui/use-toast";
 import { Activity, ShieldCheck } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useSovereignWallet } from "@/hooks/useSovereignWallet";
 
 const SecureVault = () => {
   const [isInitializing, setIsInitializing] = useState(true);
+  const [userId, setUserId] = useState<string | undefined>();
   const { isConnected, address } = useAccount();
+  const { syncWalletToSupabase } = useSovereignWallet(userId);
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // 1. Retrieve the active Supabase session ID on mount
+  useEffect(() => {
+    const fetchSession = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) setUserId(user.id);
+    };
+    fetchSession();
+  }, []);
+
+  // 2. Verification and Commitment Sequence
   useEffect(() => {
     const verifySovereignInfrastructure = async () => {
       console.log(`\n========== [START] verifySovereignInfrastructure: Executing Sequence ==========`);
       try {
         console.log(`[INFO] Probing for Active Vault Connection...`);
 
-        // Small delay to allow Wagmi/RainbowKit state to hydrate
+        // Delay to ensure Wagmi state hydration
         await new Promise((resolve) => setTimeout(resolve, 800));
 
         if (!isConnected) {
-          console.warn(`[WARN] No Active Vault Detected. Redirecting to Onboarding...`);
+          console.warn(`[WARN] No Active Vault Detected. Awaiting connection...`);
           setIsInitializing(false);
           return;
         }
 
         console.log(`[SUCCESS] Self-Custodial Vault Detected: ${address}`);
-        console.log(`[SUCCESS] IDIA Infrastructure Handshake: Complete.`);
 
-        // Infrastructure is primed.
+        // If we have both the wallet and the Supabase user, commit the sync
+        if (address && userId) {
+          console.log(`[ACTION] Initiating Sovereign Sync for User: ${userId}`);
+          await syncWalletToSupabase(address);
+
+          console.log(`[SUCCESS] IDIA Infrastructure Handshake: Complete.`);
+
+          toast({
+            title: "Identity Secured",
+            description: "Sovereign vault bridged successfully.",
+          });
+
+          // Redirect to the root dashboard now that the account is "locked in"
+          navigate("/");
+        }
+
         setIsInitializing(false);
       } catch (error: any) {
         console.error(`\n[FATAL ERROR] verifySovereignInfrastructure: Sequence Failure`);
@@ -46,8 +76,11 @@ const SecureVault = () => {
       }
     };
 
-    verifySovereignInfrastructure();
-  }, [isConnected, address, toast]);
+    // Only run the verification sequence once we have the userId or if connection changes
+    if (userId || !isConnected) {
+      verifySovereignInfrastructure();
+    }
+  }, [isConnected, address, userId, syncWalletToSupabase, navigate, toast]);
 
   if (isInitializing) {
     return (
@@ -83,7 +116,6 @@ const SecureVault = () => {
         )}
       </header>
 
-      {/* Vault UI Components: Assets, Permissions, and Data Sovereignty Toggles land here */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="col-span-2 aspect-video border border-white/5 bg-white/[0.02] rounded-xl flex items-center justify-center italic text-white/20">
           Vault Infrastructure Online - Awaiting Data Streams
