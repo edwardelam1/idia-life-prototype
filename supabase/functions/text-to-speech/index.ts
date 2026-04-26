@@ -59,9 +59,10 @@ serve(async (req) => {
       },
     )
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
     console.error('Error in text-to-speech function:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: message }),
       {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

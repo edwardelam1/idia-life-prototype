@@ -53,7 +53,7 @@ serve(async (req) => {
 
     // Analyze data patterns and types
     const dataTypes = new Set();
-    const qualityScores = [];
+    const qualityScores: number[] = [];
     
     stagedHealthData?.forEach(data => {
       if (data.steps_count) dataTypes.add('steps');
@@ -128,9 +128,9 @@ serve(async (req) => {
       
       // Parse the response into individual impacts
       impacts = impactText.split('\n')
-        .filter(line => line.trim().length > 0 && !line.includes(':'))
-        .map(line => line.replace(/^\d+\.\s*/, '').replace(/^[-•]\s*/, '').trim())
-        .filter(impact => impact.length > 10 && impact.length <= 45)
+      .filter((line: string) => line.trim().length > 0 && !line.includes(':'))
+      .map((line: string) => line.replace(/^\d+\.\s*/, '').replace(/^[-•]\s*/, '').trim())
+      .filter((impact: string) => impact.length > 10 && impact.length <= 45)
         .slice(0, 3);
 
       if (impacts.length === 0) {

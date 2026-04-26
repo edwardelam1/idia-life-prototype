@@ -93,7 +93,7 @@ serve(async (req) => {
       throw new Error('Gemini API key not configured');
     }
 
-    if (!SECURITY_AGENTS[agent]) {
+    if (!(SECURITY_AGENTS as Record<string, any>)[agent]) {
       console.error('Crazy 8 Security: Unknown agent', agent);
       throw new Error(`Unknown security agent: ${agent}`);
     }
@@ -103,7 +103,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    console.log(`${SECURITY_AGENTS[agent].name} activated:`, { action });
+    console.log(`${(SECURITY_AGENTS as Record<string, any>)[agent].name} activated:`, { action });
 
     let response;
     
@@ -143,7 +143,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
-      agent: SECURITY_AGENTS[agent].name,
+      agent: (SECURITY_AGENTS as Record<string, any>)[agent].name,
       action,
       result: response,
       timestamp: new Date().toISOString(),
@@ -156,9 +156,10 @@ serve(async (req) => {
     });
 
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error('Error in Crazy 8 Security System:', error);
     return new Response(JSON.stringify({
-      error: error.message,
+      error: message,
       protocol: 'Crazy Friend Security',
       status: 'error'
     }), {
@@ -171,7 +172,7 @@ serve(async (req) => {
   }
 });
 
-async function runAnomalyDetection(action, data, context) {
+async function runAnomalyDetection(action: any, data: any, context: any) {
   const prompt = `${SECURITY_AGENTS.crazy_sentinel.persona}
 
 Analyze this system data for anomalies:
@@ -193,7 +194,7 @@ Provide anomaly analysis in this JSON format:
   return await callGeminiAPI(prompt);
 }
 
-async function runPredictiveAnalytics(action, data, context) {
+async function runPredictiveAnalytics(action: any, data: any, context: any) {
   const prompt = `${SECURITY_AGENTS.crazy_oracle.persona}
 
 Perform predictive security analysis:
@@ -216,7 +217,7 @@ Provide predictive analysis in this JSON format:
   return await callGeminiAPI(prompt);
 }
 
-async function runThreatHunting(action, data, context) {
+async function runThreatHunting(action: any, data: any, context: any) {
   const prompt = `${SECURITY_AGENTS.crazy_hunter.persona}
 
 Hunt for security threats in this data:
@@ -238,7 +239,7 @@ Provide threat hunting results in this JSON format:
   return await callGeminiAPI(prompt);
 }
 
-async function runSecurityOrchestration(action, data, context) {
+async function runSecurityOrchestration(action: any, data: any, context: any) {
   const prompt = `${SECURITY_AGENTS.crazy_guardian.persona}
 
 Orchestrate security response for this incident:
@@ -261,7 +262,7 @@ Provide orchestration plan in this JSON format:
   return await callGeminiAPI(prompt);
 }
 
-async function runAccessManagement(action, data, context) {
+async function runAccessManagement(action: any, data: any, context: any) {
   const prompt = `${SECURITY_AGENTS.crazy_gatekeeper.persona}
 
 Analyze access management event:
@@ -283,7 +284,7 @@ Provide access analysis in this JSON format:
   return await callGeminiAPI(prompt);
 }
 
-async function runDataProtection(action, data, context) {
+async function runDataProtection(action: any, data: any, context: any) {
   const prompt = `${SECURITY_AGENTS.crazy_shield.persona}
 
 Analyze data protection event:
@@ -305,7 +306,7 @@ Provide DLP analysis in this JSON format:
   return await callGeminiAPI(prompt);
 }
 
-async function runAdversarialDefense(action, data, context) {
+async function runAdversarialDefense(action: any, data: any, context: any) {
   const prompt = `${SECURITY_AGENTS.crazy_mirror.persona}
 
 Analyze for adversarial AI threats:
@@ -327,7 +328,7 @@ Provide adversarial analysis in this JSON format:
   return await callGeminiAPI(prompt);
 }
 
-async function runExplainableAnalysis(action, data, context) {
+async function runExplainableAnalysis(action: any, data: any, context: any) {
   const prompt = `${SECURITY_AGENTS.crazy_insight.persona}
 
 Provide human-understandable explanation for this security event:
@@ -349,7 +350,7 @@ Provide explainable analysis in this JSON format:
   return await callGeminiAPI(prompt);
 }
 
-async function callGeminiAPI(prompt) {
+async function callGeminiAPI(prompt: any) {
   const bodyPayload = {
     contents: [{
       parts: [{
@@ -392,7 +393,7 @@ async function callGeminiAPI(prompt) {
   }
 }
 
-async function logSecurityEvent(supabaseClient, agent, action, result) {
+async function logSecurityEvent(supabaseClient: any, agent: any, action: any, result: any) {
   try {
     await supabaseClient.from('security_events').insert({
       agent_name: agent,
