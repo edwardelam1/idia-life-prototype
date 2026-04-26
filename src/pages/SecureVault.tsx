@@ -1,7 +1,7 @@
 /** * [START] SecureVault: Sovereign Infrastructure Page
  * Logic: Self-Custodial Vault Verification, Database Sync & Hub Entry
  */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
 import { useToast } from "@/components/ui/use-toast";
