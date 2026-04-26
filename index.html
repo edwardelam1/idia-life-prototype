@@ -6,21 +6,14 @@
     <title>IDIA Life | Sovereign Vault</title>
 
     <script>
-      (function() {
-        console.log("[START] index.html: Global Injection Sequence");
-        window.global = window;
-        window.process = { env: { NODE_ENV: 'development' }, browser: true };
-
-        // Manual Buffer definition to prevent "Externalized" errors
-        window.Buffer = window.Buffer || undefined;
-        console.log("[SUCCESS] index.html: Infrastructure Primed.");
-      })();
-    </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/buffer/6.0.3/buffer.min.js"></script>
-    <script>
-      if (window.Uint8Array) {
-        window.Buffer = window.buffer.Buffer;
-        console.log("[SUCCESS] index.html: Buffer Hydrated via CDN.");
+      console.log(`\n========== [START] index.html: DOM Boot Sequence ==========`);
+      try {
+        console.log(`[INFO] [index.html] Native DOM parsed successfully.`);
+        console.log(`[INFO] [index.html] Awaiting Vite module bundler injection...`);
+      } catch (error) {
+        console.error(`[FATAL] [index.html] Exception during raw HTML execution: ${error.message}`);
+      } finally {
+        console.log(`========== [END] index.html: DOM Boot Sequence ==========\n`);
       }
     </script>
   </head>
