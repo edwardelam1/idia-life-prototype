@@ -23,8 +23,8 @@ export interface EnhancedProfile {
   updated_at: string;
   kyc_status?: string;
   ssn_last4?: string;
-  circle_user_id?: string | null; // ADD THIS
-  fbo_account_id?: string | null; // ADD THIS
+  wallet_address?: string; // ADD THIS LINE
+  fbo_account_id?: string;
   full_legal_address?: Record<string, any> | null;
 }
 

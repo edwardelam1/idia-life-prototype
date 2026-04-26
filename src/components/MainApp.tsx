@@ -168,12 +168,9 @@ const MainApp = () => {
       {showOnboarding && activeTab === "wallet" && (
         <OnboardingModal
           isVisible={showOnboarding}
-          onClose={() => {
-            setShowOnboarding(false);
-            setHasDismissedOnboarding(true);
-          }}
-          needsCircle={!isProvisioned.circle}
-          needsFBO={!isProvisioned.fbo}
+          onClose={() => setShowOnboarding(false)}
+          needsWallet={!profile?.wallet_address} // Aligned with the new schema
+          needsFBO={!profile?.fbo_account_id}
         />
       )}
 
