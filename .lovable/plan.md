@@ -8,20 +8,22 @@ The wallet onboarding will read as a 100% non‑custodial bridge. Users **Link**
 
 A full search of `src/` shows the project is already mostly clean:
 
-- **No source file imports** `@coinbase/waas-sdk-web`, `@coinbase/waas-sdk-react-native`, or `@circle-fin/w3s-pw-web-sdk`.
 - **No `Enclave` / `Handshake` / `Provisioning` SDK sequences exist** — the only remaining matches are unrelated PII copy ("secure enclave" as a concept) and one local `isProvisioningFBO` loading flag.
 - **`wagmi` + RainbowKit are already wired** (`src/App.tsx`, `SecureVault.tsx`, `OnboardingModal.tsx`, `EnhancedWalletDashboard.tsx`).
-- **No app code reads `circle_wallet_address` / `circle_wallet_id`** — those columns only appear in the auto‑generated `src/integrations/supabase/types.ts`. App code already uses `profile.wallet_address` everywhere.
+- **No app code reads `wallet_address` / `wallet_id`** — those columns only appear in the auto‑generated `src/integrations/supabase/types.ts`. App code already uses `profile.wallet_address` everywhere.
 
 So the work is small and surgical.
 
 ## Changes
 
 ### 1. `package.json`
+
 Remove the unused dependency:
+
 - `@circle-fin/w3s-pw-web-sdk`
 
 ### 2. `src/components/ui/OnboardingModal.tsx`
+
 - Rename `isProvisioningFBO` → `isSyncingFBO`.
 - FBO loading copy: show **"Syncing Vault…"** while pending.
 - Wallet button copy:
@@ -32,6 +34,7 @@ Remove the unused dependency:
 - Header copy stays "Sovereign Vault" (already correct).
 
 ### 3. `src/components/enhanced/EnhancedWalletDashboard.tsx`
+
 - Three‑pillar balance card: rename the middle pillar label **"Self‑Custody"** → **"Vault Assets"**.
 - Security tab button:
   - Connected: **"Manage Sovereign Vault"** (was "Manage External Vault")
@@ -40,6 +43,7 @@ Remove the unused dependency:
 - Continue using `useAccount` from wagmi (already imported) — no new logic needed; `wallet_address` is already the schema field in use.
 
 ### 4. `src/components/MainApp.tsx`
+
 No code changes required — already keys off `profile.wallet_address` and `profile.fbo_account_id`. Verified.
 
 ## Out of scope / intentionally not touched
