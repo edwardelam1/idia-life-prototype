@@ -7,6 +7,12 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { supabase } from "@/integrations/supabase/client";
 
+// WEB3 INFRASTRUCTURE IMPORTS
+import "@rainbow-me/rainbowkit/styles.css";
+import { getDefaultConfig, RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
+import { WagmiProvider, http } from "wagmi";
+import { mainnet, base, polygon } from "wagmi/chains";
+
 // PAGE IMPORTS
 import Auth from "./pages/Auth";
 import Index from "./pages/Index";
@@ -15,24 +21,34 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import SecureVault from "./pages/SecureVault";
 
+// 1. Configure the Sovereign Bridge (RainbowKit/Wagmi)
+const config = getDefaultConfig({
+  appName: "IDIA Life",
+  projectId: "IDIA_V1_PROTOTYPE", // WalletConnect Project ID
+  chains: [mainnet, base, polygon],
+  transports: {
+    [mainnet.id]: http(),
+    [base.id]: http(),
+    [polygon.id]: http(),
+  },
+  ssr: false,
+});
+
 const queryClient = new QueryClient();
 
 const App = () => {
   const [session, setSession] = useState<any>(null);
   const [isFetched, setIsFetched] = useState(false);
 
-  // SOVEREIGN TRACE: Telemetry for the Principal Architect
   useEffect(() => {
     console.log("[START] App Lifecycle: Initializing Sovereign Routing & Auth Manifest...");
 
-    // 1. Fetch initial session on load
     supabase.auth.getSession().then(({ data: { session } }) => {
       console.log(`[INFO] Session Sync: ${session ? "Active Session Detected" : "No Session Found"}`);
       setSession(session);
       setIsFetched(true);
     });
 
-    // 2. Listen for login/logout events across the app
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -46,48 +62,50 @@ const App = () => {
     };
   }, []);
 
-  // Prevent the app from rendering the wrong route before we know the auth state (Avoids 404 flickering)
   if (!isFetched) {
     return null;
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="dark"
-        enableSystem={false}
-        themes={["light", "dark"]}
-        disableTransitionOnChange
-      >
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              {/* --- PUBLIC ACCESS --- */}
-              <Route path="/auth" element={session ? <Navigate to="/" replace /> : <Auth />} />
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={queryClient}>
+        <RainbowKitProvider theme={darkTheme({ accentColor: "#14b8a6" })}>
+          {" "}
+          {/* IDIA Teal Accent */}
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="dark"
+            enableSystem={false}
+            themes={["light", "dark"]}
+            disableTransitionOnChange
+          >
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <Routes>
+                  {/* --- PUBLIC ACCESS --- */}
+                  <Route path="/auth" element={session ? <Navigate to="/" replace /> : <Auth />} />
 
-              {/* --- PROTECTED CORE --- */}
-              <Route path="/" element={session ? <Index /> : <Navigate to="/auth" replace />} />
-              <Route path="/dashboard" element={session ? <Index /> : <Navigate to="/auth" replace />} />
-              <Route path="/onboarding" element={session ? <Onboarding /> : <Navigate to="/auth" replace />} />
-              <Route path="/settings" element={session ? <Settings /> : <Navigate to="/auth" replace />} />
+                  {/* --- PROTECTED CORE --- */}
+                  <Route path="/" element={session ? <Index /> : <Navigate to="/auth" replace />} />
+                  <Route path="/dashboard" element={session ? <Index /> : <Navigate to="/auth" replace />} />
+                  <Route path="/onboarding" element={session ? <Onboarding /> : <Navigate to="/auth" replace />} />
+                  <Route path="/settings" element={session ? <Settings /> : <Navigate to="/auth" replace />} />
 
-              {/* --- THE SOVEREIGN AIRLOCK --- */}
-              {/* This is a protected route because SecureVault needs to update the authenticated profile */}
-              <Route path="/secure-vault" element={session ? <SecureVault /> : <Navigate to="/auth" replace />} />
+                  {/* --- THE SOVEREIGN AIRLOCK --- */}
+                  <Route path="/secure-vault" element={session ? <SecureVault /> : <Navigate to="/auth" replace />} />
+                  <Route path="/secure_vault" element={<Navigate to="/secure-vault" replace />} />
 
-              {/* LEGACY REDIRECT: Catch any underscore mis-formatted attempts */}
-              <Route path="/secure_vault" element={<Navigate to="/secure-vault" replace />} />
-
-              {/* --- CATCH-ALL ROUTE --- */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+                  {/* --- CATCH-ALL ROUTE --- */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </BrowserRouter>
+            </TooltipProvider>
+          </ThemeProvider>
+        </RainbowKitProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
   );
 };
 
