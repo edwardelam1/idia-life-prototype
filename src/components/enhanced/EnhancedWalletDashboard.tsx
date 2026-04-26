@@ -20,7 +20,8 @@ import NFCPayrollModal from "../NFCPayrollModal";
 import SendRequestModal from "../SendRequestModal";
 import AddFundsModal from "../AddFundsModal";
 import { fireFinaleConfetti } from "../psychometric/confetti";
-import { Waas } from "@coinbase/waas-sdk-web";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useAccount } from "wagmi";
 import {
   Wallet,
   CreditCard,
@@ -51,33 +52,10 @@ interface CreditSimulation {
   actions: string[];
 }
 
-// Architectural Safeguard: Global instance prevents memory leaks on re-renders
-let waasClient: Waas | null = null;
-
-const initializeCoinbaseWaaS = async () => {
-  if (waasClient) return waasClient;
-
-  console.log(`\n========== [START] Coinbase WaaS: SDK Initialization ==========`);
-  try {
-    const projectId = import.meta.env.VITE_COINBASE_PROJECT_ID || import.meta.env.VITE_COINBASE_CLIENT_ID;
-    if (!projectId) throw new Error("Missing Coinbase Project/Client ID in environment variables.");
-
-    waasClient = await Waas.init({ projectId });
-
-    console.log(`[SUCCESS] [Init] Coinbase WaaS SDK initialized natively.`);
-    console.log(`========== [END] Coinbase WaaS: SDK Initialization (SUCCESS) ==========\n`);
-    return waasClient;
-  } catch (error: any) {
-    console.error(`[FATAL] [Init] Failed to initialize Coinbase WaaS SDK.`);
-    console.error(`[FATAL] [Init] Stack trace: ${error.stack || error.message}`);
-    console.log(`========== [END] Coinbase WaaS: SDK Initialization (FAILED) ==========\n`);
-    throw error;
-  }
-};
-
 const EnhancedWalletDashboard: React.FC = () => {
   const { profile, loading, updateProfile } = useEnhancedProfile();
   const { balance: walletBalance, loading: balanceLoading } = useWalletBalance();
+  const { address, isConnected } = useAccount();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [creditSimulation, setCreditSimulation] = useState<CreditSimulation | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
@@ -87,15 +65,22 @@ const EnhancedWalletDashboard: React.FC = () => {
 
   const [showTestModal, setShowTestModal] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
-  const [isHydrating, setIsHydrating] = useState(false);
 
-  // IDIA Infrastructure State - Repurposing the circle_user_id field to store the CDP ID
-  const isProvisioned = !!profile?.circle_user_id;
+  // IDIA Infrastructure State
+  const isProvisioned = isConnected || !!profile?.wallet_address;
   const hasFBO = !!profile?.fbo_account_id;
 
   useEffect(() => {
     fetchTransactions();
   }, []);
+
+  // Sync external wallet address to IDIA Profile for auditability
+  useEffect(() => {
+    if (isConnected && address && updateProfile && address !== profile?.wallet_address) {
+      console.log(`[IDIA PROTOCOL] Syncing Self-Custodial Vault: ${address}`);
+      updateProfile({ wallet_address: address });
+    }
+  }, [address, isConnected]);
 
   const fetchTransactions = async () => {
     console.log("[START] Fetching transactions from fiat_ledger...");
@@ -129,80 +114,6 @@ const EnhancedWalletDashboard: React.FC = () => {
       }
     } catch (error) {
       console.error("[ERROR] Silent stalling in fetchTransactions:", error);
-    }
-  };
-
-  const hydrateSovereignWallet = async () => {
-    console.log(`\n========== [START] UI: Provision Sovereign MPC Vault ==========`);
-    setIsHydrating(true);
-
-    try {
-      // ---------------------------------------------------------
-      // STEP 1: CAPTURE IDENTITY
-      // ---------------------------------------------------------
-      console.log(`\n---> [START] Step 1: Requesting Active Session Token`);
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
-
-      if (sessionError || !session?.access_token) {
-        console.error(`[FATAL] [Step 1] Supabase session invalid or missing. Error: ${sessionError?.message}`);
-        throw new Error("Unauthorized: Cannot provision vault without active session.");
-      }
-      console.log(`[SUCCESS] [Step 1] Cryptographic JWT acquired.`);
-      console.log(`<--- [END] Step 1: Requesting Active Session Token (SUCCESS)`);
-
-      // ---------------------------------------------------------
-      // STEP 2: AUTHENTICATE & MAP ENCLAVE
-      // ---------------------------------------------------------
-      console.log(`\n---> [START] Step 2: Bootstrapping MPC Enclave`);
-      const waas = await initializeCoinbaseWaaS();
-
-      console.log(`[NETWORK] [Step 2] Transmitting JWT to Coinbase infrastructure...`);
-      const user = await waas.auth.loginWithJwt(session.access_token);
-
-      console.log(`[SUCCESS] [Step 2] User authenticated. CDP Identity locked: ${user.id}`);
-      console.log(`<--- [END] Step 2: Bootstrapping MPC Enclave (SUCCESS)`);
-
-      // ---------------------------------------------------------
-      // STEP 3: HYDRATE WALLET ADDRESS
-      // ---------------------------------------------------------
-      console.log(`\n---> [START] Step 3: Generating On-Chain Architecture`);
-      console.log(`[NETWORK] [Step 3] Querying CDP for existing wallet states...`);
-
-      const wallets = await user.wallets.list();
-      let activeWallet;
-
-      if (wallets.length > 0) {
-        activeWallet = wallets[0];
-        console.log(`[INFO] [Step 3] Pre-existing wallet state detected: ${activeWallet.addresses[0]}`);
-      } else {
-        console.log(`[NETWORK] [Step 3] Generating net-new MPC wallet...`);
-        activeWallet = await user.wallets.create();
-        console.log(`[SUCCESS] [Step 3] MPC wallet successfully minted: ${activeWallet.addresses[0]}`);
-      }
-      console.log(`<--- [END] Step 3: Generating On-Chain Architecture (SUCCESS)`);
-
-      // ---------------------------------------------------------
-      // STEP 4: SYNC STATE TO SUPABASE
-      // ---------------------------------------------------------
-      console.log(`\n---> [START] Step 4: Syncing Provision State to IDIA Protocol`);
-      if (updateProfile) {
-        await updateProfile({ circle_user_id: user.id });
-        console.log(`[SUCCESS] [Step 4] IDIA Profile updated with Vault Identity.`);
-      } else {
-        console.warn(`[WARN] [Step 4] updateProfile hook missing. Database sync bypassed.`);
-      }
-      console.log(`<--- [END] Step 4: Syncing Provision State to IDIA Protocol (SUCCESS)`);
-
-      console.log(`\n========== [END] UI: Provision Sovereign MPC Vault (SUCCESS) ==========`);
-    } catch (err: any) {
-      console.error(`\n[FATAL ERROR] UI Hydration Pipeline Severed`);
-      console.error(`[FATAL ERROR] Stack/Message: ${err.stack || err.message}`);
-      console.log(`========== [END] UI: Provision Sovereign MPC Vault (ABORTED) ==========\n`);
-    } finally {
-      setIsHydrating(false);
     }
   };
 
@@ -342,7 +253,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                   <p className="text-xl font-bold">${walletBalance?.cash_balance?.toFixed(2) || "0.00"}</p>
                 </div>
                 <div className="text-center border-x border-white/20">
-                  <p className="text-teal-100 text-[10px] font-medium uppercase">MPC USDC</p>
+                  <p className="text-teal-100 text-[10px] font-medium uppercase">Self-Custody</p>
                   <p className="text-xl font-bold">${walletBalance?.idia_beta_balance?.toFixed(2) || "0.00"}</p>
                 </div>
                 <div className="text-center">
@@ -352,7 +263,7 @@ const EnhancedWalletDashboard: React.FC = () => {
               </div>
               {!isProvisioned && (
                 <div className="mt-4 pt-2 border-t border-white/20 text-center">
-                  <p className="text-[10px] text-teal-50 italic">Infrastructure Setup Required for Liquidation</p>
+                  <p className="text-[10px] text-teal-50 italic">External Vault Link Required for Liquidation</p>
                 </div>
               )}
             </CardContent>
@@ -487,9 +398,9 @@ const EnhancedWalletDashboard: React.FC = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-between items-center text-sm">
-                <span>MPC Vault Status</span>
+                <span>Self-Custody Status</span>
                 <Badge variant={isProvisioned ? "default" : "destructive"}>
-                  {isProvisioned ? "Secure" : "Setup Required"}
+                  {isProvisioned ? "Connected" : "Not Linked"}
                 </Badge>
               </div>
               <div className="flex justify-between items-center text-sm">
@@ -497,25 +408,22 @@ const EnhancedWalletDashboard: React.FC = () => {
                 <Badge variant={hasFBO ? "default" : "secondary"}>{hasFBO ? "Connected" : "Not Linked"}</Badge>
               </div>
 
-              <div className="flex flex-col gap-2 mt-4">
-                <Button
-                  variant="outline"
-                  className="w-full text-xs border-white/10 hover:bg-white/5"
-                  disabled={isProvisioned || isHydrating}
-                  onClick={isProvisioned ? undefined : hydrateSovereignWallet}
-                >
-                  {isHydrating
-                    ? "Bootstrapping MPC Enclave..."
-                    : isProvisioned
-                      ? "Manage Sovereign Keys"
-                      : "Initialize Secure Vault"}
-                </Button>
-
-                {!isProvisioned && isHydrating && (
-                  <p className="text-[10px] text-teal-600 animate-pulse text-center mt-1">
-                    Executing cryptographic handshake...
-                  </p>
-                )}
+              <div className="mt-4">
+                <ConnectButton.Custom>
+                  {({ account, chain, openConnectModal, mounted }) => {
+                    const ready = mounted;
+                    const connected = ready && account && chain;
+                    return (
+                      <Button
+                        variant="outline"
+                        className="w-full text-xs border-white/10 hover:bg-white/5"
+                        onClick={openConnectModal}
+                      >
+                        {connected ? "Manage External Vault" : "Initialize Secure Vault"}
+                      </Button>
+                    );
+                  }}
+                </ConnectButton.Custom>
               </div>
             </CardContent>
           </Card>
