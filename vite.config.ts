@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
-  // This satisfies the "global is not defined" error before it even starts
+  // Define 'global' at the highest level
   define: {
     global: "window",
     "process.env": {},
@@ -17,12 +17,17 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      // Standard alias without absolute filesystem paths
-      buffer: "buffer",
+      // Explicitly point to the browser-version of the buffer package
+      "native-buffer": path.resolve(__dirname, "node_modules/buffer/index.js"),
     },
   },
   optimizeDeps: {
-    // This forces Vite to bundle the buffer package for the browser
     include: ["buffer"],
+  },
+  build: {
+    // Ensure Rollup treats our stealth alias correctly
+    commonjsOptions: {
+      transformMixedEsModules: true,
+    },
   },
 }));
