@@ -104,8 +104,8 @@ const App = () => {
             </TooltipProvider>
           </ThemeProvider>
         </RainbowKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+      </WagmiProvider>
+    </QueryClientProvider>
   );
 };
 
