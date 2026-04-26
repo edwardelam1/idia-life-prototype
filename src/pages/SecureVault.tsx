@@ -58,11 +58,11 @@ const SecureVault = () => {
 
         console.log(`[SUCCESS] Self-Custodial Vault Detected: ${address}`);
 
-        // If we have both the wallet and the Supabase user, commit the sync
-        if (address && userId) {
+        // If we have both the wallet and the Supabase user, commit the sync — once.
+        if (address && userId && !hasSyncedRef.current) {
+          hasSyncedRef.current = true;
           console.log(`[ACTION] Initiating Sovereign Sync for User: ${userId}`);
 
-          // Surgical Fix: Commit the address to the profile to unlock the Hub
           const success = await syncWalletToSupabase(address);
 
           if (success) {
@@ -73,7 +73,6 @@ const SecureVault = () => {
               description: "Sovereign vault bridged successfully.",
             });
 
-            // Redirect to the root dashboard now that the account is "locked in"
             console.log("[ACTION] Navigating to Hub Dashboard...");
             navigate("/");
           }
