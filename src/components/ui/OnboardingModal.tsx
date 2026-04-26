@@ -43,7 +43,7 @@ const OnboardingModal = ({ isVisible, onClose, needsWallet, needsFBO }: Onboardi
         <div className="p-6 border-b border-border bg-gradient-to-br from-primary/5 to-transparent">
           <button
             onClick={onClose}
-            disabled={isProvisioningFBO}
+            disabled={isSyncingFBO}
             className="absolute top-4 right-4 p-1 rounded-full hover:bg-muted transition-colors disabled:opacity-50"
           >
             <X className="w-5 h-5 text-muted-foreground" />
@@ -69,12 +69,12 @@ const OnboardingModal = ({ isVisible, onClose, needsWallet, needsFBO }: Onboardi
             <ConnectButton.Custom>
               {({ account, chain, openConnectModal, mounted }) => {
                 const ready = mounted;
-                const connected = ready && account && chain;
+                const connected = ready && account && chain && vaultLinked;
 
                 return (
                   <button
                     onClick={() => {
-                      console.log(`\n========== [START] Onboarding: Self-Custody Handshake ==========`);
+                      console.log(`[START] Onboarding: Linking Sovereign Vault (self-custody)`);
                       openConnectModal();
                     }}
                     type="button"
@@ -85,10 +85,12 @@ const OnboardingModal = ({ isVisible, onClose, needsWallet, needsFBO }: Onboardi
                     </div>
                     <div className="flex-1 text-left">
                       <span className="font-semibold block text-foreground">
-                        {connected ? "Vault Authenticated" : "Link Private Vault"}
+                        {connected ? "Sovereign Vault Linked" : "Link Sovereign Vault"}
                       </span>
                       <p className="text-xs text-muted-foreground">
-                        {connected ? account.displayName : "External Self-Custody (MetaMask/Coinbase)"}
+                        {connected
+                          ? account.displayName
+                          : "Self-custody via MetaMask, Coinbase Wallet, WalletConnect…"}
                       </p>
                     </div>
                     {!connected && <ArrowRight className="w-4 h-4 text-muted-foreground" />}
@@ -101,18 +103,20 @@ const OnboardingModal = ({ isVisible, onClose, needsWallet, needsFBO }: Onboardi
           {needsFBO && (
             <button
               onClick={handleFBOSetup}
-              disabled={isProvisioningFBO}
+              disabled={isSyncingFBO}
               className="w-full group flex items-center p-4 bg-secondary/50 hover:bg-secondary border border-border rounded-xl transition-all disabled:opacity-50"
             >
               <div className="mr-4 p-2 bg-green-500/10 rounded-full">
-                {isProvisioningFBO ? (
+                {isSyncingFBO ? (
                   <Loader2 className="w-5 h-5 text-green-500 animate-spin" />
                 ) : (
                   <Landmark className="w-5 h-5 text-green-500" />
                 )}
               </div>
               <div className="flex-1 text-left">
-                <span className="font-semibold block text-foreground">Fiat Rail (FBO)</span>
+                <span className="font-semibold block text-foreground">
+                  {isSyncingFBO ? "Syncing Vault…" : "Fiat Rail (FBO)"}
+                </span>
                 <p className="text-xs text-muted-foreground">Link banking</p>
               </div>
             </button>
