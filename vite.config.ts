@@ -8,14 +8,21 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
+  // Define globals at the compiler level so they exist everywhere
   define: {
-    // Satisfy internal library checks
+    global: "window",
     "process.env": {},
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // This is the kill-shot for the "Failed to resolve" error.
+      // It points directly to the browser-ready index file.
+      buffer: "buffer",
     },
+  },
+  optimizeDeps: {
+    include: ["buffer"],
   },
 }));
