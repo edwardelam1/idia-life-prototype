@@ -253,7 +253,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                   <p className="text-xl font-bold">${walletBalance?.cash_balance?.toFixed(2) || "0.00"}</p>
                 </div>
                 <div className="text-center border-x border-white/20">
-                  <p className="text-teal-100 text-[10px] font-medium uppercase">Self-Custody</p>
+                  <p className="text-teal-100 text-[10px] font-medium uppercase">Vault Assets</p>
                   <p className="text-xl font-bold">${walletBalance?.idia_beta_balance?.toFixed(2) || "0.00"}</p>
                 </div>
                 <div className="text-center">
@@ -263,7 +263,7 @@ const EnhancedWalletDashboard: React.FC = () => {
               </div>
               {!isProvisioned && (
                 <div className="mt-4 pt-2 border-t border-white/20 text-center">
-                  <p className="text-[10px] text-teal-50 italic">External Vault Link Required for Liquidation</p>
+                  <p className="text-[10px] text-teal-50 italic">Link a Sovereign Vault to enable liquidation</p>
                 </div>
               )}
             </CardContent>
@@ -419,7 +419,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                         className="w-full text-xs border-white/10 hover:bg-white/5"
                         onClick={openConnectModal}
                       >
-                        {connected ? "Manage External Vault" : "Initialize Secure Vault"}
+                        {connected ? "Manage Sovereign Vault" : "Link Sovereign Vault"}
                       </Button>
                     );
                   }}
