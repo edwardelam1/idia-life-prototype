@@ -1551,6 +1551,7 @@ export type Database = {
           batch_checksum: string | null
           bundle_id: string | null
           buyer_intent: string | null
+          circle_idempotency_key: string | null
           client_id: string | null
           consumption_weight: number | null
           country_of_origin: string
@@ -1564,9 +1565,12 @@ export type Database = {
           intent_type: string | null
           liability_token_hash: string | null
           manifest_hashes: string[] | null
+          on_chain_status: string | null
+          on_chain_tx_hash: string | null
           pseudo_user_id: string | null
           purchaser_id: string | null
           query_complexity: number | null
+          settled_at: string | null
           settlement_status: string | null
           staged_data_ids: string[] | null
           status: string | null
@@ -1580,6 +1584,7 @@ export type Database = {
           batch_checksum?: string | null
           bundle_id?: string | null
           buyer_intent?: string | null
+          circle_idempotency_key?: string | null
           client_id?: string | null
           consumption_weight?: number | null
           country_of_origin?: string
@@ -1593,9 +1598,12 @@ export type Database = {
           intent_type?: string | null
           liability_token_hash?: string | null
           manifest_hashes?: string[] | null
+          on_chain_status?: string | null
+          on_chain_tx_hash?: string | null
           pseudo_user_id?: string | null
           purchaser_id?: string | null
           query_complexity?: number | null
+          settled_at?: string | null
           settlement_status?: string | null
           staged_data_ids?: string[] | null
           status?: string | null
@@ -1609,6 +1617,7 @@ export type Database = {
           batch_checksum?: string | null
           bundle_id?: string | null
           buyer_intent?: string | null
+          circle_idempotency_key?: string | null
           client_id?: string | null
           consumption_weight?: number | null
           country_of_origin?: string
@@ -1622,9 +1631,12 @@ export type Database = {
           intent_type?: string | null
           liability_token_hash?: string | null
           manifest_hashes?: string[] | null
+          on_chain_status?: string | null
+          on_chain_tx_hash?: string | null
           pseudo_user_id?: string | null
           purchaser_id?: string | null
           query_complexity?: number | null
+          settled_at?: string | null
           settlement_status?: string | null
           staged_data_ids?: string[] | null
           status?: string | null
@@ -3970,9 +3982,13 @@ export type Database = {
           available_credit_line: number | null
           avatar_url: string | null
           bio: string | null
+          circle_user_id: string | null
+          circle_wallet_address: string | null
+          circle_wallet_id: string | null
           created_at: string | null
           document_type: string | null
           ein: string | null
+          fbo_account_id: string | null
           gender: string | null
           health_goals: string[] | null
           id: string
@@ -4005,9 +4021,13 @@ export type Database = {
           available_credit_line?: number | null
           avatar_url?: string | null
           bio?: string | null
+          circle_user_id?: string | null
+          circle_wallet_address?: string | null
+          circle_wallet_id?: string | null
           created_at?: string | null
           document_type?: string | null
           ein?: string | null
+          fbo_account_id?: string | null
           gender?: string | null
           health_goals?: string[] | null
           id?: string
@@ -4040,9 +4060,13 @@ export type Database = {
           available_credit_line?: number | null
           avatar_url?: string | null
           bio?: string | null
+          circle_user_id?: string | null
+          circle_wallet_address?: string | null
+          circle_wallet_id?: string | null
           created_at?: string | null
           document_type?: string | null
           ein?: string | null
+          fbo_account_id?: string | null
           gender?: string | null
           health_goals?: string[] | null
           id?: string
@@ -5227,6 +5251,8 @@ export type Database = {
           balance_idia_beta: number | null
           balance_previous: number | null
           balance_usdc_stable: number | null
+          blockchain_tx_hash: string | null
+          circle_idempotency_key: string | null
           circle_transfer_id: string | null
           created_at: string | null
           description: string | null
@@ -5257,6 +5283,8 @@ export type Database = {
           balance_idia_beta?: number | null
           balance_previous?: number | null
           balance_usdc_stable?: number | null
+          blockchain_tx_hash?: string | null
+          circle_idempotency_key?: string | null
           circle_transfer_id?: string | null
           created_at?: string | null
           description?: string | null
@@ -5287,6 +5315,8 @@ export type Database = {
           balance_idia_beta?: number | null
           balance_previous?: number | null
           balance_usdc_stable?: number | null
+          blockchain_tx_hash?: string | null
+          circle_idempotency_key?: string | null
           circle_transfer_id?: string | null
           created_at?: string | null
           description?: string | null
