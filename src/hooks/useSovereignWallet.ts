@@ -22,7 +22,6 @@ export const useSovereignWallet = (userId: string | undefined) => {
       console.log(`🌐 [HYDRATION_LOG] START: Fetching global truth for UserID: ${userId}`);
 
       try {
-        // Step 1: Initial Fetch of the Sovereign state
         const { data, error } = await supabase
           .from("profiles")
           .select("wallet_address" as any)
@@ -32,7 +31,6 @@ export const useSovereignWallet = (userId: string | undefined) => {
         if (error) {
           console.error("🚨 [HYDRATION_LOG] ERROR_START: Supabase query failed.");
           console.error("🚨 [HYDRATION_LOG] ERROR_DETAILS:", error.message);
-          console.error("🚨 [HYDRATION_LOG] ERROR_END: Hydration stalled.");
           throw error;
         }
 
@@ -41,33 +39,20 @@ export const useSovereignWallet = (userId: string | undefined) => {
           setGlobalWalletAddress(rawData.wallet_address);
           console.log(`🌐 [HYDRATION_LOG] END: Successfully hydrated global state: ${rawData.wallet_address}`);
         } else {
-          console.log("🌐 [HYDRATION_LOG] END: Profile exists but wallet is empty. Awaiting first-time connection.");
+          console.log("🌐 [HYDRATION_LOG] END: Profile exists but wallet is empty.");
         }
-
-        // Step 2: Establish Realtime Subscription (Cross-Device Bridge)
-        console.log(`📡 [REALTIME_LOG] START: Creating Realtime Channel for UserID: ${userId}`);
 
         channel = supabase
           .channel(`sovereign-vault-sync-${userId}`)
           .on(
             "postgres_changes",
-            {
-              event: "UPDATE",
-              schema: "public",
-              table: "profiles",
-              filter: `id=eq.${userId}`,
-            },
+            { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${userId}` },
             (payload) => {
               console.log("📡 [REALTIME_LOG] DATA_RECEIVED: Remote Profile Update Detected.", payload);
               const updatedAddress = (payload.new as any).wallet_address;
-
               if (updatedAddress && updatedAddress !== globalWalletAddress) {
                 setGlobalWalletAddress(updatedAddress);
-                console.log(`📡 [REALTIME_LOG] ACTION: Local state synced with remote address: ${updatedAddress}`);
-                toast({
-                  title: "Identity Synced",
-                  description: "Vault detected from another device.",
-                });
+                toast({ title: "Identity Synced", description: "Vault detected from another device." });
               }
             },
           )
@@ -75,8 +60,7 @@ export const useSovereignWallet = (userId: string | undefined) => {
             console.log(`📡 [REALTIME_LOG] STATUS_UPDATE: Channel is now [${status}]`);
           });
       } catch (err: any) {
-        console.error("🚨 [HYDRATION_LOG] FATAL: Unexpected exception in initializeSovereignState.");
-        console.error("🚨 [HYDRATION_LOG] ERROR_DETAILS:", err.message);
+        console.error("🚨 [HYDRATION_LOG] FATAL: Unexpected exception during hydration.");
       } finally {
         setIsHydrating(false);
       }
@@ -85,31 +69,32 @@ export const useSovereignWallet = (userId: string | undefined) => {
     initializeSovereignState();
 
     return () => {
-      console.log("🔄 [SOVEREIGN_SYNC_LOG] CLEANUP: Removing Realtime Channel.");
       if (channel) supabase.removeChannel(channel);
     };
-  }, [userId, toast]); // Dependency on userId ensures re-hydration on login/switch
+  }, [userId, toast]);
 
-  // STEP 2: Upsert when a new connection occurs
   const syncWalletToSupabase = async (newAddress: string) => {
     if (!userId) {
       console.error("🚨 [SUPABASE_SYNC_LOG] ERROR: Cannot sync wallet. Missing userId.");
       return;
     }
 
-    console.log(
-      `🌐 [SUPABASE_SYNC_LOG] START: Attempting to upsert wallet address ${newAddress} for UserID: ${userId}`,
-    );
+    console.log(`\n🌐 [SUPABASE_SYNC_LOG] START: Attempting to commit wallet ${newAddress} for UserID: ${userId}`);
 
     try {
-      const updatePayload: any = { wallet_address: newAddress };
-
-      const { error } = await supabase.from("profiles").update(updatePayload).eq("id", userId);
+      // SURGICAL FIX: Use upsert to handle missing rows and force commitment
+      const { error } = await supabase.from("profiles").upsert(
+        {
+          id: userId,
+          wallet_address: newAddress,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" },
+      );
 
       if (error) {
-        console.error("🚨 [SUPABASE_SYNC_LOG] ERROR_START: Supabase update failed.");
+        console.error("🚨 [SUPABASE_SYNC_LOG] ERROR_START: Supabase commitment failed.");
         console.error("🚨 [SUPABASE_SYNC_LOG] ERROR_DETAILS:", error.message);
-        console.error("🚨 [SUPABASE_SYNC_LOG] ERROR_END: Upsert aborted.");
         throw error;
       }
 
@@ -123,17 +108,9 @@ export const useSovereignWallet = (userId: string | undefined) => {
     } catch (err: any) {
       console.error("🚨 [SUPABASE_SYNC_LOG] ERROR_START: Fatal sync failure.");
       console.error("🚨 [SUPABASE_SYNC_LOG] ERROR_DETAILS:", err.message);
-      toast({
-        variant: "destructive",
-        title: "Sync Failed",
-        description: "Failed to align cross-device reality.",
-      });
+      throw err;
     }
   };
 
-  return {
-    globalWalletAddress,
-    isHydrating,
-    syncWalletToSupabase,
-  };
+  return { globalWalletAddress, isHydrating, syncWalletToSupabase };
 };
