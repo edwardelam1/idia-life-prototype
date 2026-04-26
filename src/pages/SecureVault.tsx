@@ -17,65 +17,7 @@ export default function SecureVault() {
   useEffect(() => {
     console.log("[START] SecureVault: Initiating Dynamic Native Import Sequence");
 
-    const loadNativeEnclave = async () => {
-      console.log("[START] loadNativeEnclave execution");
-      try {
-        if (typeof window !== "undefined") {
-          console.log("[START] Hydrating stealth polyfills");
-
-          console.log("[START] Polyfill window.global");
-          window["global"] = window["global"] || window;
-          console.log("[END] Polyfill window.global");
-
-          console.log("[START] Polyfill window.process");
-          // FIX applied here: Casting to any to satisfy strict DOM/Node interfaces
-          window["process"] = window["process"] || ({ env: {} } as any);
-          console.log("[END] Polyfill window.process");
-
-          console.log("[START] Import buffer module");
-          try {
-            const bufferMod = await import("buffer");
-            console.log("[START] Assign Buffer to window");
-            window["Buffer"] = window["Buffer"] || bufferMod.Buffer;
-            console.log("[END] Assign Buffer to window");
-          } catch (bErr) {
-            console.error("[START] Buffer module error handler");
-            console.warn("[WARN] Buffer module fetch failed, cryptographic engine may stall.", bErr);
-            console.error("[END] Buffer module error handler");
-          }
-          console.log("[END] Import buffer module");
-
-          console.log("[END] Hydrating stealth polyfills");
-        }
-
-        console.log("[START] Requesting @circle-fin/w3s-pw-web-sdk from Vite Bundler");
-        const CircleModule = await import("@circle-fin/w3s-pw-web-sdk");
-        console.log("[END] Requesting @circle-fin/w3s-pw-web-sdk from Vite Bundler");
-
-        console.log("[START] Validating CircleModule Constructor");
-        if (CircleModule && CircleModule.W3SSdk) {
-          console.log("[START] Binding W3SSdk to state");
-          setSdkConstructor(() => CircleModule.W3SSdk);
-          setStatus("AIRLOCK SEALED. NATIVE RAIL ACTIVE.");
-          console.log("[END] Binding W3SSdk to state");
-        } else {
-          throw new Error("Module loaded, but W3SSdk constructor is missing in the payload.");
-        }
-        console.log("[END] Validating CircleModule Constructor");
-      } catch (err: any) {
-        console.error("[START] Native Module Evaluation Error Handler");
-        console.error(`[FATAL] Native Module Evaluation Failed:`, err);
-        setError(`MODULE CRASH: ${err.message}`);
-        setStatus("INFRASTRUCTURE SEVERED.");
-        console.error("[END] Native Module Evaluation Error Handler");
-      }
-      console.log("[END] loadNativeEnclave execution");
-    };
-
-    loadNativeEnclave();
-    console.log("[END] SecureVault: Initiating Dynamic Native Import Sequence");
-  }, []);
-
+    
   const executeChallenge = () => {
     console.log("[START] executeChallenge: Engaging PIN Enclave");
 

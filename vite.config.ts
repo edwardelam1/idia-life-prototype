@@ -11,9 +11,9 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
-    // This plugin is the ONLY thing that fixes the prototype inheritance error
+    // This plugin physically maps Node built-ins to browser-safe versions
     nodePolyfills({
-      include: ["buffer", "util", "stream", "events", "process"],
+      include: ["buffer", "util", "stream", "events", "process", "crypto"],
       globals: {
         Buffer: true,
         global: true,
@@ -28,7 +28,6 @@ export default defineConfig(({ mode }) => ({
     },
   },
   define: {
-    // Ensuring process.env is never undefined for third-party libraries
     "process.env": {},
   },
 }));
