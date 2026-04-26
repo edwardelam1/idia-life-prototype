@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,19 +58,34 @@ const EnhancedWalletDashboard: React.FC = () => {
   const { profile, loading, updateProfile } = useEnhancedProfile();
   const { balance: walletBalance, loading: balanceLoading } = useWalletBalance();
 
-  // 1. Pull the universal cross-device state from Supabase
-  const { globalWalletAddress, isHydrating, syncWalletToSupabase } = useSovereignWallet(profile?.user_id);
+  // 1. Force a dedicated, stable ID state to prevent render-looping
+  const [stableUserId, setStableUserId] = useState<string | null>(null);
 
-  // 2. Pull local Web3 state
+  // 2. Deterministic ID Capture: Listen only for the moment the profile hydrates
+  useEffect(() => {
+    const resolvedId = profile?.id || profile?.user_id;
+    if (resolvedId && resolvedId !== stableUserId) {
+      console.log(`✅ [ID_LOCK] Identity Verified: ${resolvedId}`);
+      setStableUserId(resolvedId);
+    }
+  }, [profile, stableUserId]);
+
+  // 3. Updated useSovereignWallet with the stable ID
+  const { globalWalletAddress, isHydrating, syncWalletToSupabase } = useSovereignWallet(stableUserId);
+
+  // 4. Pull local Web3 state
   const { address: localAddress, isConnected: isLocalConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
 
-  // 3. MVP Sync: Directly query the Base USDC Smart Contract from the device
+  // 5. MVP Sync: Directly query the Base USDC Smart Contract from the device
   const { data: onChainUSDC } = useBalance({
     address: localAddress as `0x${string}`,
     token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base Native USDC
     chainId: 8453, // Base Mainnet
   });
+
+  // 6. Ref for the Sync Lock to prevent concurrent database writes
+  const syncLock = useRef(false);
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [creditSimulation, setCreditSimulation] = useState<CreditSimulation | null>(null);
@@ -81,22 +96,30 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [showTestModal, setShowTestModal] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
 
-  // IDIA Infrastructure State - NOW HYDRATED GLOBALLY
+  // IDIA Infrastructure State
   const displayAddress = globalWalletAddress || localAddress;
   const isProvisioned = !!displayAddress;
   const hasFBO = !!profile?.fbo_account_id;
 
-  // --- MVP Database Sync Engine ---
+  // --- MVP Database Sync Engine: Executed ONLY when stableUserId is non-null ---
   useEffect(() => {
     const syncBlockchainToDatabase = async () => {
-      if (!profile?.user_id || !onChainUSDC) return;
+      // ABORT: If identity is null, do not attempt actions
+      if (!stableUserId) return;
+
+      // ABORT: If blockchain data is pending, do not attempt actions
+      if (!onChainUSDC?.formatted) return;
+
+      // ABORT: Prevent overlapping syncs
+      if (syncLock.current) return;
 
       const actualBalance = Number(onChainUSDC.formatted);
 
-      // Prevent infinite loops or redundant database hits if the balance already matches
+      // ABORT: If balance is already identical to the ledger
       if (walletBalance?.idia_beta_balance === actualBalance) return;
 
-      console.log(`▶️ [MVP_SYNC_START] Overwriting database ledger with on-chain truth. Target: $${actualBalance}`);
+      console.log(`▶️ [MVP_SYNC_START] START: Writing On-Chain Balance ($${actualBalance}) to Ledger.`);
+      syncLock.current = true;
 
       try {
         const { error } = await supabase
@@ -105,23 +128,37 @@ const EnhancedWalletDashboard: React.FC = () => {
             idia_beta_balance: actualBalance,
             updated_at: new Date().toISOString(),
           })
-          .eq("user_id", profile.user_id);
+          .eq("user_id", stableUserId);
 
         if (error) {
-          console.error("🚨 [MVP_SYNC_ERROR_START] Failed to push on-chain state to Supabase.");
-          console.error("🚨 [MVP_SYNC_ERROR_DETAILS]:", error.message);
-          console.error("🚨 [MVP_SYNC_ERROR_END] Database remains out of sync.");
+          console.error("🚨 [MVP_SYNC_ERROR] ERROR_START: Database write failed.");
+          console.error("🚨 [MVP_SYNC_ERROR] DETAILS:", error.message);
+          console.error("🚨 [MVP_SYNC_ERROR] ERROR_END: Ledger remains at previous state.");
           throw error;
         }
 
-        console.log(`⏹️ [MVP_SYNC_END] Successfully synchronized database to $${actualBalance}`);
+        console.log(`⏹️ [MVP_SYNC_END] END: Database Ledger Synchronized.`);
       } catch (err) {
-        console.error("🚨 [MVP_SYNC_FATAL] Unexpected exception during sync process.", err);
+        console.error("🚨 [MVP_SYNC_FATAL] FATAL_ERROR: Unexpected exception caught.", err);
+      } finally {
+        syncLock.current = false;
       }
     };
 
     syncBlockchainToDatabase();
-  }, [onChainUSDC, profile?.user_id, walletBalance?.idia_beta_balance]);
+  }, [onChainUSDC?.formatted, stableUserId, walletBalance?.idia_beta_balance]);
+
+  // --- Global Watcher gated by the stable ID ---
+  useEffect(() => {
+    if (!stableUserId) return;
+
+    if (isLocalConnected && localAddress && localAddress !== globalWalletAddress) {
+      console.log(`🔗 [WEB3_WATCHER] START: Linking Vault ${localAddress} to User ${stableUserId}.`);
+      syncWalletToSupabase(localAddress);
+      window.dispatchEvent(new CustomEvent("vault-linked", { detail: { address: localAddress } }));
+      console.log(`🔗 [WEB3_WATCHER] END: Link process dispatched.`);
+    }
+  }, [isLocalConnected, localAddress, globalWalletAddress, syncWalletToSupabase, stableUserId]);
 
   // --- Native App Handshake ---
   useEffect(() => {
@@ -135,15 +172,6 @@ const EnhancedWalletDashboard: React.FC = () => {
     window.addEventListener("message", handleNativeAuthMessage);
     return () => window.removeEventListener("message", handleNativeAuthMessage);
   }, []);
-
-  // --- Global State Synchronization ---
-  useEffect(() => {
-    if (isLocalConnected && localAddress && localAddress !== globalWalletAddress) {
-      console.log(`🔗 [WEB3_WATCHER] Local connection detected. Pushing to global state: ${localAddress}`);
-      syncWalletToSupabase(localAddress);
-      window.dispatchEvent(new CustomEvent("vault-linked", { detail: { address: localAddress } }));
-    }
-  }, [isLocalConnected, localAddress, globalWalletAddress, syncWalletToSupabase]);
 
   // --- Transaction Fetching ---
   useEffect(() => {
@@ -217,7 +245,7 @@ const EnhancedWalletDashboard: React.FC = () => {
     try {
       const { tut, ...actualTelemetry } = moduleScores;
       const { data, error } = await supabase.functions.invoke("calculate-trust-score", {
-        body: { user_id: profile?.user_id, telemetry: actualTelemetry },
+        body: { user_id: stableUserId, telemetry: actualTelemetry },
       });
 
       if (error) throw error;
@@ -490,16 +518,10 @@ const EnhancedWalletDashboard: React.FC = () => {
                         try {
                           if (!localAddress) {
                             console.error("🚨 [AUTH_HANDSHAKE] ERROR_START: No local Web3 context found.");
-                            console.error(
-                              "🚨 [AUTH_HANDSHAKE] ERROR_DETAILS: Cannot sign without an active Wagmi session.",
-                            );
-                            console.error("🚨 [AUTH_HANDSHAKE] ERROR_END: Signature prompt aborted.");
                             return;
                           }
 
                           console.log("⚡️ [AUTH_HANDSHAKE] START: Prompting local wallet for cryptographic signature.");
-                          // This triggers the overlay in the Swift Wrapper
-                          // proving physical presence and ownership of the private key
                           await signMessageAsync({
                             account: localAddress as `0x${string}`,
                             message: "I authenticate this device for IDIA Protocol actions.",
@@ -508,7 +530,6 @@ const EnhancedWalletDashboard: React.FC = () => {
                         } catch (err) {
                           console.error("🚨 [AUTH_HANDSHAKE] ERROR_START: Signature rejected or failed.");
                           console.error("🚨 [AUTH_HANDSHAKE] ERROR_DETAILS:", err);
-                          console.error("🚨 [AUTH_HANDSHAKE] ERROR_END: Handshake failed.");
                         }
                       }}
                     >
