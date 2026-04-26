@@ -3,7 +3,7 @@
  */
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { W3SSdk } from "@circle-fin/w3s-pw-web-sdk"; // Corrected Casing
+import { Waas } from "@coinbase/waas-sdk-web";
 import { useToast } from "@/components/ui/use-toast";
 
 const SecureVault = () => {
