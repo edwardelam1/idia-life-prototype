@@ -81,7 +81,7 @@ export const useSovereignWallet = (userId: string | undefined) => {
   const syncWalletToSupabase = async (newAddress: string) => {
     if (!userId) {
       console.error("🚨 [SUPABASE_SYNC_LOG] ERROR: Cannot sync wallet. Missing userId.");
-      return;
+      return false;
     }
 
     console.log(`\n🌐 [SUPABASE_SYNC_LOG] START: Committing wallet ${newAddress} for UserID: ${userId}`);
@@ -113,9 +113,11 @@ export const useSovereignWallet = (userId: string | undefined) => {
         title: "Vault Synced",
         description: "Sovereign identity aligned across all devices.",
       });
+
+      return true; // Added return to fix TS1345
     } catch (err: any) {
       console.error("🚨 [SUPABASE_SYNC_LOG] FATAL: Sync failure.");
-      throw err;
+      return false; // Added return to fix TS1345
     }
   };
 

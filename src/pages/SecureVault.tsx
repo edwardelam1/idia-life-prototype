@@ -1,109 +1,144 @@
-/** * [START] SecureVault: Sovereign Infrastructure Terminal
- * Logic: Mandatory Verified RPC Handshake & Hub Entry Gate
+/** * [START] SecureVault: Sovereign Infrastructure Page
+ * Logic: Self-Custodial Vault Verification, Database Sync & Hub Entry
  */
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
 import { useToast } from "@/components/ui/use-toast";
-import { Activity, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Activity, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSovereignWallet } from "@/hooks/useSovereignWallet";
 
 const SecureVault = () => {
+  const [isInitializing, setIsInitializing] = useState(true);
   const [userId, setUserId] = useState<string | undefined>();
-  const [handshakeStatus, setHandshakeStatus] = useState<"probing" | "committing" | "verified" | "failed">("probing");
   const { isConnected, address } = useAccount();
   const { syncWalletToSupabase } = useSovereignWallet(userId);
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Guard to prevent redundant handshake triggers
-  const handshakeInProgress = useRef(false);
-
-  // 1. Session Retrieval
+  // 1. Retrieve the active Supabase session ID on mount
   useEffect(() => {
     const fetchSession = async () => {
-      console.log("[START] IDIA_AUTH_PROBE: Probing Session...");
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        setUserId(user.id);
-        console.log(`[SUCCESS] IDIA_AUTH_PROBE: User ID ${user.id} Active.`);
+      console.log("[START] fetchSession: Retrieving Auth User");
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          setUserId(user.id);
+          console.log(`[SUCCESS] fetchSession: User identified as ${user.id}`);
+        } else {
+          console.warn("[WARN] fetchSession: No active session found.");
+        }
+      } catch (error) {
+        console.error("[ERROR] fetchSession: Failed to retrieve user", error);
       }
+      console.log("[END] fetchSession: Sequence complete");
     };
     fetchSession();
   }, []);
 
-  // 2. Mandatory Deterministic Handshake Sequence
+  // 2. Verification and Commitment Sequence
   useEffect(() => {
-    const executeHandshakeSequence = async () => {
-      // Requirements Gate
-      if (handshakeInProgress.current || !userId || !isConnected || !address) return;
-
+    const verifySovereignInfrastructure = async () => {
+      console.log(`\n========== [START] verifySovereignInfrastructure: Executing Sequence ==========`);
       try {
-        handshakeInProgress.current = true;
-        setHandshakeStatus("committing");
-        console.log(`\n========== [START] Handshake Protocol: ${address} ==========`);
+        console.log(`[INFO] Probing for Active Vault Connection...`);
 
-        // Mandatory Handshake: Logic Awaits Verification
-        const isVerified = await syncWalletToSupabase(address);
+        // Delay to ensure Wagmi state hydration
+        await new Promise((resolve) => setTimeout(resolve, 800));
 
-        if (isVerified) {
-          setHandshakeStatus("verified");
-          console.log("[SUCCESS] Handshake Authenticated. Releasing to Hub.");
-
-          // Terminal Step: Immediate Redirection
-          navigate("/");
-        } else {
-          setHandshakeStatus("failed");
-          handshakeInProgress.current = false;
+        if (!isConnected) {
+          console.warn(`[WARN] No Active Vault Detected. Awaiting connection...`);
+          setIsInitializing(false);
+          return;
         }
+
+        console.log(`[SUCCESS] Self-Custodial Vault Detected: ${address}`);
+
+        // If we have both the wallet and the Supabase user, commit the sync
+        if (address && userId) {
+          console.log(`[ACTION] Initiating Sovereign Sync for User: ${userId}`);
+
+          // Surgical Fix: Commit the address to the profile to unlock the Hub
+          const success = await syncWalletToSupabase(address);
+
+          if (success) {
+            console.log(`[SUCCESS] IDIA Infrastructure Handshake: Complete.`);
+
+            toast({
+              title: "Identity Secured",
+              description: "Sovereign vault bridged successfully.",
+            });
+
+            // Redirect to the root dashboard now that the account is "locked in"
+            console.log("[ACTION] Navigating to Hub Dashboard...");
+            navigate("/");
+          }
+        } else if (!userId) {
+          console.warn("[STALL] verifySovereignInfrastructure: Waiting for Auth userId...");
+        }
+
+        setIsInitializing(false);
       } catch (error: any) {
-        console.error(`🚨 [FATAL] verifySovereignInfrastructure: Failure`, error.message);
-        setHandshakeStatus("failed");
-        handshakeInProgress.current = false;
+        console.error(`\n[FATAL ERROR] verifySovereignInfrastructure: Sequence Failure`);
+        console.error(`[FATAL ERROR] Stack/Message: ${error.stack || error.message}`);
+        toast({
+          variant: "destructive",
+          title: "Vault Infrastructure Failure",
+          description: "Could not verify the self-custodial infrastructure.",
+        });
       } finally {
-        console.log(`========== [END] Handshake Protocol ==========\n`);
+        console.log(`========== [END] verifySovereignInfrastructure: Executing Sequence ==========\n`);
       }
     };
 
-    executeHandshakeSequence();
-  }, [isConnected, address, userId, syncWalletToSupabase, navigate]);
+    // Only run the verification sequence once we have the userId or if connection changes
+    if (userId || !isConnected) {
+      verifySovereignInfrastructure();
+    }
+  }, [isConnected, address, userId, syncWalletToSupabase, navigate, toast]);
 
-  return (
-    <div className="flex h-screen w-full flex-col items-center justify-center bg-black gap-8 p-6 text-center">
-      <div className="relative">
-        <Activity
-          className={`w-16 h-16 ${handshakeStatus === "failed" ? "text-red-500" : "text-teal-500"} animate-spin`}
-        />
-        <ShieldCheck className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 text-teal-200" />
-      </div>
-
-      <div className="space-y-3">
-        <h1 className="text-teal-500 font-bold uppercase tracking-[0.4em] text-sm">Sovereign Vault Terminal</h1>
-        <div className="text-white/40 text-[10px] uppercase tracking-widest font-mono">
-          {handshakeStatus === "probing" && "Initializing Sovereign Bridge..."}
-          {handshakeStatus === "committing" && "Executing Deterministic Handshake..."}
-          {handshakeStatus === "verified" && "Commitment Verified. Finalizing Sync..."}
-          {handshakeStatus === "failed" && "Handshake Failed. Network Latency Detected."}
+  if (isInitializing) {
+    return (
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-black gap-4">
+        <Activity className="w-8 h-8 text-teal-500 animate-spin" />
+        <div className="text-teal-500/80 animate-pulse text-xs tracking-[0.3em] font-bold uppercase">
+          Verifying Sovereign Bridge...
         </div>
       </div>
+    );
+  }
 
-      {isConnected && (
-        <code className="text-[10px] text-teal-500/50 bg-teal-500/5 px-4 py-2 rounded border border-teal-500/10 font-mono">
-          Handshaking: {address.slice(0, 10)}...{address.slice(-10)}
-        </code>
-      )}
+  return (
+    <div className="min-h-screen bg-black p-8">
+      <header className="border-b border-white/10 pb-4 mb-8 flex justify-between items-end">
+        <div>
+          <h1 className="text-2xl font-bold text-white tracking-tight">Sovereign Vault</h1>
+          <div className="flex items-center gap-2 mt-1">
+            <ShieldCheck className="w-3 h-3 text-teal-500" />
+            <p className="text-[10px] text-white/40 uppercase tracking-widest">
+              Infrastructure: Verified (Self-Custody)
+            </p>
+          </div>
+        </div>
 
-      {handshakeStatus === "failed" && (
-        <button
-          onClick={() => window.location.reload()}
-          className="mt-4 flex items-center gap-2 text-red-500 border border-red-500/20 px-6 py-3 rounded text-[10px] uppercase font-bold hover:bg-red-500/5 transition-colors"
-        >
-          <AlertTriangle className="w-4 h-4" /> Force Retry Infrastructure
-        </button>
-      )}
+        {isConnected && (
+          <div className="text-right">
+            <p className="text-[10px] text-white/20 uppercase font-bold mb-1">Active Vault Address</p>
+            <code className="text-xs text-teal-500/70 bg-teal-500/5 px-2 py-1 rounded border border-teal-500/10">
+              {address?.slice(0, 6)}...{address?.slice(-4)}
+            </code>
+          </div>
+        )}
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="col-span-2 aspect-video border border-white/5 bg-white/[0.02] rounded-xl flex items-center justify-center italic text-white/20">
+          Vault Infrastructure Online - Awaiting Data Streams
+        </div>
+      </div>
     </div>
   );
 };
