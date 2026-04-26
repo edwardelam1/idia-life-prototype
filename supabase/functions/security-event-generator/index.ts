@@ -88,7 +88,7 @@ serve(async (req) => {
   }
 });
 
-async function generateHealthDataAnomalyEvents(sourceData) {
+async function generateHealthDataAnomalyEvents(sourceData: any) {
   const events = [];
 
   // Analyze health data patterns for anomalies
@@ -120,7 +120,7 @@ async function generateHealthDataAnomalyEvents(sourceData) {
   return events;
 }
 
-async function generateAccessPatternEvents(sourceData) {
+async function generateAccessPatternEvents(sourceData: any) {
   const events = [];
 
   if (sourceData.unusual_login_patterns) {
@@ -151,7 +151,7 @@ async function generateAccessPatternEvents(sourceData) {
   return events;
 }
 
-async function generateSystemHealthEvents(sourceData) {
+async function generateSystemHealthEvents(sourceData: any) {
   const events = [];
 
   if (sourceData.error_rate > 0.05) {
@@ -180,7 +180,7 @@ async function generateSystemHealthEvents(sourceData) {
   return events;
 }
 
-async function generateUserBehaviorEvents(sourceData) {
+async function generateUserBehaviorEvents(sourceData: any) {
   const events = [];
 
   if (sourceData.unusual_data_access_patterns) {
@@ -198,7 +198,7 @@ async function generateUserBehaviorEvents(sourceData) {
   return events;
 }
 
-async function generateGenericSecurityEvents(sourceData) {
+async function generateGenericSecurityEvents(sourceData: any) {
   return [{
     action_type: 'generic_security_check',
     severity: 'low',
@@ -210,7 +210,7 @@ async function generateGenericSecurityEvents(sourceData) {
   }];
 }
 
-async function triggerSecurityAnalysis(event) {
+async function triggerSecurityAnalysis(event: any) {
   try {
     console.log('=== TRIGGERING CRAZY-8-SECURITY ANALYSIS ===');
     console.log('High-priority event detected:', event.action_type);
