@@ -15,14 +15,14 @@ import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
 import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter";
 import type { TestId } from "../psychometric/testBank";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
-import { useSovereignWallet } from "@/hooks/useSovereignWallet"; // <-- Added Universal Sync Hook
+import { useSovereignWallet } from "@/hooks/useSovereignWallet";
 import { supabase } from "@/integrations/supabase/client";
 import NFCPayrollModal from "../NFCPayrollModal";
 import SendRequestModal from "../SendRequestModal";
 import AddFundsModal from "../AddFundsModal";
 import { fireFinaleConfetti } from "../psychometric/confetti";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount, useSignMessage } from "wagmi"; // <-- Added signMessage for cryptographic handshakes
+import { useAccount, useSignMessage } from "wagmi";
 import {
   Wallet,
   CreditCard,
@@ -430,13 +430,27 @@ const EnhancedWalletDashboard: React.FC = () => {
                       className="w-full bg-primary hover:bg-primary/90"
                       onClick={async () => {
                         try {
+                          if (!localAddress) {
+                            console.error("🚨 [AUTH_HANDSHAKE] ERROR_START: No local Web3 context found.");
+                            console.error(
+                              "🚨 [AUTH_HANDSHAKE] ERROR_DETAILS: Cannot sign without an active Wagmi session.",
+                            );
+                            console.error("🚨 [AUTH_HANDSHAKE] ERROR_END: Signature prompt aborted.");
+                            return;
+                          }
+
                           console.log("⚡️ [AUTH_HANDSHAKE] START: Prompting local wallet for cryptographic signature.");
                           // This triggers the overlay in the Swift Wrapper
                           // proving physical presence and ownership of the private key
-                          await signMessageAsync({ message: "I authenticate this device for IDIA Protocol actions." });
+                          await signMessageAsync({
+                            account: localAddress as `0x${string}`,
+                            message: "I authenticate this device for IDIA Protocol actions.",
+                          });
                           console.log("⚡️ [AUTH_HANDSHAKE] END: Sovereign identity verified.");
                         } catch (err) {
-                          console.error("🚨 [AUTH_HANDSHAKE] ERROR: Signature rejected or failed.", err);
+                          console.error("🚨 [AUTH_HANDSHAKE] ERROR_START: Signature rejected or failed.");
+                          console.error("🚨 [AUTH_HANDSHAKE] ERROR_DETAILS:", err);
+                          console.error("🚨 [AUTH_HANDSHAKE] ERROR_END: Handshake failed.");
                         }
                       }}
                     >
