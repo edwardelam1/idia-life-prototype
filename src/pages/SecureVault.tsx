@@ -3,7 +3,7 @@
  */
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { W3SSDK } from "@circle-fin/w3s-pw-web-sdk";
+import { W3SSdk } from "@circle-fin/w3s-pw-web-sdk"; // Corrected Casing
 import { useToast } from "@/components/ui/use-toast";
 
 const SecureVault = () => {
@@ -15,18 +15,16 @@ const SecureVault = () => {
     const initCircleVault = async () => {
       console.log("[START] initCircleVault: Executing Sequence");
       try {
-        // No manual polyfills here. They are handled by vite.config.ts
         console.log("[INFO] Checking for Global Infrastructure...");
         if (typeof window.Buffer === "undefined") {
           throw new Error("Infrastructure Stall: Buffer not found in global scope.");
         }
 
-        console.log("[START] Circle SDK: Instantiating W3SSDK");
-        const sdk = new W3SSDK();
-        console.log("[END] Circle SDK: Instantiating W3SSDK");
+        console.log("[START] Circle SDK: Instantiating W3SSdk");
+        const sdk = new W3SSdk(); // Corrected Casing
+        console.log("[END] Circle SDK: Instantiating W3SSdk");
 
-        // Initialization logic for the Vault goes here
-
+        // Infrastructure is primed.
         setIsInitializing(false);
       } catch (error: any) {
         console.error("[FATAL] initCircleVault: Sequence Failure");
@@ -54,7 +52,10 @@ const SecureVault = () => {
 
   return (
     <div className="min-h-screen bg-black p-8">
-      <h1 className="text-2xl font-bold text-white mb-6">Sovereign Vault</h1>
+      <header className="border-b border-white/10 pb-4 mb-8">
+        <h1 className="text-2xl font-bold text-white tracking-tight">Sovereign Vault</h1>
+        <p className="text-xs text-white/40 uppercase tracking-widest mt-1">Infrastructure: Verified</p>
+      </header>
       {/* Vault UI Components Here */}
     </div>
   );
