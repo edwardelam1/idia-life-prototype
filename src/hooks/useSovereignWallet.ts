@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 export const useSovereignWallet = (userId: string | undefined) => {
   const [globalWalletAddress, setGlobalWalletAddress] = useState<string | null>(null);
   const [isHydrating, setIsHydrating] = useState(true);
+  const inFlightRef = useRef(false);
   const { toast } = useToast();
 
   useEffect(() => {
