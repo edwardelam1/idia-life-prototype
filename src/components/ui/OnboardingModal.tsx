@@ -2,16 +2,17 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, ShieldCheck, Landmark, ArrowRight, Zap, Loader2, Activity, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Waas } from "@coinbase/waas-sdk-web";
 
 interface OnboardingModalProps {
   isVisible: boolean;
   onClose: () => void;
-  needsCircle: boolean;
+  needsWallet: boolean; // Renamed from needsCircle
   needsFBO: boolean;
 }
 
-const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: OnboardingModalProps) => {
-  const [isProvisioningCircle, setIsProvisioningCircle] = useState(false);
+const OnboardingModal = ({ isVisible, onClose, needsWallet, needsFBO }: OnboardingModalProps) => {
+  const [isProvisioningMPC, setIsProvisioningMPC] = useState(false);
   const [isProvisioningFBO, setIsProvisioningFBO] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -19,37 +20,53 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
 
   if (!isVisible) return null;
 
-  const handleCircleSetup = async () => {
-    setIsProvisioningCircle(true);
+  /**
+   * SOVEREIGN MPC HYDRATION
+   * Logic: Direct Coinbase WaaS handshake using Supabase JWT
+   */
+  const handleCoinbaseSetup = async () => {
+    setIsProvisioningMPC(true);
     setLoadError(null);
-    console.log("[START] Sovereign Airlock: Initiating in-app redirect...");
+    console.log(`\n========== [START] Onboarding: MPC Handshake Sequence ==========`);
 
     try {
-      // 1. Generate the Challenge Tokens on the backend
-      console.log("[INFO] Invoking Edge Function...");
-      const { data, error: invokeError } = await supabase.functions.invoke("provision-circle-wallet", {
-        method: "POST",
-      });
+      // 1. Capture Identity
+      console.log(`[INFO] [Step 1] Requesting active Supabase session...`);
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      if (invokeError || data?.error) {
-        throw new Error(data?.error || invokeError?.message || "Failed to provision wallet challenge.");
+      if (sessionError || !session?.access_token) {
+        console.error(`[FATAL] [Step 1] Supabase session rejected.`);
+        throw new Error("Unauthorized: Identity verification failed.");
       }
+      console.log(`[SUCCESS] [Step 1] Supabase JWT verified.`);
 
-      console.log("[SUCCESS] Tokens acquired. Opening Internal Airlock...");
+      // 2. Initialize Coinbase Enclave
+      console.log(`[INFO] [Step 2] Initializing Coinbase WaaS...`);
+      const projectId = import.meta.env.VITE_COINBASE_CLIENT_ID || import.meta.env.VITE_COINBASE_PROJECT_ID;
+      if (!projectId) throw new Error("Infrastructure Error: Missing Coinbase Project ID.");
 
-      // 2. Construct URL parameters to pass securely to the new page
-      const params = new URLSearchParams({
-        userToken: data.userToken,
-        encryptionKey: data.encryptionKey,
-        challengeId: data.challengeId || "",
-      });
+      const waas = await Waas.init({ projectId });
+      console.log(`[SUCCESS] [Step 2] Coinbase Enclave online.`);
 
-      // 3. Execute the internal redirect (Bypasses DNS errors & Modal Z-Index traps)
-      navigate(`/secure-vault?${params.toString()}`);
+      // 3. Authenticate and Redirect
+      console.log(`[INFO] [Step 3] Mapping Identity to MPC Share...`);
+      await waas.auth.loginWithJwt(session.access_token);
+
+      console.log(`[SUCCESS] [Step 3] Enclave authenticated. Redirecting to Secure Vault...`);
+      console.log(`========== [END] Onboarding: MPC Handshake Sequence (SUCCESS) ==========\n`);
+
+      // Redirect to the Secure Vault page where the wallet is generated/displayed
+      navigate(`/secure-vault`);
+      onClose();
     } catch (error: any) {
-      console.error(`[FATAL] Airlock Failure: ${error.message}`);
+      console.error(`\n[FATAL ERROR] Onboarding Pipeline Severed`);
+      console.error(`[FATAL ERROR] Stack/Message: ${error.message}`);
       setLoadError(error.message);
-      setIsProvisioningCircle(false); // Unlocks the button instantly on failure
+      setIsProvisioningMPC(false);
+      console.log(`========== [END] Onboarding: MPC Handshake Sequence (ABORTED) ==========\n`);
     }
   };
 
@@ -74,7 +91,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
         <div className="p-6 border-b border-border bg-gradient-to-br from-primary/5 to-transparent">
           <button
             onClick={onClose}
-            disabled={isProvisioningCircle || isProvisioningFBO}
+            disabled={isProvisioningMPC || isProvisioningFBO}
             className="absolute top-4 right-4 p-1 rounded-full hover:bg-muted transition-colors disabled:opacity-50"
           >
             <X className="w-5 h-5 text-muted-foreground" />
@@ -85,7 +102,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
             </div>
             <h2 className="text-xl font-bold tracking-tight text-foreground">Sovereign Vault</h2>
           </div>
-          <p className="text-sm text-muted-foreground">Secure non-custodial wallet provisioning.</p>
+          <p className="text-sm text-muted-foreground">Secure non-custodial MPC provisioning.</p>
         </div>
 
         <div className="p-6 space-y-4">
@@ -96,33 +113,33 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
             </div>
           )}
 
-          {needsCircle && (
+          {needsWallet && (
             <button
-              onClick={handleCircleSetup}
-              disabled={isProvisioningCircle || isProvisioningFBO}
+              onClick={handleCoinbaseSetup}
+              disabled={isProvisioningMPC || isProvisioningFBO}
               className="w-full group relative flex items-center p-4 bg-secondary/50 hover:bg-secondary border border-border hover:border-primary/50 rounded-xl transition-all duration-200 disabled:opacity-50"
             >
               <div className="mr-4 p-2 bg-blue-500/10 rounded-full">
-                {isProvisioningCircle ? (
+                {isProvisioningMPC ? (
                   <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
                 ) : (
                   <Zap className="w-5 h-5 text-blue-500" />
                 )}
               </div>
               <div className="flex-1 text-left">
-                <span className="font-semibold block text-foreground">Circle USDC Wallet</span>
+                <span className="font-semibold block text-foreground">Sovereign MPC Wallet</span>
                 <p className="text-xs text-muted-foreground">
-                  {isProvisioningCircle ? "Opening secure portal..." : "Requires Test PIN Setup"}
+                  {isProvisioningMPC ? "Hydrating Enclave..." : "Non-Custodial Coinbase Bridge"}
                 </p>
               </div>
-              {!isProvisioningCircle && <ArrowRight className="w-4 h-4 text-muted-foreground" />}
+              {!isProvisioningMPC && <ArrowRight className="w-4 h-4 text-muted-foreground" />}
             </button>
           )}
 
           {needsFBO && (
             <button
               onClick={handleFBOSetup}
-              disabled={isProvisioningCircle || isProvisioningFBO}
+              disabled={isProvisioningMPC || isProvisioningFBO}
               className="w-full group flex items-center p-4 bg-secondary/50 hover:bg-secondary border border-border rounded-xl transition-all disabled:opacity-50"
             >
               <div className="mr-4 p-2 bg-green-500/10 rounded-full">
@@ -142,7 +159,7 @@ const OnboardingModal = ({ isVisible, onClose, needsCircle, needsFBO }: Onboardi
 
         <div className="p-4 bg-muted/30 border-t border-border/10 flex justify-center opacity-50">
           <Activity className="w-3 h-3 text-primary mr-2" />
-          <span className="text-[10px] uppercase tracking-[0.2em] font-bold">IDIA Data - Unlicensed Safe Harbor</span>
+          <span className="text-[10px] uppercase tracking-[0.2em] font-bold">IDIA Data - Sovereign Infrastructure</span>
         </div>
       </div>
     </div>
