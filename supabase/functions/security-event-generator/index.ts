@@ -76,9 +76,10 @@ serve(async (req) => {
     });
 
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error('Error in Security Event Generator:', error);
     return new Response(JSON.stringify({
-      error: error.message,
+      error: message,
       timestamp: new Date().toISOString()
     }), {
       status: 500,

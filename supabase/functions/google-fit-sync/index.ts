@@ -207,9 +207,10 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Google Fit Sync Error:', error.message);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Google Fit Sync Error:', message);
     return new Response(JSON.stringify({
-      error: error.message,
+      error: message,
       success: false
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
