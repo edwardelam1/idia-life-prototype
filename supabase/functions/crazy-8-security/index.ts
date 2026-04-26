@@ -172,7 +172,7 @@ serve(async (req) => {
   }
 });
 
-async function runAnomalyDetection(action, data, context) {
+async function runAnomalyDetection(action: any, data: any, context: any) {
   const prompt = `${SECURITY_AGENTS.crazy_sentinel.persona}
 
 Analyze this system data for anomalies:
@@ -194,7 +194,7 @@ Provide anomaly analysis in this JSON format:
   return await callGeminiAPI(prompt);
 }
 
-async function runPredictiveAnalytics(action, data, context) {
+async function runPredictiveAnalytics(action: any, data: any, context: any) {
   const prompt = `${SECURITY_AGENTS.crazy_oracle.persona}
 
 Perform predictive security analysis:
@@ -217,7 +217,7 @@ Provide predictive analysis in this JSON format:
   return await callGeminiAPI(prompt);
 }
 
-async function runThreatHunting(action, data, context) {
+async function runThreatHunting(action: any, data: any, context: any) {
   const prompt = `${SECURITY_AGENTS.crazy_hunter.persona}
 
 Hunt for security threats in this data:
@@ -239,7 +239,7 @@ Provide threat hunting results in this JSON format:
   return await callGeminiAPI(prompt);
 }
 
-async function runSecurityOrchestration(action, data, context) {
+async function runSecurityOrchestration(action: any, data: any, context: any) {
   const prompt = `${SECURITY_AGENTS.crazy_guardian.persona}
 
 Orchestrate security response for this incident:
@@ -262,7 +262,7 @@ Provide orchestration plan in this JSON format:
   return await callGeminiAPI(prompt);
 }
 
-async function runAccessManagement(action, data, context) {
+async function runAccessManagement(action: any, data: any, context: any) {
   const prompt = `${SECURITY_AGENTS.crazy_gatekeeper.persona}
 
 Analyze access management event:
@@ -284,7 +284,7 @@ Provide access analysis in this JSON format:
   return await callGeminiAPI(prompt);
 }
 
-async function runDataProtection(action, data, context) {
+async function runDataProtection(action: any, data: any, context: any) {
   const prompt = `${SECURITY_AGENTS.crazy_shield.persona}
 
 Analyze data protection event:
@@ -306,7 +306,7 @@ Provide DLP analysis in this JSON format:
   return await callGeminiAPI(prompt);
 }
 
-async function runAdversarialDefense(action, data, context) {
+async function runAdversarialDefense(action: any, data: any, context: any) {
   const prompt = `${SECURITY_AGENTS.crazy_mirror.persona}
 
 Analyze for adversarial AI threats:
@@ -328,7 +328,7 @@ Provide adversarial analysis in this JSON format:
   return await callGeminiAPI(prompt);
 }
 
-async function runExplainableAnalysis(action, data, context) {
+async function runExplainableAnalysis(action: any, data: any, context: any) {
   const prompt = `${SECURITY_AGENTS.crazy_insight.persona}
 
 Provide human-understandable explanation for this security event:
@@ -350,7 +350,7 @@ Provide explainable analysis in this JSON format:
   return await callGeminiAPI(prompt);
 }
 
-async function callGeminiAPI(prompt) {
+async function callGeminiAPI(prompt: any) {
   const bodyPayload = {
     contents: [{
       parts: [{
@@ -393,7 +393,7 @@ async function callGeminiAPI(prompt) {
   }
 }
 
-async function logSecurityEvent(supabaseClient, agent, action, result) {
+async function logSecurityEvent(supabaseClient: any, agent: any, action: any, result: any) {
   try {
     await supabaseClient.from('security_events').insert({
       agent_name: agent,
