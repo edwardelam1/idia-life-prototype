@@ -79,6 +79,20 @@ const EnhancedWalletDashboard: React.FC = () => {
   const isProvisioned = !!displayAddress;
   const hasFBO = !!profile?.fbo_account_id;
 
+  useEffect(() => {
+    const handleNativeAuthMessage = (event: MessageEvent) => {
+      if (event.data?.type === "IDIA_AUTH_COMPLETE") {
+        console.log("📱 [NATIVE_BRIDGE] Handshake Confirmed. Transitioning to Active Dashboard.");
+
+        // DYNAMIC NAVIGATION: Force a state refresh or route change
+        // This clears the "Linked" screen and pulls the fresh profile data
+        window.location.href = "/dashboard";
+      }
+    };
+
+    window.addEventListener("message", handleNativeAuthMessage);
+    return () => window.removeEventListener("message", handleNativeAuthMessage);
+  }, []);
   // Sync new local connections to the global Supabase truth
   useEffect(() => {
     if (isLocalConnected && localAddress && localAddress !== globalWalletAddress) {
