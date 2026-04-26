@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
-  // Define 'global' and 'process' at the compiler level
+  // This satisfies the "global is not defined" error before it even starts
   define: {
     global: "window",
     "process.env": {},
@@ -17,12 +17,12 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      // This forces Vite to look at the actual npm package
-      buffer: path.resolve(__dirname, "node_modules/buffer/index.js"),
+      // Standard alias without absolute filesystem paths
+      buffer: "buffer",
     },
   },
   optimizeDeps: {
-    // Explicitly include buffer to prevent externalization
+    // This forces Vite to bundle the buffer package for the browser
     include: ["buffer"],
   },
 }));
