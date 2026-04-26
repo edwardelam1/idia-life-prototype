@@ -2,43 +2,28 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
-    />
-    <title>IDIA Life - Data Monetization Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IDIA Life | Sovereign Vault</title>
 
     <script>
-      console.log("[START] index.html: Inline Polyfill Sequence");
-      try {
+      (function() {
+        console.log("[START] index.html: Global Injection Sequence");
         window.global = window;
         window.process = { env: { NODE_ENV: 'development' }, browser: true };
-        console.log("[SUCCESS] index.html: window.global and window.process injected.");
-      } catch (e) {
-        console.error("[FATAL] index.html: Inline Polyfill Failure", e);
+
+        // Manual Buffer definition to prevent "Externalized" errors
+        window.Buffer = window.Buffer || undefined;
+        console.log("[SUCCESS] index.html: Infrastructure Primed.");
+      })();
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/buffer/6.0.3/buffer.min.js"></script>
+    <script>
+      if (window.Uint8Array) {
+        window.Buffer = window.buffer.Buffer;
+        console.log("[SUCCESS] index.html: Buffer Hydrated via CDN.");
       }
     </script>
-    <meta name="description" content="Earn from your data, payments with purpose, fairer credit" />
-    <meta name="author" content="IDIA Ecosystem" />
-    <link rel="icon" type="image/png" href="/images/IDIA_Life_Logo_Polished.png" />
-
-    <meta property="og:type" content="website" />
-    <meta
-      property="og:image"
-      content="https://storage.googleapis.com/gpt-engineer-file-uploads/MWen9JhzLcbIug0B63nPGgVP2Qg2/social-images/social-1773865203453-IDIA_Life_Logo_Polished.webp"
-    />
-    <meta property="og:title" content="IDIA Life - Data Monetization Platform" />
-    <meta property="og:description" content="Earn from your data, payments with purpose, fairer credit" />
-
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta
-      name="twitter:image"
-      content="https://storage.googleapis.com/gpt-engineer-file-uploads/MWen9JhzLcbIug0B63nPGgVP2Qg2/social-images/social-1773865203453-IDIA_Life_Logo_Polished.webp"
-    />
-    <meta name="twitter:title" content="IDIA Life - Data Monetization Platform" />
-    <meta name="twitter:description" content="Earn from your data, payments with purpose, fairer credit" />
   </head>
-
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
