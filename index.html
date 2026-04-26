@@ -6,21 +6,16 @@
     <title>IDIA Life | Sovereign Vault</title>
 
     <script>
-      (function() {
-        console.log("[START] index.html: Global Injection Sequence");
-        window.global = window;
-        window.process = { env: { NODE_ENV: 'development' }, browser: true };
-
-        // Manual Buffer definition to prevent "Externalized" errors
-        window.Buffer = window.Buffer || undefined;
-        console.log("[SUCCESS] index.html: Infrastructure Primed.");
-      })();
+      console.log("[START] index.html: Inline Polyfill Sequence");
+      window.global = window;
+      window.process = { env: { NODE_ENV: 'development' }, browser: true };
     </script>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/buffer/6.0.3/buffer.min.js"></script>
     <script>
-      if (window.Uint8Array) {
+      if (window.buffer) {
         window.Buffer = window.buffer.Buffer;
-        console.log("[SUCCESS] index.html: Buffer Hydrated via CDN.");
+        console.log("[SUCCESS] index.html: window.Buffer hydrated via CDN.");
       }
     </script>
   </head>
