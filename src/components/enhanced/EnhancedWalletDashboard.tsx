@@ -15,13 +15,14 @@ import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
 import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter";
 import type { TestId } from "../psychometric/testBank";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
+import { useSovereignWallet } from "@/hooks/useSovereignWallet"; // <-- Added Universal Sync Hook
 import { supabase } from "@/integrations/supabase/client";
 import NFCPayrollModal from "../NFCPayrollModal";
 import SendRequestModal from "../SendRequestModal";
 import AddFundsModal from "../AddFundsModal";
 import { fireFinaleConfetti } from "../psychometric/confetti";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount } from "wagmi";
+import { useAccount, useSignMessage } from "wagmi"; // <-- Added signMessage for cryptographic handshakes
 import {
   Wallet,
   CreditCard,
@@ -34,6 +35,7 @@ import {
   Plus,
   BrainCircuit,
   ArrowRight,
+  Fingerprint,
 } from "lucide-react";
 
 interface Transaction {
@@ -55,39 +57,41 @@ interface CreditSimulation {
 const EnhancedWalletDashboard: React.FC = () => {
   const { profile, loading, updateProfile } = useEnhancedProfile();
   const { balance: walletBalance, loading: balanceLoading } = useWalletBalance();
-  const { address, isConnected } = useAccount();
+
+  // 1. Pull the universal cross-device state from Supabase
+  const { globalWalletAddress, isHydrating, syncWalletToSupabase } = useSovereignWallet(profile?.user_id);
+
+  // 2. Pull local Web3 state
+  const { address: localAddress, isConnected: isLocalConnected } = useAccount();
+  const { signMessageAsync } = useSignMessage();
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [creditSimulation, setCreditSimulation] = useState<CreditSimulation | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [showNFCModal, setShowNFCModal] = useState(false);
   const [showSendRequestModal, setShowSendRequestModal] = useState(false);
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
-
   const [showTestModal, setShowTestModal] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
 
-  // IDIA Infrastructure State
-  const isProvisioned = isConnected || !!profile?.wallet_address;
+  // IDIA Infrastructure State - NOW HYDRATED GLOBALLY
+  const displayAddress = globalWalletAddress || localAddress;
+  const isProvisioned = !!displayAddress;
   const hasFBO = !!profile?.fbo_account_id;
+
+  // Sync new local connections to the global Supabase truth
+  useEffect(() => {
+    if (isLocalConnected && localAddress && localAddress !== globalWalletAddress) {
+      console.log(`🔗 [WEB3_WATCHER] Local connection detected. Pushing to global state: ${localAddress}`);
+      syncWalletToSupabase(localAddress);
+      window.dispatchEvent(new CustomEvent("vault-linked", { detail: { address: localAddress } }));
+    }
+  }, [isLocalConnected, localAddress, globalWalletAddress, syncWalletToSupabase]);
 
   useEffect(() => {
     fetchTransactions();
   }, []);
 
-  // Sync external wallet address to IDIA Profile for auditability
-  useEffect(() => {
-    if (isConnected && address && updateProfile && address !== profile?.wallet_address) {
-      console.log(`[IDIA PROTOCOL] Syncing Self-Custodial Vault: ${address}`);
-      updateProfile({ wallet_address: address });
-    }
-  }, [address, isConnected]);
-  // Notify app that vault is linked
-  useEffect(() => {
-    if (isConnected && address) {
-      console.log("[SUCCESS] Sovereign Handshake Detected.");
-      window.dispatchEvent(new CustomEvent("vault-linked", { detail: { address } }));
-    }
-  }, [isConnected, address]);
   const fetchTransactions = async () => {
     console.log("[START] Fetching transactions from fiat_ledger...");
     try {
@@ -115,7 +119,6 @@ const EnhancedWalletDashboard: React.FC = () => {
           created_at: tx.created_at,
           metadata: tx.metadata,
         }));
-        console.log("[SUCCESS] Transactions mapped to UI.");
         setTransactions(mappedTransactions);
       }
     } catch (error) {
@@ -202,7 +205,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   const getTransactionColor = (amount: number) => (amount > 0 ? "text-green-600" : "text-red-600");
   const formatAmount = (amount: number) => `${amount > 0 ? "+" : ""}$${Math.abs(amount).toFixed(2)}`;
 
-  if (loading || balanceLoading) {
+  if (loading || balanceLoading || isHydrating) {
     return (
       <div className="p-4 space-y-4 animate-pulse">
         <div className="h-8 bg-muted rounded w-1/3"></div>
@@ -399,7 +402,7 @@ const EnhancedWalletDashboard: React.FC = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="w-5 h-5" />
-                Security
+                Security & Identity
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -414,22 +417,46 @@ const EnhancedWalletDashboard: React.FC = () => {
                 <Badge variant={hasFBO ? "default" : "secondary"}>{hasFBO ? "Connected" : "Not Linked"}</Badge>
               </div>
 
-              <div className="mt-4">
-                <ConnectButton.Custom>
-                  {({ account, chain, openConnectModal, mounted }) => {
-                    const ready = mounted;
-                    const connected = ready && account && chain;
-                    return (
-                      <Button
-                        variant="outline"
-                        className="w-full text-xs border-white/10 hover:bg-white/5"
-                        onClick={openConnectModal}
-                      >
-                        {connected ? "Manage Sovereign Vault" : "Link Sovereign Vault"}
-                      </Button>
-                    );
-                  }}
-                </ConnectButton.Custom>
+              {/* The Read-Only / Require Tap Handshake Flow */}
+              <div className="mt-6 pt-4 border-t">
+                {isProvisioned ? (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-secondary/50 rounded-lg border">
+                      <p className="text-xs text-muted-foreground mb-1">Global Vault Attached</p>
+                      <p className="font-mono text-xs break-all">{displayAddress}</p>
+                    </div>
+
+                    <Button
+                      className="w-full bg-primary hover:bg-primary/90"
+                      onClick={async () => {
+                        try {
+                          console.log("⚡️ [AUTH_HANDSHAKE] START: Prompting local wallet for cryptographic signature.");
+                          // This triggers the overlay in the Swift Wrapper
+                          // proving physical presence and ownership of the private key
+                          await signMessageAsync({ message: "I authenticate this device for IDIA Protocol actions." });
+                          console.log("⚡️ [AUTH_HANDSHAKE] END: Sovereign identity verified.");
+                        } catch (err) {
+                          console.error("🚨 [AUTH_HANDSHAKE] ERROR: Signature rejected or failed.", err);
+                        }
+                      }}
+                    >
+                      <Fingerprint className="w-4 h-4 mr-2" />
+                      Authenticate Identity
+                    </Button>
+                  </div>
+                ) : (
+                  <ConnectButton.Custom>
+                    {({ account, chain, openConnectModal, mounted }) => {
+                      const ready = mounted;
+                      const connected = ready && account && chain;
+                      return (
+                        <Button className="w-full bg-primary hover:bg-primary/90" onClick={openConnectModal}>
+                          {connected ? "Manage Sovereign Vault" : "Link Sovereign Vault"}
+                        </Button>
+                      );
+                    }}
+                  </ConnectButton.Custom>
+                )}
               </div>
             </CardContent>
           </Card>
