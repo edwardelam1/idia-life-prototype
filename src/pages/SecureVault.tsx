@@ -98,7 +98,9 @@ const SecureVault = () => {
     if (userId || !isConnected) {
       verifySovereignInfrastructure();
     }
-  }, [isConnected, address, userId, syncWalletToSupabase, navigate, toast]);
+    // Exclude syncWalletToSupabase from deps to prevent re-fire loops.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, address, userId]);
 
   if (isInitializing) {
     return (
