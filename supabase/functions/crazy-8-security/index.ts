@@ -93,7 +93,7 @@ serve(async (req) => {
       throw new Error('Gemini API key not configured');
     }
 
-    if (!SECURITY_AGENTS[agent]) {
+    if (!(SECURITY_AGENTS as Record<string, any>)[agent]) {
       console.error('Crazy 8 Security: Unknown agent', agent);
       throw new Error(`Unknown security agent: ${agent}`);
     }
@@ -103,7 +103,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    console.log(`${SECURITY_AGENTS[agent].name} activated:`, { action });
+    console.log(`${(SECURITY_AGENTS as Record<string, any>)[agent].name} activated:`, { action });
 
     let response;
     
@@ -143,7 +143,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
-      agent: SECURITY_AGENTS[agent].name,
+      agent: (SECURITY_AGENTS as Record<string, any>)[agent].name,
       action,
       result: response,
       timestamp: new Date().toISOString(),
@@ -156,9 +156,10 @@ serve(async (req) => {
     });
 
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error('Error in Crazy 8 Security System:', error);
     return new Response(JSON.stringify({
-      error: error.message,
+      error: message,
       protocol: 'Crazy Friend Security',
       status: 'error'
     }), {
