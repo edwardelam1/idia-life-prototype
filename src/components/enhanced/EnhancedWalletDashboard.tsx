@@ -22,7 +22,7 @@ import SendRequestModal from "../SendRequestModal";
 import AddFundsModal from "../AddFundsModal";
 import { fireFinaleConfetti } from "../psychometric/confetti";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount, useSignMessage } from "wagmi";
+import { useAccount, useSignMessage, useBalance } from "wagmi";
 import {
   Wallet,
   CreditCard,
@@ -65,6 +65,13 @@ const EnhancedWalletDashboard: React.FC = () => {
   const { address: localAddress, isConnected: isLocalConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
 
+  // 3. MVP Sync: Directly query the Base USDC Smart Contract from the device
+  const { data: onChainUSDC } = useBalance({
+    address: localAddress as `0x${string}`,
+    token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base Native USDC
+    chainId: 8453, // Base Mainnet
+  });
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [creditSimulation, setCreditSimulation] = useState<CreditSimulation | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
@@ -79,13 +86,48 @@ const EnhancedWalletDashboard: React.FC = () => {
   const isProvisioned = !!displayAddress;
   const hasFBO = !!profile?.fbo_account_id;
 
+  // --- MVP Database Sync Engine ---
+  useEffect(() => {
+    const syncBlockchainToDatabase = async () => {
+      if (!profile?.user_id || !onChainUSDC) return;
+
+      const actualBalance = Number(onChainUSDC.formatted);
+
+      // Prevent infinite loops or redundant database hits if the balance already matches
+      if (walletBalance?.idia_beta_balance === actualBalance) return;
+
+      console.log(`▶️ [MVP_SYNC_START] Overwriting database ledger with on-chain truth. Target: $${actualBalance}`);
+
+      try {
+        const { error } = await supabase
+          .from("wallets")
+          .update({
+            idia_beta_balance: actualBalance,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", profile.user_id);
+
+        if (error) {
+          console.error("🚨 [MVP_SYNC_ERROR_START] Failed to push on-chain state to Supabase.");
+          console.error("🚨 [MVP_SYNC_ERROR_DETAILS]:", error.message);
+          console.error("🚨 [MVP_SYNC_ERROR_END] Database remains out of sync.");
+          throw error;
+        }
+
+        console.log(`⏹️ [MVP_SYNC_END] Successfully synchronized database to $${actualBalance}`);
+      } catch (err) {
+        console.error("🚨 [MVP_SYNC_FATAL] Unexpected exception during sync process.", err);
+      }
+    };
+
+    syncBlockchainToDatabase();
+  }, [onChainUSDC, profile?.user_id, walletBalance?.idia_beta_balance]);
+
+  // --- Native App Handshake ---
   useEffect(() => {
     const handleNativeAuthMessage = (event: MessageEvent) => {
       if (event.data?.type === "IDIA_AUTH_COMPLETE") {
         console.log("📱 [NATIVE_BRIDGE] Handshake Confirmed. Transitioning to Active Dashboard.");
-
-        // DYNAMIC NAVIGATION: Force a state refresh or route change
-        // This clears the "Linked" screen and pulls the fresh profile data
         window.location.href = "/dashboard";
       }
     };
@@ -93,7 +135,8 @@ const EnhancedWalletDashboard: React.FC = () => {
     window.addEventListener("message", handleNativeAuthMessage);
     return () => window.removeEventListener("message", handleNativeAuthMessage);
   }, []);
-  // Sync new local connections to the global Supabase truth
+
+  // --- Global State Synchronization ---
   useEffect(() => {
     if (isLocalConnected && localAddress && localAddress !== globalWalletAddress) {
       console.log(`🔗 [WEB3_WATCHER] Local connection detected. Pushing to global state: ${localAddress}`);
@@ -102,6 +145,7 @@ const EnhancedWalletDashboard: React.FC = () => {
     }
   }, [isLocalConnected, localAddress, globalWalletAddress, syncWalletToSupabase]);
 
+  // --- Transaction Fetching ---
   useEffect(() => {
     fetchTransactions();
   }, []);
