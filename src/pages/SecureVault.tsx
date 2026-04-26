@@ -16,6 +16,7 @@ const SecureVault = () => {
   const { syncWalletToSupabase } = useSovereignWallet(userId);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const hasSyncedRef = useRef(false);
 
   // 1. Retrieve the active Supabase session ID on mount
   useEffect(() => {
