@@ -24,7 +24,7 @@ import SecureVault from "./pages/SecureVault";
 // 1. Configure the Sovereign Bridge (RainbowKit/Wagmi)
 const config = getDefaultConfig({
   appName: "IDIA Life",
-  projectId: "IDIA_V1_PROTOTYPE", // WalletConnect Project ID
+  projectId: "IDIA_V1_PROTOTYPE",
   chains: [mainnet, base, polygon],
   transports: {
     [mainnet.id]: http(),
@@ -34,7 +34,15 @@ const config = getDefaultConfig({
   ssr: false,
 });
 
-const queryClient = new QueryClient();
+// Architectural Note: Defined outside to prevent re-instantiation on re-renders
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const App = () => {
   const [session, setSession] = useState<any>(null);
@@ -57,21 +65,16 @@ const App = () => {
     });
 
     return () => {
-      console.log("[CLEANUP] App Lifecycle: Unsubscribing from Auth Rail.");
       subscription.unsubscribe();
     };
   }, []);
 
-  if (!isFetched) {
-    return null;
-  }
+  if (!isFetched) return null;
 
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider theme={darkTheme({ accentColor: "#14b8a6" })}>
-          {" "}
-          {/* IDIA Teal Accent */}
           <ThemeProvider
             attribute="class"
             defaultTheme="dark"
@@ -84,20 +87,13 @@ const App = () => {
               <Sonner />
               <BrowserRouter>
                 <Routes>
-                  {/* --- PUBLIC ACCESS --- */}
                   <Route path="/auth" element={session ? <Navigate to="/" replace /> : <Auth />} />
-
-                  {/* --- PROTECTED CORE --- */}
                   <Route path="/" element={session ? <Index /> : <Navigate to="/auth" replace />} />
                   <Route path="/dashboard" element={session ? <Index /> : <Navigate to="/auth" replace />} />
                   <Route path="/onboarding" element={session ? <Onboarding /> : <Navigate to="/auth" replace />} />
                   <Route path="/settings" element={session ? <Settings /> : <Navigate to="/auth" replace />} />
-
-                  {/* --- THE SOVEREIGN AIRLOCK --- */}
                   <Route path="/secure-vault" element={session ? <SecureVault /> : <Navigate to="/auth" replace />} />
                   <Route path="/secure_vault" element={<Navigate to="/secure-vault" replace />} />
-
-                  {/* --- CATCH-ALL ROUTE --- */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </BrowserRouter>
