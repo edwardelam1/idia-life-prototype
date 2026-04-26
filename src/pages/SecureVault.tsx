@@ -1,5 +1,5 @@
 /** * [START] SecureVault: Sovereign Infrastructure Page
- * Logic: Circle SDK Initialization via Node Polyfill Engine
+ * Logic: Coinbase WaaS MPC Enclave Initialization
  */
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -12,37 +12,46 @@ const SecureVault = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const initCircleVault = async () => {
-      console.log("[START] initCircleVault: Executing Sequence");
+    const initCoinbaseVault = async () => {
+      console.log(`\n========== [START] initCoinbaseVault: Executing Sequence ==========`);
       try {
-        console.log("[INFO] Checking for Global Infrastructure...");
+        console.log(`[INFO] Checking for Global Infrastructure...`);
 
-        console.log("[START] Circle SDK: Instantiating W3SSdk");
-        const sdk = new W3SSdk(); // Corrected Casing
-        console.log("[END] Circle SDK: Instantiating W3SSdk");
+        const projectId = import.meta.env.VITE_COINBASE_CLIENT_ID || import.meta.env.VITE_COINBASE_PROJECT_ID;
+        if (!projectId) {
+          throw new Error("Missing Coinbase Client/Project ID in environment variables.");
+        }
+
+        console.log(`\n---> [START] Coinbase WaaS: Instantiating SDK`);
+
+        // Bootstrapping the Coinbase MPC Enclave natively
+        const waas = await Waas.init({ projectId });
+
+        console.log(`[SUCCESS] Coinbase WaaS SDK initialized successfully.`);
+        console.log(`<--- [END] Coinbase WaaS: Instantiating SDK (SUCCESS)`);
 
         // Infrastructure is primed.
         setIsInitializing(false);
       } catch (error: any) {
-        console.error("[FATAL] initCircleVault: Sequence Failure");
-        console.error(`[ERROR_DETAIL]: ${error.message}`);
+        console.error(`\n[FATAL ERROR] initCoinbaseVault: Sequence Failure`);
+        console.error(`[FATAL ERROR] Stack/Message: ${error.stack || error.message}`);
         toast({
           variant: "destructive",
           title: "Vault Infrastructure Failure",
-          description: "Could not initialize the secure enclave.",
+          description: "Could not initialize the secure MPC enclave.",
         });
       } finally {
-        console.log("[END] initCircleVault: Executing Sequence");
+        console.log(`========== [END] initCoinbaseVault: Executing Sequence ==========\n`);
       }
     };
 
-    initCircleVault();
+    initCoinbaseVault();
   }, [toast]);
 
   if (isInitializing) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-black">
-        <div className="text-gold animate-pulse text-sm tracking-widest">INITIALIZING SOVEREIGN VAULT...</div>
+        <div className="text-gold animate-pulse text-sm tracking-widest">BOOTSTRAPPING MPC ENCLAVE...</div>
       </div>
     );
   }
@@ -51,7 +60,7 @@ const SecureVault = () => {
     <div className="min-h-screen bg-black p-8">
       <header className="border-b border-white/10 pb-4 mb-8">
         <h1 className="text-2xl font-bold text-white tracking-tight">Sovereign Vault</h1>
-        <p className="text-xs text-white/40 uppercase tracking-widest mt-1">Infrastructure: Verified</p>
+        <p className="text-xs text-white/40 uppercase tracking-widest mt-1">Infrastructure: Verified (Coinbase MPC)</p>
       </header>
       {/* Vault UI Components Here */}
     </div>
