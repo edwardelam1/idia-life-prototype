@@ -5,13 +5,10 @@ import { componentTagger } from "lovable-tagger";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 
 export default defineConfig(({ mode }) => ({
-  server: {
-    host: "::",
-    port: 8080,
-  },
+  server: { host: "::", port: 8080 },
   plugins: [
     react(),
-    // This plugin physically maps Node built-ins to browser-safe versions
+    // This plugin solves the "Object prototype" error by properly polyfilling Node 'util'
     nodePolyfills({
       include: ["buffer", "util", "stream", "events", "process", "crypto"],
       globals: {
