@@ -148,17 +148,24 @@ const EnhancedWalletDashboard: React.FC = () => {
     syncBlockchainToDatabase();
   }, [onChainUSDC?.formatted, stableUserId, walletBalance?.idia_beta_balance]);
 
-  // --- Global Watcher gated by the stable ID ---
+  // --- Identity-gated, one-shot wallet link (loop-proof) ---
+  const linkedPairsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (!stableUserId) return;
+    if (!stableUserId || !isLocalConnected || !localAddress) return;
+    if (localAddress === globalWalletAddress) return;
 
-    if (isLocalConnected && localAddress && localAddress !== globalWalletAddress) {
-      console.log(`🔗 [WEB3_WATCHER] START: Linking Vault ${localAddress} to User ${stableUserId}.`);
-      syncWalletToSupabase(localAddress);
-      window.dispatchEvent(new CustomEvent("vault-linked", { detail: { address: localAddress } }));
-      console.log(`🔗 [WEB3_WATCHER] END: Link process dispatched.`);
-    }
-  }, [isLocalConnected, localAddress, globalWalletAddress, syncWalletToSupabase, stableUserId]);
+    const pairKey = `${stableUserId}:${localAddress.toLowerCase()}`;
+    if (linkedPairsRef.current.has(pairKey)) return;
+    linkedPairsRef.current.add(pairKey);
+
+    console.log(`🔗 [WEB3_WATCHER] START: One-shot link Vault ${localAddress} to User ${stableUserId}.`);
+    syncWalletToSupabase(localAddress);
+    window.dispatchEvent(new CustomEvent("vault-linked", { detail: { address: localAddress } }));
+    console.log(`🔗 [WEB3_WATCHER] END: Link process dispatched.`);
+    // Intentionally NOT depending on syncWalletToSupabase or globalWalletAddress
+    // to prevent re-firing on internal state changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLocalConnected, localAddress, stableUserId]);
 
   // --- Native App Handshake ---
   useEffect(() => {

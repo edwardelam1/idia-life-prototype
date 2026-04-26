@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 export const useSovereignWallet = (userId: string | undefined) => {
   const [globalWalletAddress, setGlobalWalletAddress] = useState<string | null>(null);
   const [isHydrating, setIsHydrating] = useState(true);
+  const inFlightRef = useRef(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -84,26 +85,53 @@ export const useSovereignWallet = (userId: string | undefined) => {
       return false;
     }
 
+    // Concurrency guard: prevents the failure→re-render→retry loop
+    if (inFlightRef.current) {
+      console.warn("🛑 [SUPABASE_SYNC_LOG] SKIP: Sync already in flight.");
+      return false;
+    }
+    inFlightRef.current = true;
+
     console.log(`\n🌐 [SUPABASE_SYNC_LOG] START: Committing wallet ${newAddress} for UserID: ${userId}`);
 
     try {
-      /**
-       * SURGICAL FIX FOR TS2769:
-       * 1. user_id is the logical identifier required for the profiles table.
-       * 2. id is used as the conflict target for the upsert logic.
-       */
-      const payload: any = {
-        id: userId,
-        user_id: userId, // Required by Database['public']['Tables']['profiles']['Insert']
-        wallet_address: newAddress,
-        updated_at: new Date().toISOString(),
-      };
+      // STEP 1: UPDATE-only path. The handle_new_user trigger guarantees the row exists.
+      // This avoids ever inserting a NULL account_type and tripping profiles_account_type_check.
+      const { data: updated, error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          wallet_address: newAddress,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", userId)
+        .select("id");
 
-      const { error } = await supabase.from("profiles").upsert(payload, { onConflict: "id" });
+      if (updateError) {
+        console.error("🚨 [SUPABASE_SYNC_LOG] UPDATE_ERROR:", updateError.message);
+        throw updateError;
+      }
 
-      if (error) {
-        console.error("🚨 [SUPABASE_SYNC_LOG] ERROR_DETAILS:", error.message);
-        throw error;
+      // STEP 2: Defensive fallback — if the trigger somehow hasn't run yet,
+      // upsert with ALL CHECK-constrained columns populated with safe defaults.
+      if (!updated || updated.length === 0) {
+        console.warn("⚠️ [SUPABASE_SYNC_LOG] No profile row found — creating with safe defaults.");
+        const { error: upsertError } = await supabase.from("profiles").upsert(
+          {
+            id: userId,
+            user_id: userId,
+            platform_guid: userId,
+            account_type: "individual", // satisfies profiles_account_type_check
+            ai_assistant_name: "Friend",
+            kyc_tier: 1,
+            wallet_address: newAddress,
+            updated_at: new Date().toISOString(),
+          } as any,
+          { onConflict: "id" },
+        );
+        if (upsertError) {
+          console.error("🚨 [SUPABASE_SYNC_LOG] FALLBACK_UPSERT_ERROR:", upsertError.message);
+          throw upsertError;
+        }
       }
 
       setGlobalWalletAddress(newAddress);
@@ -114,10 +142,12 @@ export const useSovereignWallet = (userId: string | undefined) => {
         description: "Sovereign identity aligned across all devices.",
       });
 
-      return true; // Added return to fix TS1345
+      return true;
     } catch (err: any) {
-      console.error("🚨 [SUPABASE_SYNC_LOG] FATAL: Sync failure.");
-      return false; // Added return to fix TS1345
+      console.error("🚨 [SUPABASE_SYNC_LOG] FATAL: Sync failure.", err?.message);
+      return false;
+    } finally {
+      inFlightRef.current = false;
     }
   };
 

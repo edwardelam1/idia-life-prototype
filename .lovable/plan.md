@@ -1,59 +1,33 @@
-# Sovereign Vault Purge & UI Scrub
+## Root cause
 
-## What changes for the user
+`profiles.account_type` has a CHECK constraint allowing only `'individual' | 'business'`. The `syncWalletToSupabase` upsert in `src/hooks/useSovereignWallet.ts` only sends `{ id, user_id, wallet_address, updated_at }`. When the row doesn't yet exist (race with the `handle_new_user` trigger, or any path where the profile insert hasn't materialized), Postgres performs an INSERT with `account_type = NULL` → CHECK violation → error → re-render → retry → loop.
 
-The wallet onboarding will read as a 100% non‑custodial bridge. Users **Link** an existing wallet (MetaMask, Coinbase Wallet, WalletConnect, etc. via RainbowKit) instead of "Initializing" anything. All "Provisioning" language is replaced with "Syncing Vault…", and the "Self-Custody" pillar is rebranded to "Vault Assets".
+A secondary issue: the sync is wired into `useEffect` dependencies (`syncWalletToSupabase`, `globalWalletAddress`) so every failure/state change re-fires it.
 
-## Audit findings (good news)
+## Fix
 
-A full search of `src/` shows the project is already mostly clean:
+### 1. `src/hooks/useSovereignWallet.ts`
+- Switch from `upsert` to a guarded **UPDATE-only** path against `profiles` (the row is guaranteed by the `handle_new_user` trigger). This removes any chance of inserting a row missing required CHECK columns.
+- If the UPDATE affects 0 rows, fall back to an upsert that includes safe defaults for all CHECK-constrained columns: `account_type: 'individual'`, plus `ai_assistant_name`, `kyc_tier`, `platform_guid`.
+- Add an internal guard so a second concurrent call short-circuits (prevents cascade loops).
+- Keep the realtime subscription read-only (no writes inside it).
 
-- **No `Enclave` / `Handshake` / `Provisioning` SDK sequences exist** — the only remaining matches are unrelated PII copy ("secure enclave" as a concept) and one local `isProvisioningFBO` loading flag.
-- **`wagmi` + RainbowKit are already wired** (`src/App.tsx`, `SecureVault.tsx`, `OnboardingModal.tsx`, `EnhancedWalletDashboard.tsx`).
-- **No app code reads `wallet_address` / `wallet_id`** — those columns only appear in the auto‑generated `src/integrations/supabase/types.ts`. App code already uses `profile.wallet_address` everywhere.
+### 2. `src/components/enhanced/EnhancedWalletDashboard.tsx`
+- Replace the auto-firing `useEffect` (lines ~152–161) with an **identity-gated, one-shot ref**: only call `syncWalletToSupabase` once per `(stableUserId, localAddress)` pair, tracked via a `useRef<Set<string>>`. Remove `syncWalletToSupabase` and `globalWalletAddress` from the dep array so a state change from the sync itself cannot retrigger it.
 
-So the work is small and surgical.
+### 3. `src/pages/SecureVault.tsx`
+- Same one-shot guard: track `hasSyncedRef` so `verifySovereignInfrastructure` commits the wallet exactly once per session, and remove `syncWalletToSupabase` from the `useEffect` deps.
 
-## Changes
+## Why this breaks the loop
 
-### 1. `package.json`
+- Eliminates the CHECK violation source (no more null `account_type` inserts).
+- Even if a write fails, the one-shot ref prevents re-entry; the UI surfaces a single toast instead of an infinite cycle.
+- The hook no longer mutates state inside an effect that depends on its own outputs.
 
-Remove the unused dependency:
+## Files touched
 
-- `@circle-fin/w3s-pw-web-sdk`
+- `src/hooks/useSovereignWallet.ts` — rewrite `syncWalletToSupabase` (UPDATE-first, safe-default fallback, in-flight guard).
+- `src/components/enhanced/EnhancedWalletDashboard.tsx` — one-shot ref gate, trimmed deps.
+- `src/pages/SecureVault.tsx` — one-shot ref gate, trimmed deps.
 
-### 2. `src/components/ui/OnboardingModal.tsx`
-
-- Rename `isProvisioningFBO` → `isSyncingFBO`.
-- FBO loading copy: show **"Syncing Vault…"** while pending.
-- Wallet button copy:
-  - Connected: **"Sovereign Vault Linked"**
-  - Disconnected: **"Link Sovereign Vault"** (was "Link Private Vault")
-  - Sub-label: **"Self‑custody via MetaMask, Coinbase Wallet, WalletConnect…"**
-- Explicitly import and use `useAccount` from `wagmi` at the top of the component to derive `isConnected` (in addition to RainbowKit's render‑prop), so the modal's connection state is driven by wagmi as the request requires.
-- Header copy stays "Sovereign Vault" (already correct).
-
-### 3. `src/components/enhanced/EnhancedWalletDashboard.tsx`
-
-- Three‑pillar balance card: rename the middle pillar label **"Self‑Custody"** → **"Vault Assets"**.
-- Security tab button:
-  - Connected: **"Manage Sovereign Vault"** (was "Manage External Vault")
-  - Disconnected: **"Link Sovereign Vault"** (was "Initialize Secure Vault")
-- Footer hint: **"Link a Sovereign Vault to enable liquidation"** (was "External Vault Link Required for Liquidation").
-- Continue using `useAccount` from wagmi (already imported) — no new logic needed; `wallet_address` is already the schema field in use.
-
-### 4. `src/components/MainApp.tsx`
-
-No code changes required — already keys off `profile.wallet_address` and `profile.fbo_account_id`. Verified.
-
-## Out of scope / intentionally not touched
-
-- **`src/integrations/supabase/types.ts`** — auto‑generated; the `circle_wallet_*` columns are dormant DB fields with no app references. Renaming the DB column would require a migration and is unrelated to the UI/SDK purge requested. Flagging for a future migration pass if desired.
-- **"Secure Enclave" PII copy** in `Onboarding.tsx` and `ProfileSettings.tsx` — refers to the iOS Secure Enclave for PII storage, not a Coinbase/Circle SDK sequence. Leaving as‑is.
-- No Node polyfills are added; the existing `Buffer` polyfill in `main.tsx` is unrelated to this purge and stays as it supports RainbowKit/wagmi's WalletConnect transport.
-
-## Technical constraint compliance
-
-- Native Web APIs only — nothing added.
-- No new bridge libraries; relies on existing `wagmi` + `@rainbow-me/rainbowkit`.
-- After approval, run `bun remove @circle-fin/w3s-pw-web-sdk` and verify `bun run build` succeeds.
+No DB migration required (constraint stays as-is; the app now respects it).

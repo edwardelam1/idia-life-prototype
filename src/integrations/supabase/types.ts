@@ -6318,6 +6318,10 @@ export type Database = {
         Args: { p_recorded_at: string; p_step_count: number; p_user_id: string }
         Returns: boolean
       }
+      commit_sovereign_handshake: {
+        Args: { p_user_id: string; p_wallet_address: string }
+        Returns: boolean
+      }
       community_pool_ledger: {
         Args: { p_fiat_amount: number; p_pseudo_id: string }
         Returns: undefined
@@ -6394,6 +6398,10 @@ export type Database = {
       }
       increment_fiat_balance: {
         Args: { amount_to_add: number; target_user_id: string }
+        Returns: undefined
+      }
+      increment_idia_beta_balance: {
+        Args: { increment_amount: number; x_user_id: string }
         Returns: undefined
       }
       increment_idia_life_balance: {

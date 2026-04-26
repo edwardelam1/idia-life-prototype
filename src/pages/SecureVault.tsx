@@ -1,7 +1,7 @@
 /** * [START] SecureVault: Sovereign Infrastructure Page
  * Logic: Self-Custodial Vault Verification, Database Sync & Hub Entry
  */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
 import { useToast } from "@/components/ui/use-toast";
@@ -16,6 +16,7 @@ const SecureVault = () => {
   const { syncWalletToSupabase } = useSovereignWallet(userId);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const hasSyncedRef = useRef(false);
 
   // 1. Retrieve the active Supabase session ID on mount
   useEffect(() => {
@@ -57,11 +58,11 @@ const SecureVault = () => {
 
         console.log(`[SUCCESS] Self-Custodial Vault Detected: ${address}`);
 
-        // If we have both the wallet and the Supabase user, commit the sync
-        if (address && userId) {
+        // If we have both the wallet and the Supabase user, commit the sync — once.
+        if (address && userId && !hasSyncedRef.current) {
+          hasSyncedRef.current = true;
           console.log(`[ACTION] Initiating Sovereign Sync for User: ${userId}`);
 
-          // Surgical Fix: Commit the address to the profile to unlock the Hub
           const success = await syncWalletToSupabase(address);
 
           if (success) {
@@ -72,7 +73,6 @@ const SecureVault = () => {
               description: "Sovereign vault bridged successfully.",
             });
 
-            // Redirect to the root dashboard now that the account is "locked in"
             console.log("[ACTION] Navigating to Hub Dashboard...");
             navigate("/");
           }
@@ -98,7 +98,9 @@ const SecureVault = () => {
     if (userId || !isConnected) {
       verifySovereignInfrastructure();
     }
-  }, [isConnected, address, userId, syncWalletToSupabase, navigate, toast]);
+    // Exclude syncWalletToSupabase from deps to prevent re-fire loops.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, address, userId]);
 
   if (isInitializing) {
     return (
