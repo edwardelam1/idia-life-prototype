@@ -8,8 +8,8 @@ export default defineConfig(({ mode }) => ({
   server: { host: "::", port: 8080 },
   plugins: [
     react(),
+    // Blanket polyfill without restrictive arrays to catch deep CJS dependencies (like 'jws' and 'stream')
     nodePolyfills({
-      include: ["buffer", "crypto", "stream", "util", "events", "process"],
       globals: {
         Buffer: true,
         global: true,
@@ -24,19 +24,20 @@ export default defineConfig(({ mode }) => ({
     },
   },
   define: {
-    // Ensures global is available at runtime
     global: "globalThis",
   },
-  build: {
-    commonjsOptions: {
-      transformMixedEsModules: true, // Fixes module.exports vs import collisions
-    },
-  },
   optimizeDeps: {
+    // FORCE Vite to pre-bundle the Circle SDK with the polyfills securely injected
+    include: ["@circle-fin/w3s-pw-web-sdk"],
     esbuildOptions: {
       define: {
         global: "globalThis",
       },
+    },
+  },
+  build: {
+    commonjsOptions: {
+      transformMixedEsModules: true,
     },
   },
 }));
