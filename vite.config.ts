@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
-  // This defines the globals that the Circle SDK is looking for
+  // Define 'global' and 'process' at the compiler level
   define: {
     global: "window",
     "process.env": {},
@@ -17,11 +17,12 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      // This forces Vite to use the npm 'buffer' package instead of the Node built-in
-      buffer: "buffer",
+      // This forces Vite to look at the actual npm package
+      buffer: path.resolve(__dirname, "node_modules/buffer/index.js"),
     },
   },
   optimizeDeps: {
+    // Explicitly include buffer to prevent externalization
     include: ["buffer"],
   },
 }));
