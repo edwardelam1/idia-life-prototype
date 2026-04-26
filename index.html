@@ -6,13 +6,14 @@
     <title>IDIA Life | Sovereign Vault</title>
 
     <script>
-      console.log("[START] index.html: Inline Polyfill Sequence");
-      window.global = window;
-      window.process = { env: { NODE_ENV: 'development' }, browser: true };
-    </script>
-      if (window.buffer) {
-        window.Buffer = window.buffer.Buffer;
-        console.log("[SUCCESS] index.html: window.Buffer hydrated via CDN.");
+      console.log(`\n========== [START] index.html: DOM Boot Sequence ==========`);
+      try {
+        console.log(`[INFO] [index.html] Native DOM parsed successfully.`);
+        console.log(`[INFO] [index.html] Awaiting Vite module bundler injection...`);
+      } catch (error) {
+        console.error(`[FATAL] [index.html] Exception during raw HTML execution: ${error.message}`);
+      } finally {
+        console.log(`========== [END] index.html: DOM Boot Sequence ==========\n`);
       }
     </script>
   </head>
