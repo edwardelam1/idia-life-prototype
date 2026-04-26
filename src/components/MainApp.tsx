@@ -45,7 +45,16 @@ const MainApp = () => {
       setAuditComplete(true);
     }
   }, [profile, profileLoading]);
+  useEffect(() => {
+    const handleVaultLinked = (event: any) => {
+      console.log("[SYNC] Immediate Vault Hydration:", event.detail.address);
+      setIsProvisioned((prev) => ({ ...prev, wallet: true }));
+      setAuditComplete(true);
+    };
 
+    window.addEventListener("vault-linked", handleVaultLinked);
+    return () => window.removeEventListener("vault-linked", handleVaultLinked);
+  }, []);
   // 3. THE "FLOOR SENSOR" - Respects Sovereign Override
   useEffect(() => {
     if (auditComplete && activeTab === "wallet" && !sovereignOverride) {
