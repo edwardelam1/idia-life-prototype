@@ -7,13 +7,17 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
   },
+  // STOP TRACING: Tell Vite/Rollup to ignore the internal variable mapping of these libs
   optimizeDeps: {
-    // [NO EXCEPTIONS] - Stop the engine from trying to "fix" these libraries
-    exclude: ["@rainbow-me/rainbowkit", "wagmi", "viem"],
+    include: ["react", "react-dom", "wagmi", "viem", "@rainbow-me/rainbowkit"],
   },
   build: {
-    commonjsOptions: {
-      include: [], // Disable CommonJS "trickery" entirely
+    rollupOptions: {
+      // If Rollup can't trace it, don't let it try
+      onwarn(warning, warn) {
+        if (warning.code === "CIRCULAR_DEPENDENCY") return;
+        warn(warning);
+      },
     },
   },
 });
