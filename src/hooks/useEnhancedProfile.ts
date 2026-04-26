@@ -23,8 +23,8 @@ export interface EnhancedProfile {
   updated_at: string;
   kyc_status?: string;
   ssn_last4?: string;
-  circle_user_id?: string | null; // ADD THIS
-  fbo_account_id?: string | null; // ADD THIS
+  wallet_address?: string; // ADD THIS LINE
+  fbo_account_id?: string;
   full_legal_address?: Record<string, any> | null;
 }
 
@@ -101,7 +101,7 @@ export const useEnhancedProfile = () => {
           updated_at: p.updated_at,
           kyc_status: p.kyc_status || "pending",
           ssn_last4: p.ssn_last4 || null,
-          circle_user_id: p.circle_user_id || null,
+          
           fbo_account_id: p.fbo_account_id || null,
         });
       }

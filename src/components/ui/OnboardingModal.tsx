@@ -1,81 +1,33 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, ShieldCheck, Landmark, ArrowRight, Zap, Loader2, Activity, AlertCircle } from "lucide-react";
+import { X, ShieldCheck, Landmark, ArrowRight, Zap, Loader2, Activity, AlertCircle, Wallet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Waas } from "@coinbase/waas-sdk-web";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useAccount } from "wagmi";
 
 interface OnboardingModalProps {
   isVisible: boolean;
   onClose: () => void;
-  needsWallet: boolean; // Renamed from needsCircle
+  needsWallet: boolean;
   needsFBO: boolean;
 }
 
 const OnboardingModal = ({ isVisible, onClose, needsWallet, needsFBO }: OnboardingModalProps) => {
-  const [isProvisioningMPC, setIsProvisioningMPC] = useState(false);
-  const [isProvisioningFBO, setIsProvisioningFBO] = useState(false);
+  const [isSyncingFBO, setIsSyncingFBO] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const navigate = useNavigate();
+  // Drive vault connection state from wagmi (self-custody, non-custodial)
+  const { isConnected: vaultLinked } = useAccount();
 
   if (!isVisible) return null;
 
-  /**
-   * SOVEREIGN MPC HYDRATION
-   * Logic: Direct Coinbase WaaS handshake using Supabase JWT
-   */
-  const handleCoinbaseSetup = async () => {
-    setIsProvisioningMPC(true);
-    setLoadError(null);
-    console.log(`\n========== [START] Onboarding: MPC Handshake Sequence ==========`);
-
-    try {
-      // 1. Capture Identity
-      console.log(`[INFO] [Step 1] Requesting active Supabase session...`);
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
-
-      if (sessionError || !session?.access_token) {
-        console.error(`[FATAL] [Step 1] Supabase session rejected.`);
-        throw new Error("Unauthorized: Identity verification failed.");
-      }
-      console.log(`[SUCCESS] [Step 1] Supabase JWT verified.`);
-
-      // 2. Initialize Coinbase Enclave
-      console.log(`[INFO] [Step 2] Initializing Coinbase WaaS...`);
-      const projectId = import.meta.env.VITE_COINBASE_CLIENT_ID || import.meta.env.VITE_COINBASE_PROJECT_ID;
-      if (!projectId) throw new Error("Infrastructure Error: Missing Coinbase Project ID.");
-
-      const waas = await Waas.init({ projectId });
-      console.log(`[SUCCESS] [Step 2] Coinbase Enclave online.`);
-
-      // 3. Authenticate and Redirect
-      console.log(`[INFO] [Step 3] Mapping Identity to MPC Share...`);
-      await waas.auth.loginWithJwt(session.access_token);
-
-      console.log(`[SUCCESS] [Step 3] Enclave authenticated. Redirecting to Secure Vault...`);
-      console.log(`========== [END] Onboarding: MPC Handshake Sequence (SUCCESS) ==========\n`);
-
-      // Redirect to the Secure Vault page where the wallet is generated/displayed
-      navigate(`/secure-vault`);
-      onClose();
-    } catch (error: any) {
-      console.error(`\n[FATAL ERROR] Onboarding Pipeline Severed`);
-      console.error(`[FATAL ERROR] Stack/Message: ${error.message}`);
-      setLoadError(error.message);
-      setIsProvisioningMPC(false);
-      console.log(`========== [END] Onboarding: MPC Handshake Sequence (ABORTED) ==========\n`);
-    }
-  };
-
   const handleFBOSetup = async () => {
-    setIsProvisioningFBO(true);
+    setIsSyncingFBO(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
     } finally {
-      setIsProvisioningFBO(false);
+      setIsSyncingFBO(false);
     }
   };
 
@@ -91,7 +43,7 @@ const OnboardingModal = ({ isVisible, onClose, needsWallet, needsFBO }: Onboardi
         <div className="p-6 border-b border-border bg-gradient-to-br from-primary/5 to-transparent">
           <button
             onClick={onClose}
-            disabled={isProvisioningMPC || isProvisioningFBO}
+            disabled={isSyncingFBO}
             className="absolute top-4 right-4 p-1 rounded-full hover:bg-muted transition-colors disabled:opacity-50"
           >
             <X className="w-5 h-5 text-muted-foreground" />
@@ -102,7 +54,7 @@ const OnboardingModal = ({ isVisible, onClose, needsWallet, needsFBO }: Onboardi
             </div>
             <h2 className="text-xl font-bold tracking-tight text-foreground">Sovereign Vault</h2>
           </div>
-          <p className="text-sm text-muted-foreground">Secure non-custodial MPC provisioning.</p>
+          <p className="text-sm text-muted-foreground">Link your self-custodial infrastructure.</p>
         </div>
 
         <div className="p-6 space-y-4">
@@ -114,43 +66,57 @@ const OnboardingModal = ({ isVisible, onClose, needsWallet, needsFBO }: Onboardi
           )}
 
           {needsWallet && (
-            <button
-              onClick={handleCoinbaseSetup}
-              disabled={isProvisioningMPC || isProvisioningFBO}
-              className="w-full group relative flex items-center p-4 bg-secondary/50 hover:bg-secondary border border-border hover:border-primary/50 rounded-xl transition-all duration-200 disabled:opacity-50"
-            >
-              <div className="mr-4 p-2 bg-blue-500/10 rounded-full">
-                {isProvisioningMPC ? (
-                  <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
-                ) : (
-                  <Zap className="w-5 h-5 text-blue-500" />
-                )}
-              </div>
-              <div className="flex-1 text-left">
-                <span className="font-semibold block text-foreground">Sovereign MPC Wallet</span>
-                <p className="text-xs text-muted-foreground">
-                  {isProvisioningMPC ? "Hydrating Enclave..." : "Non-Custodial Coinbase Bridge"}
-                </p>
-              </div>
-              {!isProvisioningMPC && <ArrowRight className="w-4 h-4 text-muted-foreground" />}
-            </button>
+            <ConnectButton.Custom>
+              {({ account, chain, openConnectModal, mounted }) => {
+                const ready = mounted;
+                const connected = ready && account && chain && vaultLinked;
+
+                return (
+                  <button
+                    onClick={() => {
+                      console.log(`[START] Onboarding: Linking Sovereign Vault (self-custody)`);
+                      openConnectModal();
+                    }}
+                    type="button"
+                    className="w-full group relative flex items-center p-4 bg-secondary/50 hover:bg-secondary border border-border hover:border-primary/50 rounded-xl transition-all duration-200"
+                  >
+                    <div className="mr-4 p-2 bg-blue-500/10 rounded-full">
+                      <Zap className="w-5 h-5 text-blue-500" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <span className="font-semibold block text-foreground">
+                        {connected ? "Sovereign Vault Linked" : "Link Sovereign Vault"}
+                      </span>
+                      <p className="text-xs text-muted-foreground">
+                        {connected
+                          ? account.displayName
+                          : "Self-custody via MetaMask, Coinbase Wallet, WalletConnect…"}
+                      </p>
+                    </div>
+                    {!connected && <ArrowRight className="w-4 h-4 text-muted-foreground" />}
+                  </button>
+                );
+              }}
+            </ConnectButton.Custom>
           )}
 
           {needsFBO && (
             <button
               onClick={handleFBOSetup}
-              disabled={isProvisioningMPC || isProvisioningFBO}
+              disabled={isSyncingFBO}
               className="w-full group flex items-center p-4 bg-secondary/50 hover:bg-secondary border border-border rounded-xl transition-all disabled:opacity-50"
             >
               <div className="mr-4 p-2 bg-green-500/10 rounded-full">
-                {isProvisioningFBO ? (
+                {isSyncingFBO ? (
                   <Loader2 className="w-5 h-5 text-green-500 animate-spin" />
                 ) : (
                   <Landmark className="w-5 h-5 text-green-500" />
                 )}
               </div>
               <div className="flex-1 text-left">
-                <span className="font-semibold block text-foreground">Fiat Rail (FBO)</span>
+                <span className="font-semibold block text-foreground">
+                  {isSyncingFBO ? "Syncing Vault…" : "Fiat Rail (FBO)"}
+                </span>
                 <p className="text-xs text-muted-foreground">Link banking</p>
               </div>
             </button>
