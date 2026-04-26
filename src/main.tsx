@@ -10,6 +10,10 @@ console.log("[START] main.tsx: Initializing Sovereign Vault");
 
 const container = document.getElementById("root");
 
+// @ts-ignore
+import { Buffer } from "buffer/";
+window.Buffer = Buffer;
+
 if (container) {
   try {
     console.log("[START] React Mount Sequence");
