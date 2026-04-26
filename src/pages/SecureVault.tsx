@@ -20,10 +20,21 @@ const SecureVault = () => {
   // 1. Retrieve the active Supabase session ID on mount
   useEffect(() => {
     const fetchSession = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) setUserId(user.id);
+      console.log("[START] fetchSession: Retrieving Auth User");
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          setUserId(user.id);
+          console.log(`[SUCCESS] fetchSession: User identified as ${user.id}`);
+        } else {
+          console.warn("[WARN] fetchSession: No active session found.");
+        }
+      } catch (error) {
+        console.error("[ERROR] fetchSession: Failed to retrieve user", error);
+      }
+      console.log("[END] fetchSession: Sequence complete");
     };
     fetchSession();
   }, []);
@@ -49,6 +60,8 @@ const SecureVault = () => {
         // If we have both the wallet and the Supabase user, commit the sync
         if (address && userId) {
           console.log(`[ACTION] Initiating Sovereign Sync for User: ${userId}`);
+
+          // Surgical Fix: Commit the address to the profile to unlock the Hub
           await syncWalletToSupabase(address);
 
           console.log(`[SUCCESS] IDIA Infrastructure Handshake: Complete.`);
@@ -59,7 +72,10 @@ const SecureVault = () => {
           });
 
           // Redirect to the root dashboard now that the account is "locked in"
+          console.log("[ACTION] Navigating to Hub Dashboard...");
           navigate("/");
+        } else if (!userId) {
+          console.warn("[STALL] verifySovereignInfrastructure: Waiting for Auth userId...");
         }
 
         setIsInitializing(false);
