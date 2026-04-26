@@ -67,8 +67,8 @@ const App = () => {
   }
 
   return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={queryClient}>
+      <WagmiProvider config={config}>
         <RainbowKitProvider theme={darkTheme({ accentColor: "#14b8a6" })}>
           {" "}
           {/* IDIA Teal Accent */}
