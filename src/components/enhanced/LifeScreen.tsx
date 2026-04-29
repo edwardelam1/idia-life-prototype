@@ -29,7 +29,7 @@ import {
 
 // Resolve the user's tier color for the NFC color wash
 function tierColorForScore(score: number | null | undefined): string {
-  if (score === null || score === undefined || score === 0) return "hsla(200, 80%, 70%, 0.6)";
+  if (score === null || score === undefined || score === 0) return "hsla(200, 80%, 70%, 0.1)";
   if (score <= 110) return "hsl(0, 0%, 100%)";
   if (score <= 220) return "hsl(48, 95%, 55%)";
   if (score <= 330) return "hsl(145, 75%, 45%)";
