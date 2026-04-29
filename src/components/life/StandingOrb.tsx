@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 interface StandingOrbProps {
   score: number | null | undefined;
+  size?: number;
 }
 
 type TierName =
@@ -87,7 +88,7 @@ const TIER_LABEL: Record<TierName, string> = {
   vantablack: "Architect",
 };
 
-export default function StandingOrb({ score }: StandingOrbProps) {
+export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
   const orbRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const angleRef = useRef(0);
@@ -224,8 +225,8 @@ export default function StandingOrb({ score }: StandingOrbProps) {
         onPointerCancel={handlePointerUp}
         className="relative cursor-grab active:cursor-grabbing"
         style={{
-          width: "240px",
-          height: "240px",
+          width: `${size}px`,
+          height: `${size}px`,
           borderRadius: "50%",
           background: orbBackground,
           boxShadow: `0 20px 60px -10px ${tier.glow}, inset -20px -30px 60px hsla(0,0%,0%,0.25), inset 15px 20px 40px hsla(0,0%,100%,0.25)`,
@@ -266,8 +267,8 @@ export default function StandingOrb({ score }: StandingOrbProps) {
         )}
       </div>
 
-      <p className="mt-6 text-xs uppercase tracking-[0.3em] text-muted-foreground">Your Standing</p>
-      <p className="mt-1 text-sm font-medium text-foreground">{TIER_LABEL[tier.name]}</p>
+      <p className="mt-3 text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Your Standing</p>
+      <p className="mt-0.5 text-sm font-medium text-foreground">{TIER_LABEL[tier.name]}</p>
 
       <style>{`
         @keyframes orb-shimmer {
