@@ -1,33 +1,62 @@
-## Root cause
+## Problem
 
-`profiles.account_type` has a CHECK constraint allowing only `'individual' | 'business'`. The `syncWalletToSupabase` upsert in `src/hooks/useSovereignWallet.ts` only sends `{ id, user_id, wallet_address, updated_at }`. When the row doesn't yet exist (race with the `handle_new_user` trigger, or any path where the profile insert hasn't materialized), Postgres performs an INSERT with `account_type = NULL` → CHECK violation → error → re-render → retry → loop.
+The `wallets` table schema changed:
+- `idia_beta_balance` (numeric) was **renamed/replaced** by `stablecoin_balance` (**bigint, micro-USDC** — i.e. on-chain 6-decimal units, where `1_000_000` = `$1.00 USDC`).
+- `idia_usd_balance` (numeric, dollars) still exists separately.
 
-A secondary issue: the sync is wired into `useEffect` dependencies (`syncWalletToSupabase`, `globalWalletAddress`) so every failure/state change re-fires it.
+The frontend and two DB functions still reference the old `idia_beta_balance` column. This is silently breaking USDC display (returns 0/null) and any RPC call to `set_usdc_balance` / `increment_idia_beta_balance` will throw "column does not exist".
 
-## Fix
+## Files affected
 
-### 1. `src/hooks/useSovereignWallet.ts`
-- Switch from `upsert` to a guarded **UPDATE-only** path against `profiles` (the row is guaranteed by the `handle_new_user` trigger). This removes any chance of inserting a row missing required CHECK columns.
-- If the UPDATE affects 0 rows, fall back to an upsert that includes safe defaults for all CHECK-constrained columns: `account_type: 'individual'`, plus `ai_assistant_name`, `kyc_tier`, `platform_guid`.
-- Add an internal guard so a second concurrent call short-circuits (prevents cascade loops).
-- Keep the realtime subscription read-only (no writes inside it).
+**Frontend (read/display old column):**
+- `src/hooks/useWalletBalance.ts` — `WalletBalance` type, `ZERO_FLOOR`, `applyRow`, and the `.select(...)` query
+- `src/components/WalletDashboard.tsx` — renders `balance.idia_beta_balance`
+- `src/components/enhanced/EnhancedWalletDashboard.tsx` — sync-to-Supabase block writes `idia_beta_balance` and the UI reads `walletBalance?.idia_beta_balance`
+- `src/components/enhanced/EnhancedProfileSettings.tsx` — renders `balance.idia_beta_balance`
 
-### 2. `src/components/enhanced/EnhancedWalletDashboard.tsx`
-- Replace the auto-firing `useEffect` (lines ~152–161) with an **identity-gated, one-shot ref**: only call `syncWalletToSupabase` once per `(stableUserId, localAddress)` pair, tracked via a `useRef<Set<string>>`. Remove `syncWalletToSupabase` and `globalWalletAddress` from the dep array so a state change from the sync itself cannot retrigger it.
+**Database functions (still target dropped column):**
+- `public.set_usdc_balance(p_user_id, p_micro_balance, p_block_number)`
+- `public.increment_idia_beta_balance(x_user_id, increment_amount)`
 
-### 3. `src/pages/SecureVault.tsx`
-- Same one-shot guard: track `hasSyncedRef` so `verifySovereignInfrastructure` commits the wallet exactly once per session, and remove `syncWalletToSupabase` from the `useEffect` deps.
+## Plan
 
-## Why this breaks the loop
+### 1. Fix DB functions (migration)
+Rewrite both functions to write to `stablecoin_balance` instead of `idia_beta_balance`. Rename `increment_idia_beta_balance` → `increment_stablecoin_balance` (keep a thin wrapper with the old name for one release so any in-flight callers don't break, then we can drop it later).
 
-- Eliminates the CHECK violation source (no more null `account_type` inserts).
-- Even if a write fails, the one-shot ref prevents re-entry; the UI surfaces a single toast instead of an infinite cycle.
-- The hook no longer mutates state inside an effect that depends on its own outputs.
+`set_usdc_balance` already takes a `bigint` micro amount, so it just needs the column rename — no unit math change.
 
-## Files touched
+`increment_stablecoin_balance` should take a `bigint` micro amount (changing from `numeric`) so increments stay in the same unit as the stored value.
 
-- `src/hooks/useSovereignWallet.ts` — rewrite `syncWalletToSupabase` (UPDATE-first, safe-default fallback, in-flight guard).
-- `src/components/enhanced/EnhancedWalletDashboard.tsx` — one-shot ref gate, trimmed deps.
-- `src/pages/SecureVault.tsx` — one-shot ref gate, trimmed deps.
+### 2. Update `useWalletBalance.ts`
+- Rename interface field `idia_beta_balance` → `stablecoin_usdc` (a `number` representing **dollars**, not micro).
+- Change the query to `.select("cash_balance, stablecoin_balance, idia_token_balance")`.
+- In `applyRow`, convert micro → dollars: `Number(row.stablecoin_balance) / 1_000_000`.
+- Update realtime payload handler the same way (it reuses `applyRow` so it's automatic).
 
-No DB migration required (constraint stays as-is; the app now respects it).
+### 3. Update consumers to use the new field
+- `WalletDashboard.tsx` line 192 → `balance.stablecoin_usdc.toFixed(2)`
+- `EnhancedProfileSettings.tsx` line 296 → `balance.stablecoin_usdc.toFixed(2)`
+- `EnhancedWalletDashboard.tsx`:
+  - line 359 display → `walletBalance?.stablecoin_usdc?.toFixed(2)`
+  - sync block (lines ~111–149): compare/write in micro units. The on-chain `onChainUSDC.formatted` is dollars → convert to micro with `Math.round(Number(onChainUSDC.formatted) * 1_000_000)` before writing to `stablecoin_balance`. Compare against `walletBalance?.stablecoin_usdc` (dollars) to short-circuit.
+  - dependency array updated to `walletBalance?.stablecoin_usdc`.
+
+### 4. Note on `idia_usd_balance`
+Leave `useEnhancedProfile.ts` as-is — it already correctly reads `idia_usd_balance` (the separate dollar-denominated rewards bucket). That column was not changed.
+
+### 5. Types regen
+`src/integrations/supabase/types.ts` is auto-managed and will refresh after the migration. No manual edit.
+
+## Technical details
+
+```text
+OLD: wallets.idia_beta_balance (numeric, dollars)
+NEW: wallets.stablecoin_balance (bigint, micro-USDC: value / 1e6 = USD)
+     wallets.idia_usd_balance   (numeric, dollars — unchanged, separate bucket)
+     wallets.usdc_last_synced_at, usdc_last_block (sync metadata — already used by set_usdc_balance)
+```
+
+Display rule everywhere in the wallet UI: `usd = stablecoin_balance / 1_000_000`, formatted with `.toFixed(2)`.
+Write rule from on-chain reads: `micro = Math.round(dollars * 1_000_000)`.
+
+After approval I'll run the migration for the two functions, then make the four frontend edits.
