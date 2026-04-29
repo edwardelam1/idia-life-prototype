@@ -42,15 +42,8 @@ function tierColorForScore(score: number | null | undefined): string {
 }
 
 const LifeScreen: React.FC = () => {
-  const {
-    friends,
-    trustCircles,
-    goodDeeds,
-    socialMetrics,
-    loading,
-    submitGoodDeed,
-    acceptFriendRequest,
-  } = useSocialGraph();
+  const { friends, trustCircles, goodDeeds, socialMetrics, loading, submitGoodDeed, acceptFriendRequest } =
+    useSocialGraph();
 
   const { profile, updateProfile, loading: profileLoading } = useEnhancedProfile();
 
@@ -159,7 +152,7 @@ const LifeScreen: React.FC = () => {
                   <div className="space-y-1">
                     <h3 className="font-semibold flex items-center gap-2 text-foreground">
                       <BrainCircuit className="w-4 h-4 text-teal-600" />
-                      Refine your standing
+                      Establish Your Standing
                     </h3>
                     <p className="text-xs text-muted-foreground max-w-[16rem]">
                       Complete your psychometric validation to deepen the chromatic resolution of your standing.
