@@ -1,62 +1,56 @@
-## Problem
+# Life Screen — Zero-Scroll Mobile Refactor
 
-The `wallets` table schema changed:
-- `idia_beta_balance` (numeric) was **renamed/replaced** by `stablecoin_balance` (**bigint, micro-USDC** — i.e. on-chain 6-decimal units, where `1_000_000` = `$1.00 USDC`).
-- `idia_usd_balance` (numeric, dollars) still exists separately.
+Scope: ONLY `src/components/enhanced/LifeScreen.tsx` and `src/components/life/StandingOrb.tsx`. No changes to hooks, finances, or other pages.
 
-The frontend and two DB functions still reference the old `idia_beta_balance` column. This is silently breaking USDC display (returns 0/null) and any RPC call to `set_usdc_balance` / `increment_idia_beta_balance` will throw "column does not exist".
+## 1. Layout & Viewport (Zero-Scroll)
 
-## Files affected
+- Replace `LifeScreen.tsx` root `<div className="space-y-4">` with a flex column constrained to the available viewport: `h-full max-h-full overflow-hidden flex flex-col`.
+- Wrap inside an outer container that uses `h-[100dvh]`/`h-full` minus the header + bottom nav already accounted for by `MainApp.tsx`'s `<main>` (which gives us a clipped flex region). We add `overflow-hidden` at the Life root so nothing scrolls.
+- Tabs region: `Tabs` becomes `flex-1 min-h-0 flex flex-col`; `TabsContent` uses `flex-1 min-h-0 overflow-hidden` (no scroll). The Overview tab content is shrunk to fit.
+- Remove the outer `space-y-4`; use compact `gap-2` / `gap-3`.
+- Wrap layout init in:
+  ```ts
+  useLayoutEffect(() => {
+    console.log("[VIEWPORT_CALIBRATION_START]");
+    return () => console.log("[VIEWPORT_CALIBRATION_END]");
+  }, []);
+  ```
 
-**Frontend (read/display old column):**
-- `src/hooks/useWalletBalance.ts` — `WalletBalance` type, `ZERO_FLOOR`, `applyRow`, and the `.select(...)` query
-- `src/components/WalletDashboard.tsx` — renders `balance.idia_beta_balance`
-- `src/components/enhanced/EnhancedWalletDashboard.tsx` — sync-to-Supabase block writes `idia_beta_balance` and the UI reads `walletBalance?.idia_beta_balance`
-- `src/components/enhanced/EnhancedProfileSettings.tsx` — renders `balance.idia_beta_balance`
+## 2. Component Scaling
 
-**Database functions (still target dropped column):**
-- `public.set_usdc_balance(p_user_id, p_micro_balance, p_block_number)`
-- `public.increment_idia_beta_balance(x_user_id, increment_amount)`
+- `StandingOrb`: accept an optional `size` prop (default 240px). Pass `size={180}` from LifeScreen so it fits comfortably on iPhone 15/Pro alongside the action card and NFC button. Reduce orb label margins (`mt-6` → `mt-3`, `mt-1` → `mt-0.5`).
+- Standing card padding: `p-8` → `p-4`. Inner gap `gap-8` → `gap-3`. Stack vertically on mobile (already `flex-col md:flex-row`).
+- Metric cards row (Reciprocity / Vitality / Network Size): keep but compact — `text-2xl` → `text-lg`, `CardHeader pb-2` → `pb-1`, `CardContent` padding tightened. These remain only if they fit; if not, collapse into a single row of compact stats with no card chrome.
 
-## Plan
+## 3. Content Removal
 
-### 1. Fix DB functions (migration)
-Rewrite both functions to write to `stablecoin_balance` instead of `idia_beta_balance`. Rename `increment_idia_beta_balance` → `increment_stablecoin_balance` (keep a thin wrapper with the old name for one release so any in-flight callers don't break, then we can drop it later).
+- Delete the entire "Recent Activity" `<Card>` block and its `goodDeeds.slice(0,5).map(...)` rendering from the Overview tab.
+- Delete the `<h1>Life</h1>` page title from the top of the screen.
+- The header row that previously held title + NFC button is removed entirely — NFC moves into the standing card (see §4).
 
-`set_usdc_balance` already takes a `bigint` micro amount, so it just needs the column rename — no unit math change.
+## 4. NFC Relocation Into Standing Card
 
-`increment_stablecoin_balance` should take a `bigint` micro amount (changing from `numeric`) so increments stay in the same unit as the stored value.
+- Remove `<NFCHandshake />` from the page header.
+- Inside the standing card's right-side action panel (the `bg-teal-50/50` block containing "Establish Your Standing" + "Take our Tests" button), append the NFC button approximately 24–32px below the "Take our Tests" button using `mt-7` (~28px) and a subtle divider `border-t border-teal-100 pt-4`.
+- Wrap relocation in:
+  ```ts
+  useEffect(() => {
+    console.log("[NFC_UI_RELOCATION_SYNC_START]");
+    return () => console.log("[NFC_UI_RELOCATION_SYNC_END]");
+  }, []);
+  ```
 
-### 2. Update `useWalletBalance.ts`
-- Rename interface field `idia_beta_balance` → `stablecoin_usdc` (a `number` representing **dollars**, not micro).
-- Change the query to `.select("cash_balance, stablecoin_balance, idia_token_balance")`.
-- In `applyRow`, convert micro → dollars: `Number(row.stablecoin_balance) / 1_000_000`.
-- Update realtime payload handler the same way (it reuses `applyRow` so it's automatic).
+## 5. Other Tabs
 
-### 3. Update consumers to use the new field
-- `WalletDashboard.tsx` line 192 → `balance.stablecoin_usdc.toFixed(2)`
-- `EnhancedProfileSettings.tsx` line 296 → `balance.stablecoin_usdc.toFixed(2)`
-- `EnhancedWalletDashboard.tsx`:
-  - line 359 display → `walletBalance?.stablecoin_usdc?.toFixed(2)`
-  - sync block (lines ~111–149): compare/write in micro units. The on-chain `onChainUSDC.formatted` is dollars → convert to micro with `Math.round(Number(onChainUSDC.formatted) * 1_000_000)` before writing to `stablecoin_balance`. Compare against `walletBalance?.stablecoin_usdc` (dollars) to short-circuit.
-  - dependency array updated to `walletBalance?.stablecoin_usdc`.
+- Connections / Trust Circles / Good Deeds tabs: wrap their inner list in `overflow-y-auto` ONLY within the tab body (the tab body itself stays clipped within the viewport). This keeps the page itself non-scrolling while allowing list content to scroll inside the bounded tab pane. (User said zero scrolling — interpretation: the page/main view never scrolls; bounded list panes inside a tab are still constrained to the same viewport region.) If user prefers truly no scroll anywhere, lists will be capped by `max-h-full overflow-hidden` and overflow visually clipped.
 
-### 4. Note on `idia_usd_balance`
-Leave `useEnhancedProfile.ts` as-is — it already correctly reads `idia_usd_balance` (the separate dollar-denominated rewards bucket). That column was not changed.
+## 6. Constraints Honored
 
-### 5. Types regen
-`src/integrations/supabase/types.ts` is auto-managed and will refresh after the migration. No manual edit.
+- No edits to `useSocialGraph`, `useEnhancedProfile`, finances, wallet, or any other page.
+- All physics, NFC handshake, color wash, and IDIA edge-function logic preserved.
+- Granular paired logs added: `[VIEWPORT_CALIBRATION_START/END]`, `[NFC_UI_RELOCATION_SYNC_START/END]`. Existing `[ORB_*]`, `[NFC_HANDSHAKE_*]`, `[STANDING_SYNC_*]` logs untouched.
 
-## Technical details
+## Files Changed
 
-```text
-OLD: wallets.idia_beta_balance (numeric, dollars)
-NEW: wallets.stablecoin_balance (bigint, micro-USDC: value / 1e6 = USD)
-     wallets.idia_usd_balance   (numeric, dollars — unchanged, separate bucket)
-     wallets.usdc_last_synced_at, usdc_last_block (sync metadata — already used by set_usdc_balance)
-```
-
-Display rule everywhere in the wallet UI: `usd = stablecoin_balance / 1_000_000`, formatted with `.toFixed(2)`.
-Write rule from on-chain reads: `micro = Math.round(dollars * 1_000_000)`.
-
-After approval I'll run the migration for the two functions, then make the four frontend edits.
+- `src/components/enhanced/LifeScreen.tsx` — refactor JSX, remove activity + title, relocate NFC, add layout logs.
+- `src/components/life/StandingOrb.tsx` — add optional `size` prop; tighten label spacing.
