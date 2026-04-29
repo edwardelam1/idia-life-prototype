@@ -4,7 +4,7 @@ import { Wallet, Database, Users, ShoppingBag, Vote, Crown } from "lucide-react"
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile"; // Import the hook
 import EnhancedWalletDashboard from "./enhanced/EnhancedWalletDashboard";
 import DataDashboard from "./DataDashboard";
-import EnhancedSocialScreen from "./enhanced/EnhancedSocialScreen";
+import LifeScreen from "./enhanced/LifeScreen";
 import ShopScreen from "./ShopScreen";
 import GovernanceScreen from "./GovernanceScreen";
 import ProScreen from "./pro/ProScreen";
@@ -13,7 +13,7 @@ import FriendAssistant from "./FriendAssistant";
 import OnboardingModal from "./ui/OnboardingModal";
 
 const MainApp = () => {
-  const [activeTab, setActiveTab] = useState("data");
+  const [activeTab, setActiveTab] = useState("life");
   const [showFriend, setShowFriend] = useState(false);
   const [friendTrigger, setFriendTrigger] = useState<"social" | "wallet" | "data" | "achievement" | undefined>();
 
@@ -77,7 +77,7 @@ const MainApp = () => {
 
   // AI Assistant Triggers
   useEffect(() => {
-    if (activeTab === "social") {
+    if (activeTab === "life") {
       setFriendTrigger("social");
       setShowFriend(true);
     } else if (friendTrigger === "social") {
@@ -99,7 +99,7 @@ const MainApp = () => {
   const tabs = [
     { id: "wallet", label: "Wallet", icon: Wallet, component: EnhancedWalletDashboard },
     { id: "data", label: "My Data", icon: Database, component: DataDashboard },
-    { id: "social", label: "Social", icon: Users, component: EnhancedSocialScreen },
+    { id: "life", label: "Life", icon: Users, component: LifeScreen },
     { id: "shop", label: "Shop", icon: ShoppingBag, component: ShopScreen },
     { id: "vote", label: "Vote", icon: Vote, component: GovernanceScreen },
     { id: "pro", label: "Pro", icon: Crown, component: ProScreen },

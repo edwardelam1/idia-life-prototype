@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useSocialGraph } from "@/hooks/useSocialGraph";
@@ -12,45 +12,55 @@ import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
 import { supabase } from "@/integrations/supabase/client";
 import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter";
 import { fireGraffitiConfetti, fireFinaleConfetti } from "../psychometric/confetti";
+import StandingOrb from "../life/StandingOrb";
+import NFCHandshake from "../life/NFCHandshake";
 import {
   Users,
   Heart,
   Award,
   TrendingUp,
-  UserPlus,
   MessageCircle,
   Shield,
   Clock,
   CheckCircle,
-  ShieldCheck,
   BrainCircuit,
   ArrowRight,
 } from "lucide-react";
 
-const EnhancedSocialScreen: React.FC = () => {
+// Resolve the user's tier color for the NFC color wash
+function tierColorForScore(score: number | null | undefined): string {
+  if (score === null || score === undefined || score === 0) return "hsla(200, 80%, 70%, 0.6)";
+  if (score <= 110) return "hsl(0, 0%, 100%)";
+  if (score <= 220) return "hsl(48, 95%, 55%)";
+  if (score <= 330) return "hsl(145, 75%, 45%)";
+  if (score <= 440) return "hsl(215, 90%, 55%)";
+  if (score <= 550) return "hsl(278, 75%, 55%)";
+  if (score <= 660) return "hsl(2, 85%, 55%)";
+  if (score <= 770) return "hsl(25, 100%, 55%)";
+  if (score <= 880) return "hsl(25, 55%, 35%)";
+  return "hsl(0, 0%, 4%)";
+}
+
+const LifeScreen: React.FC = () => {
   const {
     friends,
     trustCircles,
     goodDeeds,
     socialMetrics,
     loading,
-    sendFriendRequest,
-    acceptFriendRequest,
     submitGoodDeed,
-    createTrustCircle,
+    acceptFriendRequest,
   } = useSocialGraph();
 
   const { profile, updateProfile, loading: profileLoading } = useEnhancedProfile();
 
   const [newDeedTitle, setNewDeedTitle] = useState("");
   const [newDeedDescription, setNewDeedDescription] = useState("");
-  const [newCircleName, setNewCircleName] = useState("");
   const [isSubmittingDeed, setIsSubmittingDeed] = useState(false);
 
   const [showTestModal, setShowTestModal] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
 
-  // Execution: Trigger Graffiti Confetti on component mount
   useEffect(() => {
     fireGraffitiConfetti();
   }, []);
@@ -67,20 +77,13 @@ const EnhancedSocialScreen: React.FC = () => {
     }
   };
 
-  const handleCreateTrustCircle = async () => {
-    if (!newCircleName.trim()) return;
-    await createTrustCircle(newCircleName);
-    setNewCircleName("");
-  };
-
-  // --- IDIA EDGE FUNCTION EXECUTION ---
+  // --- IDIA EDGE FUNCTION EXECUTION (preserved) ---
   const handleCalculateScore = async (moduleScores: Record<string, number>) => {
     setIsCalculating(true);
+    console.log("[STANDING_SYNC_START]");
     try {
-      // 1. Filter out the tutorial module ('tut') to keep the telemetry pure
       const { tut, ...actualTelemetry } = moduleScores;
 
-      // 2. Invoke the Single Source of Truth (The Edge Function)
       const { data, error } = await supabase.functions.invoke("calculate-trust-score", {
         body: {
           user_id: profile?.user_id,
@@ -90,8 +93,6 @@ const EnhancedSocialScreen: React.FC = () => {
 
       if (error) throw error;
 
-      // 3. Update Global Profile State
-      // This forces all screens to re-render with the new Trust Score & Credit Line
       if (updateProfile) {
         await updateProfile({
           trust_score: data.trust_score,
@@ -103,11 +104,8 @@ const EnhancedSocialScreen: React.FC = () => {
     } finally {
       setIsCalculating(false);
       setShowTestModal(false);
-
-      // Delay the celebration to ensure the modal is closed
-      setTimeout(() => {
-        fireFinaleConfetti();
-      }, 400);
+      console.log("[STANDING_SYNC_END]");
+      setTimeout(() => fireFinaleConfetti(), 400);
     }
   };
 
@@ -131,72 +129,40 @@ const EnhancedSocialScreen: React.FC = () => {
     );
   }
 
+  const myTierColor = tierColorForScore(profile?.trust_score);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-foreground">Social Network</h1>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
-              <UserPlus className="w-4 h-4 mr-2" />
-              Add Friend
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="bg-white">
-            <DialogHeader>
-              <DialogTitle>Add Friend</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <Input placeholder="Enter friend's email or username" />
-              <Button className="w-full bg-teal-600 hover:bg-teal-700">Send Friend Request</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <h1 className="text-xl font-bold text-foreground">Life</h1>
+        <NFCHandshake myTierColor={myTierColor} />
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList className="grid grid-cols-4 w-full bg-muted/20">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="friends">Friends</TabsTrigger>
+          <TabsTrigger value="friends">Connections</TabsTrigger>
           <TabsTrigger value="circles">Trust Circles</TabsTrigger>
           <TabsTrigger value="deeds">Good Deeds</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
+          {/* Standing Orb — no numeric score */}
           <Card className="bg-white border-teal-100 overflow-hidden relative shadow-sm">
-            <CardContent className="p-6 relative z-10">
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-teal-600" />
-                    <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
-                      IDIA Trust Score
-                    </h2>
-                  </div>
-                  <div className="flex items-baseline gap-3">
-                    <span className="text-5xl font-bold tracking-tighter text-foreground">
-                      {profile?.trust_score !== null && profile?.trust_score !== undefined
-                        ? profile.trust_score
-                        : "NO SCORE"}
-                    </span>
-                    <span className="text-sm text-muted-foreground font-medium">/ 1000</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground max-w-sm">
-                    Current Max Advance:{" "}
-                    <span className="text-emerald-500 font-bold">
-                      ${profile?.available_credit_line?.toLocaleString() || "0"}
-                    </span>
-                  </p>
+            <CardContent className="p-8 relative z-10">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+                <div className="flex-1 flex justify-center">
+                  <StandingOrb score={profile?.trust_score ?? null} />
                 </div>
 
                 <div className="w-full md:w-auto flex flex-col gap-3 p-4 bg-teal-50/50 border border-teal-100 rounded-xl">
                   <div className="space-y-1">
                     <h3 className="font-semibold flex items-center gap-2 text-foreground">
                       <BrainCircuit className="w-4 h-4 text-teal-600" />
-                      Need an advance?
+                      Refine your standing
                     </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Complete your psychometric validation to establish your deterministic limit.
+                    <p className="text-xs text-muted-foreground max-w-[16rem]">
+                      Complete your psychometric validation to deepen the chromatic resolution of your standing.
                     </p>
                   </div>
 
@@ -223,7 +189,7 @@ const EnhancedSocialScreen: React.FC = () => {
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2 text-foreground">
                   <Heart className="w-4 h-4 text-orange-500" />
-                  Reciprocity Score
+                  Reciprocity
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -264,7 +230,7 @@ const EnhancedSocialScreen: React.FC = () => {
 
           <Card className="bg-white shadow-sm border-none">
             <CardHeader>
-              <CardTitle className="text-foreground">Recent Social Activity</CardTitle>
+              <CardTitle className="text-foreground">Recent Activity</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -290,11 +256,16 @@ const EnhancedSocialScreen: React.FC = () => {
         <TabsContent value="friends" className="space-y-4">
           <Card className="bg-white shadow-sm border-none">
             <CardHeader>
-              <CardTitle className="text-foreground">Your Friends</CardTitle>
+              <CardTitle className="text-foreground">Your Connections</CardTitle>
             </CardHeader>
             <CardContent>
               {friends.length === 0 ? (
-                <p className="text-center py-8 text-muted-foreground">No friends yet.</p>
+                <div className="text-center py-8 space-y-3">
+                  <p className="text-muted-foreground">No connections yet.</p>
+                  <p className="text-xs text-muted-foreground">
+                    Connections are made by physical NFC tap only — there is no manual search.
+                  </p>
+                </div>
               ) : (
                 <div className="space-y-3">
                   {friends.map((f) => (
@@ -338,12 +309,7 @@ const EnhancedSocialScreen: React.FC = () => {
         <TabsContent value="circles" className="space-y-4">
           <Card className="bg-white shadow-sm border-none">
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-foreground">Trust Circles</CardTitle>
-                <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
-                  Create Circle
-                </Button>
-              </div>
+              <CardTitle className="text-foreground">Trust Circles</CardTitle>
             </CardHeader>
             <CardContent>
               {trustCircles.length === 0 ? (
@@ -446,4 +412,4 @@ const EnhancedSocialScreen: React.FC = () => {
   );
 };
 
-export default EnhancedSocialScreen;
+export default LifeScreen;
