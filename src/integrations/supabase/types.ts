@@ -3982,6 +3982,7 @@ export type Database = {
           available_credit_line: number | null
           avatar_url: string | null
           bio: string | null
+          compliance_rail: string | null
           created_at: string | null
           document_type: string | null
           ein: string | null
@@ -4019,6 +4020,7 @@ export type Database = {
           available_credit_line?: number | null
           avatar_url?: string | null
           bio?: string | null
+          compliance_rail?: string | null
           created_at?: string | null
           document_type?: string | null
           ein?: string | null
@@ -4056,6 +4058,7 @@ export type Database = {
           available_credit_line?: number | null
           avatar_url?: string | null
           bio?: string | null
+          compliance_rail?: string | null
           created_at?: string | null
           document_type?: string | null
           ein?: string | null
@@ -5391,6 +5394,27 @@ export type Database = {
         }
         Relationships: []
       }
+      system_settings: {
+        Row: {
+          description: string | null
+          key: string
+          updated_at: string | null
+          value: string
+        }
+        Insert: {
+          description?: string | null
+          key: string
+          updated_at?: string | null
+          value: string
+        }
+        Update: {
+          description?: string | null
+          key?: string
+          updated_at?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
       tax_rates: {
         Row: {
           business_id: string
@@ -5670,6 +5694,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      usdc_onchain_events: {
+        Row: {
+          amount_micro: number
+          block_number: number | null
+          direction: string
+          from_address: string
+          id: string
+          log_index: number
+          raw_payload: Json | null
+          received_at: string
+          source: string
+          to_address: string
+          tx_hash: string
+          wallet_user_id: string | null
+        }
+        Insert: {
+          amount_micro: number
+          block_number?: number | null
+          direction: string
+          from_address: string
+          id?: string
+          log_index: number
+          raw_payload?: Json | null
+          received_at?: string
+          source?: string
+          to_address: string
+          tx_hash: string
+          wallet_user_id?: string | null
+        }
+        Update: {
+          amount_micro?: number
+          block_number?: number | null
+          direction?: string
+          from_address?: string
+          id?: string
+          log_index?: number
+          raw_payload?: Json | null
+          received_at?: string
+          source?: string
+          to_address?: string
+          tx_hash?: string
+          wallet_user_id?: string | null
+        }
+        Relationships: []
       }
       user_aca_records: {
         Row: {
@@ -6044,49 +6113,58 @@ export type Database = {
       wallets: {
         Row: {
           cash_balance: number | null
+          corporate_revenue: number | null
           created_at: string | null
           governance_tokens: number | null
           hub_cash_balance: number | null
           id: string
-          idia_beta_balance: number | null
           idia_token_balance: number | null
           idia_usd_balance: number | null
           life_cash_balance: number | null
           platform_guid: string | null
+          stablecoin_balance: number | null
           total_earned: number | null
           updated_at: string | null
+          usdc_last_block: number | null
+          usdc_last_synced_at: string | null
           user_id: string
           wallet_address: string
         }
         Insert: {
           cash_balance?: number | null
+          corporate_revenue?: number | null
           created_at?: string | null
           governance_tokens?: number | null
           hub_cash_balance?: number | null
           id?: string
-          idia_beta_balance?: number | null
           idia_token_balance?: number | null
           idia_usd_balance?: number | null
           life_cash_balance?: number | null
           platform_guid?: string | null
+          stablecoin_balance?: number | null
           total_earned?: number | null
           updated_at?: string | null
+          usdc_last_block?: number | null
+          usdc_last_synced_at?: string | null
           user_id: string
           wallet_address: string
         }
         Update: {
           cash_balance?: number | null
+          corporate_revenue?: number | null
           created_at?: string | null
           governance_tokens?: number | null
           hub_cash_balance?: number | null
           id?: string
-          idia_beta_balance?: number | null
           idia_token_balance?: number | null
           idia_usd_balance?: number | null
           life_cash_balance?: number | null
           platform_guid?: string | null
+          stablecoin_balance?: number | null
           total_earned?: number | null
           updated_at?: string | null
+          usdc_last_block?: number | null
+          usdc_last_synced_at?: string | null
           user_id?: string
           wallet_address?: string
         }
@@ -6290,6 +6368,14 @@ export type Database = {
         Args: { lat: number; lng: number }
         Returns: string
       }
+      apply_usdc_delta: {
+        Args: {
+          p_block_number?: number
+          p_micro_delta: number
+          p_user_id: string
+        }
+        Returns: number
+      }
       calculate_business_health_index: {
         Args: { p_business_id: string; p_location_id?: string }
         Returns: number
@@ -6412,6 +6498,10 @@ export type Database = {
         Args: { amount_to_add: number; target_user_id: string }
         Returns: undefined
       }
+      increment_wallet_balance: {
+        Args: { increment_amount: number; target_user_id: string }
+        Returns: undefined
+      }
       increment_wallet_cash: {
         Args: { p_amount: number; p_user_id: string }
         Returns: undefined
@@ -6454,6 +6544,14 @@ export type Database = {
           error_count: number
           processed_count: number
         }[]
+      }
+      set_usdc_balance: {
+        Args: {
+          p_block_number?: number
+          p_micro_balance: number
+          p_user_id: string
+        }
+        Returns: number
       }
       settle_sovereign_transaction: {
         Args: {
@@ -6512,7 +6610,7 @@ export type Database = {
       }
     }
     Enums: {
-      idia_transaction_status: "PENDING" | "SETTLED" | "FAILED"
+      idia_transaction_status: "PENDING" | "SETTLED" | "FAILED" | "completed"
       idia_transaction_type:
         | "DATA_SALE"
         | "DEPOSIT"
@@ -6522,6 +6620,7 @@ export type Database = {
         | "settlement"
         | "fbo_dissemination"
         | "FREE_COMPUTE"
+        | "INTERNAL_DEPOSIT"
       sync_status: "pending" | "processing" | "completed" | "failed"
       user_role: "owner" | "manager" | "employee" | "warehouse_associate"
     }
@@ -6651,7 +6750,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      idia_transaction_status: ["PENDING", "SETTLED", "FAILED"],
+      idia_transaction_status: ["PENDING", "SETTLED", "FAILED", "completed"],
       idia_transaction_type: [
         "DATA_SALE",
         "DEPOSIT",
@@ -6661,6 +6760,7 @@ export const Constants = {
         "settlement",
         "fbo_dissemination",
         "FREE_COMPUTE",
+        "INTERNAL_DEPOSIT",
       ],
       sync_status: ["pending", "processing", "completed", "failed"],
       user_role: ["owner", "manager", "employee", "warehouse_associate"],
