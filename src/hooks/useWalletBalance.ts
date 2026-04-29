@@ -1,5 +1,21 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { createPublicClient, http, formatUnits } from "viem";
+import { base } from "viem/chains";
+
+// Base Mainnet USDC Contract
+const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+
+// Minimal ABI for read-only operations
+const USDC_ABI = [
+  {
+    name: "balanceOf",
+    type: "function",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+] as const;
 
 export interface WalletBalance {
   cash_balance: number;
@@ -41,17 +57,20 @@ export const useWalletBalance = () => {
     try {
       if (!row) {
         console.info(`⚙️ [DATA_APPLY_LOG] ACTION: No vault row for ${userId} — anchoring to Zero Floor`);
-        setBalance(ZERO_FLOOR);
+        setBalance((prev) => ({
+          ...ZERO_FLOOR,
+          idia_beta_balance: prev.idia_beta_balance, // Preserve absolute on-chain truth
+        }));
         return;
       }
 
       console.info(`⚙️ [DATA_APPLY_LOG] PAYLOAD:`, row);
-      setBalance({
+      setBalance((prev) => ({
         cash_balance: Number(row.cash_balance) || 0,
-        idia_beta_balance: Number(row.idia_beta_balance) || 0,
+        idia_beta_balance: prev.idia_beta_balance, // Isolate USDC to Viem fetching only
         idia_token_balance: Number(row.idia_token_balance) || 0,
         total_earned: 0,
-      });
+      }));
       console.log("⚙️ [DATA_APPLY_LOG] END: Successfully applied new wallet balances.");
     } catch (error) {
       console.error("🚨 [DATA_APPLY_LOG] ERROR_START: applyRow execution failed.");
@@ -85,25 +104,80 @@ export const useWalletBalance = () => {
         return;
       }
 
+      // 1. Ingest IDIA Token & Cash Ledger State
       console.log(`🌐 [FETCH_BALANCE_LOG] ACTION: Ingesting LKS (Ledger State) for User: ${user.id}`);
-      const { data, error } = await supabase
+      let fiatBalance = 0;
+      let tokenBalance = 0;
+
+      const { data: walletData, error: walletError } = await supabase
         .from("wallets")
-        .select("cash_balance, idia_beta_balance, idia_token_balance")
+        .select("cash_balance, idia_token_balance")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (error) {
+      if (walletError) {
         console.error("🚨 [FETCH_BALANCE_LOG] ERROR_START: Supabase 'wallets' query failed.");
-        console.error(
-          "🚨 [FETCH_BALANCE_LOG] ERROR_DETAILS: Unreachable state. Check Database connection.",
-          error.message,
-        );
+        console.error("🚨 [FETCH_BALANCE_LOG] ERROR_DETAILS: Check Database connection.", walletError.message);
         console.error("🚨 [FETCH_BALANCE_LOG] ERROR_END: Supabase query terminated.");
-        setBalance(ZERO_FLOOR);
-      } else {
-        applyRow(data, user.id);
-        console.log("🌐 [FETCH_BALANCE_LOG] END: Wallet fetch routine completed successfully.");
+      } else if (walletData) {
+        fiatBalance = Number(walletData.cash_balance) || 0;
+        tokenBalance = Number(walletData.idia_token_balance) || 0;
       }
+
+      // 2. Fetch Global Vault Identity from Profiles (Aligning with IDIA Hub's methodology)
+      console.log("🌐 [FETCH_BALANCE_LOG] ACTION: Querying profiles for global wallet_address.");
+      let usdcBalance = 0;
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("wallet_address")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error("🚨 [FETCH_BALANCE_LOG] ERROR_START: Failed to query profile for wallet_address.");
+        console.error("🚨 [FETCH_BALANCE_LOG] ERROR_DETAILS:", profileError.message);
+        console.error("🚨 [FETCH_BALANCE_LOG] ERROR_END: Profile query terminated.");
+      }
+
+      const walletAddress = profile?.wallet_address;
+
+      if (walletAddress && walletAddress.startsWith("0x")) {
+        console.log(`🌐 [FETCH_BALANCE_LOG] SUCCESS: Wallet identified: ${walletAddress}`);
+        console.log("🌐 [FETCH_BALANCE_LOG] ACTION: Initializing Base public client for USDC hydration.");
+
+        try {
+          const publicClient = createPublicClient({
+            chain: base,
+            transport: http("https://mainnet.base.org"),
+          });
+
+          const rawBalance = await publicClient.readContract({
+            address: USDC_ADDRESS,
+            abi: USDC_ABI,
+            functionName: "balanceOf",
+            args: [walletAddress as `0x${string}`],
+          } as any);
+
+          usdcBalance = Number(formatUnits(rawBalance as bigint, 6));
+          console.log(`🌐 [FETCH_BALANCE_LOG] SUCCESS: Verified absolute on-chain USDC truth: $${usdcBalance}`);
+        } catch (chainErr: any) {
+          console.error("🚨 [FETCH_BALANCE_LOG] ERROR_START: Viem smart contract read failed.");
+          console.error("🚨 [FETCH_BALANCE_LOG] ERROR_DETAILS:", chainErr.message || String(chainErr));
+          console.error("🚨 [FETCH_BALANCE_LOG] ERROR_END: Viem reading terminated.");
+        }
+      } else {
+        console.log("🌐 [FETCH_BALANCE_LOG] INFO: No valid sovereign wallet mapped in profiles. Bypassing viem fetch.");
+      }
+
+      setBalance({
+        cash_balance: fiatBalance,
+        idia_beta_balance: usdcBalance, // Overrides db column with strict on-chain data
+        idia_token_balance: tokenBalance,
+        total_earned: 0,
+      });
+
+      console.log("🌐 [FETCH_BALANCE_LOG] END: Wallet fetch routine completed successfully.");
     } catch (err) {
       console.error("🚨 [FETCH_BALANCE_LOG] ERROR_START: Fatal exception during fetchBalance.");
       console.error("🚨 [FETCH_BALANCE_LOG] ERROR_DETAILS:", err instanceof Error ? err.message : String(err));
@@ -112,7 +186,7 @@ export const useWalletBalance = () => {
     } finally {
       setLoading(false);
     }
-  }, [applyRow]);
+  }, []);
 
   useEffect(() => {
     console.log("🔄 [REALTIME_SYNC_LOG] START: Initializing useWalletBalance effect hook.");
@@ -174,6 +248,12 @@ export const useWalletBalance = () => {
 
     setup();
 
+    // Auto-poll the blockchain every 15 seconds parallel to Hub's design
+    const interval = setInterval(() => {
+      console.log("🔄 [REALTIME_SYNC_LOG] INFO: 15-second polling tick fired for Viem fetch.");
+      fetchBalance();
+    }, 15000);
+
     // React to auth changes — purge state on sign-out, refetch on sign-in
     console.log("🔐 [AUTH_STATE_LOG] START: Attaching AuthState listener.");
     const { data: authSub } = supabase.auth.onAuthStateChange((event) => {
@@ -199,6 +279,7 @@ export const useWalletBalance = () => {
     return () => {
       console.log("🧹 [HOOK_CLEANUP_LOG] START: Unmounting useWalletBalance.");
       cancelled = true;
+      clearInterval(interval);
       if (channel) {
         console.log("🧹 [HOOK_CLEANUP_LOG] ACTION: Removing Supabase realtime channel.");
         supabase.removeChannel(channel);
