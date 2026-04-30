@@ -1,46 +1,40 @@
-# Welcome Sequence — Light Aesthetic Refresh
+## IDIA Life Connection Bridge
 
-Convert `src/components/life/WelcomeSequence.tsx` from the current dark/black palette to the project's Glossy Light Theme (Trust-Blue + Amber, glassmorphism, soft pearl backdrop). No structural or copy changes — only visual styling.
+Goal: Wire the "Life" tab to the native iOS NFC hardware through a typed `useNFCBridge` hook, drive the Standing Orb's chromatic transition from the inbound peer signal, and keep a graceful web-only fallback. The existing light-themed `WelcomeSequence` already satisfies the onboarding/spotlight requirement and will be left untouched.
 
-## Changes (single file)
+### What gets built
 
-`src/components/life/WelcomeSequence.tsx`
+1. **New hook — `src/hooks/useNFCBridge.ts`**
+   - `initiateSovereignHandshake(mode?: "STANDARD" | "PACE")` → posts to `window.webkit.messageHandlers.initiateNfcScan` with `{ action: "start_scan", mode }`. The optional `mode` param is the future-proof seam for the Vote tab's PACE/DAO verification — no UI for it yet.
+   - Detects bridge availability (`window.webkit?.messageHandlers?.initiateNfcScan`). If absent, the hook returns `isBridgeAvailable: false` and `initiate…` resolves with a graceful no-op + toast: *"Please open IDIA Life on your mobile device to activate the physical handshake hardware."*
+   - Installs global listeners on mount: `window.onNfcScanComplete = (peerToken) => …` and `window.onNfcScanError = (error) => …`. Cleans them up on unmount.
+   - Internally re-broadcasts results as `CustomEvent`s (`nfc:scan-complete`, `nfc:scan-error`) so multiple components (Life now, Vote later) can subscribe without fighting over the singleton globals.
+   - Paired logging on every entry/exit: `[BRIDGE_INIT_START/END]`, `[BRIDGE_LISTENER_INIT_START/END]`, `[BRIDGE_HANDSHAKE_START/END]`, `[BRIDGE_SCAN_COMPLETE]`, `[BRIDGE_SCAN_ERROR]`.
 
-- **Root container**: replace `bg-black text-white` with a layered light backdrop:
-  - Soft radial gradients of pale sky-blue and warm amber/cream over a near-white base, matching the rest of the app's glossy light theme.
-  - Default text color: `text-slate-800`.
-- **Skip button**: white glass pill (`bg-white/70`, `border-slate-300/70`, `text-slate-700`, subtle shadow).
-- **Step 1 (Materialization)**:
-  - Central orb: warm white core with teal + amber halo (lower opacity to read on light bg).
-  - Particles keep teal / amber / orange but with reduced glow to suit a light field.
-  - Headline gradient swapped to deeper hues (`from-teal-600 via-amber-500 to-orange-500`) for contrast.
-  - Body text uses `text-slate-700` / `text-slate-600`; emphasis line uses `text-amber-600`.
-- **Step 2 (IDIA Protocol)**:
-  - Connector lines stay teal→amber but at higher opacity for readability.
-  - Center logo halo: white glass card (`bg-white/80`, `border-slate-200`, soft indigo glow).
-  - Pillar pills: `bg-white/80`, `border-slate-200`, `text-slate-800`, soft teal shadow.
-  - Heading `text-amber-600`; pillar names `text-teal-600`.
-- **Step 3 (Spotlight Tour)**:
-  - Dimmer changed from black to a frosted light scrim — radial transparent center fading to `rgba(255,255,255,0.85)` with backdrop blur, so the underlying nav is gently veiled, not blacked out.
-  - Spotlight ring: teal stroke + amber outer glow on light field.
-  - Caption card: white glass (`bg-white/85`, `border-slate-200`, shadow), slate text, amber label.
-  - Progress dots: active `bg-teal-500`, inactive `bg-slate-300`.
-  - "Next" button: `bg-teal-500 text-white hover:bg-teal-400`.
-- **Step 4 (Sovereignty Shield)**:
-  - Halo softened to teal/amber on white. Inner badge: white glass with teal shield icon (`text-teal-600`).
-  - Heading `text-amber-600`; emphasis line `text-teal-600`; body `text-slate-700`.
-- **Step 5 (Final Launch)**:
-  - Heading gradient `from-teal-600 via-amber-500 to-orange-500`.
-  - START button keeps the bright teal→amber→orange gradient (already light-friendly), text remains dark slate, glow slightly dialed down for the new background.
-- **ContinueButton helper**: white glass pill, `text-slate-700`, `border-slate-300`, hover `bg-white`.
+2. **LifeScreen integration — `src/components/enhanced/LifeScreen.tsx`**
+   - Mount `useNFCBridge` at the top of the component.
+   - Replace the existing nested `<NFCHandshake />` button with a primary **"Sync Standing"** CTA styled in the current Trust-Blue/Amber glossy aesthetic (gradient teal→amber, glass-box). Disabled state while a scan is in flight.
+   - On `nfc:scan-complete`: derive the peer's tier color from the returned `peerToken` (placeholder mapper for now — the token shape is opaque pending native contract), then mount the existing `ColorWashOverlay` blending `myTierColor` ↔ `peerTierColor`. The Orb already re-renders against `profile?.trust_score`; the wash provides the cinematic transition.
+   - On `nfc:scan-error`: non-technical toast ("Connection didn't complete. Try again with the phones held closer.").
+   - Keep `NFCHandshake.tsx` in place but unused by Life (no deletion — referenced types/utility may be reused; safe to remove later once Vote tab is wired).
 
-## Out of scope
+3. **Standing Orb chromatic response**
+   - No change to `StandingOrb.tsx` itself — it already resolves color from `score`. The chromatic shift happens naturally when `profile.trust_score` updates after a handshake. The `ColorWashOverlay` handles the transition flourish. (If a peer-driven intermediate hue is desired before the score updates, we can pass a transient `overrideTier` prop in a follow-up — flagged but out of scope here.)
 
-- No copy changes. No layout/sequence changes. No edits outside this file.
-- Logging, step flow, spotlight rect math, and `localStorage` gating remain identical.
+4. **Web-fallback UX**
+   - When `isBridgeAvailable` is false, the "Sync Standing" button stays visible but tapping it triggers the graceful toast instead of posting to the missing bridge. No hard error, no console exception.
 
-## Acceptance
+5. **Welcome / Spotlight sequence**
+   - Already implemented in `src/components/life/WelcomeSequence.tsx` with the exact required copy, the spotlight effect over the bottom nav, the persistent Skip button, and `localStorage` first-launch gating in `MainApp.tsx`. No changes needed.
 
-- The overlay reads as a glossy, airy light surface consistent with the rest of IDIA Life.
-- All text passes basic contrast on the new light backdrop (slate-700/800 body, teal-600 / amber-600 accents).
-- Spotlight tour still aligns to the bottom-nav icons with a visible glowing ring on the light scrim.
+### Files touched
+
+- **new** `src/hooks/useNFCBridge.ts`
+- **edit** `src/components/enhanced/LifeScreen.tsx` (swap NFC button for Sync Standing CTA + bridge wiring + ColorWashOverlay subscription)
+
+### Out of scope (called out)
+
+- Native iOS Swift handler implementation — that lives in the Capacitor wrapper, not the web bundle.
+- Real `peerToken` → tier resolution — needs the finalized native contract; a clearly-marked placeholder mapper ships now.
+- Vote tab PACE integration — the `mode` parameter is reserved but no UI consumes it yet.
+- Removing `NFCHandshake.tsx` — left in tree to avoid breaking any unseen imports.
