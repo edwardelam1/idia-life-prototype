@@ -58,14 +58,16 @@ function tierColorForScore(score: number | null | undefined): string {
 }
 
 const LifeScreen: React.FC = () => {
-  const { friends, trustCircles, goodDeeds, socialMetrics, loading, submitGoodDeed, acceptFriendRequest } =
+  const { friends, trustCircles, goodDeeds, socialMetrics, loading, acceptFriendRequest, reload } =
     useSocialGraph();
 
   const { profile, updateProfile, loading: profileLoading } = useEnhancedProfile();
 
   const [newDeedTitle, setNewDeedTitle] = useState("");
   const [newDeedDescription, setNewDeedDescription] = useState("");
+  const [newDeedFile, setNewDeedFile] = useState<File | null>(null);
   const [isSubmittingDeed, setIsSubmittingDeed] = useState(false);
+  const [deedDialogOpen, setDeedDialogOpen] = useState(false);
 
   const [showTestModal, setShowTestModal] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
