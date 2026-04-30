@@ -383,6 +383,10 @@ const LifeScreen: React.FC = () => {
           </Card>
         </TabsContent>
 
+        <TabsContent value="sphere" className="flex-1 min-h-0 overflow-hidden m-0">
+          <SphereOfInfluence friends={friends as any} currentScore={profile?.trust_score ?? null} />
+        </TabsContent>
+
         <TabsContent value="circles" className="flex-1 min-h-0 overflow-hidden m-0">
           <Card className="bg-white shadow-sm border-none h-full flex flex-col">
             <CardHeader className="shrink-0">
