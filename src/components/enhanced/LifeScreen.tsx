@@ -66,6 +66,33 @@ const LifeScreen: React.FC = () => {
   const [showTestModal, setShowTestModal] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
 
+  // NFC Bridge — Sovereign Handshake to native iOS hardware
+  const { isBridgeAvailable, isScanning, initiateSovereignHandshake } = useNFCBridge();
+  const [washPeerColor, setWashPeerColor] = useState<string | null>(null);
+
+  useEffect(() => {
+    console.log("[LIFE_NFC_SUBSCRIBE_START]");
+    const onComplete = (e: Event) => {
+      const detail = (e as CustomEvent<{ peerToken: string }>).detail;
+      const peerColor = peerColorFromToken(detail?.peerToken ?? "");
+      console.log("[LIFE_NFC_HANDSHAKE_RESOLVED]", { peerColor });
+      setWashPeerColor(peerColor);
+      toast.success("Standing synced", { description: "Your chromatic standing has shifted." });
+    };
+    const onError = () => {
+      toast("Connection didn't complete", {
+        description: "Try again with the phones held closer, back-to-back.",
+      });
+    };
+    window.addEventListener("nfc:scan-complete", onComplete);
+    window.addEventListener("nfc:scan-error", onError);
+    return () => {
+      window.removeEventListener("nfc:scan-complete", onComplete);
+      window.removeEventListener("nfc:scan-error", onError);
+      console.log("[LIFE_NFC_SUBSCRIBE_END]");
+    };
+  }, []);
+
   // Granular layout calibration logging — paired start/end on mount/unmount
   useLayoutEffect(() => {
     console.log("[VIEWPORT_CALIBRATION_START]");
