@@ -95,14 +95,24 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
   );
 
   return (
-    <div className="fixed inset-0 z-[200] bg-black text-white overflow-hidden">
+    <div
+      className="fixed inset-0 z-[200] overflow-hidden text-slate-800"
+      style={{
+        background: `
+          radial-gradient(ellipse at 15% 10%, rgba(186,230,253,0.85) 0%, transparent 55%),
+          radial-gradient(ellipse at 85% 20%, rgba(254,243,199,0.85) 0%, transparent 55%),
+          radial-gradient(ellipse at 50% 95%, rgba(224,242,254,0.9) 0%, transparent 60%),
+          linear-gradient(180deg, #fbfdff 0%, #f3f7fb 50%, #fefaf2 100%)
+        `,
+      }}
+    >
       {/* Persistent Skip */}
       <button
         onClick={() => {
           console.log("[WELCOME_SEQUENCE_SKIP]");
           finish();
         }}
-        className="fixed top-0 right-0 z-[210] m-4 mt-[max(1rem,env(safe-area-inset-top))] px-4 py-2 text-xs font-semibold tracking-[0.2em] uppercase border border-white/20 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-md transition-colors"
+        className="fixed top-0 right-0 z-[210] m-4 mt-[max(1rem,env(safe-area-inset-top))] px-4 py-2 text-xs font-semibold tracking-[0.2em] uppercase border border-slate-300/70 rounded-full bg-white/70 hover:bg-white text-slate-700 backdrop-blur-md transition-colors shadow-sm"
       >
         Skip
       </button>
