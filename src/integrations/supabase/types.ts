@@ -816,6 +816,30 @@ export type Database = {
         }
         Relationships: []
       }
+      connection_ratings: {
+        Row: {
+          created_at: string
+          id: string
+          ratee_id: string
+          rater_id: string
+          stars: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ratee_id: string
+          rater_id: string
+          stars: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ratee_id?: string
+          rater_id?: string
+          stars?: number
+        }
+        Relationships: []
+      }
       creator_profiles: {
         Row: {
           created_at: string | null
@@ -5609,6 +5633,27 @@ export type Database = {
           },
         ]
       }
+      trust_score_history: {
+        Row: {
+          id: string
+          recorded_at: string
+          score: number
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          recorded_at?: string
+          score: number
+          user_id: string
+        }
+        Update: {
+          id?: string
+          recorded_at?: string
+          score?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       universal_data_bundles: {
         Row: {
           bundle_category: string
@@ -6452,6 +6497,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_average_rating: { Args: { p_ratee_id: string }; Returns: number }
       get_hub_balance: { Args: { uid: string }; Returns: number }
       get_real_library_yield: {
         Args: never

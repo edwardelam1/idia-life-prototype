@@ -14,6 +14,7 @@ import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter
 import { fireGraffitiConfetti, fireFinaleConfetti } from "../psychometric/confetti";
 import StandingOrb from "../life/StandingOrb";
 import ColorWashOverlay from "../life/ColorWashOverlay";
+import SwipeToRate from "../life/SwipeToRate";
 import { useNFCBridge } from "@/hooks/useNFCBridge";
 import { toast } from "sonner";
 import {
@@ -69,6 +70,7 @@ const LifeScreen: React.FC = () => {
   // NFC Bridge — Sovereign Handshake to native iOS hardware
   const { isBridgeAvailable, isScanning, initiateSovereignHandshake } = useNFCBridge();
   const [washPeerColor, setWashPeerColor] = useState<string | null>(null);
+  const [rateTarget, setRateTarget] = useState<string | null>(null);
 
   useEffect(() => {
     console.log("[LIFE_NFC_SUBSCRIBE_START]");
@@ -77,7 +79,9 @@ const LifeScreen: React.FC = () => {
       const peerColor = peerColorFromToken(detail?.peerToken ?? "");
       console.log("[LIFE_NFC_HANDSHAKE_RESOLVED]", { peerColor });
       setWashPeerColor(peerColor);
-      toast.success("Standing synced", { description: "Your chromatic standing has shifted." });
+      toast.success("Sync complete", { description: "You made a new Connection." });
+      // After the color wash, prompt the user to rate the Sync
+      setTimeout(() => setRateTarget(detail?.peerToken ?? ""), 3600);
     };
     const onError = () => {
       toast("Connection didn't complete", {
@@ -162,6 +166,34 @@ const LifeScreen: React.FC = () => {
       setShowTestModal(false);
       console.log("[STANDING_SYNC_END]");
       setTimeout(() => fireFinaleConfetti(), 400);
+    }
+  };
+
+  // Submit a Sync rating to the IDIA Protocol via the edge function.
+  const handleSubmitRating = async (rateeId: string, stars: number) => {
+    console.log("[RATING_SUBMIT_START]", { rateeId, stars });
+    try {
+      // The "rateeId" here may be an opaque NFC peer token until the iOS bridge
+      // returns a real user UUID. If it does not look like a UUID, abort the
+      // network call but still keep the local UX so the user is not blocked.
+      const looksLikeUuid = /^[0-9a-f-]{36}$/i.test(rateeId);
+      if (!looksLikeUuid) {
+        toast("Rating saved on device", {
+          description: "We will share it with the IDIA Protocol when the Connection is fully linked.",
+        });
+        return;
+      }
+      const { data, error } = await supabase.functions.invoke("submit-connection-rating", {
+        body: { ratee_id: rateeId, stars },
+      });
+      if (error) throw error;
+      toast.success("Rating saved", {
+        description: stars >= 4 ? "Thank you for the kind feedback." : "Your honest rating helps the network.",
+      });
+      console.log("[RATING_SUBMIT_END]", data);
+    } catch (err) {
+      console.error("[RATING_SUBMIT_ERROR]", err);
+      toast("Could not save rating", { description: "Please try again in a moment." });
     }
   };
 
@@ -329,6 +361,14 @@ const LifeScreen: React.FC = () => {
                             Accept
                           </Button>
                         )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-teal-600 border-teal-200"
+                          onClick={() => setRateTarget(f.user_id_1 === f.user_id_2 ? f.user_id_2 : f.user_id_2)}
+                        >
+                          Rate
+                        </Button>
                         <Button variant="ghost" size="sm" className="text-teal-600">
                           <MessageCircle className="w-4 h-4" />
                         </Button>
@@ -446,6 +486,14 @@ const LifeScreen: React.FC = () => {
 
       {washPeerColor && (
         <ColorWashOverlay myColor={myTierColor} peerColor={washPeerColor} onComplete={() => setWashPeerColor(null)} />
+      )}
+
+      {rateTarget && (
+        <SwipeToRate
+          connectionId={rateTarget}
+          onSubmit={(stars) => handleSubmitRating(rateTarget, stars)}
+          onClose={() => setRateTarget(null)}
+        />
       )}
     </div>
   );
