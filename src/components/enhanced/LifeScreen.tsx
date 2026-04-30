@@ -437,6 +437,14 @@ const LifeScreen: React.FC = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {washPeerColor && (
+        <ColorWashOverlay
+          myColor={myTierColor}
+          peerColor={washPeerColor}
+          onComplete={() => setWashPeerColor(null)}
+        />
+      )}
     </div>
   );
 };
