@@ -16,6 +16,8 @@ import StandingOrb from "../life/StandingOrb";
 import ColorWashOverlay from "../life/ColorWashOverlay";
 import SwipeToRate from "../life/SwipeToRate";
 import SphereOfInfluence from "../life/SphereOfInfluence";
+import LabelConnectionDialog from "../life/LabelConnectionDialog";
+import { localPIIVault, type ConnectionLabel } from "@/lib/localPIIVault";
 import { useNFCBridge } from "@/hooks/useNFCBridge";
 import { toast } from "sonner";
 import {
