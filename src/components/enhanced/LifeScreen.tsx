@@ -15,6 +15,7 @@ import { fireGraffitiConfetti, fireFinaleConfetti } from "../psychometric/confet
 import StandingOrb from "../life/StandingOrb";
 import ColorWashOverlay from "../life/ColorWashOverlay";
 import SwipeToRate from "../life/SwipeToRate";
+import SphereOfInfluence from "../life/SphereOfInfluence";
 import { useNFCBridge } from "@/hooks/useNFCBridge";
 import { toast } from "sonner";
 import {
@@ -222,11 +223,12 @@ const LifeScreen: React.FC = () => {
   return (
     <div className="h-full max-h-full overflow-hidden flex flex-col">
       <Tabs defaultValue="overview" className="flex-1 min-h-0 flex flex-col gap-2">
-        <TabsList className="grid grid-cols-4 w-full bg-muted/20 shrink-0">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="friends">Connections</TabsTrigger>
-          <TabsTrigger value="circles">Trust Circles</TabsTrigger>
-          <TabsTrigger value="deeds">Good Deeds</TabsTrigger>
+        <TabsList className="grid grid-cols-5 w-full bg-muted/20 shrink-0">
+          <TabsTrigger value="overview" className="text-[11px] px-1">Overview</TabsTrigger>
+          <TabsTrigger value="friends" className="text-[11px] px-1">Connections</TabsTrigger>
+          <TabsTrigger value="sphere" className="text-[11px] px-1">Sphere</TabsTrigger>
+          <TabsTrigger value="circles" className="text-[11px] px-1">Circles</TabsTrigger>
+          <TabsTrigger value="deeds" className="text-[11px] px-1">Deeds</TabsTrigger>
         </TabsList>
 
         {/* OVERVIEW — zero-scroll, all elements fit on a standard mobile viewport */}
