@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Wallet, Database, Users, ShoppingBag, Vote, Crown } from "lucide-react";
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile"; // Import the hook
@@ -11,11 +11,21 @@ import ProScreen from "./pro/ProScreen";
 import Header from "./Header";
 import FriendAssistant from "./FriendAssistant";
 import OnboardingModal from "./ui/OnboardingModal";
+import WelcomeSequence from "./life/WelcomeSequence";
 
 const MainApp = () => {
   const [activeTab, setActiveTab] = useState("life");
   const [showFriend, setShowFriend] = useState(false);
   const [friendTrigger, setFriendTrigger] = useState<"social" | "wallet" | "data" | "achievement" | undefined>();
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [showWelcome, setShowWelcome] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem("idia_welcome_seen_v1") !== "1";
+    } catch {
+      return false;
+    }
+  });
 
   // 1. HYDRATE PROFILE DATA
   // Pulling profile into scope fixes the "Cannot find name 'profile'" error
@@ -75,15 +85,16 @@ const MainApp = () => {
     }
   }, [activeTab, showOnboarding]);
 
-  // AI Assistant Triggers
+  // AI Assistant Triggers (suppressed during first-run welcome)
   useEffect(() => {
+    if (showWelcome) return;
     if (activeTab === "life") {
       setFriendTrigger("social");
       setShowFriend(true);
     } else if (friendTrigger === "social") {
       setShowFriend(false);
     }
-  }, [activeTab, friendTrigger]);
+  }, [activeTab, friendTrigger, showWelcome]);
 
   useEffect(() => {
     const handleShowFriend = (event: CustomEvent) => {
@@ -144,6 +155,9 @@ const MainApp = () => {
               return (
                 <button
                   key={tab.id}
+                  ref={(el) => {
+                    tabRefs.current[tab.id] = el;
+                  }}
                   onClick={() => setActiveTab(tab.id)}
                   className={`relative flex flex-col items-center space-y-0.5 transition-colors p-2 z-[10000] ${
                     activeTab === tab.id ? "text-primary" : "text-muted-foreground hover:text-foreground"
@@ -176,6 +190,10 @@ const MainApp = () => {
           }}
           trigger={friendTrigger}
         />
+      )}
+
+      {showWelcome && (
+        <WelcomeSequence tabRefs={tabRefs} onComplete={() => setShowWelcome(false)} />
       )}
     </div>
   );
