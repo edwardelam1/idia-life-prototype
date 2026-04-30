@@ -191,6 +191,10 @@ const MainApp = () => {
           trigger={friendTrigger}
         />
       )}
+
+      {showWelcome && (
+        <WelcomeSequence tabRefs={tabRefs} onComplete={() => setShowWelcome(false)} />
+      )}
     </div>
   );
 };
