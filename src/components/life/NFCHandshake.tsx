@@ -25,7 +25,7 @@ export default function NFCHandshake({ myTierColor, onConnected }: NFCHandshakeP
       if (NDEFReaderCtor) {
         const reader = new NDEFReaderCtor();
         await reader.scan();
-        toast({ title: "Bring devices together", description: "Hold the phones back-to-back to complete the handshake." });
+        toast({ title: "Bring devices together", description: "Hold the phones back-to-back to Sync." });
 
         await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => reject(new Error("nfc_timeout")), 15000);
@@ -42,7 +42,7 @@ export default function NFCHandshake({ myTierColor, onConnected }: NFCHandshakeP
         // Unsupported platform: physical-only protocol means no manual fallback.
         toast({
           title: "NFC required",
-          description: "Connections require physical proximity via NFC. Use the iOS/Android app to tap.",
+          description: "Syncs require physical proximity via NFC. Use the iOS/Android app to tap.",
         });
         console.log("[NFC_HANDSHAKE_UNSUPPORTED]");
         return;
@@ -55,7 +55,7 @@ export default function NFCHandshake({ myTierColor, onConnected }: NFCHandshakeP
       console.log("[NFC_HANDSHAKE_SUCCESS]");
     } catch (err) {
       console.warn("[NFC_HANDSHAKE_FAIL]", err);
-      toast({ title: "Handshake cancelled", description: "No connection was made." });
+      toast({ title: "Sync cancelled", description: "No connection was made." });
     } finally {
       setScanning(false);
       console.log("[NFC_HANDSHAKE_END]");
@@ -64,22 +64,13 @@ export default function NFCHandshake({ myTierColor, onConnected }: NFCHandshakeP
 
   return (
     <>
-      <Button
-        size="sm"
-        onClick={initiateHandshake}
-        disabled={scanning}
-        className="bg-teal-600 hover:bg-teal-700"
-      >
+      <Button size="sm" onClick={initiateHandshake} disabled={scanning} className="bg-teal-600 hover:bg-teal-700">
         <Nfc className="w-4 h-4 mr-2" />
         {scanning ? "Listening…" : "Tap to Connect"}
       </Button>
 
       {washPeerColor && (
-        <ColorWashOverlay
-          myColor={myTierColor}
-          peerColor={washPeerColor}
-          onComplete={() => setWashPeerColor(null)}
-        />
+        <ColorWashOverlay myColor={myTierColor} peerColor={washPeerColor} onComplete={() => setWashPeerColor(null)} />
       )}
     </>
   );
