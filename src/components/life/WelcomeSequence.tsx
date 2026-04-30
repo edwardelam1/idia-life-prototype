@@ -317,22 +317,22 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
               className="absolute inset-0 rounded-full animate-welcome-pulse"
               style={{
                 background:
-                  "radial-gradient(circle, rgba(20,184,166,0.5) 0%, rgba(251,191,36,0.15) 50%, rgba(0,0,0,0) 75%)",
+                  "radial-gradient(circle, rgba(20,184,166,0.3) 0%, rgba(251,191,36,0.12) 50%, rgba(255,255,255,0) 75%)",
               }}
             />
-            <div className="relative w-24 h-24 rounded-full bg-white/5 border border-white/20 backdrop-blur-xl flex items-center justify-center"
-              style={{ boxShadow: "0 0 60px rgba(20,184,166,0.6)" }}>
-              <ShieldCheck className="w-12 h-12 text-teal-300" />
+            <div className="relative w-24 h-24 rounded-full bg-white/85 border border-slate-200 backdrop-blur-xl flex items-center justify-center"
+              style={{ boxShadow: "0 8px 30px rgba(20,184,166,0.35), 0 0 50px rgba(251,191,36,0.25)" }}>
+              <ShieldCheck className="w-12 h-12 text-teal-600" />
             </div>
           </div>
 
           <div className="max-w-md text-center space-y-3 text-sm leading-relaxed">
-            <h2 className="text-2xl font-bold text-amber-200">Built for Your Sovereignty</h2>
-            <p className="text-white/80">We don’t trade your identity.</p>
-            <p className="text-white/80">We don’t store who you are—we store what matters.</p>
-            <p className="text-white/70">Your data is secured, anonymized, and fully under your control.</p>
-            <p className="font-semibold text-teal-300">No names. No addresses. No compromise.</p>
-            <p className="text-white/80">Because ownership means nothing without protection.</p>
+            <h2 className="text-2xl font-bold text-amber-600">Built for Your Sovereignty</h2>
+            <p className="text-slate-700">We don’t trade your identity.</p>
+            <p className="text-slate-700">We don’t store who you are—we store what matters.</p>
+            <p className="text-slate-600">Your data is secured, anonymized, and fully under your control.</p>
+            <p className="font-semibold text-teal-600">No names. No addresses. No compromise.</p>
+            <p className="text-slate-700">Because ownership means nothing without protection.</p>
           </div>
 
           <ContinueButton onClick={next} label="Continue" />
