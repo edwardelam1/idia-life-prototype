@@ -231,70 +231,102 @@ export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
       className="flex flex-col items-center justify-center select-none"
       style={{ touchAction: "none" }}
     >
-      {/* Scene gives the orb real perspective so X/Y rotations look 3D */}
+      {/* Scene gives the orb perspective so X/Y rotations read as 3D */}
       <div
         ref={sceneRef}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        className="relative cursor-grab active:cursor-grabbing"
         style={{
           width: `${size}px`,
           height: `${size}px`,
-          perspective: `${size * 4}px`,
+          perspective: `${size * 1.6}px`,
           perspectiveOrigin: "50% 50%",
+          transition: "transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+          transform: `scale(${isPressed ? "1.04" : "1"})`,
         }}
       >
+        {/* Base sphere body — fixed in screen space, carries the tier color and ambient shading */}
         <div
-          ref={orbRef}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-          className="relative cursor-grab active:cursor-grabbing"
+          aria-hidden
+          className="absolute inset-0"
           style={{
-            width: `${size}px`,
-            height: `${size}px`,
             borderRadius: "50%",
             background: orbBackground,
-            boxShadow: `0 20px 60px -10px ${tier.glow}, inset -20px -30px 60px hsla(0,0%,0%,0.25), inset 15px 20px 40px hsla(0,0%,100%,0.25)`,
-            transformStyle: "preserve-3d",
-            transform:
-              "rotateX(var(--orb-rx, 0deg)) rotateY(var(--orb-ry, 0deg)) rotateZ(var(--orb-rz, 0deg))" +
-              ` scale(${isPressed ? "1.04" : "1"})`,
-            transition: "box-shadow 400ms ease, transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1)",
-            willChange: "transform",
+            boxShadow: `0 20px 60px -10px ${tier.glow}, inset -22px -32px 64px hsla(0,0%,0%,0.35), inset 18px 22px 44px hsla(0,0%,100%,0.18)`,
             backdropFilter: tier.isShimmer ? "blur(6px)" : undefined,
           }}
-        >
-          {/* Specular highlight — pinned to the front face of the sphere */}
+        />
+
+        {/* Rotating texture layer — gives the surface visible motion so the sphere reads as 3D */}
+        <div
+          ref={orbRef}
+          className="absolute inset-0"
+          style={{
+            borderRadius: "50%",
+            transformStyle: "preserve-3d",
+            transform:
+              "rotateX(var(--orb-rx, 0deg)) rotateY(var(--orb-ry, 0deg))",
+            willChange: "transform",
+            // A faint dappled texture on a transparent sphere makes rotation visible
+            background: tier.isVanta
+              ? "radial-gradient(circle at 30% 70%, hsla(0,0%,18%,0.6), transparent 35%), radial-gradient(circle at 75% 25%, hsla(0,0%,22%,0.5), transparent 30%)"
+              : tier.isShimmer
+              ? "radial-gradient(circle at 70% 60%, hsla(0,0%,100%,0.18), transparent 35%), radial-gradient(circle at 25% 75%, hsla(280,80%,80%,0.18), transparent 30%)"
+              : `radial-gradient(circle at 70% 65%, hsla(0,0%,100%,0.18), transparent 30%), radial-gradient(circle at 25% 75%, ${tier.edge.replace(")", ", 0.35)").replace("hsl", "hsla")}, transparent 28%)`,
+            mixBlendMode: tier.isVanta ? "normal" : "soft-light",
+            opacity: 0.9,
+            // Mask so texture doesn't visibly clip when rotating beyond the silhouette
+            maskImage: "radial-gradient(circle, black 65%, transparent 100%)",
+            WebkitMaskImage: "radial-gradient(circle, black 65%, transparent 100%)",
+          }}
+        />
+
+        {/* Specular highlight — pinned to the screen so the light source feels fixed.
+            This is what sells the spherical volume. */}
+        <div
+          aria-hidden
+          className="absolute pointer-events-none"
+          style={{
+            top: "10%",
+            left: "16%",
+            width: "44%",
+            height: "32%",
+            borderRadius: "50%",
+            background:
+              "radial-gradient(ellipse at center, hsla(0,0%,100%,0.7), hsla(0,0%,100%,0) 70%)",
+            filter: "blur(3px)",
+          }}
+        />
+
+        {/* Terminator/limb darkening — also fixed in screen space, deepens the sphere illusion */}
+        <div
+          aria-hidden
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            borderRadius: "50%",
+            background:
+              "radial-gradient(circle at 50% 50%, transparent 55%, hsla(0,0%,0%,0.35) 100%)",
+          }}
+        />
+
+        {/* Sovereign-null shimmer overlay */}
+        {tier.isShimmer && (
           <div
             aria-hidden
-            className="absolute pointer-events-none"
+            className="absolute inset-0 pointer-events-none"
             style={{
-              top: "12%",
-              left: "18%",
-              width: "40%",
-              height: "30%",
               borderRadius: "50%",
               background:
-                "radial-gradient(ellipse at center, hsla(0,0%,100%,0.55), hsla(0,0%,100%,0) 70%)",
-              filter: "blur(2px)",
-              transform: "translateZ(1px)",
+                "conic-gradient(from 0deg, hsla(280,80%,70%,0.25), hsla(180,80%,70%,0.25), hsla(50,90%,70%,0.25), hsla(320,80%,70%,0.25), hsla(280,80%,70%,0.25))",
+              mixBlendMode: "screen",
+              animation: "orb-shimmer 8s linear infinite",
+              opacity: 0.6,
             }}
           />
-          {/* Sovereign-null shimmer overlay */}
-          {tier.isShimmer && (
-            <div
-              aria-hidden
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                borderRadius: "50%",
-                background:
-                  "conic-gradient(from 0deg, hsla(280,80%,70%,0.25), hsla(180,80%,70%,0.25), hsla(50,90%,70%,0.25), hsla(320,80%,70%,0.25), hsla(280,80%,70%,0.25))",
-                mixBlendMode: "screen",
-                animation: "orb-shimmer 8s linear infinite",
-                opacity: 0.6,
-              }}
-            />
-          )}
-        </div>
+        )}
       </div>
 
       <p className="mt-3 text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Your Standing</p>
