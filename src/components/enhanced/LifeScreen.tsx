@@ -169,6 +169,34 @@ const LifeScreen: React.FC = () => {
     }
   };
 
+  // Submit a Sync rating to the IDIA Protocol via the edge function.
+  const handleSubmitRating = async (rateeId: string, stars: number) => {
+    console.log("[RATING_SUBMIT_START]", { rateeId, stars });
+    try {
+      // The "rateeId" here may be an opaque NFC peer token until the iOS bridge
+      // returns a real user UUID. If it does not look like a UUID, abort the
+      // network call but still keep the local UX so the user is not blocked.
+      const looksLikeUuid = /^[0-9a-f-]{36}$/i.test(rateeId);
+      if (!looksLikeUuid) {
+        toast("Rating saved on device", {
+          description: "We will share it with the IDIA Protocol when the Connection is fully linked.",
+        });
+        return;
+      }
+      const { data, error } = await supabase.functions.invoke("submit-connection-rating", {
+        body: { ratee_id: rateeId, stars },
+      });
+      if (error) throw error;
+      toast.success("Rating saved", {
+        description: stars >= 4 ? "Thank you for the kind feedback." : "Your honest rating helps the network.",
+      });
+      console.log("[RATING_SUBMIT_END]", data);
+    } catch (err) {
+      console.error("[RATING_SUBMIT_ERROR]", err);
+      toast("Could not save rating", { description: "Please try again in a moment." });
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive"> = {
       pending: "secondary",
