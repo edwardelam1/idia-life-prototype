@@ -109,6 +109,14 @@ const LifeScreen: React.FC = () => {
     };
   }, []);
 
+  // Syncing terminology init — paired
+  useEffect(() => {
+    console.log("[SYNCING_TERMINOLOGY_INIT_START]");
+    return () => {
+      console.log("[SYNCING_TERMINOLOGY_INIT_END]");
+    };
+  }, []);
+
   useEffect(() => {
     fireGraffitiConfetti();
   }, []);
@@ -236,13 +244,11 @@ const LifeScreen: React.FC = () => {
                         className="font-bold shadow-lg shadow-teal-500/25 bg-gradient-to-r from-teal-500 via-amber-400 to-orange-500 hover:from-teal-600 hover:via-amber-500 hover:to-orange-600 text-white border-none backdrop-blur-md"
                       >
                         <Nfc className="w-4 h-4 mr-2" />
-                        {isScanning ? "Listening for tap…" : "Sync with a Friend"}
+                        {isScanning ? "Listening for a tap…" : "Start Syncing"}
                       </Button>
-                      {!isBridgeAvailable && (
-                        <p className="text-[10px] text-muted-foreground text-center leading-tight px-2">
-                          Tap the "Sync with a Friend" button to add a Connection in your Life.
-                        </p>
-                      )}
+                      <p className="text-[10px] text-muted-foreground text-center leading-tight px-2">
+                        Tap two phones together to start Syncing. A good Sync makes a new Connection.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -290,9 +296,9 @@ const LifeScreen: React.FC = () => {
             <CardContent className="flex-1 min-h-0 overflow-y-auto">
               {friends.length === 0 ? (
                 <div className="text-center py-8 space-y-3">
-                  <p className="text-muted-foreground">No connections yet.</p>
+                  <p className="text-muted-foreground">You do not have any Connections yet.</p>
                   <p className="text-xs text-muted-foreground">
-                    Connections are made by physical NFC tap only — there is no manual search.
+                    You cannot add a Connection by searching. You must Sync in person by tapping two phones together.
                   </p>
                 </div>
               ) : (
