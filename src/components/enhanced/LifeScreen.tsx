@@ -109,6 +109,14 @@ const LifeScreen: React.FC = () => {
     };
   }, []);
 
+  // Syncing terminology init — paired
+  useEffect(() => {
+    console.log("[SYNCING_TERMINOLOGY_INIT_START]");
+    return () => {
+      console.log("[SYNCING_TERMINOLOGY_INIT_END]");
+    };
+  }, []);
+
   useEffect(() => {
     fireGraffitiConfetti();
   }, []);
