@@ -363,46 +363,58 @@ const LifeScreen: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {friends.map((f) => (
-                    <div key={f.id} className="flex items-center space-x-3 p-3 border border-teal-50 rounded-lg">
-                      <Avatar>
-                        <AvatarFallback className="bg-teal-100 text-teal-700">
-                          {f.friend_profile?.first_name?.[0]}
-                          {f.friend_profile?.last_name?.[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <p className="font-medium text-foreground">{f.friend_profile?.display_name || "User"}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Connected {new Date(f.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {getStatusBadge(f.status)}
-                        {f.status === "pending" && (
+                  {friends.map((f) => {
+                    const label = labels[f.id] ?? null;
+                    const displayName = localPIIVault.displayName(f.id, label);
+                    const initials = localPIIVault.initials(f.id, label);
+                    return (
+                      <div key={f.id} className="flex items-center space-x-3 p-3 border border-teal-50 rounded-lg">
+                        <Avatar>
+                          <AvatarFallback className="bg-teal-100 text-teal-700">
+                            {initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-foreground truncate">{displayName}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Connected {new Date(f.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {getStatusBadge(f.status)}
+                          {f.status === "pending" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-teal-600 border-teal-200"
+                              onClick={() => acceptFriendRequest(f.id)}
+                            >
+                              Accept
+                            </Button>
+                          )}
                           <Button
-                            size="sm"
                             variant="outline"
+                            size="sm"
                             className="text-teal-600 border-teal-200"
-                            onClick={() => acceptFriendRequest(f.id)}
+                            onClick={() => setLabelTarget(f.id)}
                           >
-                            Accept
+                            Name
                           </Button>
-                        )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-teal-600 border-teal-200"
-                          onClick={() => setRateTarget(f.user_id_1 === f.user_id_2 ? f.user_id_2 : f.user_id_2)}
-                        >
-                          Rate
-                        </Button>
-                        <Button variant="ghost" size="sm" className="text-teal-600">
-                          <MessageCircle className="w-4 h-4" />
-                        </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-teal-600 border-teal-200"
+                            onClick={() => setRateTarget(f.id)}
+                          >
+                            Rate
+                          </Button>
+                          <Button variant="ghost" size="sm" className="text-teal-600">
+                            <MessageCircle className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
