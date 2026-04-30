@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Activity, TrendingUp } from "lucide-react";
+import { localPIIVault, type ConnectionLabel } from "@/lib/localPIIVault";
 
 // Stable hash → hue (mirrors LifeScreen helper so peers map to consistent colors)
 function hueFromToken(token: string): number {
@@ -94,6 +95,14 @@ const SphereOfInfluence: React.FC<SphereOfInfluenceProps> = ({ friends, currentS
     };
   }, [view, currentScore]);
 
+  const [labels, setLabels] = useState<Record<string, ConnectionLabel>>({});
+
+  useEffect(() => {
+    const accepted = friends.filter((f) => f.status === "accepted");
+    if (!accepted.length) return;
+    localPIIVault.lookupBatch(accepted.map((f) => f.id)).then(setLabels);
+  }, [friends]);
+
   // Compute pulse nodes laid out in a ring around the user
   const nodes: PulseNode[] = useMemo(() => {
     const accepted = friends.filter((f) => f.status === "accepted");
@@ -104,13 +113,10 @@ const SphereOfInfluence: React.FC<SphereOfInfluenceProps> = ({ friends, currentS
       const angle = (i / Math.min(count, 24)) * Math.PI * 2 - Math.PI / 2;
       const x = 50 + Math.cos(angle) * radius;
       const y = 50 + Math.sin(angle) * radius;
-      const label =
-        f.friend_profile?.display_name ||
-        f.friend_profile?.first_name ||
-        "Connection";
+      const label = localPIIVault.displayName(f.id, labels[f.id] ?? null);
       return { id: f.id, label, hue: hueFromToken(f.id), x, y };
     });
-  }, [friends]);
+  }, [friends, labels]);
 
   return (
     <Card className="bg-white shadow-sm border-none h-full flex flex-col">

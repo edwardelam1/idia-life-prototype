@@ -16,6 +16,8 @@ import StandingOrb from "../life/StandingOrb";
 import ColorWashOverlay from "../life/ColorWashOverlay";
 import SwipeToRate from "../life/SwipeToRate";
 import SphereOfInfluence from "../life/SphereOfInfluence";
+import LabelConnectionDialog from "../life/LabelConnectionDialog";
+import { localPIIVault, type ConnectionLabel } from "@/lib/localPIIVault";
 import { useNFCBridge } from "@/hooks/useNFCBridge";
 import { toast } from "sonner";
 import {
@@ -73,6 +75,28 @@ const LifeScreen: React.FC = () => {
   const [washPeerColor, setWashPeerColor] = useState<string | null>(null);
   const [rateTarget, setRateTarget] = useState<string | null>(null);
 
+  // Local PII Vault — IndexedDB-only labels for Connections (never sent to cloud)
+  const [labels, setLabels] = useState<Record<string, ConnectionLabel>>({});
+  const [labelTarget, setLabelTarget] = useState<string | null>(null);
+
+  // Load local labels for the current Connections list
+  useEffect(() => {
+    if (!friends.length) {
+      setLabels({});
+      return;
+    }
+    const ids = friends.map((f) => f.id);
+    localPIIVault.lookupBatch(ids).then(setLabels);
+  }, [friends]);
+
+  // After a successful Sync, prompt the user to label the new Connection.
+  // This pairs with the most-recently created accepted Connection in the list.
+  const promptLabelForLatestSync = () => {
+    const latest = [...friends]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+    if (latest) setLabelTarget(latest.id);
+  };
+
   useEffect(() => {
     console.log("[LIFE_NFC_SUBSCRIBE_START]");
     const onComplete = (e: Event) => {
@@ -83,9 +107,11 @@ const LifeScreen: React.FC = () => {
       toast.success("Sync complete", { description: "You made a new Connection." });
       // After the color wash, prompt the user to rate the Sync
       setTimeout(() => setRateTarget(detail?.peerToken ?? ""), 3600);
+      // Then prompt the user to label this Connection on-device only
+      setTimeout(() => promptLabelForLatestSync(), 4200);
     };
     const onError = () => {
-      toast("Connection didn't complete", {
+      toast("The Sync did not complete", {
         description: "Try again with the phones held closer, back-to-back.",
       });
     };
@@ -337,46 +363,58 @@ const LifeScreen: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {friends.map((f) => (
-                    <div key={f.id} className="flex items-center space-x-3 p-3 border border-teal-50 rounded-lg">
-                      <Avatar>
-                        <AvatarFallback className="bg-teal-100 text-teal-700">
-                          {f.friend_profile?.first_name?.[0]}
-                          {f.friend_profile?.last_name?.[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <p className="font-medium text-foreground">{f.friend_profile?.display_name || "User"}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Connected {new Date(f.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {getStatusBadge(f.status)}
-                        {f.status === "pending" && (
+                  {friends.map((f) => {
+                    const label = labels[f.id] ?? null;
+                    const displayName = localPIIVault.displayName(f.id, label);
+                    const initials = localPIIVault.initials(f.id, label);
+                    return (
+                      <div key={f.id} className="flex items-center space-x-3 p-3 border border-teal-50 rounded-lg">
+                        <Avatar>
+                          <AvatarFallback className="bg-teal-100 text-teal-700">
+                            {initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-foreground truncate">{displayName}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Connected {new Date(f.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {getStatusBadge(f.status)}
+                          {f.status === "pending" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-teal-600 border-teal-200"
+                              onClick={() => acceptFriendRequest(f.id)}
+                            >
+                              Accept
+                            </Button>
+                          )}
                           <Button
-                            size="sm"
                             variant="outline"
+                            size="sm"
                             className="text-teal-600 border-teal-200"
-                            onClick={() => acceptFriendRequest(f.id)}
+                            onClick={() => setLabelTarget(f.id)}
                           >
-                            Accept
+                            Name
                           </Button>
-                        )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-teal-600 border-teal-200"
-                          onClick={() => setRateTarget(f.user_id_1 === f.user_id_2 ? f.user_id_2 : f.user_id_2)}
-                        >
-                          Rate
-                        </Button>
-                        <Button variant="ghost" size="sm" className="text-teal-600">
-                          <MessageCircle className="w-4 h-4" />
-                        </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-teal-600 border-teal-200"
+                            onClick={() => setRateTarget(f.id)}
+                          >
+                            Rate
+                          </Button>
+                          <Button variant="ghost" size="sm" className="text-teal-600">
+                            <MessageCircle className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -501,6 +539,17 @@ const LifeScreen: React.FC = () => {
           onClose={() => setRateTarget(null)}
         />
       )}
+
+      <LabelConnectionDialog
+        connectionId={labelTarget}
+        open={!!labelTarget}
+        onOpenChange={(o) => !o && setLabelTarget(null)}
+        onSaved={() => {
+          if (friends.length) {
+            localPIIVault.lookupBatch(friends.map((f) => f.id)).then(setLabels);
+          }
+        }}
+      />
     </div>
   );
 };
