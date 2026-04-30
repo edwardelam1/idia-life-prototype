@@ -14,12 +14,12 @@ interface SpotlightTab {
 }
 
 const SPOTLIGHT_TABS: SpotlightTab[] = [
-  { id: "wallet", label: "Wallet", copy: "See, manage, and control your financial world with clarity and transparency." },
-  { id: "data", label: "My Data", copy: "Connect your apps. Turn your everyday digital activity into something that earns for you." },
-  { id: "life", label: "Life", copy: "Take assessments that reveal how you think, act, and operate—so we can deliver insights that actually matter." },
-  { id: "shop", label: "Shop", copy: "Discover and support the places you love—from local favorites to unique finds." },
-  { id: "vote", label: "Vote", copy: "Shape the future. Your voice directly influences the evolution of the ecosystem." },
-  { id: "pro", label: "Pro", copy: "Level up. Whether you are building a career or mastering yourself, this is where performance meets opportunity." },
+  { id: "wallet", label: "Wallet", copy: "See, manage, and control your financial world with clarity." },
+  { id: "data", label: "My Data", copy: "Connect your apps. Turn everyday digital activity into earnings." },
+  { id: "life", label: "Life", copy: "Take assessments that reveal how you think, act, and operate." },
+  { id: "shop", label: "Shop", copy: "Discover and support the places you love." },
+  { id: "vote", label: "Vote", copy: "Your voice directly shapes the ecosystem." },
+  { id: "pro", label: "Pro", copy: "Where performance meets opportunity." },
 ];
 
 const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
@@ -36,10 +36,8 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
     console.log(`[WELCOME_STEP: ${step}]`);
   }, [step]);
 
-  // Compute spotlight position from the live tab button rect
   useEffect(() => {
     if (step !== 3) return;
-
     const compute = () => {
       const tab = SPOTLIGHT_TABS[tabIndex];
       const el = tabRefs.current?.[tab.id];
@@ -51,7 +49,6 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
       setSpotlightRect({ x, y, r });
       console.log(`[SPOTLIGHT_TAB_FOCUS: ${tab.label}]`);
     };
-
     compute();
     window.addEventListener("resize", compute);
     return () => window.removeEventListener("resize", compute);
@@ -79,12 +76,11 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
     else finish();
   };
 
-  // Particles for Step 1
   const particles = useMemo(
     () =>
-      Array.from({ length: 28 }).map((_, i) => {
-        const angle = (i / 28) * Math.PI * 2;
-        const dist = 220 + Math.random() * 180;
+      Array.from({ length: 22 }).map((_, i) => {
+        const angle = (i / 22) * Math.PI * 2;
+        const dist = 140 + Math.random() * 110;
         const dx = Math.cos(angle) * dist;
         const dy = Math.sin(angle) * dist;
         const delay = Math.random() * 600;
@@ -96,7 +92,7 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
 
   return (
     <div
-      className="fixed inset-0 z-[200] overflow-hidden text-slate-800"
+      className="fixed inset-0 z-[200] overflow-hidden text-slate-800 flex flex-col"
       style={{
         background: `
           radial-gradient(ellipse at 15% 10%, rgba(186,230,253,0.85) 0%, transparent 55%),
@@ -104,6 +100,8 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
           radial-gradient(ellipse at 50% 95%, rgba(224,242,254,0.9) 0%, transparent 60%),
           linear-gradient(180deg, #fbfdff 0%, #f3f7fb 50%, #fefaf2 100%)
         `,
+        paddingTop: "env(safe-area-inset-top)",
+        paddingBottom: "env(safe-area-inset-bottom)",
       }}
     >
       {/* Persistent Skip */}
@@ -112,16 +110,15 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
           console.log("[WELCOME_SEQUENCE_SKIP]");
           finish();
         }}
-        className="fixed top-0 right-0 z-[210] m-4 mt-[max(1rem,env(safe-area-inset-top))] px-4 py-2 text-xs font-semibold tracking-[0.2em] uppercase border border-slate-300/70 rounded-full bg-white/70 hover:bg-white text-slate-700 backdrop-blur-md transition-colors shadow-sm"
+        className="absolute top-0 right-0 z-[210] m-3 mt-[max(0.75rem,env(safe-area-inset-top))] px-3 py-1.5 text-[10px] font-semibold tracking-[0.2em] uppercase border border-slate-300/70 rounded-full bg-white/70 hover:bg-white text-slate-700 backdrop-blur-md transition-colors shadow-sm"
       >
         Skip
       </button>
 
       {/* STEP 1 — Materialization */}
       {step === 1 && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center px-6">
-          <div className="relative w-64 h-64 mb-8 flex items-center justify-center">
-            {/* Silhouette */}
+        <div className="flex-1 flex flex-col items-center justify-center px-5 py-4 min-h-0">
+          <div className="relative w-36 h-36 mb-3 flex items-center justify-center shrink-0">
             <div
               className="absolute inset-0 rounded-full animate-welcome-glow"
               style={{
@@ -131,14 +128,13 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
               }}
             />
             <div
-              className="absolute w-32 h-32 rounded-full"
+              className="absolute w-20 h-20 rounded-full"
               style={{
                 background:
                   "radial-gradient(circle at 50% 50%, rgba(255,255,255,1) 0%, rgba(20,184,166,0.45) 55%, rgba(255,255,255,0) 100%)",
-                boxShadow: "0 0 60px 18px rgba(20,184,166,0.25), 0 0 140px 36px rgba(251,191,36,0.18)",
+                boxShadow: "0 0 40px 12px rgba(20,184,166,0.25), 0 0 90px 24px rgba(251,191,36,0.18)",
               }}
             />
-            {/* Particles */}
             {particles.map((p, i) => (
               <span
                 key={i}
@@ -155,20 +151,15 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
             ))}
           </div>
 
-          <div className="max-w-md text-center space-y-3 text-sm leading-relaxed">
-            <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-teal-600 via-amber-500 to-orange-500 bg-clip-text text-transparent">
+          <div className="max-w-md text-center space-y-1.5 text-[13px] leading-snug">
+            <h2 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-teal-600 via-amber-500 to-orange-500 bg-clip-text text-transparent">
               Welcome to Life.
             </h2>
-            <p className="text-slate-700">This isn’t just another app.</p>
             <p className="text-slate-700">This is where you come into focus.</p>
             <p className="text-slate-600">
-              Life is your gateway to understanding, owning, and activating your digital self — your digital twin. Every
-              interaction, every data point, every signal you create has value. Here, you don’t give that value away…
-              you claim it.
+              Your gateway to understanding, owning, and activating your digital self. Every signal you create has value—claim it.
             </p>
-            <p className="text-slate-700">Because your data isn’t just information.</p>
-            <p className="font-semibold text-amber-600">It’s leverage. It’s currency. It’s power.</p>
-            <p className="text-slate-700">And Life is how you unlock it.</p>
+            <p className="font-semibold text-amber-600">It is leverage. It is currency. It is power.</p>
           </div>
 
           <ContinueButton onClick={next} label="Continue" />
@@ -177,8 +168,8 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
 
       {/* STEP 2 — IDIA Protocol */}
       {step === 2 && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center px-6">
-          <div className="relative w-[320px] h-[260px] mb-6">
+        <div className="flex-1 flex flex-col items-center justify-center px-5 py-4 min-h-0">
+          <div className="relative w-[260px] h-[200px] mb-3 shrink-0">
             <svg viewBox="0 0 320 260" className="absolute inset-0 w-full h-full">
               <defs>
                 <linearGradient id="lineGrad" x1="0" x2="1">
@@ -209,22 +200,20 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
               ))}
             </svg>
 
-            {/* Center IDIA logo */}
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full bg-white/85 backdrop-blur-xl border border-slate-200 flex items-center justify-center"
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-white/85 backdrop-blur-xl border border-slate-200 flex items-center justify-center"
               style={{ boxShadow: "0 8px 30px rgba(99,102,241,0.25), 0 0 40px rgba(125,211,252,0.35)" }}>
-              <img src={idiaLogo} alt="IDIA" className="w-16 h-auto" />
+              <img src={idiaLogo} alt="IDIA" className="w-12 h-auto" />
             </div>
 
-            {/* Pillars */}
             {[
-              { label: "Life", x: "8px", y: "8px" },
-              { label: "Pay", x: "calc(100% - 88px)", y: "8px" },
-              { label: "Hub", x: "8px", y: "calc(100% - 44px)" },
-              { label: "Synapse Engine", x: "calc(100% - 148px)", y: "calc(100% - 44px)" },
+              { label: "Life", x: "0px", y: "0px" },
+              { label: "Pay", x: "calc(100% - 56px)", y: "0px" },
+              { label: "Hub", x: "0px", y: "calc(100% - 28px)" },
+              { label: "Synapse", x: "calc(100% - 78px)", y: "calc(100% - 28px)" },
             ].map((p) => (
               <div
                 key={p.label}
-                className="absolute px-3 py-1.5 rounded-full bg-white/85 border border-slate-200 text-xs font-semibold tracking-wide text-slate-800 backdrop-blur-md"
+                className="absolute px-2.5 py-1 rounded-full bg-white/85 border border-slate-200 text-[11px] font-semibold tracking-wide text-slate-800 backdrop-blur-md"
                 style={{ left: p.x, top: p.y, boxShadow: "0 4px 16px rgba(20,184,166,0.25)" }}
               >
                 {p.label}
@@ -232,23 +221,18 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
             ))}
           </div>
 
-          <div className="max-w-md text-center space-y-2 text-sm leading-relaxed">
-            <h2 className="text-2xl font-bold text-amber-600">Enter the IDIA Protocol</h2>
+          <div className="max-w-md text-center space-y-1.5 text-[13px] leading-snug">
+            <h2 className="text-xl font-bold text-amber-600">Enter the IDIA Protocol</h2>
             <p className="text-slate-700">
-              Behind everything you see is something bigger: a new system designed to shift control back to individuals.
+              A new system designed to shift control back to individuals.
             </p>
-            <p className="text-slate-600">The IDIA Protocol connects:</p>
-            <ul className="text-slate-700 text-left mx-auto inline-block space-y-1">
-              <li><span className="text-teal-600 font-semibold">Life</span> – your personal command center</li>
-              <li><span className="text-teal-600 font-semibold">Pay</span> – where value moves</li>
-              <li><span className="text-teal-600 font-semibold">Hub</span> – where intelligence is built</li>
-              <li><span className="text-teal-600 font-semibold">Synapse Engine</span> – where it all comes alive</li>
-            </ul>
-            <p className="text-slate-600 pt-1">
-              Together, they create a new economic reality—one where your data works for you, not against you.
+            <p className="text-slate-600 text-[12px]">
+              <span className="text-teal-600 font-semibold">Life</span> · your command center &nbsp;·&nbsp;
+              <span className="text-teal-600 font-semibold">Pay</span> · where value moves &nbsp;·&nbsp;
+              <span className="text-teal-600 font-semibold">Hub</span> · where intelligence is built &nbsp;·&nbsp;
+              <span className="text-teal-600 font-semibold">Synapse</span> · where it all comes alive
             </p>
-            <p className="text-slate-700">You’re not just a user here.</p>
-            <p className="font-semibold text-amber-600">You’re an owner of your value.</p>
+            <p className="font-semibold text-amber-600">You are an owner of your value.</p>
           </div>
 
           <ContinueButton onClick={next} label="Continue" />
@@ -258,7 +242,6 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
       {/* STEP 3 — Spotlight Tour */}
       {step === 3 && spotlightRect && (
         <>
-          {/* Light frosted scrim with cut-out spotlight */}
           <div
             className="absolute inset-0 pointer-events-none transition-all duration-500"
             style={{
@@ -267,7 +250,6 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
               WebkitBackdropFilter: "blur(2px)",
             }}
           />
-          {/* Glowing ring */}
           <div
             className="absolute pointer-events-none rounded-full transition-all duration-500"
             style={{
@@ -280,29 +262,28 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
             }}
           />
 
-          {/* Caption */}
-          <div className="absolute left-0 right-0 px-6"
-            style={{ bottom: `calc(${spotlightRect.r}px + env(safe-area-inset-bottom) + 96px)` }}>
-            <div className="max-w-md mx-auto rounded-2xl bg-white/85 backdrop-blur-xl border border-slate-200 p-5 text-center"
+          <div className="absolute left-0 right-0 px-5"
+            style={{ bottom: `calc(${spotlightRect.r}px + env(safe-area-inset-bottom) + 110px)` }}>
+            <div className="max-w-md mx-auto rounded-2xl bg-white/90 backdrop-blur-xl border border-slate-200 p-3.5 text-center"
               style={{ boxShadow: "0 10px 40px rgba(15,23,42,0.12), 0 0 30px rgba(20,184,166,0.18)" }}>
-              <div className="text-xs uppercase tracking-[0.3em] text-amber-600 mb-2">
+              <div className="text-[10px] uppercase tracking-[0.3em] text-amber-600 mb-1">
                 {SPOTLIGHT_TABS[tabIndex].label}
               </div>
-              <p className="text-sm text-slate-700 leading-relaxed">{SPOTLIGHT_TABS[tabIndex].copy}</p>
-              <div className="flex items-center justify-center gap-2 mt-4">
+              <p className="text-[12px] text-slate-700 leading-snug">{SPOTLIGHT_TABS[tabIndex].copy}</p>
+              <div className="flex items-center justify-center gap-1.5 mt-2.5">
                 {SPOTLIGHT_TABS.map((_, i) => (
                   <span
                     key={i}
-                    className={`h-1.5 rounded-full transition-all ${i === tabIndex ? "w-6 bg-teal-500" : "w-1.5 bg-slate-300"}`}
+                    className={`h-1.5 rounded-full transition-all ${i === tabIndex ? "w-5 bg-teal-500" : "w-1.5 bg-slate-300"}`}
                   />
                 ))}
               </div>
               <button
                 onClick={next}
-                className="mt-4 inline-flex items-center gap-2 px-5 py-2 rounded-full bg-teal-500 hover:bg-teal-400 text-white text-sm font-bold transition-colors shadow-md"
+                className="mt-2.5 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-teal-500 hover:bg-teal-400 text-white text-[12px] font-bold transition-colors shadow-md"
               >
                 {tabIndex < SPOTLIGHT_TABS.length - 1 ? "Next" : "Continue"}
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -311,8 +292,8 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
 
       {/* STEP 4 — Sovereignty Shield */}
       {step === 4 && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center px-6">
-          <div className="relative mb-8 w-40 h-40 flex items-center justify-center">
+        <div className="flex-1 flex flex-col items-center justify-center px-5 py-4 min-h-0">
+          <div className="relative mb-3 w-28 h-28 flex items-center justify-center shrink-0">
             <div
               className="absolute inset-0 rounded-full animate-welcome-pulse"
               style={{
@@ -320,19 +301,17 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
                   "radial-gradient(circle, rgba(20,184,166,0.3) 0%, rgba(251,191,36,0.12) 50%, rgba(255,255,255,0) 75%)",
               }}
             />
-            <div className="relative w-24 h-24 rounded-full bg-white/85 border border-slate-200 backdrop-blur-xl flex items-center justify-center"
+            <div className="relative w-20 h-20 rounded-full bg-white/85 border border-slate-200 backdrop-blur-xl flex items-center justify-center"
               style={{ boxShadow: "0 8px 30px rgba(20,184,166,0.35), 0 0 50px rgba(251,191,36,0.25)" }}>
-              <ShieldCheck className="w-12 h-12 text-teal-600" />
+              <ShieldCheck className="w-10 h-10 text-teal-600" />
             </div>
           </div>
 
-          <div className="max-w-md text-center space-y-3 text-sm leading-relaxed">
-            <h2 className="text-2xl font-bold text-amber-600">Built for Your Sovereignty</h2>
-            <p className="text-slate-700">We don’t trade your identity.</p>
-            <p className="text-slate-700">We don’t store who you are—we store what matters.</p>
+          <div className="max-w-md text-center space-y-1.5 text-[13px] leading-snug">
+            <h2 className="text-xl font-bold text-amber-600">Built for Your Sovereignty</h2>
+            <p className="text-slate-700">We do not trade your identity.</p>
             <p className="text-slate-600">Your data is secured, anonymized, and fully under your control.</p>
             <p className="font-semibold text-teal-600">No names. No addresses. No compromise.</p>
-            <p className="text-slate-700">Because ownership means nothing without protection.</p>
           </div>
 
           <ContinueButton onClick={next} label="Continue" />
@@ -341,22 +320,21 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
 
       {/* STEP 5 — Final Launch */}
       {step === 5 && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center px-6">
-          <div className="max-w-md text-center space-y-3 text-sm leading-relaxed mb-10">
-            <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-teal-600 via-amber-500 to-orange-500 bg-clip-text text-transparent">
+        <div className="flex-1 flex flex-col items-center justify-center px-5 py-4 min-h-0">
+          <div className="max-w-md text-center space-y-2 text-[13px] leading-snug mb-6">
+            <h2 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-teal-600 via-amber-500 to-orange-500 bg-clip-text text-transparent">
               This Is Your Moment
             </h2>
             <p className="text-slate-700">
-              You’re stepping into a new system—one where your life, your data, and your value finally align.
+              Your life, your data, and your value finally align.
             </p>
             <p className="font-semibold text-amber-600">Explore. Connect. Build. Earn.</p>
-            <p className="text-slate-700">Live on your terms.</p>
             <p className="text-slate-600">Welcome to Life.</p>
           </div>
 
           <button
             onClick={finish}
-            className="relative group inline-flex items-center gap-3 px-12 py-5 rounded-full font-extrabold text-lg tracking-[0.3em] text-slate-900 bg-gradient-to-r from-teal-300 via-amber-200 to-orange-300 transition-transform hover:scale-105 active:scale-95 animate-welcome-pulse"
+            className="relative group inline-flex items-center gap-3 px-10 py-4 rounded-full font-extrabold text-base tracking-[0.3em] text-slate-900 bg-gradient-to-r from-teal-300 via-amber-200 to-orange-300 transition-transform hover:scale-105 active:scale-95 animate-welcome-pulse"
             style={{
               boxShadow:
                 "0 10px 30px rgba(15,23,42,0.15), 0 0 40px rgba(20,184,166,0.5), 0 0 90px rgba(251,191,36,0.4)",
@@ -368,22 +346,13 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
         </div>
       )}
 
-      {/* Local keyframes */}
       <style>{`
         @keyframes welcome-particle {
-          0% {
-            transform: translate(var(--dx), var(--dy)) scale(0.4);
-            opacity: 0;
-          }
+          0% { transform: translate(var(--dx), var(--dy)) scale(0.4); opacity: 0; }
           25% { opacity: 1; }
-          100% {
-            transform: translate(0, 0) scale(1);
-            opacity: 0.9;
-          }
+          100% { transform: translate(0, 0) scale(1); opacity: 0.9; }
         }
-        .animate-welcome-particle {
-          animation: welcome-particle 1800ms ease-out forwards;
-        }
+        .animate-welcome-particle { animation: welcome-particle 1800ms ease-out forwards; }
         @keyframes welcome-glow {
           0%, 100% { transform: scale(1); opacity: 0.85; }
           50% { transform: scale(1.06); opacity: 1; }
@@ -394,9 +363,7 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
           50% { transform: scale(1.04); }
         }
         .animate-welcome-pulse { animation: welcome-pulse 2.4s ease-in-out infinite; }
-        @keyframes welcome-line {
-          to { stroke-dashoffset: 0; }
-        }
+        @keyframes welcome-line { to { stroke-dashoffset: 0; } }
         .animate-welcome-line { animation: welcome-line 1200ms ease-out forwards; }
       `}</style>
     </div>
@@ -406,7 +373,7 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
 const ContinueButton = ({ onClick, label }: { onClick: () => void; label: string }) => (
   <button
     onClick={onClick}
-    className="mt-8 inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-white/80 hover:bg-white border border-slate-300 backdrop-blur-md text-sm font-semibold tracking-wide text-slate-700 transition-colors shadow-sm"
+    className="mt-5 inline-flex items-center gap-2 px-5 py-2 rounded-full bg-white/85 hover:bg-white border border-slate-300 backdrop-blur-md text-[13px] font-semibold tracking-wide text-slate-700 transition-colors shadow-sm shrink-0"
   >
     {label}
     <ArrowRight className="w-4 h-4" />
