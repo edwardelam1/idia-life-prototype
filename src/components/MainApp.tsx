@@ -85,15 +85,16 @@ const MainApp = () => {
     }
   }, [activeTab, showOnboarding]);
 
-  // AI Assistant Triggers
+  // AI Assistant Triggers (suppressed during first-run welcome)
   useEffect(() => {
+    if (showWelcome) return;
     if (activeTab === "life") {
       setFriendTrigger("social");
       setShowFriend(true);
     } else if (friendTrigger === "social") {
       setShowFriend(false);
     }
-  }, [activeTab, friendTrigger]);
+  }, [activeTab, friendTrigger, showWelcome]);
 
   useEffect(() => {
     const handleShowFriend = (event: CustomEvent) => {
