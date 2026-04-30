@@ -75,6 +75,28 @@ const LifeScreen: React.FC = () => {
   const [washPeerColor, setWashPeerColor] = useState<string | null>(null);
   const [rateTarget, setRateTarget] = useState<string | null>(null);
 
+  // Local PII Vault — IndexedDB-only labels for Connections (never sent to cloud)
+  const [labels, setLabels] = useState<Record<string, ConnectionLabel>>({});
+  const [labelTarget, setLabelTarget] = useState<string | null>(null);
+
+  // Load local labels for the current Connections list
+  useEffect(() => {
+    if (!friends.length) {
+      setLabels({});
+      return;
+    }
+    const ids = friends.map((f) => f.id);
+    localPIIVault.lookupBatch(ids).then(setLabels);
+  }, [friends]);
+
+  // After a successful Sync, prompt the user to label the new Connection.
+  // This pairs with the most-recently created accepted Connection in the list.
+  const promptLabelForLatestSync = () => {
+    const latest = [...friends]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+    if (latest) setLabelTarget(latest.id);
+  };
+
   useEffect(() => {
     console.log("[LIFE_NFC_SUBSCRIBE_START]");
     const onComplete = (e: Event) => {
@@ -85,6 +107,8 @@ const LifeScreen: React.FC = () => {
       toast.success("Sync complete", { description: "You made a new Connection." });
       // After the color wash, prompt the user to rate the Sync
       setTimeout(() => setRateTarget(detail?.peerToken ?? ""), 3600);
+      // Then prompt the user to label this Connection on-device only
+      setTimeout(() => promptLabelForLatestSync(), 4200);
     };
     const onError = () => {
       toast("Connection didn't complete", {
