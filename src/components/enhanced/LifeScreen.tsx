@@ -13,7 +13,9 @@ import { supabase } from "@/integrations/supabase/client";
 import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter";
 import { fireGraffitiConfetti, fireFinaleConfetti } from "../psychometric/confetti";
 import StandingOrb from "../life/StandingOrb";
-import NFCHandshake from "../life/NFCHandshake";
+import ColorWashOverlay from "../life/ColorWashOverlay";
+import { useNFCBridge } from "@/hooks/useNFCBridge";
+import { toast } from "sonner";
 import {
   Heart,
   Award,
@@ -25,7 +27,17 @@ import {
   BrainCircuit,
   Users,
   ArrowRight,
+  Nfc,
 } from "lucide-react";
+
+// Placeholder — derives a peer tier hue from the opaque native peer token
+// until the finalized iOS contract ships. Stable hash → hue.
+function peerColorFromToken(token: string): string {
+  let h = 0;
+  for (let i = 0; i < token.length; i++) h = (h * 31 + token.charCodeAt(i)) >>> 0;
+  const hue = h % 360;
+  return `hsl(${hue}, 80%, 60%)`;
+}
 
 // Resolve the user's tier color for the NFC color wash
 function tierColorForScore(score: number | null | undefined): string {
