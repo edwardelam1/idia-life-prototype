@@ -111,7 +111,7 @@ const LifeScreen: React.FC = () => {
       setTimeout(() => promptLabelForLatestSync(), 4200);
     };
     const onError = () => {
-      toast("Connection didn't complete", {
+      toast("The Sync did not complete", {
         description: "Try again with the phones held closer, back-to-back.",
       });
     };
