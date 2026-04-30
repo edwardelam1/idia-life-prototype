@@ -685,6 +685,17 @@ const LifeScreen: React.FC = () => {
           }
         }}
       />
+
+      <ProximityAwarenessOverlay
+        open={proximityOpen}
+        onClose={() => setProximityOpen(false)}
+        onPeerSelected={(peer) => {
+          console.log("[PROXIMITY_HANDSHAKE_TRIGGER]");
+          setProximityOpen(false);
+          // Defer slightly so the overlay can dismiss before the NFC sheet appears.
+          window.setTimeout(() => initiateSovereignHandshake("STANDARD"), 250);
+        }}
+      />
     </div>
   );
 };
