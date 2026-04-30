@@ -83,28 +83,26 @@ const TIER_LABEL: Record<TierName, string> = {
   vantablack: "Architect",
 };
 
-// Idle baseline rotation (rad/s) for each axis — gentle tumble in 3D
+// Idle baseline rotation (rad/s) — gentle tumble on X and Y only.
+// Z rotation is intentionally disabled so the orb reads as a true sphere.
 const BASELINE_X = 0.04;
 const BASELINE_Y = 0.07;
-const BASELINE_Z = 0.02;
 
 export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
   const sceneRef = useRef<HTMLDivElement | null>(null);
   const orbRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
 
-  // Per-axis angle and angular velocity (radians, rad/s)
-  const angleRef = useRef({ x: 0, y: 0, z: 0 });
-  const velRef = useRef({ x: BASELINE_X, y: BASELINE_Y, z: BASELINE_Z });
+  // Per-axis angle and angular velocity (radians, rad/s) — X and Y only.
+  const angleRef = useRef({ x: 0, y: 0 });
+  const velRef = useRef({ x: BASELINE_X, y: BASELINE_Y });
   const lastTsRef = useRef<number | null>(null);
 
   // Pointer drag state
   const draggingRef = useRef(false);
   const lastPointerRef = useRef<{ x: number; y: number; t: number } | null>(null);
-  const radialAngleRef = useRef(0);
-  const samplesRef = useRef<{ t: number; x: number; y: number; z: number }[]>([]);
+  const samplesRef = useRef<{ t: number; x: number; y: number }[]>([]);
   const stabilizedRef = useRef(true);
-  const modifierRef = useRef(false);
 
   const [isPressed, setIsPressed] = useState(false);
 
@@ -124,8 +122,8 @@ export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
 
       if (!draggingRef.current) {
         // Decay flick momentum back toward each axis baseline
-        (["x", "y", "z"] as const).forEach((axis) => {
-          const baseline = axis === "x" ? BASELINE_X : axis === "y" ? BASELINE_Y : BASELINE_Z;
+        (["x", "y"] as const).forEach((axis) => {
+          const baseline = axis === "x" ? BASELINE_X : BASELINE_Y;
           const v = velRef.current[axis];
           if (Math.abs(v) > baseline + 0.001) {
             velRef.current[axis] = v * 0.97;
@@ -159,33 +157,20 @@ export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
   const applyTransform = () => {
     const el = orbRef.current;
     if (!el) return;
-    const { x, y, z } = angleRef.current;
+    const { x, y } = angleRef.current;
     const rx = (x * 180) / Math.PI;
     const ry = (y * 180) / Math.PI;
-    const rz = (z * 180) / Math.PI;
     el.style.setProperty("--orb-rx", `${rx}deg`);
     el.style.setProperty("--orb-ry", `${ry}deg`);
-    el.style.setProperty("--orb-rz", `${rz}deg`);
-  };
-
-  const getRadialAngle = (clientX: number, clientY: number): number => {
-    const el = sceneRef.current;
-    if (!el) return 0;
-    const rect = el.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    return Math.atan2(clientY - cy, clientX - cx);
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
     (e.target as Element).setPointerCapture?.(e.pointerId);
     draggingRef.current = true;
     setIsPressed(true);
-    modifierRef.current = e.shiftKey || e.altKey || e.ctrlKey || e.metaKey;
     lastPointerRef.current = { x: e.clientX, y: e.clientY, t: performance.now() };
-    radialAngleRef.current = getRadialAngle(e.clientX, e.clientY);
     samplesRef.current = [
-      { t: performance.now(), x: angleRef.current.x, y: angleRef.current.y, z: angleRef.current.z },
+      { t: performance.now(), x: angleRef.current.x, y: angleRef.current.y },
     ];
     console.log("[ORB_FLICK_BEGIN]");
   };
@@ -196,30 +181,16 @@ export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
     const dx = e.clientX - last.x;
     const dy = e.clientY - last.y;
 
-    if (modifierRef.current) {
-      // Modifier held → spin on Z (the original radial behavior)
-      const a = getRadialAngle(e.clientX, e.clientY);
-      let dA = a - radialAngleRef.current;
-      if (dA > Math.PI) dA -= Math.PI * 2;
-      if (dA < -Math.PI) dA += Math.PI * 2;
-      angleRef.current.z += dA;
-      radialAngleRef.current = a;
-    } else {
-      // Free 3D drag — horizontal → Y rotation, vertical → X rotation.
-      // Scale so that dragging across the orb roughly turns it half a turn.
-      const scale = (Math.PI / Math.max(size, 1)) * 1.4;
-      angleRef.current.y += dx * scale;
-      angleRef.current.x -= dy * scale;
-      // A small Z component keeps the motion feeling truly 3D rather than gimbal-locked.
-      angleRef.current.z += (dx - dy) * scale * 0.08;
-    }
+    // Free 3D drag — horizontal → Y rotation, vertical → X rotation only.
+    const scale = (Math.PI / Math.max(size, 1)) * 1.4;
+    angleRef.current.y += dx * scale;
+    angleRef.current.x -= dy * scale;
 
     lastPointerRef.current = { x: e.clientX, y: e.clientY, t: performance.now() };
     samplesRef.current.push({
       t: performance.now(),
       x: angleRef.current.x,
       y: angleRef.current.y,
-      z: angleRef.current.z,
     });
     if (samplesRef.current.length > 6) samplesRef.current.shift();
 
@@ -240,12 +211,11 @@ export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
         const clamp = (v: number) => Math.max(-12, Math.min(12, v));
         velRef.current.x = clamp((last.x - first.x) / dt);
         velRef.current.y = clamp((last.y - first.y) / dt);
-        velRef.current.z = clamp((last.z - first.z) / dt);
       }
     }
     stabilizedRef.current = false;
     console.log(
-      `[ORB_FLICK_RELEASE] vx=${velRef.current.x.toFixed(2)} vy=${velRef.current.y.toFixed(2)} vz=${velRef.current.z.toFixed(2)}`,
+      `[ORB_FLICK_RELEASE] vx=${velRef.current.x.toFixed(2)} vy=${velRef.current.y.toFixed(2)}`,
     );
   };
 
