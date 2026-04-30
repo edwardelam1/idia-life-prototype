@@ -45,13 +45,7 @@ const CollapsedAvatar = ({
           <div className="absolute inset-1 rounded-full bg-white/10"></div>
         </div>
         
-        {/* State indicator */}
-        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center border border-white/30">
-          {friendState === 'listening' && <Mic className="w-2 h-2 text-purple-600" />}
-          {friendState === 'thinking' && <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce"></div>}
-          {friendState === 'speaking' && <div className="w-2 h-2 bg-yellow-600 rounded-full animate-pulse"></div>}
-          {friendState === 'idle' && <div className="w-2 h-2 bg-blue-600 rounded-full" />}
-        </div>
+        {/* State is communicated by the orb's color/animation — no icon badges */}
       </div>
       
       {/* Chat Button */}
