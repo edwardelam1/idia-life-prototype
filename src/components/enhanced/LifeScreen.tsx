@@ -13,7 +13,9 @@ import { supabase } from "@/integrations/supabase/client";
 import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter";
 import { fireGraffitiConfetti, fireFinaleConfetti } from "../psychometric/confetti";
 import StandingOrb from "../life/StandingOrb";
-import NFCHandshake from "../life/NFCHandshake";
+import ColorWashOverlay from "../life/ColorWashOverlay";
+import { useNFCBridge } from "@/hooks/useNFCBridge";
+import { toast } from "sonner";
 import {
   Heart,
   Award,
@@ -25,7 +27,17 @@ import {
   BrainCircuit,
   Users,
   ArrowRight,
+  Nfc,
 } from "lucide-react";
+
+// Placeholder — derives a peer tier hue from the opaque native peer token
+// until the finalized iOS contract ships. Stable hash → hue.
+function peerColorFromToken(token: string): string {
+  let h = 0;
+  for (let i = 0; i < token.length; i++) h = (h * 31 + token.charCodeAt(i)) >>> 0;
+  const hue = h % 360;
+  return `hsl(${hue}, 80%, 60%)`;
+}
 
 // Resolve the user's tier color for the NFC color wash
 function tierColorForScore(score: number | null | undefined): string {
@@ -53,6 +65,33 @@ const LifeScreen: React.FC = () => {
 
   const [showTestModal, setShowTestModal] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
+
+  // NFC Bridge — Sovereign Handshake to native iOS hardware
+  const { isBridgeAvailable, isScanning, initiateSovereignHandshake } = useNFCBridge();
+  const [washPeerColor, setWashPeerColor] = useState<string | null>(null);
+
+  useEffect(() => {
+    console.log("[LIFE_NFC_SUBSCRIBE_START]");
+    const onComplete = (e: Event) => {
+      const detail = (e as CustomEvent<{ peerToken: string }>).detail;
+      const peerColor = peerColorFromToken(detail?.peerToken ?? "");
+      console.log("[LIFE_NFC_HANDSHAKE_RESOLVED]", { peerColor });
+      setWashPeerColor(peerColor);
+      toast.success("Standing synced", { description: "Your chromatic standing has shifted." });
+    };
+    const onError = () => {
+      toast("Connection didn't complete", {
+        description: "Try again with the phones held closer, back-to-back.",
+      });
+    };
+    window.addEventListener("nfc:scan-complete", onComplete);
+    window.addEventListener("nfc:scan-error", onError);
+    return () => {
+      window.removeEventListener("nfc:scan-complete", onComplete);
+      window.removeEventListener("nfc:scan-error", onError);
+      console.log("[LIFE_NFC_SUBSCRIBE_END]");
+    };
+  }, []);
 
   // Granular layout calibration logging — paired start/end on mount/unmount
   useLayoutEffect(() => {
@@ -188,9 +227,22 @@ const LifeScreen: React.FC = () => {
                       </DialogContent>
                     </Dialog>
 
-                    {/* Relocated NFC — ~28px below "Take our Tests", nested inside the standing card */}
-                    <div className="mt-7 pt-3 border-t border-teal-100 flex justify-center">
-                      <NFCHandshake myTierColor={myTierColor} />
+                    {/* Sovereign Handshake — Sync Standing via native NFC bridge */}
+                    <div className="mt-7 pt-3 border-t border-teal-100 flex flex-col items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        onClick={() => initiateSovereignHandshake("STANDARD")}
+                        disabled={isScanning}
+                        className="font-bold shadow-lg shadow-teal-500/25 bg-gradient-to-r from-teal-500 via-amber-400 to-orange-500 hover:from-teal-600 hover:via-amber-500 hover:to-orange-600 text-white border-none backdrop-blur-md"
+                      >
+                        <Nfc className="w-4 h-4 mr-2" />
+                        {isScanning ? "Listening for tap…" : "Sync Standing"}
+                      </Button>
+                      {!isBridgeAvailable && (
+                        <p className="text-[10px] text-muted-foreground text-center leading-tight px-2">
+                          Open IDIA Life on your mobile device to activate the physical handshake hardware.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -385,6 +437,14 @@ const LifeScreen: React.FC = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {washPeerColor && (
+        <ColorWashOverlay
+          myColor={myTierColor}
+          peerColor={washPeerColor}
+          onComplete={() => setWashPeerColor(null)}
+        />
+      )}
     </div>
   );
 };
