@@ -406,7 +406,7 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
 const ContinueButton = ({ onClick, label }: { onClick: () => void; label: string }) => (
   <button
     onClick={onClick}
-    className="mt-8 inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md text-sm font-semibold tracking-wide transition-colors"
+    className="mt-8 inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-white/80 hover:bg-white border border-slate-300 backdrop-blur-md text-sm font-semibold tracking-wide text-slate-700 transition-colors shadow-sm"
   >
     {label}
     <ArrowRight className="w-4 h-4" />
