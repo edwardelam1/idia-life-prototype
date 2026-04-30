@@ -487,6 +487,14 @@ const LifeScreen: React.FC = () => {
       {washPeerColor && (
         <ColorWashOverlay myColor={myTierColor} peerColor={washPeerColor} onComplete={() => setWashPeerColor(null)} />
       )}
+
+      {rateTarget && (
+        <SwipeToRate
+          connectionId={rateTarget}
+          onSubmit={(stars) => handleSubmitRating(rateTarget, stars)}
+          onClose={() => setRateTarget(null)}
+        />
+      )}
     </div>
   );
 };
