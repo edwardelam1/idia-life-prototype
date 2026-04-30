@@ -79,7 +79,9 @@ const LifeScreen: React.FC = () => {
       const peerColor = peerColorFromToken(detail?.peerToken ?? "");
       console.log("[LIFE_NFC_HANDSHAKE_RESOLVED]", { peerColor });
       setWashPeerColor(peerColor);
-      toast.success("Standing synced", { description: "Your chromatic standing has shifted." });
+      toast.success("Sync complete", { description: "You made a new Connection." });
+      // After the color wash, prompt the user to rate the Sync
+      setTimeout(() => setRateTarget(detail?.peerToken ?? ""), 3600);
     };
     const onError = () => {
       toast("Connection didn't complete", {
