@@ -154,15 +154,97 @@ const LifeScreen: React.FC = () => {
     fireGraffitiConfetti();
   }, []);
 
+  // Phase 5 — Evidence-Based Good Deeds.
+  // Requires both a description AND an evidence file. Uploads to the
+  // `deed-evidence` private bucket, inserts the deed row, then asks the
+  // verify-good-deed-evidence edge function to judge it with Lovable AI.
   const handleSubmitGoodDeed = async () => {
-    if (!newDeedTitle.trim() || !newDeedDescription.trim()) return;
+    const title = newDeedTitle.trim();
+    const description = newDeedDescription.trim();
+    if (!title || !description || !newDeedFile) {
+      toast("Please add a title, a description, and one piece of proof.");
+      return;
+    }
     setIsSubmittingDeed(true);
+    console.log("[GOOD_DEED_SUBMISSION_START]");
     try {
-      await submitGoodDeed(newDeedTitle, newDeedDescription);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast("Please sign in to submit a Good Deed.");
+        return;
+      }
+
+      // 1. Insert the deed row first to get an id we can use for the path
+      const { data: inserted, error: insertErr } = await supabase
+        .from("good_deeds")
+        .insert({
+          user_id: user.id,
+          title,
+          description,
+          verification_status: "pending",
+        })
+        .select("id")
+        .maybeSingle();
+      if (insertErr || !inserted) throw insertErr ?? new Error("Insert failed");
+
+      // 2. Upload the evidence file to {user.id}/{deed.id}.{ext}
+      const ext = (newDeedFile.name.split(".").pop() || "bin").toLowerCase().slice(0, 8);
+      const path = `${user.id}/${inserted.id}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("deed-evidence")
+        .upload(path, newDeedFile, {
+          cacheControl: "3600",
+          upsert: true,
+          contentType: newDeedFile.type || undefined,
+        });
+      if (uploadErr) throw uploadErr;
+
+      // 3. Persist the storage path on the deed row
+      await supabase
+        .from("good_deeds")
+        .update({ evidence_url: path })
+        .eq("id", inserted.id);
+
+      toast.success("Submitted for review", {
+        description: "Your Good Deed is being checked by the Friend AI.",
+      });
+
+      // 4. Fire the AI verifier — the toast above is shown right away so the
+      //    user is not blocked while the model decides.
+      const { data: verifyData, error: verifyErr } = await supabase.functions.invoke(
+        "verify-good-deed-evidence",
+        { body: { deed_id: inserted.id } },
+      );
+      if (verifyErr) {
+        const msg = verifyErr.message || "";
+        if (msg.includes("429")) {
+          toast("Too many requests. Please try again in a minute.");
+        } else if (msg.includes("402")) {
+          toast("AI credits are out. The team has been notified.");
+        } else {
+          toast("Could not finish AI review. Your Deed will stay as Pending.");
+        }
+      } else if (verifyData?.verdict === "accept") {
+        toast.success("Verified!", {
+          description: verifyData.reason || "Your Good Deed was approved.",
+        });
+      } else if (verifyData?.verdict === "reject") {
+        toast("Not approved", {
+          description: verifyData?.reason || "The proof did not match the description.",
+        });
+      }
+
       setNewDeedTitle("");
       setNewDeedDescription("");
+      setNewDeedFile(null);
+      setDeedDialogOpen(false);
+      reload?.();
+    } catch (e) {
+      console.error("[GOOD_DEED_SUBMISSION_FAILED]", e);
+      toast("Could not submit your Good Deed. Please try again.");
     } finally {
       setIsSubmittingDeed(false);
+      console.log("[GOOD_DEED_SUBMISSION_END]");
     }
   };
 
