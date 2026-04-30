@@ -70,6 +70,7 @@ const LifeScreen: React.FC = () => {
   // NFC Bridge — Sovereign Handshake to native iOS hardware
   const { isBridgeAvailable, isScanning, initiateSovereignHandshake } = useNFCBridge();
   const [washPeerColor, setWashPeerColor] = useState<string | null>(null);
+  const [rateTarget, setRateTarget] = useState<string | null>(null);
 
   useEffect(() => {
     console.log("[LIFE_NFC_SUBSCRIBE_START]");
