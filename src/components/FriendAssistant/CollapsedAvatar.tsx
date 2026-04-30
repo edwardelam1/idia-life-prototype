@@ -50,7 +50,7 @@ const CollapsedAvatar = ({
           {friendState === 'listening' && <Mic className="w-2 h-2 text-purple-600" />}
           {friendState === 'thinking' && <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce"></div>}
           {friendState === 'speaking' && <div className="w-2 h-2 bg-yellow-600 rounded-full animate-pulse"></div>}
-          {friendState === 'idle' && <Bot className="w-2 h-2 text-blue-600" />}
+          {friendState === 'idle' && <div className="w-2 h-2 bg-blue-600 rounded-full" />}
         </div>
       </div>
       
