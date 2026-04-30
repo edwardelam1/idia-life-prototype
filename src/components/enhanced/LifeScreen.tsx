@@ -296,9 +296,9 @@ const LifeScreen: React.FC = () => {
             <CardContent className="flex-1 min-h-0 overflow-y-auto">
               {friends.length === 0 ? (
                 <div className="text-center py-8 space-y-3">
-                  <p className="text-muted-foreground">No connections yet.</p>
+                  <p className="text-muted-foreground">You do not have any Connections yet.</p>
                   <p className="text-xs text-muted-foreground">
-                    Connections are made by physical NFC tap only — there is no manual search.
+                    You cannot add a Connection by searching. You must Sync in person by tapping two phones together.
                   </p>
                 </div>
               ) : (
