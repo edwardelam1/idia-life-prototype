@@ -17,6 +17,7 @@ import ColorWashOverlay from "../life/ColorWashOverlay";
 import SwipeToRate from "../life/SwipeToRate";
 import SphereOfInfluence from "../life/SphereOfInfluence";
 import LabelConnectionDialog from "../life/LabelConnectionDialog";
+import ProximityAwarenessOverlay from "../life/ProximityAwarenessOverlay";
 import { localPIIVault, type ConnectionLabel } from "@/lib/localPIIVault";
 import { useNFCBridge } from "@/hooks/useNFCBridge";
 import { toast } from "sonner";
@@ -32,6 +33,7 @@ import {
   Users,
   ArrowRight,
   Nfc,
+  Radar,
 } from "lucide-react";
 
 // Placeholder — derives a peer tier hue from the opaque native peer token
@@ -76,6 +78,7 @@ const LifeScreen: React.FC = () => {
   const { isBridgeAvailable, isScanning, initiateSovereignHandshake } = useNFCBridge();
   const [washPeerColor, setWashPeerColor] = useState<string | null>(null);
   const [rateTarget, setRateTarget] = useState<string | null>(null);
+  const [proximityOpen, setProximityOpen] = useState(false);
 
   // Local PII Vault — IndexedDB-only labels for Connections (never sent to cloud)
   const [labels, setLabels] = useState<Record<string, ConnectionLabel>>({});
@@ -380,18 +383,32 @@ const LifeScreen: React.FC = () => {
                     </Dialog>
 
                     {/* Sovereign Handshake — Sync with a Friend via native NFC bridge */}
-                    <div className="mt-7 pt-3 border-t border-teal-100 flex flex-col items-center gap-1.5">
-                      <Button
-                        size="sm"
-                        onClick={() => initiateSovereignHandshake("STANDARD")}
-                        disabled={isScanning}
-                        className="font-bold shadow-lg shadow-teal-500/25 bg-gradient-to-r from-teal-500 via-amber-400 to-orange-500 hover:from-teal-600 hover:via-amber-500 hover:to-orange-600 text-white border-none backdrop-blur-md"
-                      >
-                        <Nfc className="w-4 h-4 mr-2" />
-                        {isScanning ? "Listening for a tap…" : "Start Syncing"}
-                      </Button>
+                    <div className="mt-7 pt-3 border-t border-teal-100 flex flex-col items-center gap-2">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => initiateSovereignHandshake("STANDARD")}
+                          disabled={isScanning}
+                          className="font-bold shadow-lg shadow-teal-500/25 bg-gradient-to-r from-teal-500 via-amber-400 to-orange-500 hover:from-teal-600 hover:via-amber-500 hover:to-orange-600 text-white border-none backdrop-blur-md"
+                        >
+                          <Nfc className="w-4 h-4 mr-2" />
+                          {isScanning ? "Listening for a tap…" : "Start Syncing"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            console.log("[PROXIMITY_OPEN_REQUESTED]");
+                            setProximityOpen(true);
+                          }}
+                          className="border-teal-200 text-teal-700 hover:bg-teal-50"
+                        >
+                          <Radar className="w-4 h-4 mr-2" />
+                          Nearby
+                        </Button>
+                      </div>
                       <p className="text-[10px] text-muted-foreground text-center leading-tight px-2">
-                        Tap two phones together to start Syncing. A good Sync makes a new Connection.
+                        Tap two phones together to Sync, or open Nearby to see anonymous people in range.
                       </p>
                     </div>
                   </div>
@@ -666,6 +683,17 @@ const LifeScreen: React.FC = () => {
           if (friends.length) {
             localPIIVault.lookupBatch(friends.map((f) => f.id)).then(setLabels);
           }
+        }}
+      />
+
+      <ProximityAwarenessOverlay
+        open={proximityOpen}
+        onClose={() => setProximityOpen(false)}
+        onPeerSelected={(peer) => {
+          console.log("[PROXIMITY_HANDSHAKE_TRIGGER]");
+          setProximityOpen(false);
+          // Defer slightly so the overlay can dismiss before the NFC sheet appears.
+          window.setTimeout(() => initiateSovereignHandshake("STANDARD"), 250);
         }}
       />
     </div>

@@ -83,28 +83,26 @@ const TIER_LABEL: Record<TierName, string> = {
   vantablack: "Architect",
 };
 
-// Idle baseline rotation (rad/s) for each axis — gentle tumble in 3D
+// Idle baseline rotation (rad/s) — gentle tumble on X and Y only.
+// Z rotation is intentionally disabled so the orb reads as a true sphere.
 const BASELINE_X = 0.04;
 const BASELINE_Y = 0.07;
-const BASELINE_Z = 0.02;
 
 export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
   const sceneRef = useRef<HTMLDivElement | null>(null);
   const orbRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
 
-  // Per-axis angle and angular velocity (radians, rad/s)
-  const angleRef = useRef({ x: 0, y: 0, z: 0 });
-  const velRef = useRef({ x: BASELINE_X, y: BASELINE_Y, z: BASELINE_Z });
+  // Per-axis angle and angular velocity (radians, rad/s) — X and Y only.
+  const angleRef = useRef({ x: 0, y: 0 });
+  const velRef = useRef({ x: BASELINE_X, y: BASELINE_Y });
   const lastTsRef = useRef<number | null>(null);
 
   // Pointer drag state
   const draggingRef = useRef(false);
   const lastPointerRef = useRef<{ x: number; y: number; t: number } | null>(null);
-  const radialAngleRef = useRef(0);
-  const samplesRef = useRef<{ t: number; x: number; y: number; z: number }[]>([]);
+  const samplesRef = useRef<{ t: number; x: number; y: number }[]>([]);
   const stabilizedRef = useRef(true);
-  const modifierRef = useRef(false);
 
   const [isPressed, setIsPressed] = useState(false);
 
@@ -124,8 +122,8 @@ export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
 
       if (!draggingRef.current) {
         // Decay flick momentum back toward each axis baseline
-        (["x", "y", "z"] as const).forEach((axis) => {
-          const baseline = axis === "x" ? BASELINE_X : axis === "y" ? BASELINE_Y : BASELINE_Z;
+        (["x", "y"] as const).forEach((axis) => {
+          const baseline = axis === "x" ? BASELINE_X : BASELINE_Y;
           const v = velRef.current[axis];
           if (Math.abs(v) > baseline + 0.001) {
             velRef.current[axis] = v * 0.97;
@@ -159,33 +157,20 @@ export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
   const applyTransform = () => {
     const el = orbRef.current;
     if (!el) return;
-    const { x, y, z } = angleRef.current;
+    const { x, y } = angleRef.current;
     const rx = (x * 180) / Math.PI;
     const ry = (y * 180) / Math.PI;
-    const rz = (z * 180) / Math.PI;
     el.style.setProperty("--orb-rx", `${rx}deg`);
     el.style.setProperty("--orb-ry", `${ry}deg`);
-    el.style.setProperty("--orb-rz", `${rz}deg`);
-  };
-
-  const getRadialAngle = (clientX: number, clientY: number): number => {
-    const el = sceneRef.current;
-    if (!el) return 0;
-    const rect = el.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    return Math.atan2(clientY - cy, clientX - cx);
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
     (e.target as Element).setPointerCapture?.(e.pointerId);
     draggingRef.current = true;
     setIsPressed(true);
-    modifierRef.current = e.shiftKey || e.altKey || e.ctrlKey || e.metaKey;
     lastPointerRef.current = { x: e.clientX, y: e.clientY, t: performance.now() };
-    radialAngleRef.current = getRadialAngle(e.clientX, e.clientY);
     samplesRef.current = [
-      { t: performance.now(), x: angleRef.current.x, y: angleRef.current.y, z: angleRef.current.z },
+      { t: performance.now(), x: angleRef.current.x, y: angleRef.current.y },
     ];
     console.log("[ORB_FLICK_BEGIN]");
   };
@@ -196,30 +181,16 @@ export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
     const dx = e.clientX - last.x;
     const dy = e.clientY - last.y;
 
-    if (modifierRef.current) {
-      // Modifier held → spin on Z (the original radial behavior)
-      const a = getRadialAngle(e.clientX, e.clientY);
-      let dA = a - radialAngleRef.current;
-      if (dA > Math.PI) dA -= Math.PI * 2;
-      if (dA < -Math.PI) dA += Math.PI * 2;
-      angleRef.current.z += dA;
-      radialAngleRef.current = a;
-    } else {
-      // Free 3D drag — horizontal → Y rotation, vertical → X rotation.
-      // Scale so that dragging across the orb roughly turns it half a turn.
-      const scale = (Math.PI / Math.max(size, 1)) * 1.4;
-      angleRef.current.y += dx * scale;
-      angleRef.current.x -= dy * scale;
-      // A small Z component keeps the motion feeling truly 3D rather than gimbal-locked.
-      angleRef.current.z += (dx - dy) * scale * 0.08;
-    }
+    // Free 3D drag — horizontal → Y rotation, vertical → X rotation only.
+    const scale = (Math.PI / Math.max(size, 1)) * 1.4;
+    angleRef.current.y += dx * scale;
+    angleRef.current.x -= dy * scale;
 
     lastPointerRef.current = { x: e.clientX, y: e.clientY, t: performance.now() };
     samplesRef.current.push({
       t: performance.now(),
       x: angleRef.current.x,
       y: angleRef.current.y,
-      z: angleRef.current.z,
     });
     if (samplesRef.current.length > 6) samplesRef.current.shift();
 
@@ -240,12 +211,11 @@ export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
         const clamp = (v: number) => Math.max(-12, Math.min(12, v));
         velRef.current.x = clamp((last.x - first.x) / dt);
         velRef.current.y = clamp((last.y - first.y) / dt);
-        velRef.current.z = clamp((last.z - first.z) / dt);
       }
     }
     stabilizedRef.current = false;
     console.log(
-      `[ORB_FLICK_RELEASE] vx=${velRef.current.x.toFixed(2)} vy=${velRef.current.y.toFixed(2)} vz=${velRef.current.z.toFixed(2)}`,
+      `[ORB_FLICK_RELEASE] vx=${velRef.current.x.toFixed(2)} vy=${velRef.current.y.toFixed(2)}`,
     );
   };
 
@@ -261,70 +231,102 @@ export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
       className="flex flex-col items-center justify-center select-none"
       style={{ touchAction: "none" }}
     >
-      {/* Scene gives the orb real perspective so X/Y rotations look 3D */}
+      {/* Scene gives the orb perspective so X/Y rotations read as 3D */}
       <div
         ref={sceneRef}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        className="relative cursor-grab active:cursor-grabbing"
         style={{
           width: `${size}px`,
           height: `${size}px`,
-          perspective: `${size * 4}px`,
+          perspective: `${size * 1.6}px`,
           perspectiveOrigin: "50% 50%",
+          transition: "transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+          transform: `scale(${isPressed ? "1.04" : "1"})`,
         }}
       >
+        {/* Base sphere body — fixed in screen space, carries the tier color and ambient shading */}
         <div
-          ref={orbRef}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-          className="relative cursor-grab active:cursor-grabbing"
+          aria-hidden
+          className="absolute inset-0"
           style={{
-            width: `${size}px`,
-            height: `${size}px`,
             borderRadius: "50%",
             background: orbBackground,
-            boxShadow: `0 20px 60px -10px ${tier.glow}, inset -20px -30px 60px hsla(0,0%,0%,0.25), inset 15px 20px 40px hsla(0,0%,100%,0.25)`,
-            transformStyle: "preserve-3d",
-            transform:
-              "rotateX(var(--orb-rx, 0deg)) rotateY(var(--orb-ry, 0deg)) rotateZ(var(--orb-rz, 0deg))" +
-              ` scale(${isPressed ? "1.04" : "1"})`,
-            transition: "box-shadow 400ms ease, transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1)",
-            willChange: "transform",
+            boxShadow: `0 20px 60px -10px ${tier.glow}, inset -22px -32px 64px hsla(0,0%,0%,0.35), inset 18px 22px 44px hsla(0,0%,100%,0.18)`,
             backdropFilter: tier.isShimmer ? "blur(6px)" : undefined,
           }}
-        >
-          {/* Specular highlight — pinned to the front face of the sphere */}
+        />
+
+        {/* Rotating texture layer — gives the surface visible motion so the sphere reads as 3D */}
+        <div
+          ref={orbRef}
+          className="absolute inset-0"
+          style={{
+            borderRadius: "50%",
+            transformStyle: "preserve-3d",
+            transform:
+              "rotateX(var(--orb-rx, 0deg)) rotateY(var(--orb-ry, 0deg))",
+            willChange: "transform",
+            // A faint dappled texture on a transparent sphere makes rotation visible
+            background: tier.isVanta
+              ? "radial-gradient(circle at 30% 70%, hsla(0,0%,18%,0.6), transparent 35%), radial-gradient(circle at 75% 25%, hsla(0,0%,22%,0.5), transparent 30%)"
+              : tier.isShimmer
+              ? "radial-gradient(circle at 70% 60%, hsla(0,0%,100%,0.18), transparent 35%), radial-gradient(circle at 25% 75%, hsla(280,80%,80%,0.18), transparent 30%)"
+              : `radial-gradient(circle at 70% 65%, hsla(0,0%,100%,0.18), transparent 30%), radial-gradient(circle at 25% 75%, ${tier.edge.replace(")", ", 0.35)").replace("hsl", "hsla")}, transparent 28%)`,
+            mixBlendMode: tier.isVanta ? "normal" : "soft-light",
+            opacity: 0.9,
+            // Mask so texture doesn't visibly clip when rotating beyond the silhouette
+            maskImage: "radial-gradient(circle, black 65%, transparent 100%)",
+            WebkitMaskImage: "radial-gradient(circle, black 65%, transparent 100%)",
+          }}
+        />
+
+        {/* Specular highlight — pinned to the screen so the light source feels fixed.
+            This is what sells the spherical volume. */}
+        <div
+          aria-hidden
+          className="absolute pointer-events-none"
+          style={{
+            top: "10%",
+            left: "16%",
+            width: "44%",
+            height: "32%",
+            borderRadius: "50%",
+            background:
+              "radial-gradient(ellipse at center, hsla(0,0%,100%,0.7), hsla(0,0%,100%,0) 70%)",
+            filter: "blur(3px)",
+          }}
+        />
+
+        {/* Terminator/limb darkening — also fixed in screen space, deepens the sphere illusion */}
+        <div
+          aria-hidden
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            borderRadius: "50%",
+            background:
+              "radial-gradient(circle at 50% 50%, transparent 55%, hsla(0,0%,0%,0.35) 100%)",
+          }}
+        />
+
+        {/* Sovereign-null shimmer overlay */}
+        {tier.isShimmer && (
           <div
             aria-hidden
-            className="absolute pointer-events-none"
+            className="absolute inset-0 pointer-events-none"
             style={{
-              top: "12%",
-              left: "18%",
-              width: "40%",
-              height: "30%",
               borderRadius: "50%",
               background:
-                "radial-gradient(ellipse at center, hsla(0,0%,100%,0.55), hsla(0,0%,100%,0) 70%)",
-              filter: "blur(2px)",
-              transform: "translateZ(1px)",
+                "conic-gradient(from 0deg, hsla(280,80%,70%,0.25), hsla(180,80%,70%,0.25), hsla(50,90%,70%,0.25), hsla(320,80%,70%,0.25), hsla(280,80%,70%,0.25))",
+              mixBlendMode: "screen",
+              animation: "orb-shimmer 8s linear infinite",
+              opacity: 0.6,
             }}
           />
-          {/* Sovereign-null shimmer overlay */}
-          {tier.isShimmer && (
-            <div
-              aria-hidden
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                borderRadius: "50%",
-                background:
-                  "conic-gradient(from 0deg, hsla(280,80%,70%,0.25), hsla(180,80%,70%,0.25), hsla(50,90%,70%,0.25), hsla(320,80%,70%,0.25), hsla(280,80%,70%,0.25))",
-                mixBlendMode: "screen",
-                animation: "orb-shimmer 8s linear infinite",
-                opacity: 0.6,
-              }}
-            />
-          )}
-        </div>
+        )}
       </div>
 
       <p className="mt-3 text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Your Standing</p>
