@@ -343,23 +343,23 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
       {step === 5 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center px-6">
           <div className="max-w-md text-center space-y-3 text-sm leading-relaxed mb-10">
-            <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-teal-300 via-amber-200 to-orange-300 bg-clip-text text-transparent">
+            <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-teal-600 via-amber-500 to-orange-500 bg-clip-text text-transparent">
               This Is Your Moment
             </h2>
-            <p className="text-white/80">
+            <p className="text-slate-700">
               You’re stepping into a new system—one where your life, your data, and your value finally align.
             </p>
-            <p className="font-semibold text-amber-200">Explore. Connect. Build. Earn.</p>
-            <p className="text-white/80">Live on your terms.</p>
-            <p className="text-white/70">Welcome to Life.</p>
+            <p className="font-semibold text-amber-600">Explore. Connect. Build. Earn.</p>
+            <p className="text-slate-700">Live on your terms.</p>
+            <p className="text-slate-600">Welcome to Life.</p>
           </div>
 
           <button
             onClick={finish}
-            className="relative group inline-flex items-center gap-3 px-12 py-5 rounded-full font-extrabold text-lg tracking-[0.3em] text-black bg-gradient-to-r from-teal-300 via-amber-200 to-orange-300 transition-transform hover:scale-105 active:scale-95 animate-welcome-pulse"
+            className="relative group inline-flex items-center gap-3 px-12 py-5 rounded-full font-extrabold text-lg tracking-[0.3em] text-slate-900 bg-gradient-to-r from-teal-300 via-amber-200 to-orange-300 transition-transform hover:scale-105 active:scale-95 animate-welcome-pulse"
             style={{
               boxShadow:
-                "0 0 30px rgba(20,184,166,0.7), 0 0 80px rgba(251,191,36,0.5), 0 0 140px rgba(249,115,22,0.35)",
+                "0 10px 30px rgba(15,23,42,0.15), 0 0 40px rgba(20,184,166,0.5), 0 0 90px rgba(251,191,36,0.4)",
             }}
           >
             <Sparkles className="w-5 h-5" />
