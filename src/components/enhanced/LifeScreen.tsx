@@ -539,6 +539,17 @@ const LifeScreen: React.FC = () => {
           onClose={() => setRateTarget(null)}
         />
       )}
+
+      <LabelConnectionDialog
+        connectionId={labelTarget}
+        open={!!labelTarget}
+        onOpenChange={(o) => !o && setLabelTarget(null)}
+        onSaved={() => {
+          if (friends.length) {
+            localPIIVault.lookupBatch(friends.map((f) => f.id)).then(setLabels);
+          }
+        }}
+      />
     </div>
   );
 };
