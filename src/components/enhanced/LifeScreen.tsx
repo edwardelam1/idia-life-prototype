@@ -240,7 +240,7 @@ const LifeScreen: React.FC = () => {
                       </Button>
                       {!isBridgeAvailable && (
                         <p className="text-[10px] text-muted-foreground text-center leading-tight px-2">
-                          Open IDIA Life on your mobile device to activate the physical handshake hardware.
+                          Tap the "Sync with a Friend" button to add a Connection in your Life.
                         </p>
                       )}
                     </div>
@@ -439,11 +439,7 @@ const LifeScreen: React.FC = () => {
       </Tabs>
 
       {washPeerColor && (
-        <ColorWashOverlay
-          myColor={myTierColor}
-          peerColor={washPeerColor}
-          onComplete={() => setWashPeerColor(null)}
-        />
+        <ColorWashOverlay myColor={myTierColor} peerColor={washPeerColor} onComplete={() => setWashPeerColor(null)} />
       )}
     </div>
   );
