@@ -1,56 +1,46 @@
-# Life Screen — Zero-Scroll Mobile Refactor
+# Welcome Sequence — Light Aesthetic Refresh
 
-Scope: ONLY `src/components/enhanced/LifeScreen.tsx` and `src/components/life/StandingOrb.tsx`. No changes to hooks, finances, or other pages.
+Convert `src/components/life/WelcomeSequence.tsx` from the current dark/black palette to the project's Glossy Light Theme (Trust-Blue + Amber, glassmorphism, soft pearl backdrop). No structural or copy changes — only visual styling.
 
-## 1. Layout & Viewport (Zero-Scroll)
+## Changes (single file)
 
-- Replace `LifeScreen.tsx` root `<div className="space-y-4">` with a flex column constrained to the available viewport: `h-full max-h-full overflow-hidden flex flex-col`.
-- Wrap inside an outer container that uses `h-[100dvh]`/`h-full` minus the header + bottom nav already accounted for by `MainApp.tsx`'s `<main>` (which gives us a clipped flex region). We add `overflow-hidden` at the Life root so nothing scrolls.
-- Tabs region: `Tabs` becomes `flex-1 min-h-0 flex flex-col`; `TabsContent` uses `flex-1 min-h-0 overflow-hidden` (no scroll). The Overview tab content is shrunk to fit.
-- Remove the outer `space-y-4`; use compact `gap-2` / `gap-3`.
-- Wrap layout init in:
-  ```ts
-  useLayoutEffect(() => {
-    console.log("[VIEWPORT_CALIBRATION_START]");
-    return () => console.log("[VIEWPORT_CALIBRATION_END]");
-  }, []);
-  ```
+`src/components/life/WelcomeSequence.tsx`
 
-## 2. Component Scaling
+- **Root container**: replace `bg-black text-white` with a layered light backdrop:
+  - Soft radial gradients of pale sky-blue and warm amber/cream over a near-white base, matching the rest of the app's glossy light theme.
+  - Default text color: `text-slate-800`.
+- **Skip button**: white glass pill (`bg-white/70`, `border-slate-300/70`, `text-slate-700`, subtle shadow).
+- **Step 1 (Materialization)**:
+  - Central orb: warm white core with teal + amber halo (lower opacity to read on light bg).
+  - Particles keep teal / amber / orange but with reduced glow to suit a light field.
+  - Headline gradient swapped to deeper hues (`from-teal-600 via-amber-500 to-orange-500`) for contrast.
+  - Body text uses `text-slate-700` / `text-slate-600`; emphasis line uses `text-amber-600`.
+- **Step 2 (IDIA Protocol)**:
+  - Connector lines stay teal→amber but at higher opacity for readability.
+  - Center logo halo: white glass card (`bg-white/80`, `border-slate-200`, soft indigo glow).
+  - Pillar pills: `bg-white/80`, `border-slate-200`, `text-slate-800`, soft teal shadow.
+  - Heading `text-amber-600`; pillar names `text-teal-600`.
+- **Step 3 (Spotlight Tour)**:
+  - Dimmer changed from black to a frosted light scrim — radial transparent center fading to `rgba(255,255,255,0.85)` with backdrop blur, so the underlying nav is gently veiled, not blacked out.
+  - Spotlight ring: teal stroke + amber outer glow on light field.
+  - Caption card: white glass (`bg-white/85`, `border-slate-200`, shadow), slate text, amber label.
+  - Progress dots: active `bg-teal-500`, inactive `bg-slate-300`.
+  - "Next" button: `bg-teal-500 text-white hover:bg-teal-400`.
+- **Step 4 (Sovereignty Shield)**:
+  - Halo softened to teal/amber on white. Inner badge: white glass with teal shield icon (`text-teal-600`).
+  - Heading `text-amber-600`; emphasis line `text-teal-600`; body `text-slate-700`.
+- **Step 5 (Final Launch)**:
+  - Heading gradient `from-teal-600 via-amber-500 to-orange-500`.
+  - START button keeps the bright teal→amber→orange gradient (already light-friendly), text remains dark slate, glow slightly dialed down for the new background.
+- **ContinueButton helper**: white glass pill, `text-slate-700`, `border-slate-300`, hover `bg-white`.
 
-- `StandingOrb`: accept an optional `size` prop (default 240px). Pass `size={180}` from LifeScreen so it fits comfortably on iPhone 15/Pro alongside the action card and NFC button. Reduce orb label margins (`mt-6` → `mt-3`, `mt-1` → `mt-0.5`).
-- Standing card padding: `p-8` → `p-4`. Inner gap `gap-8` → `gap-3`. Stack vertically on mobile (already `flex-col md:flex-row`).
-- Metric cards row (Reciprocity / Vitality / Network Size): keep but compact — `text-2xl` → `text-lg`, `CardHeader pb-2` → `pb-1`, `CardContent` padding tightened. These remain only if they fit; if not, collapse into a single row of compact stats with no card chrome.
+## Out of scope
 
-## 3. Content Removal
+- No copy changes. No layout/sequence changes. No edits outside this file.
+- Logging, step flow, spotlight rect math, and `localStorage` gating remain identical.
 
-- Delete the entire "Recent Activity" `<Card>` block and its `goodDeeds.slice(0,5).map(...)` rendering from the Overview tab.
-- Delete the `<h1>Life</h1>` page title from the top of the screen.
-- The header row that previously held title + NFC button is removed entirely — NFC moves into the standing card (see §4).
+## Acceptance
 
-## 4. NFC Relocation Into Standing Card
-
-- Remove `<NFCHandshake />` from the page header.
-- Inside the standing card's right-side action panel (the `bg-teal-50/50` block containing "Establish Your Standing" + "Take our Tests" button), append the NFC button approximately 24–32px below the "Take our Tests" button using `mt-7` (~28px) and a subtle divider `border-t border-teal-100 pt-4`.
-- Wrap relocation in:
-  ```ts
-  useEffect(() => {
-    console.log("[NFC_UI_RELOCATION_SYNC_START]");
-    return () => console.log("[NFC_UI_RELOCATION_SYNC_END]");
-  }, []);
-  ```
-
-## 5. Other Tabs
-
-- Connections / Trust Circles / Good Deeds tabs: wrap their inner list in `overflow-y-auto` ONLY within the tab body (the tab body itself stays clipped within the viewport). This keeps the page itself non-scrolling while allowing list content to scroll inside the bounded tab pane. (User said zero scrolling — interpretation: the page/main view never scrolls; bounded list panes inside a tab are still constrained to the same viewport region.) If user prefers truly no scroll anywhere, lists will be capped by `max-h-full overflow-hidden` and overflow visually clipped.
-
-## 6. Constraints Honored
-
-- No edits to `useSocialGraph`, `useEnhancedProfile`, finances, wallet, or any other page.
-- All physics, NFC handshake, color wash, and IDIA edge-function logic preserved.
-- Granular paired logs added: `[VIEWPORT_CALIBRATION_START/END]`, `[NFC_UI_RELOCATION_SYNC_START/END]`. Existing `[ORB_*]`, `[NFC_HANDSHAKE_*]`, `[STANDING_SYNC_*]` logs untouched.
-
-## Files Changed
-
-- `src/components/enhanced/LifeScreen.tsx` — refactor JSX, remove activity + title, relocate NFC, add layout logs.
-- `src/components/life/StandingOrb.tsx` — add optional `size` prop; tighten label spacing.
+- The overlay reads as a glossy, airy light surface consistent with the rest of IDIA Life.
+- All text passes basic contrast on the new light backdrop (slate-700/800 body, teal-600 / amber-600 accents).
+- Spotlight tour still aligns to the bottom-nav icons with a visible glowing ring on the light scrim.
