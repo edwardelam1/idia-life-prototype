@@ -387,7 +387,7 @@ const LifeScreen: React.FC = () => {
                         className="border-teal-100"
                       />
                       <Textarea
-                        placeholder="Describe your good deed..."
+                        placeholder="Describe their good deed..."
                         value={newDeedDescription}
                         onChange={(e) => setNewDeedDescription(e.target.value)}
                         rows={3}
