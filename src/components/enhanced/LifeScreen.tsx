@@ -361,6 +361,14 @@ const LifeScreen: React.FC = () => {
                             Accept
                           </Button>
                         )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-teal-600 border-teal-200"
+                          onClick={() => setRateTarget(f.user_id_1 === f.user_id_2 ? f.user_id_2 : f.user_id_2)}
+                        >
+                          Rate
+                        </Button>
                         <Button variant="ghost" size="sm" className="text-teal-600">
                           <MessageCircle className="w-4 h-4" />
                         </Button>
