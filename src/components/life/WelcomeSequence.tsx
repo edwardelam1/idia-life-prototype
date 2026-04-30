@@ -204,14 +204,14 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
                   strokeDashoffset="240"
                   className="animate-welcome-line"
                   style={{ animationDelay: `${i * 180}ms` }}
-                  opacity="0.7"
+                  opacity="0.85"
                 />
               ))}
             </svg>
 
             {/* Center IDIA logo */}
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full bg-white/5 backdrop-blur-xl border border-white/15 flex items-center justify-center"
-              style={{ boxShadow: "0 0 60px rgba(99,102,241,0.45)" }}>
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full bg-white/85 backdrop-blur-xl border border-slate-200 flex items-center justify-center"
+              style={{ boxShadow: "0 8px 30px rgba(99,102,241,0.25), 0 0 40px rgba(125,211,252,0.35)" }}>
               <img src={idiaLogo} alt="IDIA" className="w-16 h-auto" />
             </div>
 
@@ -224,8 +224,8 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
             ].map((p) => (
               <div
                 key={p.label}
-                className="absolute px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-xs font-semibold tracking-wide backdrop-blur-md"
-                style={{ left: p.x, top: p.y, boxShadow: "0 0 20px rgba(20,184,166,0.35)" }}
+                className="absolute px-3 py-1.5 rounded-full bg-white/85 border border-slate-200 text-xs font-semibold tracking-wide text-slate-800 backdrop-blur-md"
+                style={{ left: p.x, top: p.y, boxShadow: "0 4px 16px rgba(20,184,166,0.25)" }}
               >
                 {p.label}
               </div>
@@ -233,22 +233,22 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
           </div>
 
           <div className="max-w-md text-center space-y-2 text-sm leading-relaxed">
-            <h2 className="text-2xl font-bold text-amber-200">Enter the IDIA Protocol</h2>
-            <p className="text-white/80">
+            <h2 className="text-2xl font-bold text-amber-600">Enter the IDIA Protocol</h2>
+            <p className="text-slate-700">
               Behind everything you see is something bigger: a new system designed to shift control back to individuals.
             </p>
-            <p className="text-white/70">The IDIA Protocol connects:</p>
-            <ul className="text-white/80 text-left mx-auto inline-block space-y-1">
-              <li><span className="text-teal-300 font-semibold">Life</span> – your personal command center</li>
-              <li><span className="text-teal-300 font-semibold">Pay</span> – where value moves</li>
-              <li><span className="text-teal-300 font-semibold">Hub</span> – where intelligence is built</li>
-              <li><span className="text-teal-300 font-semibold">Synapse Engine</span> – where it all comes alive</li>
+            <p className="text-slate-600">The IDIA Protocol connects:</p>
+            <ul className="text-slate-700 text-left mx-auto inline-block space-y-1">
+              <li><span className="text-teal-600 font-semibold">Life</span> – your personal command center</li>
+              <li><span className="text-teal-600 font-semibold">Pay</span> – where value moves</li>
+              <li><span className="text-teal-600 font-semibold">Hub</span> – where intelligence is built</li>
+              <li><span className="text-teal-600 font-semibold">Synapse Engine</span> – where it all comes alive</li>
             </ul>
-            <p className="text-white/70 pt-1">
+            <p className="text-slate-600 pt-1">
               Together, they create a new economic reality—one where your data works for you, not against you.
             </p>
-            <p className="text-white/80">You’re not just a user here.</p>
-            <p className="font-semibold text-amber-200">You’re an owner of your value.</p>
+            <p className="text-slate-700">You’re not just a user here.</p>
+            <p className="font-semibold text-amber-600">You’re an owner of your value.</p>
           </div>
 
           <ContinueButton onClick={next} label="Continue" />
