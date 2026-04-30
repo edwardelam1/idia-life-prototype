@@ -227,7 +227,7 @@ const LifeScreen: React.FC = () => {
                       </DialogContent>
                     </Dialog>
 
-                    {/* Sovereign Handshake — Sync Standing via native NFC bridge */}
+                    {/* Sovereign Handshake — Sync with a Friend via native NFC bridge */}
                     <div className="mt-7 pt-3 border-t border-teal-100 flex flex-col items-center gap-1.5">
                       <Button
                         size="sm"
@@ -236,7 +236,7 @@ const LifeScreen: React.FC = () => {
                         className="font-bold shadow-lg shadow-teal-500/25 bg-gradient-to-r from-teal-500 via-amber-400 to-orange-500 hover:from-teal-600 hover:via-amber-500 hover:to-orange-600 text-white border-none backdrop-blur-md"
                       >
                         <Nfc className="w-4 h-4 mr-2" />
-                        {isScanning ? "Listening for tap…" : "Sync Standing"}
+                        {isScanning ? "Listening for tap…" : "Sync with a Friend}
                       </Button>
                       {!isBridgeAvailable && (
                         <p className="text-[10px] text-muted-foreground text-center leading-tight px-2">
