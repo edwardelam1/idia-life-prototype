@@ -38,12 +38,7 @@ function resolveTier(score: number | null | undefined): TierStyle {
     };
   }
   if (score <= 110) {
-    return {
-      name: "white",
-      center: "hsl(0, 0%, 100%)",
-      edge: "hsl(0, 0%, 88%)",
-      glow: "hsla(0, 0%, 100%, 0.6)",
-    };
+    return { name: "white", center: "hsl(0, 0%, 100%)", edge: "hsl(0, 0%, 88%)", glow: "hsla(0, 0%, 100%, 0.6)" };
   }
   if (score <= 220) {
     return { name: "yellow", center: "hsl(55, 100%, 78%)", edge: "hsl(48, 95%, 50%)", glow: "hsla(50, 100%, 60%, 0.55)" };
@@ -88,18 +83,28 @@ const TIER_LABEL: Record<TierName, string> = {
   vantablack: "Architect",
 };
 
+// Idle baseline rotation (rad/s) for each axis — gentle tumble in 3D
+const BASELINE_X = 0.04;
+const BASELINE_Y = 0.07;
+const BASELINE_Z = 0.02;
+
 export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
+  const sceneRef = useRef<HTMLDivElement | null>(null);
   const orbRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
-  const angleRef = useRef(0);
-  const velocityRef = useRef(0.05); // rad/s default slow rotation
+
+  // Per-axis angle and angular velocity (radians, rad/s)
+  const angleRef = useRef({ x: 0, y: 0, z: 0 });
+  const velRef = useRef({ x: BASELINE_X, y: BASELINE_Y, z: BASELINE_Z });
   const lastTsRef = useRef<number | null>(null);
 
   // Pointer drag state
   const draggingRef = useRef(false);
-  const lastPointerAngleRef = useRef(0);
-  const lastSamplesRef = useRef<{ t: number; a: number }[]>([]);
+  const lastPointerRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  const radialAngleRef = useRef(0);
+  const samplesRef = useRef<{ t: number; x: number; y: number; z: number }[]>([]);
   const stabilizedRef = useRef(true);
+  const modifierRef = useRef(false);
 
   const [isPressed, setIsPressed] = useState(false);
 
@@ -118,23 +123,26 @@ export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
       lastTsRef.current = ts;
 
       if (!draggingRef.current) {
-        // Decay flick momentum back to a slow baseline
-        const baseline = 0.05;
-        const v = velocityRef.current;
-        if (Math.abs(v) > baseline + 0.001) {
-          velocityRef.current = v * 0.97;
-          if (Math.abs(velocityRef.current) <= baseline + 0.005 && !stabilizedRef.current) {
-            stabilizedRef.current = true;
-            console.log("[ORB_MOMENTUM_STABILIZED]");
+        // Decay flick momentum back toward each axis baseline
+        (["x", "y", "z"] as const).forEach((axis) => {
+          const baseline = axis === "x" ? BASELINE_X : axis === "y" ? BASELINE_Y : BASELINE_Z;
+          const v = velRef.current[axis];
+          if (Math.abs(v) > baseline + 0.001) {
+            velRef.current[axis] = v * 0.97;
+            if (
+              Math.abs(velRef.current[axis]) <= baseline + 0.005 &&
+              !stabilizedRef.current
+            ) {
+              stabilizedRef.current = true;
+              console.log("[ORB_MOMENTUM_STABILIZED]");
+            }
+          } else {
+            velRef.current[axis] = baseline * Math.sign(v || 1);
           }
-        } else {
-          velocityRef.current = baseline * Math.sign(v || 1);
-        }
-        angleRef.current += velocityRef.current * dt;
+          angleRef.current[axis] += velRef.current[axis] * dt;
+        });
 
-        if (orbRef.current) {
-          orbRef.current.style.setProperty("--orb-rot", `${angleRef.current}rad`);
-        }
+        applyTransform();
       }
 
       rafRef.current = requestAnimationFrame(tick);
@@ -148,8 +156,20 @@ export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
     };
   }, []);
 
-  const getAngleFromPointer = (clientX: number, clientY: number): number => {
+  const applyTransform = () => {
     const el = orbRef.current;
+    if (!el) return;
+    const { x, y, z } = angleRef.current;
+    const rx = (x * 180) / Math.PI;
+    const ry = (y * 180) / Math.PI;
+    const rz = (z * 180) / Math.PI;
+    el.style.setProperty("--orb-rx", `${rx}deg`);
+    el.style.setProperty("--orb-ry", `${ry}deg`);
+    el.style.setProperty("--orb-rz", `${rz}deg`);
+  };
+
+  const getRadialAngle = (clientX: number, clientY: number): number => {
+    const el = sceneRef.current;
     if (!el) return 0;
     const rect = el.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
@@ -161,28 +181,49 @@ export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
     (e.target as Element).setPointerCapture?.(e.pointerId);
     draggingRef.current = true;
     setIsPressed(true);
-    lastPointerAngleRef.current = getAngleFromPointer(e.clientX, e.clientY);
-    lastSamplesRef.current = [{ t: performance.now(), a: lastPointerAngleRef.current }];
+    modifierRef.current = e.shiftKey || e.altKey || e.ctrlKey || e.metaKey;
+    lastPointerRef.current = { x: e.clientX, y: e.clientY, t: performance.now() };
+    radialAngleRef.current = getRadialAngle(e.clientX, e.clientY);
+    samplesRef.current = [
+      { t: performance.now(), x: angleRef.current.x, y: angleRef.current.y, z: angleRef.current.z },
+    ];
     console.log("[ORB_FLICK_BEGIN]");
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!draggingRef.current) return;
-    const a = getAngleFromPointer(e.clientX, e.clientY);
-    let delta = a - lastPointerAngleRef.current;
-    // Normalize delta across the -π/π wrap
-    if (delta > Math.PI) delta -= Math.PI * 2;
-    if (delta < -Math.PI) delta += Math.PI * 2;
-    angleRef.current += delta;
-    lastPointerAngleRef.current = a;
+    if (!draggingRef.current || !lastPointerRef.current) return;
+    const last = lastPointerRef.current;
+    const dx = e.clientX - last.x;
+    const dy = e.clientY - last.y;
 
-    const now = performance.now();
-    lastSamplesRef.current.push({ t: now, a: angleRef.current });
-    if (lastSamplesRef.current.length > 6) lastSamplesRef.current.shift();
-
-    if (orbRef.current) {
-      orbRef.current.style.setProperty("--orb-rot", `${angleRef.current}rad`);
+    if (modifierRef.current) {
+      // Modifier held → spin on Z (the original radial behavior)
+      const a = getRadialAngle(e.clientX, e.clientY);
+      let dA = a - radialAngleRef.current;
+      if (dA > Math.PI) dA -= Math.PI * 2;
+      if (dA < -Math.PI) dA += Math.PI * 2;
+      angleRef.current.z += dA;
+      radialAngleRef.current = a;
+    } else {
+      // Free 3D drag — horizontal → Y rotation, vertical → X rotation.
+      // Scale so that dragging across the orb roughly turns it half a turn.
+      const scale = (Math.PI / Math.max(size, 1)) * 1.4;
+      angleRef.current.y += dx * scale;
+      angleRef.current.x -= dy * scale;
+      // A small Z component keeps the motion feeling truly 3D rather than gimbal-locked.
+      angleRef.current.z += (dx - dy) * scale * 0.08;
     }
+
+    lastPointerRef.current = { x: e.clientX, y: e.clientY, t: performance.now() };
+    samplesRef.current.push({
+      t: performance.now(),
+      x: angleRef.current.x,
+      y: angleRef.current.y,
+      z: angleRef.current.z,
+    });
+    if (samplesRef.current.length > 6) samplesRef.current.shift();
+
+    applyTransform();
   };
 
   const handlePointerUp = () => {
@@ -190,19 +231,22 @@ export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
     draggingRef.current = false;
     setIsPressed(false);
 
-    // Compute angular velocity from the last few samples
-    const samples = lastSamplesRef.current;
+    const samples = samplesRef.current;
     if (samples.length >= 2) {
       const first = samples[0];
       const last = samples[samples.length - 1];
       const dt = (last.t - first.t) / 1000;
-      const dA = last.a - first.a;
-      const v = dt > 0 ? dA / dt : 0;
-      // Clamp flick velocity to a sane range
-      velocityRef.current = Math.max(-12, Math.min(12, v));
+      if (dt > 0) {
+        const clamp = (v: number) => Math.max(-12, Math.min(12, v));
+        velRef.current.x = clamp((last.x - first.x) / dt);
+        velRef.current.y = clamp((last.y - first.y) / dt);
+        velRef.current.z = clamp((last.z - first.z) / dt);
+      }
     }
     stabilizedRef.current = false;
-    console.log(`[ORB_FLICK_RELEASE] velocity=${velocityRef.current.toFixed(3)}`);
+    console.log(
+      `[ORB_FLICK_RELEASE] vx=${velRef.current.x.toFixed(2)} vy=${velRef.current.y.toFixed(2)} vz=${velRef.current.z.toFixed(2)}`,
+    );
   };
 
   // Build the orb visual styles
@@ -217,54 +261,70 @@ export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
       className="flex flex-col items-center justify-center select-none"
       style={{ touchAction: "none" }}
     >
+      {/* Scene gives the orb real perspective so X/Y rotations look 3D */}
       <div
-        ref={orbRef}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        className="relative cursor-grab active:cursor-grabbing"
+        ref={sceneRef}
         style={{
           width: `${size}px`,
           height: `${size}px`,
-          borderRadius: "50%",
-          background: orbBackground,
-          boxShadow: `0 20px 60px -10px ${tier.glow}, inset -20px -30px 60px hsla(0,0%,0%,0.25), inset 15px 20px 40px hsla(0,0%,100%,0.25)`,
-          transform: `rotate(var(--orb-rot, 0rad)) scale(${isPressed ? "1.06" : "1"}, ${isPressed ? "0.94" : "1"})`,
-          transition: "transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 400ms ease",
-          willChange: "transform",
-          backdropFilter: tier.isShimmer ? "blur(6px)" : undefined,
+          perspective: `${size * 4}px`,
+          perspectiveOrigin: "50% 50%",
         }}
       >
-        {/* Specular highlight */}
         <div
-          aria-hidden
-          className="absolute pointer-events-none"
+          ref={orbRef}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          className="relative cursor-grab active:cursor-grabbing"
           style={{
-            top: "12%",
-            left: "18%",
-            width: "40%",
-            height: "30%",
+            width: `${size}px`,
+            height: `${size}px`,
             borderRadius: "50%",
-            background: "radial-gradient(ellipse at center, hsla(0,0%,100%,0.55), hsla(0,0%,100%,0) 70%)",
-            filter: "blur(2px)",
+            background: orbBackground,
+            boxShadow: `0 20px 60px -10px ${tier.glow}, inset -20px -30px 60px hsla(0,0%,0%,0.25), inset 15px 20px 40px hsla(0,0%,100%,0.25)`,
+            transformStyle: "preserve-3d",
+            transform:
+              "rotateX(var(--orb-rx, 0deg)) rotateY(var(--orb-ry, 0deg)) rotateZ(var(--orb-rz, 0deg))" +
+              ` scale(${isPressed ? "1.04" : "1"})`,
+            transition: "box-shadow 400ms ease, transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+            willChange: "transform",
+            backdropFilter: tier.isShimmer ? "blur(6px)" : undefined,
           }}
-        />
-        {/* Sovereign-null shimmer overlay */}
-        {tier.isShimmer && (
+        >
+          {/* Specular highlight — pinned to the front face of the sphere */}
           <div
             aria-hidden
-            className="absolute inset-0 pointer-events-none"
+            className="absolute pointer-events-none"
             style={{
+              top: "12%",
+              left: "18%",
+              width: "40%",
+              height: "30%",
               borderRadius: "50%",
               background:
-                "conic-gradient(from 0deg, hsla(280,80%,70%,0.25), hsla(180,80%,70%,0.25), hsla(50,90%,70%,0.25), hsla(320,80%,70%,0.25), hsla(280,80%,70%,0.25))",
-              mixBlendMode: "screen",
-              animation: "orb-shimmer 8s linear infinite",
-              opacity: 0.6,
+                "radial-gradient(ellipse at center, hsla(0,0%,100%,0.55), hsla(0,0%,100%,0) 70%)",
+              filter: "blur(2px)",
+              transform: "translateZ(1px)",
             }}
           />
-        )}
+          {/* Sovereign-null shimmer overlay */}
+          {tier.isShimmer && (
+            <div
+              aria-hidden
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                borderRadius: "50%",
+                background:
+                  "conic-gradient(from 0deg, hsla(280,80%,70%,0.25), hsla(180,80%,70%,0.25), hsla(50,90%,70%,0.25), hsla(320,80%,70%,0.25), hsla(280,80%,70%,0.25))",
+                mixBlendMode: "screen",
+                animation: "orb-shimmer 8s linear infinite",
+                opacity: 0.6,
+              }}
+            />
+          )}
+        </div>
       </div>
 
       <p className="mt-3 text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Your Standing</p>
