@@ -126,7 +126,7 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
               className="absolute inset-0 rounded-full animate-welcome-glow"
               style={{
                 background:
-                  "radial-gradient(circle at 50% 50%, rgba(20,184,166,0.55) 0%, rgba(251,191,36,0.25) 40%, rgba(0,0,0,0) 70%)",
+                  "radial-gradient(circle at 50% 50%, rgba(20,184,166,0.35) 0%, rgba(251,191,36,0.18) 40%, rgba(255,255,255,0) 70%)",
                 filter: "blur(2px)",
               }}
             />
@@ -134,8 +134,8 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
               className="absolute w-32 h-32 rounded-full"
               style={{
                 background:
-                  "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.95) 0%, rgba(20,184,166,0.6) 50%, rgba(0,0,0,0) 100%)",
-                boxShadow: "0 0 80px 20px rgba(20,184,166,0.45), 0 0 160px 40px rgba(251,191,36,0.2)",
+                  "radial-gradient(circle at 50% 50%, rgba(255,255,255,1) 0%, rgba(20,184,166,0.45) 55%, rgba(255,255,255,0) 100%)",
+                boxShadow: "0 0 60px 18px rgba(20,184,166,0.25), 0 0 140px 36px rgba(251,191,36,0.18)",
               }}
             />
             {/* Particles */}
@@ -145,7 +145,7 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
                 className="absolute w-1.5 h-1.5 rounded-full animate-welcome-particle"
                 style={{
                   background: p.hue,
-                  boxShadow: `0 0 10px ${p.hue}`,
+                  boxShadow: `0 0 6px ${p.hue}`,
                   // @ts-ignore
                   "--dx": `${p.dx}px`,
                   "--dy": `${p.dy}px`,
@@ -156,19 +156,19 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
           </div>
 
           <div className="max-w-md text-center space-y-3 text-sm leading-relaxed">
-            <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-teal-300 via-amber-200 to-orange-300 bg-clip-text text-transparent">
+            <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-teal-600 via-amber-500 to-orange-500 bg-clip-text text-transparent">
               Welcome to Life.
             </h2>
-            <p className="text-white/80">This isn’t just another app.</p>
-            <p className="text-white/80">This is where you come into focus.</p>
-            <p className="text-white/70">
+            <p className="text-slate-700">This isn’t just another app.</p>
+            <p className="text-slate-700">This is where you come into focus.</p>
+            <p className="text-slate-600">
               Life is your gateway to understanding, owning, and activating your digital self — your digital twin. Every
               interaction, every data point, every signal you create has value. Here, you don’t give that value away…
               you claim it.
             </p>
-            <p className="text-white/80">Because your data isn’t just information.</p>
-            <p className="font-semibold text-amber-200">It’s leverage. It’s currency. It’s power.</p>
-            <p className="text-white/80">And Life is how you unlock it.</p>
+            <p className="text-slate-700">Because your data isn’t just information.</p>
+            <p className="font-semibold text-amber-600">It’s leverage. It’s currency. It’s power.</p>
+            <p className="text-slate-700">And Life is how you unlock it.</p>
           </div>
 
           <ContinueButton onClick={next} label="Continue" />
