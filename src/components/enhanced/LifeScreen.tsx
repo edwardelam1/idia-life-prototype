@@ -14,6 +14,7 @@ import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter
 import { fireGraffitiConfetti, fireFinaleConfetti } from "../psychometric/confetti";
 import StandingOrb from "../life/StandingOrb";
 import ColorWashOverlay from "../life/ColorWashOverlay";
+import SwipeToRate from "../life/SwipeToRate";
 import { useNFCBridge } from "@/hooks/useNFCBridge";
 import { toast } from "sonner";
 import {
