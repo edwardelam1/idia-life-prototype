@@ -542,7 +542,14 @@ const LifeScreen: React.FC = () => {
             <CardHeader className="shrink-0">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-foreground text-base">Good Deeds</CardTitle>
-                <Dialog>
+                <Dialog open={deedDialogOpen} onOpenChange={(o) => {
+                  setDeedDialogOpen(o);
+                  if (!o) {
+                    setNewDeedTitle("");
+                    setNewDeedDescription("");
+                    setNewDeedFile(null);
+                  }
+                }}>
                   <DialogTrigger asChild>
                     <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
                       <Award className="w-4 h-4 mr-2" />
@@ -551,28 +558,55 @@ const LifeScreen: React.FC = () => {
                   </DialogTrigger>
                   <DialogContent className="bg-white">
                     <DialogHeader>
-                      <DialogTitle>Submit Good Deed</DialogTitle>
+                      <DialogTitle>Submit a Good Deed</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
+                      <p className="text-xs text-muted-foreground leading-snug">
+                        You must show proof. Add a photo, a short video, or a voice note that
+                        shows the Good Deed. Then write what you did.
+                      </p>
                       <Input
-                        placeholder="Deed title"
+                        placeholder="Title of your Good Deed"
                         value={newDeedTitle}
                         onChange={(e) => setNewDeedTitle(e.target.value)}
+                        maxLength={100}
                         className="border-teal-100"
                       />
                       <Textarea
-                        placeholder="Describe their good deed..."
+                        placeholder="Tell us what you did and who it helped."
                         value={newDeedDescription}
                         onChange={(e) => setNewDeedDescription(e.target.value)}
                         rows={3}
+                        maxLength={1000}
                         className="border-teal-100"
                       />
+                      <div className="space-y-1.5">
+                        <label className="text-xs text-foreground font-medium">
+                          Add proof (photo, video, or voice note)
+                        </label>
+                        <Input
+                          type="file"
+                          accept="image/*,video/*,audio/*"
+                          onChange={(e) => setNewDeedFile(e.target.files?.[0] ?? null)}
+                          className="border-teal-100 file:mr-3 file:rounded-md file:border-0 file:bg-teal-50 file:px-3 file:py-1.5 file:text-xs file:text-teal-700"
+                        />
+                        {newDeedFile && (
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            {newDeedFile.name}
+                          </p>
+                        )}
+                      </div>
                       <Button
                         className="w-full bg-teal-600 hover:bg-teal-700"
                         onClick={handleSubmitGoodDeed}
-                        disabled={isSubmittingDeed || !newDeedTitle.trim()}
+                        disabled={
+                          isSubmittingDeed ||
+                          !newDeedTitle.trim() ||
+                          !newDeedDescription.trim() ||
+                          !newDeedFile
+                        }
                       >
-                        {isSubmittingDeed ? "Submitting..." : "Submit for Verification"}
+                        {isSubmittingDeed ? "Submitting…" : "Submit for Verification"}
                       </Button>
                     </div>
                   </DialogContent>
