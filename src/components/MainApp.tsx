@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Wallet, Database, Users, ShoppingBag, Vote, Crown } from "lucide-react";
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile"; // Import the hook
@@ -11,11 +11,21 @@ import ProScreen from "./pro/ProScreen";
 import Header from "./Header";
 import FriendAssistant from "./FriendAssistant";
 import OnboardingModal from "./ui/OnboardingModal";
+import WelcomeSequence from "./life/WelcomeSequence";
 
 const MainApp = () => {
   const [activeTab, setActiveTab] = useState("life");
   const [showFriend, setShowFriend] = useState(false);
   const [friendTrigger, setFriendTrigger] = useState<"social" | "wallet" | "data" | "achievement" | undefined>();
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [showWelcome, setShowWelcome] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem("idia_welcome_seen_v1") !== "1";
+    } catch {
+      return false;
+    }
+  });
 
   // 1. HYDRATE PROFILE DATA
   // Pulling profile into scope fixes the "Cannot find name 'profile'" error
