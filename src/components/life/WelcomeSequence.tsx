@@ -258,11 +258,13 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
       {/* STEP 3 — Spotlight Tour */}
       {step === 3 && spotlightRect && (
         <>
-          {/* Dimmer with cut-out spotlight using radial gradient mask */}
+          {/* Light frosted scrim with cut-out spotlight */}
           <div
             className="absolute inset-0 pointer-events-none transition-all duration-500"
             style={{
-              background: `radial-gradient(circle at ${spotlightRect.x}px ${spotlightRect.y}px, rgba(0,0,0,0) 0px, rgba(0,0,0,0) ${spotlightRect.r}px, rgba(0,0,0,0.85) ${spotlightRect.r + 24}px)`,
+              background: `radial-gradient(circle at ${spotlightRect.x}px ${spotlightRect.y}px, rgba(255,255,255,0) 0px, rgba(255,255,255,0) ${spotlightRect.r}px, rgba(248,250,252,0.88) ${spotlightRect.r + 24}px)`,
+              backdropFilter: "blur(2px)",
+              WebkitBackdropFilter: "blur(2px)",
             }}
           />
           {/* Glowing ring */}
@@ -274,30 +276,30 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
               width: spotlightRect.r * 2,
               height: spotlightRect.r * 2,
               boxShadow:
-                "0 0 0 2px rgba(20,184,166,0.7), 0 0 40px 6px rgba(20,184,166,0.5), 0 0 80px 16px rgba(251,191,36,0.25)",
+                "0 0 0 2px rgba(13,148,136,0.85), 0 0 30px 6px rgba(20,184,166,0.45), 0 0 70px 16px rgba(251,191,36,0.3)",
             }}
           />
 
           {/* Caption */}
           <div className="absolute left-0 right-0 px-6"
             style={{ bottom: `calc(${spotlightRect.r}px + env(safe-area-inset-bottom) + 96px)` }}>
-            <div className="max-w-md mx-auto rounded-2xl bg-white/5 backdrop-blur-xl border border-white/15 p-5 text-center"
-              style={{ boxShadow: "0 0 40px rgba(20,184,166,0.25)" }}>
-              <div className="text-xs uppercase tracking-[0.3em] text-amber-200 mb-2">
+            <div className="max-w-md mx-auto rounded-2xl bg-white/85 backdrop-blur-xl border border-slate-200 p-5 text-center"
+              style={{ boxShadow: "0 10px 40px rgba(15,23,42,0.12), 0 0 30px rgba(20,184,166,0.18)" }}>
+              <div className="text-xs uppercase tracking-[0.3em] text-amber-600 mb-2">
                 {SPOTLIGHT_TABS[tabIndex].label}
               </div>
-              <p className="text-sm text-white/85 leading-relaxed">{SPOTLIGHT_TABS[tabIndex].copy}</p>
+              <p className="text-sm text-slate-700 leading-relaxed">{SPOTLIGHT_TABS[tabIndex].copy}</p>
               <div className="flex items-center justify-center gap-2 mt-4">
                 {SPOTLIGHT_TABS.map((_, i) => (
                   <span
                     key={i}
-                    className={`h-1.5 rounded-full transition-all ${i === tabIndex ? "w-6 bg-teal-300" : "w-1.5 bg-white/30"}`}
+                    className={`h-1.5 rounded-full transition-all ${i === tabIndex ? "w-6 bg-teal-500" : "w-1.5 bg-slate-300"}`}
                   />
                 ))}
               </div>
               <button
                 onClick={next}
-                className="mt-4 inline-flex items-center gap-2 px-5 py-2 rounded-full bg-teal-500/90 hover:bg-teal-400 text-black text-sm font-bold transition-colors"
+                className="mt-4 inline-flex items-center gap-2 px-5 py-2 rounded-full bg-teal-500 hover:bg-teal-400 text-white text-sm font-bold transition-colors shadow-md"
               >
                 {tabIndex < SPOTLIGHT_TABS.length - 1 ? "Next" : "Continue"}
                 <ArrowRight className="w-4 h-4" />
