@@ -87,7 +87,7 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
         const hue = i % 3 === 0 ? "#14b8a6" : i % 3 === 1 ? "#f97316" : "#fbbf24";
         return { dx, dy, delay, hue };
       }),
-    []
+    [],
   );
 
   return (
@@ -157,9 +157,10 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
             </h2>
             <p className="text-slate-700">This is where you come into focus.</p>
             <p className="text-slate-600">
-              Your gateway to understanding, owning, and activating your digital self. Every signal you create has value—claim it.
+              Your gateway to understanding, owning, and activating your digital self. Every signal you create has
+              value—claim it.
             </p>
-            <p className="font-semibold text-amber-600">It is leverage. It is currency. It is power.</p>
+            <p className="font-semibold text-amber-600">Leverage. Royalties. Power.</p>
           </div>
 
           <ContinueButton onClick={next} label="Continue" />
@@ -200,8 +201,10 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
               ))}
             </svg>
 
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-white/85 backdrop-blur-xl border border-slate-200 flex items-center justify-center"
-              style={{ boxShadow: "0 8px 30px rgba(99,102,241,0.25), 0 0 40px rgba(125,211,252,0.35)" }}>
+            <div
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-white/85 backdrop-blur-xl border border-slate-200 flex items-center justify-center"
+              style={{ boxShadow: "0 8px 30px rgba(99,102,241,0.25), 0 0 40px rgba(125,211,252,0.35)" }}
+            >
               <img src={idiaLogo} alt="IDIA" className="w-12 h-auto" />
             </div>
 
@@ -223,9 +226,7 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
 
           <div className="max-w-md text-center space-y-1.5 text-[13px] leading-snug">
             <h2 className="text-xl font-bold text-amber-600">Enter the IDIA Protocol</h2>
-            <p className="text-slate-700">
-              A new system designed to shift control back to individuals.
-            </p>
+            <p className="text-slate-700">A new system designed to shift control back to individuals.</p>
             <p className="text-slate-600 text-[12px]">
               <span className="text-teal-600 font-semibold">Life</span> · your command center &nbsp;·&nbsp;
               <span className="text-teal-600 font-semibold">Pay</span> · where value moves &nbsp;·&nbsp;
@@ -262,10 +263,14 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
             }}
           />
 
-          <div className="absolute left-0 right-0 px-5"
-            style={{ bottom: `calc(${spotlightRect.r}px + env(safe-area-inset-bottom) + 110px)` }}>
-            <div className="max-w-md mx-auto rounded-2xl bg-white/90 backdrop-blur-xl border border-slate-200 p-3.5 text-center"
-              style={{ boxShadow: "0 10px 40px rgba(15,23,42,0.12), 0 0 30px rgba(20,184,166,0.18)" }}>
+          <div
+            className="absolute left-0 right-0 px-5"
+            style={{ bottom: `calc(${spotlightRect.r}px + env(safe-area-inset-bottom) + 110px)` }}
+          >
+            <div
+              className="max-w-md mx-auto rounded-2xl bg-white/90 backdrop-blur-xl border border-slate-200 p-3.5 text-center"
+              style={{ boxShadow: "0 10px 40px rgba(15,23,42,0.12), 0 0 30px rgba(20,184,166,0.18)" }}
+            >
               <div className="text-[10px] uppercase tracking-[0.3em] text-amber-600 mb-1">
                 {SPOTLIGHT_TABS[tabIndex].label}
               </div>
@@ -301,8 +306,10 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
                   "radial-gradient(circle, rgba(20,184,166,0.3) 0%, rgba(251,191,36,0.12) 50%, rgba(255,255,255,0) 75%)",
               }}
             />
-            <div className="relative w-20 h-20 rounded-full bg-white/85 border border-slate-200 backdrop-blur-xl flex items-center justify-center"
-              style={{ boxShadow: "0 8px 30px rgba(20,184,166,0.35), 0 0 50px rgba(251,191,36,0.25)" }}>
+            <div
+              className="relative w-20 h-20 rounded-full bg-white/85 border border-slate-200 backdrop-blur-xl flex items-center justify-center"
+              style={{ boxShadow: "0 8px 30px rgba(20,184,166,0.35), 0 0 50px rgba(251,191,36,0.25)" }}
+            >
               <ShieldCheck className="w-10 h-10 text-teal-600" />
             </div>
           </div>
@@ -325,9 +332,7 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
             <h2 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-teal-600 via-amber-500 to-orange-500 bg-clip-text text-transparent">
               This Is Your Moment
             </h2>
-            <p className="text-slate-700">
-              Your life, your data, and your value finally align.
-            </p>
+            <p className="text-slate-700">Your life, your data, and your value finally align.</p>
             <p className="font-semibold text-amber-600">Explore. Connect. Build. Earn.</p>
             <p className="text-slate-600">Welcome to Life.</p>
           </div>
