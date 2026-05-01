@@ -20,7 +20,7 @@ import LabelConnectionDialog from "../life/LabelConnectionDialog";
 import ProximityAwarenessOverlay from "../life/ProximityAwarenessOverlay";
 import { localPIIVault, type ConnectionLabel } from "@/lib/localPIIVault";
 import { useNFCBridge } from "@/hooks/useNFCBridge";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import {
   Heart,
   Award,

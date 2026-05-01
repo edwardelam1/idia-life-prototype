@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { localPIIVault } from "@/lib/localPIIVault";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 interface LabelConnectionDialogProps {
   connectionId: string | null;
