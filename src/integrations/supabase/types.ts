@@ -910,6 +910,7 @@ export type Database = {
           state: string | null
           street_address_1: string | null
           street_address_2: string | null
+          submodule_id: string | null
           subscription_tier: string | null
           tax_id: string | null
           updated_at: string | null
@@ -933,6 +934,7 @@ export type Database = {
           state?: string | null
           street_address_1?: string | null
           street_address_2?: string | null
+          submodule_id?: string | null
           subscription_tier?: string | null
           tax_id?: string | null
           updated_at?: string | null
@@ -956,6 +958,7 @@ export type Database = {
           state?: string | null
           street_address_1?: string | null
           street_address_2?: string | null
+          submodule_id?: string | null
           subscription_tier?: string | null
           tax_id?: string | null
           updated_at?: string | null
@@ -966,6 +969,13 @@ export type Database = {
             columns: ["franchise_parent_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "businesses_submodule_id_fkey"
+            columns: ["submodule_id"]
+            isOneToOne: false
+            referencedRelation: "taxonomy_submodules"
             referencedColumns: ["id"]
           },
         ]
@@ -6143,6 +6153,68 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      taxonomy_submodules: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          vertical_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id: string
+          name: string
+          updated_at?: string
+          vertical_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+          vertical_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "taxonomy_submodules_vertical_id_fkey"
+            columns: ["vertical_id"]
+            isOneToOne: false
+            referencedRelation: "taxonomy_verticals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      taxonomy_verticals: {
+        Row: {
+          color: string | null
+          created_at: string
+          icon: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          icon?: string | null
+          id: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          icon?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       telemetry_logs: {
         Row: {
