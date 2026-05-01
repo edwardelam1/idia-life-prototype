@@ -1,24 +1,12 @@
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { Upload, Shield, CreditCard, Building } from "lucide-react";
+import { Upload, Shield, Building } from "lucide-react";
+import BusinessMembershipPanel from "./BusinessMembershipPanel";
 
 const cardHeader = "py-2 px-3";
 const cardTitle = "text-sm font-semibold flex items-center gap-2";
