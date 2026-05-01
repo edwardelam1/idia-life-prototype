@@ -18,15 +18,15 @@ const USDC_ABI = [
 ] as const;
 
 export interface WalletBalance {
+  usdc_balance: number;
   cash_balance: number;
-  idia_beta_balance: number;
   idia_token_balance: number;
   total_earned: number;
 }
 
 const ZERO_FLOOR: WalletBalance = {
   cash_balance: 0,
-  idia_beta_balance: 0,
+  usdc_balance: 0,
   idia_token_balance: 0,
   total_earned: 0,
 };
@@ -59,7 +59,7 @@ export const useWalletBalance = () => {
         console.info(`⚙️ [DATA_APPLY_LOG] ACTION: No vault row for ${userId} — anchoring to Zero Floor`);
         setBalance((prev) => ({
           ...ZERO_FLOOR,
-          idia_beta_balance: prev.idia_beta_balance, // Preserve absolute on-chain truth
+          usdc_balance: prev.usdc_balance, // Preserve absolute on-chain truth
         }));
         return;
       }
@@ -67,7 +67,7 @@ export const useWalletBalance = () => {
       console.info(`⚙️ [DATA_APPLY_LOG] PAYLOAD:`, row);
       setBalance((prev) => ({
         cash_balance: Number(row.cash_balance) || 0,
-        idia_beta_balance: prev.idia_beta_balance, // Isolate USDC to Viem fetching only
+        usdc_balance: prev.usdc_balance, // Isolate USDC to Viem fetching only
         idia_token_balance: Number(row.idia_token_balance) || 0,
         total_earned: 0,
       }));
@@ -172,7 +172,7 @@ export const useWalletBalance = () => {
 
       setBalance({
         cash_balance: fiatBalance,
-        idia_beta_balance: usdcBalance, // Overrides db column with strict on-chain data
+        usdc_balance: usdcBalance, // Overrides db column with strict on-chain data
         idia_token_balance: tokenBalance,
         total_earned: 0,
       });

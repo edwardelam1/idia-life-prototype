@@ -9,6 +9,7 @@ import { Activity, CheckCircle, DollarSign, FileKey, Copy } from "lucide-react";
 import { supabase as typedSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AppleHealthModal from "./AppleHealthModal";
+import AndroidHealthModal from "./AndroidHealthModal";
 
 // 2. THE ULTIMATE BYPASS:
 // By typing this as 'any' at the root, TypeScript will NEVER evaluate
