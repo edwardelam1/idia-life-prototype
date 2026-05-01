@@ -31,16 +31,6 @@ const EnhancedProfileSettings: React.FC = () => {
   const [selectedInterests, setSelectedInterests] = useState<string[]>(interests ? interests.map((i) => i.id) : []);
   const [, setAvatarFile] = useState<File | null>(null);
 
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [uploadingDoc, setUploadingDoc] = useState(false);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [upgradeForm, setUpgradeForm] = useState({
-    companyName: "",
-    industry: "",
-    contactName: "",
-    contactRole: "Controlling Partner",
-  });
-
   if (loading) {
     return (
       <div className="p-3">
