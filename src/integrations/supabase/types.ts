@@ -53,6 +53,119 @@ export type Database = {
         }
         Relationships: []
       }
+      affiliate_campaigns: {
+        Row: {
+          budget: number | null
+          budget_allocation: number | null
+          business_id: string
+          campaign_name: string | null
+          campaign_type: string | null
+          commission_rate: number | null
+          created_at: string
+          description: string | null
+          end_date: string | null
+          id: string
+          metadata: Json | null
+          name: string
+          start_date: string | null
+          status: string | null
+          target_audience: Json | null
+          updated_at: string
+        }
+        Insert: {
+          budget?: number | null
+          budget_allocation?: number | null
+          business_id: string
+          campaign_name?: string | null
+          campaign_type?: string | null
+          commission_rate?: number | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          metadata?: Json | null
+          name: string
+          start_date?: string | null
+          status?: string | null
+          target_audience?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          budget?: number | null
+          budget_allocation?: number | null
+          business_id?: string
+          campaign_name?: string | null
+          campaign_type?: string | null
+          commission_rate?: number | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          metadata?: Json | null
+          name?: string
+          start_date?: string | null
+          status?: string | null
+          target_audience?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      affiliate_transactions: {
+        Row: {
+          amount: number
+          business_id: string
+          campaign_id: string | null
+          commission_amount: number | null
+          created_at: string
+          creator_id: string | null
+          customer_reference: string | null
+          id: string
+          metadata: Json | null
+          status: string | null
+          transaction_date: string | null
+          transaction_type: string | null
+          transaction_value: number | null
+        }
+        Insert: {
+          amount?: number
+          business_id: string
+          campaign_id?: string | null
+          commission_amount?: number | null
+          created_at?: string
+          creator_id?: string | null
+          customer_reference?: string | null
+          id?: string
+          metadata?: Json | null
+          status?: string | null
+          transaction_date?: string | null
+          transaction_type?: string | null
+          transaction_value?: number | null
+        }
+        Update: {
+          amount?: number
+          business_id?: string
+          campaign_id?: string | null
+          commission_amount?: number | null
+          created_at?: string
+          creator_id?: string | null
+          customer_reference?: string | null
+          id?: string
+          metadata?: Json | null
+          status?: string | null
+          transaction_date?: string | null
+          transaction_type?: string | null
+          transaction_value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "affiliate_transactions_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "affiliate_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_keys: {
         Row: {
           created_at: string | null
@@ -129,6 +242,110 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ar_campaign_performance: {
+        Row: {
+          business_id: string
+          conversion_count: number | null
+          created_at: string
+          date: string
+          engagement_duration_avg: number | null
+          experience_id: string | null
+          id: string
+          metadata: Json | null
+          revenue_attributed: number | null
+          revenue_generated: number | null
+          total_interactions: number | null
+          unique_users: number | null
+        }
+        Insert: {
+          business_id: string
+          conversion_count?: number | null
+          created_at?: string
+          date?: string
+          engagement_duration_avg?: number | null
+          experience_id?: string | null
+          id?: string
+          metadata?: Json | null
+          revenue_attributed?: number | null
+          revenue_generated?: number | null
+          total_interactions?: number | null
+          unique_users?: number | null
+        }
+        Update: {
+          business_id?: string
+          conversion_count?: number | null
+          created_at?: string
+          date?: string
+          engagement_duration_avg?: number | null
+          experience_id?: string | null
+          id?: string
+          metadata?: Json | null
+          revenue_attributed?: number | null
+          revenue_generated?: number | null
+          total_interactions?: number | null
+          unique_users?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ar_campaign_performance_experience_id_fkey"
+            columns: ["experience_id"]
+            isOneToOne: false
+            referencedRelation: "ar_experiences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ar_experiences: {
+        Row: {
+          business_id: string
+          conversion_rate: number | null
+          created_at: string
+          description: string | null
+          experience_type: string | null
+          id: string
+          is_active: boolean | null
+          metadata: Json | null
+          revenue_attributed: number | null
+          status: string | null
+          title: string
+          total_interactions: number | null
+          total_views: number | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          conversion_rate?: number | null
+          created_at?: string
+          description?: string | null
+          experience_type?: string | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          revenue_attributed?: number | null
+          status?: string | null
+          title: string
+          total_interactions?: number | null
+          total_views?: number | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          conversion_rate?: number | null
+          created_at?: string
+          description?: string | null
+          experience_type?: string | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          revenue_attributed?: number | null
+          status?: string | null
+          title?: string
+          total_interactions?: number | null
+          total_views?: number | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       ar_menu_items: {
         Row: {
@@ -416,6 +633,36 @@ export type Database = {
           },
         ]
       }
+      business_hours: {
+        Row: {
+          business_id: string
+          close_time: string
+          created_at: string
+          day_of_week: number
+          id: string
+          is_closed: boolean | null
+          open_time: string
+        }
+        Insert: {
+          business_id: string
+          close_time?: string
+          created_at?: string
+          day_of_week: number
+          id?: string
+          is_closed?: boolean | null
+          open_time?: string
+        }
+        Update: {
+          business_id?: string
+          close_time?: string
+          created_at?: string
+          day_of_week?: number
+          id?: string
+          is_closed?: boolean | null
+          open_time?: string
+        }
+        Relationships: []
+      }
       business_locations: {
         Row: {
           address: string
@@ -648,6 +895,8 @@ export type Database = {
           address: string | null
           business_health_score: number | null
           business_type: string
+          city: string | null
+          country: string | null
           created_at: string | null
           data_coop_enabled: boolean | null
           email: string | null
@@ -657,6 +906,11 @@ export type Database = {
           logo_url: string | null
           name: string
           phone: string | null
+          postal_code: string | null
+          provisioning_code: string
+          state: string | null
+          street_address_1: string | null
+          street_address_2: string | null
           subscription_tier: string | null
           tax_id: string | null
           updated_at: string | null
@@ -665,6 +919,8 @@ export type Database = {
           address?: string | null
           business_health_score?: number | null
           business_type: string
+          city?: string | null
+          country?: string | null
           created_at?: string | null
           data_coop_enabled?: boolean | null
           email?: string | null
@@ -674,6 +930,11 @@ export type Database = {
           logo_url?: string | null
           name: string
           phone?: string | null
+          postal_code?: string | null
+          provisioning_code?: string
+          state?: string | null
+          street_address_1?: string | null
+          street_address_2?: string | null
           subscription_tier?: string | null
           tax_id?: string | null
           updated_at?: string | null
@@ -682,6 +943,8 @@ export type Database = {
           address?: string | null
           business_health_score?: number | null
           business_type?: string
+          city?: string | null
+          country?: string | null
           created_at?: string | null
           data_coop_enabled?: boolean | null
           email?: string | null
@@ -691,6 +954,11 @@ export type Database = {
           logo_url?: string | null
           name?: string
           phone?: string | null
+          postal_code?: string | null
+          provisioning_code?: string
+          state?: string | null
+          street_address_1?: string | null
+          street_address_2?: string | null
           subscription_tier?: string | null
           tax_id?: string | null
           updated_at?: string | null
@@ -1484,6 +1752,44 @@ export type Database = {
         }
         Relationships: []
       }
+      device_provisioning_blueprints: {
+        Row: {
+          business_id: string
+          code: string
+          created_at: string
+          id: string
+          payload: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          code: string
+          created_at?: string
+          id?: string
+          payload: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          code?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_provisioning_blueprints_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       digiramp_testnet_migration: {
         Row: {
           digiramp_id: string
@@ -1724,6 +2030,93 @@ export type Database = {
           },
         ]
       }
+      employee_shift_schedules: {
+        Row: {
+          break_minutes: number | null
+          business_id: string
+          created_at: string
+          end_time: string
+          id: string
+          location: string | null
+          notes: string | null
+          schedule_date: string
+          start_time: string
+          status: string
+          team_member_id: string
+        }
+        Insert: {
+          break_minutes?: number | null
+          business_id: string
+          created_at?: string
+          end_time: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          schedule_date: string
+          start_time: string
+          status?: string
+          team_member_id: string
+        }
+        Update: {
+          break_minutes?: number | null
+          business_id?: string
+          created_at?: string
+          end_time?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          schedule_date?: string
+          start_time?: string
+          status?: string
+          team_member_id?: string
+        }
+        Relationships: []
+      }
+      employee_time_entries: {
+        Row: {
+          break_minutes: number | null
+          business_id: string
+          clock_in: string
+          clock_out: string | null
+          created_at: string
+          id: string
+          location: string | null
+          notes: string | null
+          overtime_hours: number | null
+          status: string
+          team_member_id: string
+          total_hours: number | null
+        }
+        Insert: {
+          break_minutes?: number | null
+          business_id: string
+          clock_in?: string
+          clock_out?: string | null
+          created_at?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          overtime_hours?: number | null
+          status?: string
+          team_member_id: string
+          total_hours?: number | null
+        }
+        Update: {
+          break_minutes?: number | null
+          business_id?: string
+          clock_in?: string
+          clock_out?: string | null
+          created_at?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          overtime_hours?: number | null
+          status?: string
+          team_member_id?: string
+          total_hours?: number | null
+        }
+        Relationships: []
+      }
       employee_timesheets: {
         Row: {
           approval_status: string | null
@@ -1791,6 +2184,108 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      employees: {
+        Row: {
+          aca_secured: boolean
+          address: string | null
+          assigned_locations: string[] | null
+          business_id: string
+          city: string | null
+          created_at: string
+          direct_deposit_enabled: boolean | null
+          email: string
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          hire_date: string | null
+          hourly_rate: number | null
+          id: string
+          is_ephemeral: boolean
+          last_login: string | null
+          name: string
+          notes: string | null
+          overtime_rate: number | null
+          pay_frequency: string | null
+          permission_template_id: string | null
+          permissions: Json | null
+          phone: string | null
+          platform_role: string
+          role: string
+          salary_type: string | null
+          state: string | null
+          status: string
+          tax_filing_status: string | null
+          updated_at: string
+          user_id: string | null
+          zip: string | null
+        }
+        Insert: {
+          aca_secured?: boolean
+          address?: string | null
+          assigned_locations?: string[] | null
+          business_id: string
+          city?: string | null
+          created_at?: string
+          direct_deposit_enabled?: boolean | null
+          email: string
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          hire_date?: string | null
+          hourly_rate?: number | null
+          id?: string
+          is_ephemeral?: boolean
+          last_login?: string | null
+          name: string
+          notes?: string | null
+          overtime_rate?: number | null
+          pay_frequency?: string | null
+          permission_template_id?: string | null
+          permissions?: Json | null
+          phone?: string | null
+          platform_role?: string
+          role?: string
+          salary_type?: string | null
+          state?: string | null
+          status?: string
+          tax_filing_status?: string | null
+          updated_at?: string
+          user_id?: string | null
+          zip?: string | null
+        }
+        Update: {
+          aca_secured?: boolean
+          address?: string | null
+          assigned_locations?: string[] | null
+          business_id?: string
+          city?: string | null
+          created_at?: string
+          direct_deposit_enabled?: boolean | null
+          email?: string
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          hire_date?: string | null
+          hourly_rate?: number | null
+          id?: string
+          is_ephemeral?: boolean
+          last_login?: string | null
+          name?: string
+          notes?: string | null
+          overtime_rate?: number | null
+          pay_frequency?: string | null
+          permission_template_id?: string | null
+          permissions?: Json | null
+          phone?: string | null
+          platform_role?: string
+          role?: string
+          salary_type?: string | null
+          state?: string | null
+          status?: string
+          tax_filing_status?: string | null
+          updated_at?: string
+          user_id?: string | null
+          zip?: string | null
+        }
+        Relationships: []
       }
       endorsements: {
         Row: {
@@ -2659,6 +3154,45 @@ export type Database = {
           },
         ]
       }
+      inventory_history: {
+        Row: {
+          action: string
+          business_id: string
+          created_at: string
+          id: string
+          inventory_item_id: string | null
+          item_name: string
+          metadata: Json | null
+          note: string | null
+          quantity: number | null
+          unit: string | null
+        }
+        Insert: {
+          action: string
+          business_id: string
+          created_at?: string
+          id?: string
+          inventory_item_id?: string | null
+          item_name: string
+          metadata?: Json | null
+          note?: string | null
+          quantity?: number | null
+          unit?: string | null
+        }
+        Update: {
+          action?: string
+          business_id?: string
+          created_at?: string
+          id?: string
+          inventory_item_id?: string | null
+          item_name?: string
+          metadata?: Json | null
+          note?: string | null
+          quantity?: number | null
+          unit?: string | null
+        }
+        Relationships: []
+      }
       inventory_items: {
         Row: {
           barcode: string | null
@@ -2666,15 +3200,20 @@ export type Database = {
           category: string
           created_at: string | null
           current_cost: number | null
+          current_stock: number | null
           id: string
+          individual_unit_uom: string | null
           is_active: boolean | null
           lead_time_days: number | null
           minimum_order_quantity: number | null
+          minimum_shelf_life_days: number | null
           name: string
           par_level: number | null
+          requires_batch_tracking: boolean | null
           shelf_life_days: number | null
           storage_requirements: string | null
           supplier_id: string | null
+          tolerance_variance_pct: number | null
           unit_of_measure: string
           updated_at: string | null
           vendor_sku: string | null
@@ -2685,15 +3224,20 @@ export type Database = {
           category: string
           created_at?: string | null
           current_cost?: number | null
+          current_stock?: number | null
           id?: string
+          individual_unit_uom?: string | null
           is_active?: boolean | null
           lead_time_days?: number | null
           minimum_order_quantity?: number | null
+          minimum_shelf_life_days?: number | null
           name: string
           par_level?: number | null
+          requires_batch_tracking?: boolean | null
           shelf_life_days?: number | null
           storage_requirements?: string | null
           supplier_id?: string | null
+          tolerance_variance_pct?: number | null
           unit_of_measure: string
           updated_at?: string | null
           vendor_sku?: string | null
@@ -2704,15 +3248,20 @@ export type Database = {
           category?: string
           created_at?: string | null
           current_cost?: number | null
+          current_stock?: number | null
           id?: string
+          individual_unit_uom?: string | null
           is_active?: boolean | null
           lead_time_days?: number | null
           minimum_order_quantity?: number | null
+          minimum_shelf_life_days?: number | null
           name?: string
           par_level?: number | null
+          requires_batch_tracking?: boolean | null
           shelf_life_days?: number | null
           storage_requirements?: string | null
           supplier_id?: string | null
+          tolerance_variance_pct?: number | null
           unit_of_measure?: string
           updated_at?: string | null
           vendor_sku?: string | null
@@ -3348,6 +3897,39 @@ export type Database = {
         }
         Relationships: []
       }
+      menu_history: {
+        Row: {
+          action: string
+          business_id: string
+          created_at: string
+          id: string
+          item_name: string
+          menu_item_id: string | null
+          metadata: Json | null
+          note: string | null
+        }
+        Insert: {
+          action: string
+          business_id: string
+          created_at?: string
+          id?: string
+          item_name: string
+          menu_item_id?: string | null
+          metadata?: Json | null
+          note?: string | null
+        }
+        Update: {
+          action?: string
+          business_id?: string
+          created_at?: string
+          id?: string
+          item_name?: string
+          menu_item_id?: string | null
+          metadata?: Json | null
+          note?: string | null
+        }
+        Relationships: []
+      }
       menu_items: {
         Row: {
           allergen_info: Json | null
@@ -3648,6 +4230,39 @@ export type Database = {
           metric_value?: number
           recorded_at?: string | null
           time_period?: string
+        }
+        Relationships: []
+      }
+      permission_templates: {
+        Row: {
+          business_id: string
+          created_at: string
+          description: string | null
+          id: string
+          is_system: boolean | null
+          name: string
+          permissions: Json
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean | null
+          name: string
+          permissions?: Json
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean | null
+          name?: string
+          permissions?: Json
+          updated_at?: string
         }
         Relationships: []
       }
@@ -4591,33 +5206,72 @@ export type Database = {
           },
         ]
       }
+      recipe_history: {
+        Row: {
+          action: string
+          business_id: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          note: string | null
+          recipe_id: string | null
+          recipe_name: string
+        }
+        Insert: {
+          action: string
+          business_id: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          note?: string | null
+          recipe_id?: string | null
+          recipe_name: string
+        }
+        Update: {
+          action?: string
+          business_id?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          note?: string | null
+          recipe_id?: string | null
+          recipe_name?: string
+        }
+        Relationships: []
+      }
       recipe_ingredients: {
         Row: {
           created_at: string | null
+          gross_quantity: number | null
           id: string
           inventory_item_id: string
           notes: string | null
           quantity: number
           recipe_id: string
           unit: string
+          yield_percentage: number | null
         }
         Insert: {
           created_at?: string | null
+          gross_quantity?: number | null
           id?: string
           inventory_item_id: string
           notes?: string | null
           quantity?: number
           recipe_id: string
           unit: string
+          yield_percentage?: number | null
         }
         Update: {
           created_at?: string | null
+          gross_quantity?: number | null
           id?: string
           inventory_item_id?: string
           notes?: string | null
           quantity?: number
           recipe_id?: string
           unit?: string
+          yield_percentage?: number | null
         }
         Relationships: [
           {
@@ -6474,6 +7128,7 @@ export type Database = {
         }
         Returns: number
       }
+      generate_business_provisioning_code: { Args: never; Returns: string }
       generate_pseudonym:
         | { Args: { input_id: string }; Returns: string }
         | { Args: { input_text: string }; Returns: string }
@@ -6524,6 +7179,7 @@ export type Database = {
         Args: { p_pseudo_id: string }
         Returns: string
       }
+      has_business_access: { Args: { p_business_id: string }; Returns: boolean }
       increment_community_pool: {
         Args: { p_fiat_amount: number; p_pool_type: string }
         Returns: undefined
@@ -6563,6 +7219,7 @@ export type Database = {
         Returns: Json
       }
       invoke_refiner_secure: { Args: { payload: Json }; Returns: undefined }
+      is_org_admin: { Args: { _business_id: string }; Returns: boolean }
       log_delt_egress: {
         Args: {
           p_aca_hash: string
@@ -6590,6 +7247,136 @@ export type Database = {
           error_count: number
           processed_count: number
         }[]
+      }
+      provision_employee_via_aca: {
+        Args: {
+          _business_id: string
+          _platform_guid: string
+          _platform_role: string
+        }
+        Returns: {
+          aca_secured: boolean
+          address: string | null
+          assigned_locations: string[] | null
+          business_id: string
+          city: string | null
+          created_at: string
+          direct_deposit_enabled: boolean | null
+          email: string
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          hire_date: string | null
+          hourly_rate: number | null
+          id: string
+          is_ephemeral: boolean
+          last_login: string | null
+          name: string
+          notes: string | null
+          overtime_rate: number | null
+          pay_frequency: string | null
+          permission_template_id: string | null
+          permissions: Json | null
+          phone: string | null
+          platform_role: string
+          role: string
+          salary_type: string | null
+          state: string | null
+          status: string
+          tax_filing_status: string | null
+          updated_at: string
+          user_id: string | null
+          zip: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      provision_ephemeral_employee: {
+        Args: { _business_id: string }
+        Returns: {
+          aca_secured: boolean
+          address: string | null
+          assigned_locations: string[] | null
+          business_id: string
+          city: string | null
+          created_at: string
+          direct_deposit_enabled: boolean | null
+          email: string
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          hire_date: string | null
+          hourly_rate: number | null
+          id: string
+          is_ephemeral: boolean
+          last_login: string | null
+          name: string
+          notes: string | null
+          overtime_rate: number | null
+          pay_frequency: string | null
+          permission_template_id: string | null
+          permissions: Json | null
+          phone: string | null
+          platform_role: string
+          role: string
+          salary_type: string | null
+          state: string | null
+          status: string
+          tax_filing_status: string | null
+          updated_at: string
+          user_id: string | null
+          zip: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      revoke_employee: {
+        Args: { _employee_id: string }
+        Returns: {
+          aca_secured: boolean
+          address: string | null
+          assigned_locations: string[] | null
+          business_id: string
+          city: string | null
+          created_at: string
+          direct_deposit_enabled: boolean | null
+          email: string
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          hire_date: string | null
+          hourly_rate: number | null
+          id: string
+          is_ephemeral: boolean
+          last_login: string | null
+          name: string
+          notes: string | null
+          overtime_rate: number | null
+          pay_frequency: string | null
+          permission_template_id: string | null
+          permissions: Json | null
+          phone: string | null
+          platform_role: string
+          role: string
+          salary_type: string | null
+          state: string | null
+          status: string
+          tax_filing_status: string | null
+          updated_at: string
+          user_id: string | null
+          zip: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       set_usdc_balance: {
         Args: {
