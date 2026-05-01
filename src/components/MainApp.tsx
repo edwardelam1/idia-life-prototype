@@ -159,7 +159,7 @@ const MainApp = () => {
                     tabRefs.current[tab.id] = el;
                   }}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`relative flex flex-col items-center space-y-0.5 transition-colors p-2 z-[10000] ${
+                  className={`relative flex flex-col items-center space-y-0.5 transition-colors p-2 ${
                     activeTab === tab.id ? "text-primary" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
