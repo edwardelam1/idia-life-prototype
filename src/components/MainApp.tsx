@@ -147,7 +147,7 @@ const MainApp = () => {
         </div>
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-background border-t border-border pb-[env(safe-area-inset-bottom)] z-[9999] isolate pointer-events-auto shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
+      <nav className="fixed bottom-0 left-0 right-0 bg-background border-t border-border pb-[env(safe-area-inset-bottom)] z-30 isolate pointer-events-auto shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
         <div className="max-w-4xl mx-auto px-2">
           <div className="flex justify-around py-2">
             {tabs.map((tab) => {
