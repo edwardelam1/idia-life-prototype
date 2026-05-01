@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
-import { Upload, Shield, Building } from "lucide-react";
+import { Upload, Shield, Building, CreditCard } from "lucide-react";
 import BusinessMembershipPanel from "./BusinessMembershipPanel";
 
 const cardHeader = "py-2 px-3";
