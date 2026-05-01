@@ -28,7 +28,6 @@ const EnhancedProfileSettings: React.FC = () => {
   } = useEnhancedProfile();
 
   const { balance } = useWalletBalance();
-  const { toast } = useToast();
 
   const [selectedInterests, setSelectedInterests] = useState<string[]>(interests ? interests.map((i) => i.id) : []);
   const [, setAvatarFile] = useState<File | null>(null);
