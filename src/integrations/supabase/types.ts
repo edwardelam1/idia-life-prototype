@@ -892,7 +892,6 @@ export type Database = {
       }
       businesses: {
         Row: {
-          address: string | null
           business_health_score: number | null
           business_type: string
           city: string | null
@@ -916,7 +915,6 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          address?: string | null
           business_health_score?: number | null
           business_type: string
           city?: string | null
@@ -940,7 +938,6 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          address?: string | null
           business_health_score?: number | null
           business_type?: string
           city?: string | null
