@@ -1,70 +1,71 @@
-## Revised goal (intake-only)
+## Goal
 
-The Account Management section in `EnhancedProfileSettings.tsx` becomes a three-state panel. **No business is ever created and no Org Admin is ever assigned from IDIA Life** — that happens in the Hub app after KYB.
+End the current chaos where toasts appear at the top (shadcn `Toaster`) AND bottom-left (sonner), are oversized, and disappear with no history. Replace with a single minimalist notification system anchored next to the user avatar in the Header — with a persistent history log.
 
-### State machine
+## Current State
 
-1. **Already a member of one or more businesses** (Hub provisioned them)
-   - List each membership: **Business Name** + **Platform Role** badge (Org Admin / Team Lead / Team Member) + **Leave Business** button.
-   - Leave is disabled when the user is the last active Org Admin of that business, with a tooltip: *"You are the last Org Admin. Closing the business is not allowed from IDIA Life."*
-   - Leave calls the existing `revoke_employee(_employee_id)` RPC, which also enforces this rule server-side via `LAST_ORG_ADMIN_DELETE_ORG`.
+- Two parallel toast systems are mounted in `src/App.tsx`:
+  - `@/components/ui/toaster` (Radix) → renders top of screen on mobile, bottom-right on desktop, large `p-6` cards.
+  - `@/components/ui/sonner` (Sonner) → pinned `bottom-left` with inline style `bottom: 5rem`.
+- 25+ files dispatch toasts via either `toast()` from sonner or `useToast()` from `@/hooks/use-toast`.
+- No persistence: notifications vanish after 4s; user can't review what fired.
 
-2. **Has an open intake request** (most recent `account_conversion_requests` for this user with status in `pending` / `in_review`)
-   - Show a compact status panel: company name, role applied for, "Application submitted — awaiting KYB review."
-   - No Apply button. No Withdraw in this scope.
+## Target Design
 
-3. **No memberships and no open request**
-   - Show a small **Apply for a Business Account** button.
-   - Click opens the existing intake Dialog (Legal Business Name, Industry, Your Full Name, Your Role: Controlling Partner / Authorized Signatory, plus the existing legal-doc file input which we keep visible but do not upload — the Hub team requests documents during KYB; we just record the intake row).
-   - Submit inserts one row into `public.account_conversion_requests` with `user_id = auth.uid()`, `status = 'pending'`. After insert, the panel transitions to state 2.
+A single notification surface with two parts:
 
-## Database changes
+1. **Bell icon next to the avatar** in `Header.tsx` (left of the avatar, right of the title). Shows an unread count dot.
+2. **Dropdown panel** (Radix Popover) anchored from the bell — compact list of the last 50 events, newest first. Each row: small icon, title, 1-line description, relative timestamp. Mark-all-read + clear actions.
+3. **Transient micro-toast** for active feedback: a tiny pill (~`text-xs`, single line, max 240px) that slides in from the bell, auto-dismisses in 3s, and is simultaneously appended to history. No more giant cards.
 
-One migration only — the table already exists; it just needs user-scoped RLS so the intake insert and "is there a pending request?" read both work for the signed-in user.
-
-```sql
-ALTER TABLE public.account_conversion_requests ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Users can submit their own conversion requests"
-  ON public.account_conversion_requests;
-CREATE POLICY "Users can submit their own conversion requests"
-  ON public.account_conversion_requests
-  FOR INSERT TO authenticated
-  WITH CHECK (user_id = auth.uid());
-
-DROP POLICY IF EXISTS "Users can view their own conversion requests"
-  ON public.account_conversion_requests;
-CREATE POLICY "Users can view their own conversion requests"
-  ON public.account_conversion_requests
-  FOR SELECT TO authenticated
-  USING (user_id = auth.uid());
+```text
+ ┌──────────────────────────────────────────────┐
+ │ [logo] IDIA Life          [🔔³] [👤] [⚙]    │  ← Header
+ └────────────────────────────┬─────────────────┘
+                              │
+                  ┌───────────▼──────────────┐
+                  │ Notifications  [✓ all]   │
+                  │ ─────────────────────── │
+                  │ ✓ Vault linked    2m    │
+                  │ ⚠ EIN required   10m   │
+                  │ ✓ Profile saved   1h    │
+                  │           [Clear all]   │
+                  └─────────────────────────┘
 ```
 
-No new tables. No new functions. No writes to `businesses`, `business_users`, or `employees` from this app. The previously-proposed `create_business_with_founder` RPC is **dropped from the plan**.
+## Implementation
 
-## Frontend changes
+### 1. New notification store
+- Create `src/stores/notificationStore.ts` (zustand-free, simple module + React subscription via `useSyncExternalStore`) holding `Notification[]` (id, level: info/success/warning/error, title, description?, timestamp, read).
+- Persist to `localStorage` under `idia_notifications_v1`, cap at 50.
 
-### `src/hooks/useBusinessMembership.ts` (new)
+### 2. New unified API
+- Create `src/lib/notify.ts` exporting `notify.success/info/warning/error(title, description?)`. It:
+  - Pushes to the store (history).
+  - Fires a minimalist sonner toast for the transient pill.
 
-- Loads, in parallel for the current user:
-  - Active `employees` rows joined with `businesses(name)` filtered by `user_id = auth.uid()` and `status = 'active'`.
-  - Most recent `account_conversion_requests` row for this user; treats it as "pending" when its status is in `{pending, in_review, received, review}`.
-- For each Org-Admin membership, runs a count query for *other* active Org Admins of that same business and exposes `isLastOrgAdmin` per row.
-- Exposes:
-  - `memberships`, `pendingRequest`, `loading`
-  - `refresh()`
-  - `submitIntake({ companyName, industry, contactName, contactRole })` → inserts into `account_conversion_requests`.
-  - `leaveBusiness(employeeId)` → calls `supabase.rpc('revoke_employee', { _employee_id: employeeId })`; translates `LAST_ORG_ADMIN_DELETE_ORG` into a friendly error.
+### 3. Replace existing systems
+- Remove `<Toaster />` (Radix) from `src/App.tsx` — keep only Sonner.
+- Reconfigure `src/components/ui/sonner.tsx`:
+  - `position="top-right"` so the pill animates from near the bell.
+  - Tighter sizing already partly in place; reduce to single-line, `max-w-[240px]`, `duration={3000}`.
+- Codemod all 25 callers from `toast({title, description, variant})` and `toast.success(...)` to `notify.success/error(...)`. Old `useToast` hook stays in place as a thin shim that forwards to `notify` so nothing breaks if missed.
 
-### `src/components/enhanced/EnhancedProfileSettings.tsx`
+### 4. Bell + dropdown component
+- Create `src/components/NotificationBell.tsx` using existing `Popover` and the store. Renders bell icon, unread badge, dropdown with list, mark-all-read, clear-all.
+- Insert into `src/components/Header.tsx` immediately left of the avatar.
 
-- Strip out the existing inline upgrade Dialog state/handlers that wrote to `account_conversion_requests` directly.
-- Replace the Account Management `Card` body with a small subcomponent that consumes `useBusinessMembership()` and renders the three states above.
-- Keep all other cards (Profile, Verification & Trust, Wallet, Interests) untouched.
-- Reuse existing primitives only: `Card`, `Button`, `Badge`, `Dialog`, `Input`, `Select`, `Tooltip`. Maintain the dense minimalist styling from the prior change (`py-2 px-3` headers, `text-sm` titles, `divide-y` for the membership list).
+### 5. Cleanup
+- Delete unused viewport bottom offset hacks.
+- Verify nothing else imports `@/components/ui/toaster`; if so, leave the file but stop mounting it.
 
-## Verification after apply
+## Files Touched
 
-- Personal user with no memberships and no prior request: sees "Apply for a Business Account". Submitting the form inserts one row and the panel switches to "Application submitted — awaiting KYB review."
-- User the Hub provisioned as Team Member: sees that business with the **Team Member** badge and an enabled **Leave Business** button. Clicking it calls `revoke_employee` and removes the row.
-- Sole Org Admin of a business: sees the **Org Admin** badge and Leave is disabled with the tooltip; the server-side `LAST_ORG_ADMIN_DELETE_ORG` exception is the second line of defense.
+- New: `src/stores/notificationStore.ts`, `src/lib/notify.ts`, `src/components/NotificationBell.tsx`
+- Edited: `src/App.tsx` (remove Radix Toaster), `src/components/ui/sonner.tsx` (minimalist + top-right), `src/components/Header.tsx` (add bell), `src/hooks/use-toast.ts` (shim → notify)
+- Edited (codemod, mechanical): the 25 caller files listed above to use `notify.*` for cleaner call sites and guaranteed history capture
+
+## Out of Scope
+
+- Server-pushed notifications (this is purely the client surface; the existing `notificationHydrator.ts` can feed into `notify.*` later).
+- Per-category filtering in the dropdown (can add later if needed).
