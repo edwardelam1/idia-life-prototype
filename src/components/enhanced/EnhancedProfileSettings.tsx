@@ -87,42 +87,6 @@ const EnhancedProfileSettings: React.FC = () => {
     return <Badge variant="outline" className="text-[11px]">{labels[type] || type}</Badge>;
   };
 
-  const handleBusinessUpgrade = async () => {
-    if (!upgradeForm.companyName || !upgradeForm.contactName || !uploadFile) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill out all required fields and upload your legal documentation.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setUploadingDoc(true);
-    try {
-      const { error } = await supabase.from("account_conversion_requests" as any).insert({
-        user_id: profile.user_id,
-        company_name: upgradeForm.companyName,
-        industry: upgradeForm.industry,
-        contact_name: upgradeForm.contactName,
-        contact_role: upgradeForm.contactRole,
-        request_type: "Personal to Business",
-        status: "pending",
-      });
-
-      if (error && error.code !== "42P01") throw error;
-
-      toast({
-        title: "Application Submitted",
-        description: "Your business account request has been sent to the IDIA Corporate back office.",
-      });
-      setShowUpgradeModal(false);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    } finally {
-      setUploadingDoc(false);
-    }
-  };
-
   return (
     <div className="p-2 sm:p-3 space-y-3 max-w-3xl mx-auto">
       {/* Profile */}
