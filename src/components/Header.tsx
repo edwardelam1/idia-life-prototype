@@ -3,6 +3,7 @@ import { Settings, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
+import NotificationBell from "@/components/NotificationBell";
 import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png";
 
 const Header = () => {
@@ -17,7 +18,10 @@ const Header = () => {
         <h1 className="text-lg font-bold text-foreground">IDIA Life</h1>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
+        {/* Centralized Notifications */}
+        <NotificationBell />
+
         {/* Profile Avatar */}
         {profile && (
           <Avatar className="w-8 h-8 border border-border cursor-pointer" onClick={() => navigate("/settings")}>
