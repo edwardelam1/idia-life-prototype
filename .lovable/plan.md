@@ -1,63 +1,70 @@
-## Goal
+## Revised goal (intake-only)
 
-Replace the static "Upgrade to Business" CTA in the Account Management section of `EnhancedProfileSettings.tsx` with a live, role-aware Business Membership panel:
+The Account Management section in `EnhancedProfileSettings.tsx` becomes a three-state panel. **No business is ever created and no Org Admin is ever assigned from IDIA Life** — that happens in the Hub app after KYB.
 
-- **No business**: show a "Create a Business Account" CTA that creates a real `businesses` row and makes the current user the founding **Org Admin** in `employees`.
-- **Has one or more businesses**: list each membership with **Business Name**, the user's **Platform Role** (Org Admin / Team Lead / Team Member), and a **Leave Business** action.
-- **Leave Business** is disabled when the user is the last active Org Admin, with a tooltip explaining that destroying the business is not allowed from IDIA Life.
+### State machine
 
-## Technical context
+1. **Already a member of one or more businesses** (Hub provisioned them)
+   - List each membership: **Business Name** + **Platform Role** badge (Org Admin / Team Lead / Team Member) + **Leave Business** button.
+   - Leave is disabled when the user is the last active Org Admin of that business, with a tooltip: *"You are the last Org Admin. Closing the business is not allowed from IDIA Life."*
+   - Leave calls the existing `revoke_employee(_employee_id)` RPC, which also enforces this rule server-side via `LAST_ORG_ADMIN_DELETE_ORG`.
 
-- `public.employees` already carries `platform_role` ('Org Admin' | 'Team Lead' | 'Team Member'), `status`, and `business_id` → `public.businesses(id)`. The DB function `revoke_employee(_employee_id uuid)` already enforces the rule "the last active Org Admin cannot be removed" (raises `LAST_ORG_ADMIN_DELETE_ORG`). We will reuse it directly.
-- `public.businesses` RLS allows `business_users`-based access; insert is fine for `authenticated` but historically managed via the `business_users` path. We will add a small SECURITY DEFINER RPC `create_business_with_founder(_name text, _entity_type text, _business_type text)` that, in one transaction:
-  1. Inserts a `businesses` row owned by `auth.uid()`.
-  2. Inserts an `employees` row for `auth.uid()` with `platform_role='Org Admin'`, `status='active'`, `aca_secured=true`, `is_ephemeral=false`, plus a `business_users` row with `role='owner'`, `is_active=true` so existing RLS predicates resolve correctly.
-  3. Returns the new `businesses` row.
-- This avoids fighting `businesses` RLS from the client and keeps both membership tables consistent.
-- Reading memberships from the client: `select id, platform_role, business_id, businesses(name, entity_type) from employees where user_id = auth.uid() and status = 'active'`.
+2. **Has an open intake request** (most recent `account_conversion_requests` for this user with status in `pending` / `in_review`)
+   - Show a compact status panel: company name, role applied for, "Application submitted — awaiting KYB review."
+   - No Apply button. No Withdraw in this scope.
 
-## Database changes (single migration)
+3. **No memberships and no open request**
+   - Show a small **Apply for a Business Account** button.
+   - Click opens the existing intake Dialog (Legal Business Name, Industry, Your Full Name, Your Role: Controlling Partner / Authorized Signatory, plus the existing legal-doc file input which we keep visible but do not upload — the Hub team requests documents during KYB; we just record the intake row).
+   - Submit inserts one row into `public.account_conversion_requests` with `user_id = auth.uid()`, `status = 'pending'`. After insert, the panel transitions to state 2.
 
-1. Create RPC `public.create_business_with_founder(_name text, _entity_type text default 'individual', _business_type text default 'general')` returning the new business id, marked `SECURITY DEFINER`, `SET search_path=public`. Validates `_name` is not empty and `auth.uid()` is not null.
-2. Grant `EXECUTE` on this function to `authenticated`.
-3. No schema additions, no new tables, no new RLS policies on existing tables. `revoke_employee` is already exposed and already enforces the last-Org-Admin rule.
+## Database changes
+
+One migration only — the table already exists; it just needs user-scoped RLS so the intake insert and "is there a pending request?" read both work for the signed-in user.
+
+```sql
+ALTER TABLE public.account_conversion_requests ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can submit their own conversion requests"
+  ON public.account_conversion_requests;
+CREATE POLICY "Users can submit their own conversion requests"
+  ON public.account_conversion_requests
+  FOR INSERT TO authenticated
+  WITH CHECK (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Users can view their own conversion requests"
+  ON public.account_conversion_requests;
+CREATE POLICY "Users can view their own conversion requests"
+  ON public.account_conversion_requests
+  FOR SELECT TO authenticated
+  USING (user_id = auth.uid());
+```
+
+No new tables. No new functions. No writes to `businesses`, `business_users`, or `employees` from this app. The previously-proposed `create_business_with_founder` RPC is **dropped from the plan**.
 
 ## Frontend changes
 
 ### `src/hooks/useBusinessMembership.ts` (new)
 
-- Fetches `employees` rows for the current user joined with `businesses(name)` filtered by `status='active'`.
-- Exposes `memberships`, `loading`, `refresh`, `createBusiness(name, entityType)` calling the new RPC, and `leaveBusiness(employeeId)` calling `supabase.rpc('revoke_employee', { _employee_id })`.
-- For each membership, also computes `isLastOrgAdmin` by querying the count of other active Org Admins in that business — drives the disabled state of the Leave button without needing the RPC to fail first.
+- Loads, in parallel for the current user:
+  - Active `employees` rows joined with `businesses(name)` filtered by `user_id = auth.uid()` and `status = 'active'`.
+  - Most recent `account_conversion_requests` row for this user; treats it as "pending" when its status is in `{pending, in_review, received, review}`.
+- For each Org-Admin membership, runs a count query for *other* active Org Admins of that same business and exposes `isLastOrgAdmin` per row.
+- Exposes:
+  - `memberships`, `pendingRequest`, `loading`
+  - `refresh()`
+  - `submitIntake({ companyName, industry, contactName, contactRole })` → inserts into `account_conversion_requests`.
+  - `leaveBusiness(employeeId)` → calls `supabase.rpc('revoke_employee', { _employee_id: employeeId })`; translates `LAST_ORG_ADMIN_DELETE_ORG` into a friendly error.
 
 ### `src/components/enhanced/EnhancedProfileSettings.tsx`
 
-Replace the entire body of the existing Account Management `Card`:
+- Strip out the existing inline upgrade Dialog state/handlers that wrote to `account_conversion_requests` directly.
+- Replace the Account Management `Card` body with a small subcomponent that consumes `useBusinessMembership()` and renders the three states above.
+- Keep all other cards (Profile, Verification & Trust, Wallet, Interests) untouched.
+- Reuse existing primitives only: `Card`, `Button`, `Badge`, `Dialog`, `Input`, `Select`, `Tooltip`. Maintain the dense minimalist styling from the prior change (`py-2 px-3` headers, `text-sm` titles, `divide-y` for the membership list).
 
-1. Remove the personal-vs-business `account_type` branch and the existing "Upgrade to Business Account" Dialog (and its `account_conversion_requests` insert + form state).
-2. Use `useBusinessMembership()`.
-3. Render rules:
-   - **Loading**: a single skeleton row.
-   - **No memberships**: small muted helper line + a primary `Button size="sm"` "Create a Business Account" that opens a compact Dialog with one Input (Business Name) and an entity-type Select (Individual / LLC / Corporation / Non-Profit). Submit calls `createBusiness`, toasts success, refreshes.
-   - **Has memberships**: a tight list, one row per business, `divide-y` for minimalism:
-     - Left: business name (`text-sm font-medium`) and a `Badge` showing the platform role.
-     - Right: `Leave` button (`variant="ghost" size="sm"`, destructive text). Disabled when `isLastOrgAdmin === true`, with tooltip "You are the last Org Admin. Closing the business is not allowed from IDIA Life."
-     - Below the list, a smaller `+ Create another business` link/button.
-4. Keep all other cards untouched.
+## Verification after apply
 
-### Tooltip wrapper
-
-Use the existing `@/components/ui/tooltip` primitives so the disabled-Leave reason is accessible on hover/focus.
-
-## Out of scope
-
-- No edits to the unrelated `account_conversion_requests` table.
-- No invitation/accept flow for adding other team members from this screen — that lives elsewhere in the Hub product.
-- No business-detail editing here; this panel is membership-only.
-
-## Verification
-
-After implementation:
-- A fresh personal user sees "Create a Business Account"; clicking and submitting "Acme LLC" creates a row and the panel re-renders to show "Acme LLC — Org Admin" with Leave disabled.
-- A user added as Team Member to another business sees that business with role "Team Member" and an enabled Leave button; clicking Leave revokes via `revoke_employee` and the row disappears.
-- A sole Org Admin sees Leave disabled with the tooltip; if they somehow bypass the UI, `revoke_employee` still raises `LAST_ORG_ADMIN_DELETE_ORG` and the toast surfaces it.
+- Personal user with no memberships and no prior request: sees "Apply for a Business Account". Submitting the form inserts one row and the panel switches to "Application submitted — awaiting KYB review."
+- User the Hub provisioned as Team Member: sees that business with the **Team Member** badge and an enabled **Leave Business** button. Clicking it calls `revoke_employee` and removes the row.
+- Sole Org Admin of a business: sees the **Org Admin** badge and Leave is disabled with the tooltip; the server-side `LAST_ORG_ADMIN_DELETE_ORG` exception is the second line of defense.
