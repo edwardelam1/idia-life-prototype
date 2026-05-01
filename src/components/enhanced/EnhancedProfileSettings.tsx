@@ -4,21 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { Upload, Shield, CreditCard, Building } from "lucide-react";
+import { Upload, Shield, Building, CreditCard } from "lucide-react";
+import BusinessMembershipPanel from "./BusinessMembershipPanel";
 
 const cardHeader = "py-2 px-3";
 const cardTitle = "text-sm font-semibold flex items-center gap-2";
@@ -38,20 +28,9 @@ const EnhancedProfileSettings: React.FC = () => {
   } = useEnhancedProfile();
 
   const { balance } = useWalletBalance();
-  const { toast } = useToast();
 
   const [selectedInterests, setSelectedInterests] = useState<string[]>(interests ? interests.map((i) => i.id) : []);
   const [, setAvatarFile] = useState<File | null>(null);
-
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [uploadingDoc, setUploadingDoc] = useState(false);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [upgradeForm, setUpgradeForm] = useState({
-    companyName: "",
-    industry: "",
-    contactName: "",
-    contactRole: "Controlling Partner",
-  });
 
   if (loading) {
     return (
@@ -107,42 +86,6 @@ const EnhancedProfileSettings: React.FC = () => {
       "non-profit": "Non-Profit",
     };
     return <Badge variant="outline" className="text-[11px]">{labels[type] || type}</Badge>;
-  };
-
-  const handleBusinessUpgrade = async () => {
-    if (!upgradeForm.companyName || !upgradeForm.contactName || !uploadFile) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill out all required fields and upload your legal documentation.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setUploadingDoc(true);
-    try {
-      const { error } = await supabase.from("account_conversion_requests" as any).insert({
-        user_id: profile.user_id,
-        company_name: upgradeForm.companyName,
-        industry: upgradeForm.industry,
-        contact_name: upgradeForm.contactName,
-        contact_role: upgradeForm.contactRole,
-        request_type: "Personal to Business",
-        status: "pending",
-      });
-
-      if (error && error.code !== "42P01") throw error;
-
-      toast({
-        title: "Application Submitted",
-        description: "Your business account request has been sent to the IDIA Corporate back office.",
-      });
-      setShowUpgradeModal(false);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    } finally {
-      setUploadingDoc(false);
-    }
   };
 
   return (
@@ -301,101 +244,7 @@ const EnhancedProfileSettings: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className={cardBody}>
-          {profile.account_type === "personal" ? (
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <p className="text-xs text-muted-foreground">
-                Upgrade your account to unlock business features.
-              </p>
-              <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
-                <DialogTrigger asChild>
-                  <Button size="sm">
-                    <Building className="w-4 h-4 mr-2" />
-                    Upgrade to Business
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Business Account Onboarding</DialogTitle>
-                    <DialogDescription>
-                      Provide your business details and legal documentation. You must be a controlling partner or
-                      authorized signatory to proceed.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label>Legal Business Name</Label>
-                      <Input
-                        value={upgradeForm.companyName}
-                        onChange={(e) => setUpgradeForm({ ...upgradeForm, companyName: e.target.value })}
-                        placeholder="Acme Corp"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Industry</Label>
-                      <Select
-                        value={upgradeForm.industry}
-                        onValueChange={(v) => setUpgradeForm({ ...upgradeForm, industry: v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select Industry" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="technology">Technology</SelectItem>
-                          <SelectItem value="retail">Retail</SelectItem>
-                          <SelectItem value="healthcare">Healthcare</SelectItem>
-                          <SelectItem value="non-profit">Non-Profit</SelectItem>
-                          <SelectItem value="finance">Financial Services</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Your Full Name</Label>
-                      <Input
-                        value={upgradeForm.contactName}
-                        onChange={(e) => setUpgradeForm({ ...upgradeForm, contactName: e.target.value })}
-                        placeholder="Jane Doe"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Your Role (Signatory Required)</Label>
-                      <Select
-                        value={upgradeForm.contactRole}
-                        onValueChange={(v) => setUpgradeForm({ ...upgradeForm, contactRole: v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select Role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Controlling Partner">Controlling Partner</SelectItem>
-                          <SelectItem value="Authorized Signatory">Authorized Signatory</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Legal Documentation (Required)</Label>
-                      <Input
-                        type="file"
-                        accept=".pdf,.png,.jpg,.jpeg"
-                        onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Upload incorporation documents, 501(c)(3) letter, or business license.
-                      </p>
-                    </div>
-                    <Button className="w-full mt-4" onClick={handleBusinessUpgrade} disabled={uploadingDoc}>
-                      {uploadingDoc ? "Submitting Application..." : "Submit Application"}
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">Business account active.</p>
-              {getAccountTypeBadge(profile.account_type)}
-            </div>
-          )}
+          <BusinessMembershipPanel />
         </CardContent>
       </Card>
 
