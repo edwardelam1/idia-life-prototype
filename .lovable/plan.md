@@ -1,61 +1,63 @@
-## Problem
-
-The Settings → IDIA tab uses `EnhancedProfileSettings`, which stacks six full-padding `Card` blocks (Profile, Verification, Credit & Trust, Wallet, Interests, Account Management) plus an oversized 5xl trust score and a redundant page heading. On the 1037×752 viewport the bottom Account Management card and "Upgrade to Business Account" CTA fall below the fold and feel cut off. The page also has heavy `space-y-6`, `p-4` card padding, and large headers that fight the rest of the app's minimalist tone.
-
 ## Goal
 
-Reorganize `src/components/enhanced/EnhancedProfileSettings.tsx` and the surrounding `src/pages/Settings.tsx` shell so:
+Replace the static "Upgrade to Business" CTA in the Account Management section of `EnhancedProfileSettings.tsx` with a live, role-aware Business Membership panel:
 
-- Every section, including Account Management and the Business upgrade CTA, is reachable without feeling buried.
-- Whitespace, padding, and font sizes are tightened to match the minimalist Glossy Light Theme used elsewhere.
-- No functionality, data binding, or business-upgrade logic is changed.
+- **No business**: show a "Create a Business Account" CTA that creates a real `businesses` row and makes the current user the founding **Org Admin** in `employees`.
+- **Has one or more businesses**: list each membership with **Business Name**, the user's **Platform Role** (Org Admin / Team Lead / Team Member), and a **Leave Business** action.
+- **Leave Business** is disabled when the user is the last active Org Admin, with a tooltip explaining that destroying the business is not allowed from IDIA Life.
 
-## Changes
+## Technical context
 
-### 1. `src/components/enhanced/EnhancedProfileSettings.tsx`
+- `public.employees` already carries `platform_role` ('Org Admin' | 'Team Lead' | 'Team Member'), `status`, and `business_id` → `public.businesses(id)`. The DB function `revoke_employee(_employee_id uuid)` already enforces the rule "the last active Org Admin cannot be removed" (raises `LAST_ORG_ADMIN_DELETE_ORG`). We will reuse it directly.
+- `public.businesses` RLS allows `business_users`-based access; insert is fine for `authenticated` but historically managed via the `business_users` path. We will add a small SECURITY DEFINER RPC `create_business_with_founder(_name text, _entity_type text, _business_type text)` that, in one transaction:
+  1. Inserts a `businesses` row owned by `auth.uid()`.
+  2. Inserts an `employees` row for `auth.uid()` with `platform_role='Org Admin'`, `status='active'`, `aca_secured=true`, `is_ephemeral=false`, plus a `business_users` row with `role='owner'`, `is_active=true` so existing RLS predicates resolve correctly.
+  3. Returns the new `businesses` row.
+- This avoids fighting `businesses` RLS from the client and keeps both membership tables consistent.
+- Reading memberships from the client: `select id, platform_role, business_id, businesses(name, entity_type) from employees where user_id = auth.uid() and status = 'active'`.
 
-Restructure into a compact, scannable layout:
+## Database changes (single migration)
 
-1. **Remove the in-component `H1` "Enhanced Profile"** — `Settings.tsx` already shows a "Settings" page title, so this is duplicate chrome. Keep only the small account-type badge inline at the top of the first card.
-2. **Tighten container**: change `p-4 space-y-6 max-w-4xl mx-auto` → `p-2 sm:p-3 space-y-3 max-w-3xl mx-auto`.
-3. **Compact every Card**: use `CardHeader className="py-2 px-3"` + `CardTitle className="text-sm font-semibold"` and `CardContent className="px-3 pb-3 pt-0 space-y-2"`. Drop the leading icon size from `w-5 h-5` to `w-4 h-4`.
-4. **Profile card**: shrink avatar from `w-20 h-20` → `w-14 h-14`. Put display-name + AI-assistant inputs in a 2-col grid even on mobile-narrow with `gap-2`. Convert the read-only KYC block from a padded `bg-muted` panel into a 2-col `grid` of small label/value rows (`text-xs` labels, `text-sm` values) with a single `border-t pt-2` separator instead of a filled box.
-5. **Merge "Verification" + "Credit & Trust" into one Card** titled "Verification & Trust", split into a 2-column grid:
-   - Left: KYC status badge with a one-line helper.
-   - Right: Trust score reduced from `text-5xl` → `text-3xl font-semibold`, with a small "Trust Score" caption above it.
-   This removes one full card and a lot of vertical space.
-6. **Wallet card**: keep the 3-up balance grid, but reduce inner tiles from `p-4` to `p-2`, value text from `text-xl` → `text-base font-semibold`, label to `text-[11px] uppercase tracking-wide text-muted-foreground`. Move the seed-backup line into the same card footer with `text-xs`.
-7. **Interests card**: keep functionality, switch button size to `size="sm"` already present, but reduce grid gap to `gap-1.5` and make the Save button `size="sm"` aligned right.
-8. **Account Management card**: move it ABOVE Interests so it sits in the visible area sooner, and make the upgrade CTA more prominent:
-   - Title row + one-line muted helper.
-   - The `Upgrade to Business Account` button becomes `variant="default" size="sm"` (still triggers the same Dialog, no logic change).
-   - When `account_type !== 'personal'`, render a compact "Business account active" status row instead of an empty card.
-9. Keep all hooks, handlers, and the Business Upgrade `Dialog` content exactly as-is — only the trigger button styling changes.
+1. Create RPC `public.create_business_with_founder(_name text, _entity_type text default 'individual', _business_type text default 'general')` returning the new business id, marked `SECURITY DEFINER`, `SET search_path=public`. Validates `_name` is not empty and `auth.uid()` is not null.
+2. Grant `EXECUTE` on this function to `authenticated`.
+3. No schema additions, no new tables, no new RLS policies on existing tables. `revoke_employee` is already exposed and already enforces the last-Org-Admin rule.
 
-Final card order top-to-bottom:
-1. Profile Information (avatar + names + read-only KYC)
-2. Verification & Trust (merged)
-3. Wallet Information
-4. Account Management (with Business upgrade CTA)  ← previously last, now above the fold
-5. Your Interests
+## Frontend changes
 
-### 2. `src/pages/Settings.tsx`
+### `src/hooks/useBusinessMembership.ts` (new)
 
-Small density pass so the embedded panel has more room:
+- Fetches `employees` rows for the current user joined with `businesses(name)` filtered by `status='active'`.
+- Exposes `memberships`, `loading`, `refresh`, `createBusiness(name, entityType)` calling the new RPC, and `leaveBusiness(employeeId)` calling `supabase.rpc('revoke_employee', { _employee_id })`.
+- For each membership, also computes `isLastOrgAdmin` by querying the count of other active Org Admins in that business — drives the disabled state of the Leave button without needing the RPC to fail first.
 
-- Change outer wrapper `py-2 px-2` → `py-2 px-2 sm:px-3` and reduce header `mb-4` → `mb-2`.
-- Reduce header text: `text-2xl font-bold` → `text-xl font-semibold`; drop the "Manage your account and preferences" subtitle (redundant with the tabs).
-- Tabs: keep 4-col grid but reduce `TabsList` height implicitly via `text-xs` on triggers and remove the per-tab `gap-2` → `gap-1.5`.
-- For the `idia-profile` tab content, render `EnhancedProfileSettings` directly (already the case); no Card wrapper around it.
-- For Privacy and Notifications tabs, tighten the wrapping `Card` with `CardHeader className="py-2 px-3"` and `CardContent className="px-3 pb-3 pt-0"` to match the new density.
+### `src/components/enhanced/EnhancedProfileSettings.tsx`
 
-### 3. No other files touched
+Replace the entire body of the existing Account Management `Card`:
 
-No schema, hook, or edge-function changes. No business logic changes. No new dependencies.
+1. Remove the personal-vs-business `account_type` branch and the existing "Upgrade to Business Account" Dialog (and its `account_conversion_requests` insert + form state).
+2. Use `useBusinessMembership()`.
+3. Render rules:
+   - **Loading**: a single skeleton row.
+   - **No memberships**: small muted helper line + a primary `Button size="sm"` "Create a Business Account" that opens a compact Dialog with one Input (Business Name) and an entity-type Select (Individual / LLC / Corporation / Non-Profit). Submit calls `createBusiness`, toasts success, refreshes.
+   - **Has memberships**: a tight list, one row per business, `divide-y` for minimalism:
+     - Left: business name (`text-sm font-medium`) and a `Badge` showing the platform role.
+     - Right: `Leave` button (`variant="ghost" size="sm"`, destructive text). Disabled when `isLastOrgAdmin === true`, with tooltip "You are the last Org Admin. Closing the business is not allowed from IDIA Life."
+     - Below the list, a smaller `+ Create another business` link/button.
+4. Keep all other cards untouched.
+
+### Tooltip wrapper
+
+Use the existing `@/components/ui/tooltip` primitives so the disabled-Leave reason is accessible on hover/focus.
+
+## Out of scope
+
+- No edits to the unrelated `account_conversion_requests` table.
+- No invitation/accept flow for adding other team members from this screen — that lives elsewhere in the Hub product.
+- No business-detail editing here; this panel is membership-only.
 
 ## Verification
 
-After the edits, on the current 1037×752 viewport:
-- The IDIA tab fits Profile + Verification & Trust + Wallet + Account Management within the first scroll, with Interests just below.
-- The "Upgrade to Business Account" button is visible without hunting and opens the existing dialog unchanged.
-- Spacing matches the rest of the app (no oversized headings, no large filled muted panels, no 5xl trust score).
+After implementation:
+- A fresh personal user sees "Create a Business Account"; clicking and submitting "Acme LLC" creates a row and the panel re-renders to show "Acme LLC — Org Admin" with Leave disabled.
+- A user added as Team Member to another business sees that business with role "Team Member" and an enabled Leave button; clicking Leave revokes via `revoke_employee` and the row disappears.
+- A sole Org Admin sees Leave disabled with the tooltip; if they somehow bypass the UI, `revoke_employee` still raises `LAST_ORG_ADMIN_DELETE_ORG` and the toast surfaces it.
