@@ -135,11 +135,11 @@ export default function Settings() {
 
           <TabsContent value="privacy">
             <Card>
-              <CardHeader>
-                <CardTitle>Privacy & Data</CardTitle>
-                <CardDescription>Control your data sharing and privacy preferences</CardDescription>
+              <CardHeader className="py-2 px-3">
+                <CardTitle className="text-sm font-semibold">Privacy & Data</CardTitle>
+                <CardDescription className="text-xs">Control your data sharing and privacy preferences</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-3 pb-3 pt-0">
                 <PrivacySettings />
               </CardContent>
             </Card>
@@ -147,11 +147,11 @@ export default function Settings() {
 
           <TabsContent value="notifications">
             <Card>
-              <CardHeader>
-                <CardTitle>Notification Settings</CardTitle>
-                <CardDescription>Manage your notification preferences</CardDescription>
+              <CardHeader className="py-2 px-3">
+                <CardTitle className="text-sm font-semibold">Notification Settings</CardTitle>
+                <CardDescription className="text-xs">Manage your notification preferences</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-3 pb-3 pt-0">
                 <NotificationSettings />
               </CardContent>
             </Card>
