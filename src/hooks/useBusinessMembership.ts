@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export type PlatformRole = "Org Admin" | "Team Lead" | "Team Member" | string;
+export type EntityType = "C-Corp" | "S-Corp" | "LLC" | "Sole" | "Non-Profit";
 
 export interface Membership {
   employeeId: string;
@@ -14,18 +15,28 @@ export interface Membership {
 export interface ConversionRequest {
   id: string;
   company_name: string;
-  contact_name: string;
   contact_role: string;
-  industry: string | null;
+  entity_type: string | null;
   status: string | null;
   created_at: string | null;
 }
 
 export interface IntakePayload {
+  requestId: string; // pre-generated UUID; storage paths are bound to it
   companyName: string;
-  industry: string;
-  contactName: string;
+  ein: string;
+  entityType: EntityType;
+  verticalId: string;
+  submoduleId: string;
+  address: {
+    street1: string;
+    street2?: string;
+    city: string;
+    state: string;
+    zip: string;
+  };
   contactRole: string;
+  documentPaths: string[];
 }
 
 interface State {
@@ -41,6 +52,9 @@ const PENDING_STATUSES = new Set(["pending", "in_review", "received", "review"])
  *
  * IDIA Life is intake-only for business accounts. We never create a business or
  * assign Org Admin from this app — the Hub app does that after KYB.
+ *
+ * Identity is bound exclusively to the user's GUID (auth.uid()). No PII is
+ * stored in the public schema by this flow.
  */
 export const useBusinessMembership = () => {
   const [state, setState] = useState<State>({
@@ -61,7 +75,6 @@ export const useBusinessMembership = () => {
       return;
     }
 
-    // 1. Active employees memberships joined with business name.
     const { data: empRows, error: empErr } = await supabase
       .from("employees")
       .select("id, business_id, platform_role, status, businesses:business_id ( name )")
@@ -78,7 +91,6 @@ export const useBusinessMembership = () => {
       isLastOrgAdmin: false,
     }));
 
-    // 2. For each Org Admin membership, count *other* active Org Admins.
     const memberships = await Promise.all(
       baseMemberships.map(async (m) => {
         if (m.platformRole !== "Org Admin") return m;
@@ -94,10 +106,9 @@ export const useBusinessMembership = () => {
       }),
     );
 
-    // 3. Most recent pending intake request, if any.
     const { data: reqRows, error: reqErr } = await supabase
       .from("account_conversion_requests")
-      .select("id, company_name, contact_name, contact_role, industry, status, created_at")
+      .select("id, company_name, contact_role, entity_type, status, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(1);
@@ -127,14 +138,23 @@ export const useBusinessMembership = () => {
       if (!user) throw new Error("You must be signed in to apply.");
 
       const { error } = await supabase.from("account_conversion_requests").insert({
-        user_id: user.id,
+        id: payload.requestId,
+        user_id: user.id, // GUID is the sole identity anchor
         company_name: payload.companyName.trim(),
-        industry: payload.industry || null,
-        contact_name: payload.contactName.trim(),
+        ein: payload.ein,
+        entity_type: payload.entityType,
+        vertical_id: payload.verticalId,
+        submodule_id: payload.submoduleId,
+        address_street1: payload.address.street1.trim(),
+        address_street2: payload.address.street2?.trim() || null,
+        address_city: payload.address.city.trim(),
+        address_state: payload.address.state,
+        address_zip: payload.address.zip.trim(),
         contact_role: payload.contactRole,
+        document_paths: payload.documentPaths,
         request_type: "Personal to Business",
         status: "pending",
-      });
+      } as any);
       if (error) throw error;
       await load();
     },

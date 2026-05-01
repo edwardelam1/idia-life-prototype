@@ -16,42 +16,84 @@ export type Database = {
     Tables: {
       account_conversion_requests: {
         Row: {
+          address_city: string | null
+          address_state: string | null
+          address_street1: string | null
+          address_street2: string | null
+          address_zip: string | null
           company_name: string
-          contact_name: string
           contact_role: string
           created_at: string | null
+          document_paths: string[]
+          ein: string | null
+          entity_type: string | null
           id: string
           industry: string | null
           request_type: string | null
           status: string | null
+          submodule_id: string | null
           updated_at: string | null
-          user_id: string | null
+          user_id: string
+          vertical_id: string | null
         }
         Insert: {
+          address_city?: string | null
+          address_state?: string | null
+          address_street1?: string | null
+          address_street2?: string | null
+          address_zip?: string | null
           company_name: string
-          contact_name: string
           contact_role: string
           created_at?: string | null
+          document_paths?: string[]
+          ein?: string | null
+          entity_type?: string | null
           id?: string
           industry?: string | null
           request_type?: string | null
           status?: string | null
+          submodule_id?: string | null
           updated_at?: string | null
-          user_id?: string | null
+          user_id: string
+          vertical_id?: string | null
         }
         Update: {
+          address_city?: string | null
+          address_state?: string | null
+          address_street1?: string | null
+          address_street2?: string | null
+          address_zip?: string | null
           company_name?: string
-          contact_name?: string
           contact_role?: string
           created_at?: string | null
+          document_paths?: string[]
+          ein?: string | null
+          entity_type?: string | null
           id?: string
           industry?: string | null
           request_type?: string | null
           status?: string | null
+          submodule_id?: string | null
           updated_at?: string | null
-          user_id?: string | null
+          user_id?: string
+          vertical_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "account_conversion_requests_submodule_id_fkey"
+            columns: ["submodule_id"]
+            isOneToOne: false
+            referencedRelation: "taxonomy_submodules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_conversion_requests_vertical_id_fkey"
+            columns: ["vertical_id"]
+            isOneToOne: false
+            referencedRelation: "taxonomy_verticals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       affiliate_campaigns: {
         Row: {

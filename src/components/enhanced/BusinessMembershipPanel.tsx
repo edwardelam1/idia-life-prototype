@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -34,15 +34,84 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Building, Clock, LogOut } from "lucide-react";
-import { useBusinessMembership, type Membership } from "@/hooks/useBusinessMembership";
+import { Building, Clock, LogOut, Upload, Check } from "lucide-react";
+import {
+  useBusinessMembership,
+  type Membership,
+  type EntityType,
+  type IntakePayload,
+} from "@/hooks/useBusinessMembership";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { US_STATES } from "@/utils/usAddressValidation";
 
 const roleBadgeVariant = (role: string): "default" | "secondary" | "outline" => {
   if (role === "Org Admin") return "default";
   if (role === "Team Lead") return "secondary";
   return "outline";
 };
+
+// IRS-published invalid EIN prefixes (campus codes never assigned)
+const INVALID_EIN_PREFIXES = new Set([
+  "00", "07", "08", "09", "17", "18", "19", "28", "29",
+  "49", "69", "70", "78", "79", "89",
+]);
+
+const ENTITY_TYPES: EntityType[] = ["C-Corp", "S-Corp", "LLC", "Sole", "Non-Profit"];
+
+interface DocSlot {
+  key: string;
+  label: string;
+}
+
+const docsForEntity = (e: EntityType | ""): DocSlot[] => {
+  switch (e) {
+    case "C-Corp":
+    case "S-Corp":
+      return [{ key: "articles_of_incorporation", label: "Articles of Incorporation" }];
+    case "LLC":
+      return [{ key: "articles_of_organization", label: "Articles of Organization" }];
+    case "Non-Profit":
+      return [
+        { key: "articles_of_incorporation", label: "Articles of Incorporation" },
+        { key: "irs_letter_of_determination", label: "IRS Letter of Determination" },
+      ];
+    case "Sole":
+      return [{ key: "schedule_c_tax_return", label: "Schedule C Tax Return" }];
+    default:
+      return [];
+  }
+};
+
+const formatEIN = (raw: string) => {
+  const digits = raw.replace(/\D/g, "").slice(0, 9);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+};
+
+const isValidEIN = (ein: string) => {
+  if (!/^\d{2}-\d{7}$/.test(ein)) return false;
+  return !INVALID_EIN_PREFIXES.has(ein.slice(0, 2));
+};
+
+const isValidZip = (zip: string) => /^\d{5}(-\d{4})?$/.test(zip);
+
+// Verify the file is actually a PDF (magic bytes %PDF-)
+const isPdfMagic = async (file: File) => {
+  const buf = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+  const sig = String.fromCharCode(...buf);
+  return sig === "%PDF-";
+};
+
+interface Vertical {
+  id: string;
+  name: string;
+}
+interface Submodule {
+  id: string;
+  vertical_id: string;
+  name: string;
+}
 
 const BusinessMembershipPanel: React.FC = () => {
   const { loading, memberships, pendingRequest, submitIntake, leaveBusiness } =
@@ -51,43 +120,171 @@ const BusinessMembershipPanel: React.FC = () => {
 
   const [showIntake, setShowIntake] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({
-    companyName: "",
-    industry: "",
-    contactName: "",
-    contactRole: "Controlling Partner",
-  });
+
+  // Taxonomy
+  const [verticals, setVerticals] = useState<Vertical[]>([]);
+  const [submodules, setSubmodules] = useState<Submodule[]>([]);
+  const [taxLoading, setTaxLoading] = useState(false);
+
+  // Form state
+  const [companyName, setCompanyName] = useState("");
+  const [ein, setEin] = useState("");
+  const [entityType, setEntityType] = useState<EntityType | "">("");
+  const [verticalId, setVerticalId] = useState("");
+  const [submoduleId, setSubmoduleId] = useState("");
+  const [street1, setStreet1] = useState("");
+  const [street2, setStreet2] = useState("");
+  const [city, setCity] = useState("");
+  const [stateCode, setStateCode] = useState("");
+  const [zip, setZip] = useState("");
+  const [contactRole, setContactRole] = useState("Controlling Partner");
+  const [docFiles, setDocFiles] = useState<Record<string, File>>({});
 
   const [leaveTarget, setLeaveTarget] = useState<Membership | null>(null);
   const [leaving, setLeaving] = useState(false);
+
+  // Load taxonomy when dialog opens
+  useEffect(() => {
+    if (!showIntake || verticals.length > 0) return;
+    setTaxLoading(true);
+    (async () => {
+      const [v, s] = await Promise.all([
+        supabase.from("taxonomy_verticals" as any).select("id, name").order("name"),
+        supabase
+          .from("taxonomy_submodules" as any)
+          .select("id, vertical_id, name")
+          .order("name"),
+      ]);
+      if (v.data) setVerticals(v.data as any);
+      if (s.data) setSubmodules(s.data as any);
+      setTaxLoading(false);
+    })();
+  }, [showIntake, verticals.length]);
+
+  const filteredSubmodules = useMemo(
+    () => submodules.filter((s) => s.vertical_id === verticalId),
+    [submodules, verticalId],
+  );
+
+  const requiredDocs = useMemo(() => docsForEntity(entityType), [entityType]);
+
+  const resetForm = () => {
+    setCompanyName("");
+    setEin("");
+    setEntityType("");
+    setVerticalId("");
+    setSubmoduleId("");
+    setStreet1("");
+    setStreet2("");
+    setCity("");
+    setStateCode("");
+    setZip("");
+    setContactRole("Controlling Partner");
+    setDocFiles({});
+  };
 
   if (loading) {
     return <div className="h-12 rounded-md bg-muted/50 animate-pulse" />;
   }
 
-  const handleSubmit = async () => {
-    if (!form.companyName || !form.contactName) {
+  const handleFile = async (slot: string, file: File | undefined) => {
+    if (!file) return;
+    if (file.type !== "application/pdf") {
+      toast({ title: "PDF only", description: "Upload a PDF document.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "10 MB maximum.", variant: "destructive" });
+      return;
+    }
+    if (!(await isPdfMagic(file))) {
       toast({
-        title: "Missing information",
-        description: "Legal business name and your full name are required.",
+        title: "Invalid PDF",
+        description: "File contents are not a valid PDF.",
         variant: "destructive",
       });
       return;
     }
+    setDocFiles((prev) => ({ ...prev, [slot]: file }));
+  };
+
+  const handleSubmit = async () => {
+    // Validate
+    if (!companyName.trim()) {
+      toast({ title: "Missing", description: "Legal business name is required.", variant: "destructive" });
+      return;
+    }
+    if (!isValidEIN(ein)) {
+      toast({
+        title: "Invalid EIN",
+        description: "Use the format ##-####### with a valid IRS prefix.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!entityType) {
+      toast({ title: "Missing", description: "Select a business type.", variant: "destructive" });
+      return;
+    }
+    if (!verticalId || !submoduleId) {
+      toast({ title: "Missing", description: "Select industry and sub-module.", variant: "destructive" });
+      return;
+    }
+    if (!street1.trim() || !city.trim() || !stateCode || !isValidZip(zip)) {
+      toast({ title: "Address", description: "Provide a complete US address.", variant: "destructive" });
+      return;
+    }
+    for (const d of requiredDocs) {
+      if (!docFiles[d.key]) {
+        toast({
+          title: "Document missing",
+          description: `Upload: ${d.label}`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
-      await submitIntake(form);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("You must be signed in.");
+
+      const requestId = (crypto as any).randomUUID();
+      const documentPaths: string[] = [];
+
+      // Upload PDFs to {uid}/{requestId}/{slot}.pdf
+      for (const d of requiredDocs) {
+        const file = docFiles[d.key];
+        const path = `${user.id}/${requestId}/${d.key}.pdf`;
+        const { error: upErr } = await supabase.storage
+          .from("business-kyb-docs")
+          .upload(path, file, { contentType: "application/pdf", upsert: false });
+        if (upErr) throw upErr;
+        documentPaths.push(path);
+      }
+
+      const payload: IntakePayload = {
+        requestId,
+        companyName,
+        ein,
+        entityType: entityType as EntityType,
+        verticalId,
+        submoduleId,
+        address: { street1, street2, city, state: stateCode, zip },
+        contactRole,
+        documentPaths,
+      };
+      await submitIntake(payload);
+
       toast({
         title: "Application submitted",
         description: "Your business account application is awaiting KYB review.",
       });
       setShowIntake(false);
-      setForm({
-        companyName: "",
-        industry: "",
-        contactName: "",
-        contactRole: "Controlling Partner",
-      });
+      resetForm();
     } catch (err: any) {
       toast({
         title: "Submission failed",
@@ -197,6 +394,7 @@ const BusinessMembershipPanel: React.FC = () => {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium truncate">{pendingRequest.company_name}</p>
           <p className="text-[11px] text-muted-foreground">
+            {pendingRequest.entity_type ? `${pendingRequest.entity_type} — ` : ""}
             {pendingRequest.contact_role} — application awaiting KYB review.
           </p>
         </div>
@@ -220,58 +418,149 @@ const BusinessMembershipPanel: React.FC = () => {
             Apply for Business Account
           </Button>
         </DialogTrigger>
-        <DialogContent>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Business Account Application</DialogTitle>
             <DialogDescription>
-              This is an intake form. After you submit, the IDIA Hub team will contact you to
-              complete KYB verification and provision your business.
+              Intake only. After you submit, the IDIA Hub team completes KYB verification and
+              provisions your business.
             </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
               <Label className="text-xs">Legal Business Name</Label>
               <Input
-                value={form.companyName}
-                onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="Acme Corp"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Industry</Label>
-              <Select
-                value={form.industry}
-                onValueChange={(v) => setForm({ ...form, industry: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select industry" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="technology">Technology</SelectItem>
-                  <SelectItem value="retail">Retail</SelectItem>
-                  <SelectItem value="healthcare">Healthcare</SelectItem>
-                  <SelectItem value="non-profit">Non-Profit</SelectItem>
-                  <SelectItem value="finance">Financial Services</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">EIN</Label>
+                <Input
+                  value={ein}
+                  onChange={(e) => setEin(formatEIN(e.target.value))}
+                  placeholder="12-3456789"
+                  inputMode="numeric"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Business Type</Label>
+                <Select
+                  value={entityType}
+                  onValueChange={(v) => setEntityType(v as EntityType)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ENTITY_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Industry</Label>
+                <Select
+                  value={verticalId}
+                  onValueChange={(v) => {
+                    setVerticalId(v);
+                    setSubmoduleId("");
+                  }}
+                  disabled={taxLoading}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={taxLoading ? "Loading..." : "Select"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {verticals.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        {v.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Sub-module</Label>
+                <Select
+                  value={submoduleId}
+                  onValueChange={setSubmoduleId}
+                  disabled={!verticalId || filteredSubmodules.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredSubmodules.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div className="space-y-1.5">
-              <Label className="text-xs">Your Full Name</Label>
+              <Label className="text-xs">Street Address</Label>
               <Input
-                value={form.contactName}
-                onChange={(e) => setForm({ ...form, contactName: e.target.value })}
-                placeholder="Jane Doe"
+                value={street1}
+                onChange={(e) => setStreet1(e.target.value)}
+                placeholder="123 Main St"
+              />
+              <Input
+                value={street2}
+                onChange={(e) => setStreet2(e.target.value)}
+                placeholder="Suite / Unit (optional)"
               />
             </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-1.5 col-span-1">
+                <Label className="text-xs">City</Label>
+                <Input value={city} onChange={(e) => setCity(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">State</Label>
+                <Select value={stateCode} onValueChange={setStateCode}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="--" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {US_STATES.map((s) => (
+                      <SelectItem key={s.code} value={s.code}>
+                        {s.code}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">ZIP</Label>
+                <Input
+                  value={zip}
+                  onChange={(e) => setZip(e.target.value)}
+                  placeholder="12345"
+                  inputMode="numeric"
+                />
+              </div>
+            </div>
+
             <div className="space-y-1.5">
               <Label className="text-xs">Your Role</Label>
-              <Select
-                value={form.contactRole}
-                onValueChange={(v) => setForm({ ...form, contactRole: v })}
-              >
+              <Select value={contactRole} onValueChange={setContactRole}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select role" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Controlling Partner">Controlling Partner</SelectItem>
@@ -279,12 +568,46 @@ const BusinessMembershipPanel: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            <p className="text-[11px] text-muted-foreground">
-              You will be asked to upload incorporation documents, 501(c)(3) letter, or business
-              license during KYB review in the IDIA Hub app.
-            </p>
+
+            {requiredDocs.length > 0 && (
+              <div className="space-y-2 rounded-md border p-2.5">
+                <p className="text-xs font-medium">Required Documents (PDF)</p>
+                {requiredDocs.map((d) => {
+                  const file = docFiles[d.key];
+                  return (
+                    <div key={d.key} className="space-y-1">
+                      <Label className="text-[11px] text-muted-foreground">{d.label}</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="file"
+                          accept="application/pdf"
+                          onChange={(e) => handleFile(d.key, e.target.files?.[0])}
+                          className="text-xs"
+                        />
+                        {file && (
+                          <Check className="w-4 h-4 text-primary shrink-0" />
+                        )}
+                      </div>
+                      {file && (
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {file.name} ({Math.round(file.size / 1024)} KB)
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             <Button className="w-full" onClick={handleSubmit} disabled={submitting}>
-              {submitting ? "Submitting..." : "Submit Application"}
+              {submitting ? (
+                "Submitting..."
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Submit Application
+                </>
+              )}
             </Button>
           </div>
         </DialogContent>
