@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 /**
  * useNFCBridge — IDIA Sovereign Handshake Bridge
