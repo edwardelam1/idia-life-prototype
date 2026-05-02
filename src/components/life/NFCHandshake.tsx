@@ -63,6 +63,12 @@ export default function NFCHandshake({ myTierColor, onConnected }: NFCHandshakeP
     } catch (err: any) {
       console.warn("🚨 [NFC_BRIDGE] FAIL:", err);
       setScanning(false);
+    }
+  };
+      toast({ 
+        title: "Hardware Unavailable", 
+        description: "Please use the production app on a physical device.", 
+        variant: "destructive" 
       });
     }
   };
