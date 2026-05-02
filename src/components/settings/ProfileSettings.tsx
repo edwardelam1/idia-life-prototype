@@ -475,8 +475,6 @@ export function ProfileSettings() {
         </div>
       </div>
 
-      </div>
-
       {/* Vault Security */}
       <div className="space-y-3 pt-4 border-t border-border">
         <Label className="text-base font-semibold flex items-center gap-2">
