@@ -95,6 +95,19 @@ const KEYS = {
   NETWORK: 'idia_wallet_network',
 } as const;
 
+async function storeSecureKeys(mnemonic: string): Promise<void> {
+  console.log('[START] Wallet: storeSecureKeys');
+  try {
+    await SecureStoragePlugin.set({ key: KEYS.MNEMONIC, value: mnemonic });
+    await SecureStoragePlugin.set({ key: KEYS.EXISTS, value: 'true' });
+    await SecureStoragePlugin.set({ key: KEYS.NETWORK, value: DEFAULT_NETWORK });
+    console.log('[END] Wallet: storeSecureKeys complete');
+  } catch (e) {
+    console.error('[ERROR] Wallet: storeSecureKeys failed', e);
+    throw e;
+  }
+}
+
 class WalletService {
   private wallet: ethers.HDNodeWallet | null = null;
   private activeNetwork = DEFAULT_NETWORK;
