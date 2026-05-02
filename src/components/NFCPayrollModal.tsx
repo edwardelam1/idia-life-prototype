@@ -19,46 +19,79 @@ interface NFCPayrollModalProps {
 }
 
 const NFCPayrollModal: React.FC<NFCPayrollModalProps> = ({ isOpen, onClose }) => {
-  const [connectionStep, setConnectionStep] = useState<'scanning' | 'connecting' | 'connected' | 'error'>('scanning');
-  const [countdown, setCountdown] = useState(30);
+  const [connectionStep, setConnectionStep] = useState<'syncing' | 'connecting' | 'connected' | 'error'>('syncing');
+  const [peerToken, setPeerToken] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isOpen) {
-      setConnectionStep('scanning');
-      setCountdown(30);
-      
-      // Simulate NFC scanning process
-      const timer = setTimeout(() => {
-        setConnectionStep('connecting');
-        setTimeout(() => {
-          // Randomly succeed or fail for demo purposes
-          if (Math.random() > 0.3) {
-            setConnectionStep('connected');
-          } else {
-            setConnectionStep('error');
-          }
-        }, 2000);
-      }, 3000);
+    if (!isOpen) return;
 
-      return () => clearTimeout(timer);
+    console.log("📱 [NFC_MODAL_LOG] START: Initializing live hardware NFC Syncing sequence");
+    setConnectionStep('syncing');
+    setPeerToken(null);
+    setErrorMessage(null);
+
+    // 1. Define global callbacks for the Swift Native Bridge to hit
+    (window as any).onNfcHandshakeComplete = (token: string) => {
+      console.log(`📱 [NFC_MODAL_LOG] SUCCESS: Hardware returned peer token: ${token}`);
+      setPeerToken(token);
+      setConnectionStep('connected');
+    };
+
+    (window as any).onNfcHandshakeError = (error: string) => {
+      console.error(`🚨 [NFC_MODAL_ERROR] Hardware reported Syncing failure: ${error}`);
+      setErrorMessage(error);
+      setConnectionStep('error');
+    };
+
+    // 2. Trigger the Native Swift Bridge
+    console.log("📱 [NFC_MODAL_LOG] ACTION: Firing initiateNfcHandshake across IPC bridge");
+    try {
+      const payload = { handshake_token: "IDIA_PAYROLL_SYNC_REQUEST" };
+      
+      // Target the specific WKScriptMessageHandler we built in ContentView.swift
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.initiateNfcHandshake) {
+         window.webkit.messageHandlers.initiateNfcHandshake.postMessage(payload);
+      } else {
+         // Fallback for standard postMessage interception
+         window.postMessage({ type: 'initiateNfcHandshake', ...payload }, '*');
+      }
+    } catch (err: any) {
+      console.error("🚨 [NFC_MODAL_ERROR] IPC Bridge failure:", err);
+      setErrorMessage(err.message || "Failed to trigger hardware bridge");
+      setConnectionStep('error');
     }
+
+    // 3. Cleanup global listeners when modal closes to prevent memory leaks
+    return () => {
+      console.log("🧹 [NFC_MODAL_LOG] END: Cleaning up global NFC listeners");
+      delete (window as any).onNfcHandshakeComplete;
+      delete (window as any).onNfcHandshakeError;
+    };
   }, [isOpen]);
 
-  useEffect(() => {
-    if (connectionStep === 'scanning' && countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [connectionStep, countdown]);
-
   const handleRetry = () => {
-    setConnectionStep('scanning');
-    setCountdown(30);
+    // Re-triggering the useEffect logic by resetting the state
+    setConnectionStep('syncing');
+    setErrorMessage(null);
+    
+    console.log("📱 [NFC_MODAL_LOG] ACTION: Retrying NFC Handshake");
+    try {
+      const payload = { handshake_token: "IDIA_PAYROLL_SYNC_REQUEST_RETRY" };
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.initiateNfcHandshake) {
+         window.webkit.messageHandlers.initiateNfcHandshake.postMessage(payload);
+      } else {
+         window.postMessage({ type: 'initiateNfcHandshake', ...payload }, '*');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || "Failed to trigger hardware bridge");
+      setConnectionStep('error');
+    }
   };
 
   const getStepContent = () => {
     switch (connectionStep) {
-      case 'scanning':
+      case 'syncing':
         return (
           <div className="text-center space-y-6">
             <div className="relative mx-auto w-32 h-32">
@@ -69,12 +102,12 @@ const NFCPayrollModal: React.FC<NFCPayrollModalProps> = ({ isOpen, onClose }) =>
             </div>
             
             <div className="space-y-2">
-              <h3 className="text-lg font-semibold">Looking for IDIA Pay App</h3>
+              <h3 className="text-lg font-semibold">Syncing with IDIA Pay</h3>
               <p className="text-muted-foreground">
-                Hold your device near the IDIA Pay terminal or another device with the IDIA Pay App
+                Hold your device near the IDIA POS terminal or peer device
               </p>
               <Badge variant="outline" className="animate-pulse">
-                Scanning... {countdown}s
+                Hardware Active...
               </Badge>
             </div>
 
@@ -82,36 +115,14 @@ const NFCPayrollModal: React.FC<NFCPayrollModalProps> = ({ isOpen, onClose }) =>
               <div className="flex items-start space-x-3">
                 <Wifi className="w-5 h-5 text-blue-600 mt-0.5" />
                 <div className="text-sm text-blue-800">
-                  <p className="font-medium">NFC Instructions:</p>
-                  <ul className="mt-1 space-y-1 text-xs">
-                    <li>• Ensure NFC is enabled on your device</li>
+                  <p className="font-medium">Hardware Instructions:</p>
+                  <ul className="mt-1 space-y-1 text-xs text-left">
                     <li>• Keep devices within 4cm of each other</li>
-                    <li>• Don't move devices during connection</li>
+                    <li>• Wait for the native iOS haptic confirmation</li>
+                    <li>• Do not pull away until the Connection is verified</li>
                   </ul>
                 </div>
               </div>
-            </div>
-          </div>
-        );
-
-      case 'connecting':
-        return (
-          <div className="text-center space-y-6">
-            <div className="mx-auto w-32 h-32 relative">
-              <div className="absolute inset-0 border-4 border-green-500 rounded-full animate-spin"></div>
-              <div className="absolute inset-4 bg-green-50 rounded-full flex items-center justify-center">
-                <Loader2 className="w-12 h-12 text-green-600 animate-spin" />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold text-green-700">Connecting to IDIA Pay</h3>
-              <p className="text-muted-foreground">
-                Establishing secure connection...
-              </p>
-              <Badge variant="secondary" className="bg-green-100 text-green-800">
-                Connecting
-              </Badge>
             </div>
           </div>
         );
@@ -128,9 +139,9 @@ const NFCPayrollModal: React.FC<NFCPayrollModalProps> = ({ isOpen, onClose }) =>
             
             <div className="space-y-4">
               <div>
-                <h3 className="text-lg font-semibold text-green-700">Connected Successfully!</h3>
+                <h3 className="text-lg font-semibold text-green-700">Connection Established!</h3>
                 <p className="text-muted-foreground">
-                  Ready to receive payroll via IDIA Pay
+                  Cryptographic handshake complete.
                 </p>
               </div>
 
@@ -145,12 +156,12 @@ const NFCPayrollModal: React.FC<NFCPayrollModalProps> = ({ isOpen, onClose }) =>
                   </div>
                   <div className="space-y-2 text-sm text-green-700">
                     <div className="flex justify-between">
-                      <span>Device ID:</span>
-                      <span className="font-mono">IDIA-***7892</span>
+                      <span>Peer Token:</span>
+                      <span className="font-mono">{peerToken ? `${peerToken.substring(0, 8)}...` : 'Verified'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Connection Type:</span>
-                      <span>NFC Secure</span>
+                      <span>Protocol:</span>
+                      <span>IDIA NFC Secure</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Status:</span>
@@ -165,10 +176,7 @@ const NFCPayrollModal: React.FC<NFCPayrollModalProps> = ({ isOpen, onClose }) =>
 
               <div className="flex space-x-3">
                 <Button onClick={onClose} className="flex-1">
-                  Continue to Wallet
-                </Button>
-                <Button variant="outline" onClick={() => setConnectionStep('scanning')}>
-                  New Connection
+                  Process Payroll
                 </Button>
               </div>
             </div>
@@ -187,27 +195,20 @@ const NFCPayrollModal: React.FC<NFCPayrollModalProps> = ({ isOpen, onClose }) =>
             
             <div className="space-y-4">
               <div>
-                <h3 className="text-lg font-semibold text-red-700">Connection Failed</h3>
+                <h3 className="text-lg font-semibold text-red-700">Syncing Failed</h3>
                 <p className="text-muted-foreground">
-                  Unable to connect to IDIA Pay App
+                  Hardware handshake interrupted or denied.
                 </p>
+                {errorMessage && (
+                   <p className="text-xs text-red-500 mt-2 font-mono bg-red-50 p-2 rounded border border-red-100">
+                     {errorMessage}
+                   </p>
+                )}
               </div>
-
-              <Card className="bg-red-50 border-red-200">
-                <CardContent className="p-4">
-                  <h4 className="font-medium text-red-800 mb-2">Troubleshooting Tips:</h4>
-                  <ul className="text-sm text-red-700 space-y-1">
-                    <li>• Ensure both devices have NFC enabled</li>
-                    <li>• Check that IDIA Pay App is running</li>
-                    <li>• Move devices closer together</li>
-                    <li>• Restart NFC if connection keeps failing</li>
-                  </ul>
-                </CardContent>
-              </Card>
 
               <div className="flex space-x-3">
                 <Button onClick={handleRetry} className="flex-1">
-                  Try Again
+                  Retry Handshake
                 </Button>
                 <Button variant="outline" onClick={onClose}>
                   Cancel
@@ -228,7 +229,7 @@ const NFCPayrollModal: React.FC<NFCPayrollModalProps> = ({ isOpen, onClose }) =>
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
             <Smartphone className="w-5 h-5" />
-            <span>NFC Payroll Connection</span>
+            <span>NFC Payroll Protocol</span>
           </DialogTitle>
         </DialogHeader>
         

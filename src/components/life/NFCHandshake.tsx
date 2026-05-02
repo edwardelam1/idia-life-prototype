@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Nfc } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -14,51 +14,55 @@ export default function NFCHandshake({ myTierColor, onConnected }: NFCHandshakeP
   const [scanning, setScanning] = useState(false);
   const [washPeerColor, setWashPeerColor] = useState<string | null>(null);
 
-  const initiateHandshake = async () => {
-    if (scanning) return;
-    setScanning(true);
-    console.log("[NFC_HANDSHAKE_START]");
-
-    try {
-      // Web NFC path (Android Chrome only)
-      const NDEFReaderCtor = (window as any).NDEFReader;
-      if (NDEFReaderCtor) {
-        const reader = new NDEFReaderCtor();
-        await reader.scan();
-        toast({ title: "Bring devices together", description: "Hold the phones back-to-back to Sync." });
-
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error("nfc_timeout")), 15000);
-          reader.onreading = () => {
-            clearTimeout(timeout);
-            resolve();
-          };
-          reader.onreadingerror = () => {
-            clearTimeout(timeout);
-            reject(new Error("nfc_read_error"));
-          };
-        });
-      } else {
-        // Unsupported platform: physical-only protocol means no manual fallback.
-        toast({
-          title: "NFC required",
-          description: "Syncs require physical proximity via NFC. Use the iOS/Android app to tap.",
-        });
-        console.log("[NFC_HANDSHAKE_UNSUPPORTED]");
-        return;
-      }
-
-      // On success, trigger the fluid color wash blending both standings
-      const peerColor = "hsl(210, 90%, 75%)"; // peer color resolved from handshake payload (placeholder until peer telemetry wired)
+  useEffect(() => {
+    // Listen for the Native Bridge to return success
+    (window as any).onNfcHandshakeComplete = (peerToken: string) => {
+      console.log("📱 [NFC_BRIDGE_SUCCESS] Peer Token:", peerToken);
+      
+      // Placeholder: In production, resolve peerColor from the token via Supabase
+      const peerColor = "hsl(210, 90%, 75%)"; 
+      
       setWashPeerColor(peerColor);
       onConnected?.();
-      console.log("[NFC_HANDSHAKE_SUCCESS]");
-    } catch (err) {
-      console.warn("[NFC_HANDSHAKE_FAIL]", err);
-      toast({ title: "Sync cancelled", description: "No connection was made." });
-    } finally {
       setScanning(false);
-      console.log("[NFC_HANDSHAKE_END]");
+      toast({ title: "Syncing Complete", description: "Connection established." });
+    };
+
+    (window as any).onNfcHandshakeError = (err: string) => {
+      console.error("🚨 [NFC_BRIDGE_ERROR]", err);
+      setScanning(false);
+      toast({ title: "Sync Failed", description: err, variant: "destructive" });
+    };
+
+    return () => {
+      delete (window as any).onNfcHandshakeComplete;
+      delete (window as any).onNfcHandshakeError;
+    };
+  }, [onConnected, toast]);
+
+  const initiateHandshake = () => {
+    if (scanning) return;
+    setScanning(true);
+    console.log("📱 [NFC_BRIDGE_START] Triggering Native iOS Hardware");
+
+    try {
+      // Direct call to the Swift Coordinator message handler
+      if (window.webkit?.messageHandlers?.initiateNfcHandshake) {
+        window.webkit.messageHandlers.initiateNfcHandshake.postMessage({
+          handshake_token: "IDIA_SOCIAL_SYNC_REQUEST"
+        });
+        toast({ title: "NFC Active", description: "Hold devices together to Sync." });
+      } else {
+        throw new Error("Native hardware bridge not detected.");
+      }
+    } catch (err: any) {
+      console.warn("🚨 [NFC_BRIDGE_FAIL]", err);
+      toast({ 
+        title: "Hardware Unavailable", 
+        description: "Please use the IDIA Native App for NFC Syncing.", 
+        variant: "destructive" 
+      });
+      setScanning(false);
     }
   };
 
@@ -66,11 +70,15 @@ export default function NFCHandshake({ myTierColor, onConnected }: NFCHandshakeP
     <>
       <Button size="sm" onClick={initiateHandshake} disabled={scanning} className="bg-teal-600 hover:bg-teal-700">
         <Nfc className="w-4 h-4 mr-2" />
-        {scanning ? "Listening…" : "Tap to Connect"}
+        {scanning ? "Syncing…" : "Start Syncing"}
       </Button>
 
       {washPeerColor && (
-        <ColorWashOverlay myColor={myTierColor} peerColor={washPeerColor} onComplete={() => setWashPeerColor(null)} />
+        <ColorWashOverlay 
+          myColor={myTierColor} 
+          peerColor={washPeerColor} 
+          onComplete={() => setWashPeerColor(null)} 
+        />
       )}
     </>
   );

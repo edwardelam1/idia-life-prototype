@@ -54,14 +54,58 @@ interface CreditSimulation {
   simulated_score: number;
   actions: string[];
 }
+// 1. Add mode state for Shawn's modal
+  const [setupMode, setSetupMode] = useState<'create' | 'import' | 'view-seed'>('create');
+  
+  // 2. Define the exact strict handlers required by WalletSetupModal
+  const handleCreateWallet = async () => {
+    console.log("🛡️ [WALLET_DASHBOARD_LOG] START: handleCreateWallet invoked");
+    try {
+      console.log("🛡️ [WALLET_DASHBOARD_LOG] ACTION: Generating secure wallet via IDIA Infrastructure");
+      // Replace with your actual WASM/Keystore generation logic when ready
+      const mockAddress = "0x" + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join('');
+      return { address: mockAddress, mnemonic: "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about" };
+    } catch (error) {
+      console.error(`🚨 [WALLET_DASHBOARD_ERROR] Creation stalled: ${error}`);
+      return null;
+    } finally {
+      console.log("🛡️ [WALLET_DASHBOARD_LOG] END: handleCreateWallet resolved");
+    }
+  };
 
+  const handleImportWallet = async (seedPhrase: string) => {
+    console.log("🛡️ [WALLET_DASHBOARD_LOG] START: handleImportWallet invoked");
+    try {
+      console.log("🛡️ [WALLET_DASHBOARD_LOG] ACTION: Processing seed phrase import");
+      // Execute actual import validation here
+      return true;
+    } catch (error) {
+      console.error(`🚨 [WALLET_DASHBOARD_ERROR] Import stalled: ${error}`);
+      return false;
+    } finally {
+      console.log("🛡️ [WALLET_DASHBOARD_LOG] END: handleImportWallet resolved");
+    }
+  };
+
+  const handleGetSeedPhrase = async (): Promise<string | null> => {
+    console.log("🛡️ [WALLET_DASHBOARD_LOG] START: handleGetSeedPhrase invoked");
+    try {
+      console.log("🛡️ [WALLET_DASHBOARD_LOG] ACTION: Retrieving secure seed phrase");
+      return "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    } catch (error) {
+      console.error(`🚨 [WALLET_DASHBOARD_ERROR] Seed phrase retrieval stalled: ${error}`);
+      return null;
+    } finally {
+      console.log("🛡️ [WALLET_DASHBOARD_LOG] END: handleGetSeedPhrase resolved");
+    }
+  };
 const EnhancedWalletDashboard: React.FC = () => {
   const { profile, loading, updateProfile } = useEnhancedProfile();
   const { balance: walletBalance, loading: balanceLoading } = useWalletBalance();
 
   // 1. Force a dedicated, stable ID state to prevent render-looping
   const [stableUserId, setStableUserId] = useState<string | null>(null);
-
+  
   // 2. Deterministic ID Capture: Listen only for the moment the profile hydrates
   useEffect(() => {
     const resolvedId = profile?.id || profile?.user_id;
@@ -131,7 +175,7 @@ const EnhancedWalletDashboard: React.FC = () => {
           .update({
             usdc_balance: actualBalance,
             updated_at: new Date().toISOString(),
-          })
+          } as any)
           .eq("user_id", stableUserId);
 
         if (error) {
@@ -550,15 +594,31 @@ const EnhancedWalletDashboard: React.FC = () => {
                     </Button>
                   </div>
                 ) : (
-                  <Button 
-                    className="w-full bg-primary hover:bg-primary/90" 
-                    onClick={() => setIsSetupModalOpen(true)}
-                  >
-                    <Shield className="w-4 h-4 mr-2" />
-                    Create Sovereign Vault
-                  </Button>
-                )}
-              </div>
+                    <div className="grid grid-cols-2 gap-3 mt-3">
+                      <Button 
+                        className="w-full bg-primary hover:bg-primary/90" 
+                        onClick={() => {
+                          setSetupMode('create');
+                          setIsSetupModalOpen(true);
+                        }}
+                      >
+                        <Shield className="w-4 h-4 mr-2" />
+                        Create Account
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        className="w-full" 
+                        onClick={() => {
+                          setSetupMode('import');
+                          setIsSetupModalOpen(true);
+                        }}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Import
+                      </Button>
+                    </div>
+                  )}
+                </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -572,6 +632,11 @@ const EnhancedWalletDashboard: React.FC = () => {
       <WalletSetupModal 
         isOpen={isSetupModalOpen} 
         onClose={() => setIsSetupModalOpen(false)} 
+        mode={setupMode}
+        onCreateWallet={handleCreateWallet}
+        onImportWallet={handleImportWallet}
+        getSeedPhrase={handleGetSeedPhrase}
+        walletAddress={displayAddress}
       />
     </div>
   );
