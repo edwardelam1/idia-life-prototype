@@ -2,7 +2,7 @@
 
 interface Window {
   webkit?: {
-    messageHandlers: {
+    messageHandlers?: {
       initiateNfcHandshake?: {
         postMessage: (message: any) => void;
       };
