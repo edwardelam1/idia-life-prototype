@@ -6,7 +6,6 @@
 
 import { ethers } from 'ethers';
 import { SecureStoragePlugin } from 'capacitor-secure-storage-plugin';
-import { isNative } from './platform';
 
 export interface NetworkConfig {
   name: string;
