@@ -3,16 +3,21 @@
  */
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAccount } from "wagmi";
 import { useToast } from "@/components/ui/use-toast";
 import { Activity, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSovereignWallet } from "@/hooks/useSovereignWallet";
+import { useWallet } from "@/hooks/useWallet"; // <-- NATIVE INFRASTRUCTURE IMPORT
 
 const SecureVault = () => {
   const [isInitializing, setIsInitializing] = useState(true);
   const [userId, setUserId] = useState<string | undefined>();
-  const { isConnected, address } = useAccount();
+  
+  // NATIVE ARCHITECTURE: Removed Wagmi useAccount, mapped to local secure storage
+  const { wallet, hasWallet } = useWallet();
+  const address = wallet?.address;
+  const isConnected = hasWallet;
+  
   const { syncWalletToSupabase } = useSovereignWallet(userId);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -47,7 +52,7 @@ const SecureVault = () => {
       try {
         console.log(`[INFO] Probing for Active Vault Connection...`);
 
-        // Delay to ensure Wagmi state hydration
+        // Delay to ensure native state hydration
         await new Promise((resolve) => setTimeout(resolve, 800));
 
         if (!isConnected) {
