@@ -157,7 +157,7 @@ export const useEnhancedProfile = () => {
           trust_score: trust_score,
           available_credit_line: available_credit_line,
           updated_at: new Date().toISOString(),
-        })
+        } as never)
         .eq("user_id", user.id)
         .select()
         .single();
