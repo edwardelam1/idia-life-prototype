@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Wallet, Database, Users, ShoppingBag, Vote, Crown } from "lucide-react";
-import { useEnhancedProfile } from "@/hooks/useEnhancedProfile"; // Import the hook
+import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
 import EnhancedWalletDashboard from "./enhanced/EnhancedWalletDashboard";
 import DataDashboard from "./DataDashboard";
 import LifeScreen from "./enhanced/LifeScreen";
@@ -10,7 +9,6 @@ import GovernanceScreen from "./GovernanceScreen";
 import ProScreen from "./pro/ProScreen";
 import Header from "./Header";
 import FriendAssistant from "./FriendAssistant";
-import OnboardingModal from "./ui/OnboardingModal";
 import WelcomeSequence from "./life/WelcomeSequence";
 
 const MainApp = () => {
@@ -27,63 +25,28 @@ const MainApp = () => {
     }
   });
 
-  // 1. HYDRATE PROFILE DATA
-  // Pulling profile into scope fixes the "Cannot find name 'profile'" error
   const { profile, loading: profileLoading } = useEnhancedProfile();
-
-  // Infrastructure State
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [hasDismissedOnboarding, setHasDismissedOnboarding] = useState(false);
   const [isProvisioned, setIsProvisioned] = useState({ wallet: false, fbo: false });
-  const [auditComplete, setAuditComplete] = useState(false);
-  const [sovereignOverride, setSovereignOverride] = useState(false);
 
-  // 2. THE SOVEREIGN AUDIT (Self-Custody Update)
+  // Sovereign Audit — informational only (no gate)
   useEffect(() => {
     if (!profileLoading) {
       console.log("[START] MainApp: Executing infrastructure audit...");
-
       const hasWallet = !!profile?.wallet_address;
       const hasFBO = !!profile?.fbo_account_id;
-
-      setIsProvisioned({
-        wallet: hasWallet,
-        fbo: hasFBO,
-      });
-
-      console.log(`[SUCCESS] MainApp Audit Complete - Vault: ${hasWallet}, FBO: ${hasFBO}`);
-      setAuditComplete(true);
+      setIsProvisioned({ wallet: hasWallet, fbo: hasFBO });
+      console.log(`[END] MainApp Audit Complete - Vault: ${hasWallet}, FBO: ${hasFBO}`);
     }
   }, [profile, profileLoading]);
+
   useEffect(() => {
     const handleVaultLinked = (event: any) => {
       console.log("[SYNC] Immediate Vault Hydration:", event.detail.address);
       setIsProvisioned((prev) => ({ ...prev, wallet: true }));
-      setAuditComplete(true);
     };
-
     window.addEventListener("vault-linked", handleVaultLinked);
     return () => window.removeEventListener("vault-linked", handleVaultLinked);
   }, []);
-  // 3. THE "FLOOR SENSOR" - Respects Sovereign Override
-  useEffect(() => {
-    if (auditComplete && activeTab === "wallet" && !sovereignOverride) {
-      // If 0 rails are setup, trigger onboarding
-      const isFullyLocked = !isProvisioned.wallet && !isProvisioned.fbo;
-
-      if (isFullyLocked && !hasDismissedOnboarding && !showOnboarding) {
-        console.log("[INFO] Floor Sensor Triggered: Deploying Onboarding Modal.");
-        setShowOnboarding(true);
-      }
-    }
-  }, [activeTab, isProvisioned, auditComplete, hasDismissedOnboarding, showOnboarding, sovereignOverride]);
-
-  // Tab-Lock Cleanup
-  useEffect(() => {
-    if (activeTab !== "wallet" && showOnboarding) {
-      setShowOnboarding(false);
-    }
-  }, [activeTab, showOnboarding]);
 
   // AI Assistant Triggers (suppressed during first-run welcome)
   useEffect(() => {
@@ -102,7 +65,6 @@ const MainApp = () => {
       setFriendTrigger(trigger);
       setShowFriend(true);
     };
-
     window.addEventListener("showFriend", handleShowFriend as EventListener);
     return () => window.removeEventListener("showFriend", handleShowFriend as EventListener);
   }, []);
@@ -120,26 +82,9 @@ const MainApp = () => {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background">
-      <div onMouseDown={(e) => e.shiftKey && setSovereignOverride(true)}>
-        <Header />
-      </div>
+      <Header />
 
       <main className="flex-1 overflow-hidden pt-[calc(3.5rem+env(safe-area-inset-top))] relative">
-        {/* THE GLASS SHIELD: Intercepts touches if not provisioned */}
-        {activeTab === "wallet" &&
-          !isProvisioned.wallet &&
-          !isProvisioned.fbo &&
-          !showOnboarding &&
-          !sovereignOverride && (
-            <div
-              className="absolute inset-0 z-40 bg-background/20 backdrop-blur-[1px] cursor-pointer"
-              onClick={() => {
-                setShowOnboarding(true);
-                setHasDismissedOnboarding(false);
-              }}
-            />
-          )}
-
         <div className="h-full max-w-4xl mx-auto">
           <div className="h-full px-2 pb-2 overflow-y-auto">
             <ActiveComponent />
@@ -171,15 +116,6 @@ const MainApp = () => {
           </div>
         </div>
       </nav>
-
-      {showOnboarding && activeTab === "wallet" && (
-        <OnboardingModal
-          isVisible={showOnboarding}
-          onClose={() => setShowOnboarding(false)}
-          needsWallet={!isProvisioned.wallet}
-          needsFBO={!isProvisioned.fbo}
-        />
-      )}
 
       {showFriend && (
         <FriendAssistant
