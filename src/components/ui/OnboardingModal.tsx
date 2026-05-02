@@ -2,8 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, ShieldCheck, Landmark, ArrowRight, Zap, Loader2, Activity, AlertCircle, Wallet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount } from "wagmi";
+import { useWallet } from "@/hooks/useWallet"; // <-- NATIVE INFRASTRUCTURE IMPORT
 
 interface OnboardingModalProps {
   isVisible: boolean;
@@ -17,8 +16,8 @@ const OnboardingModal = ({ isVisible, onClose, needsWallet, needsFBO }: Onboardi
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const navigate = useNavigate();
-  // Drive vault connection state from wagmi (self-custody, non-custodial)
-  const { isConnected: vaultLinked } = useAccount();
+  // Drive vault connection state from native infrastructure (self-custody, non-custodial)
+  const { wallet, hasWallet: vaultLinked, createWallet } = useWallet();
 
   if (!isVisible) return null;
 
@@ -28,6 +27,18 @@ const OnboardingModal = ({ isVisible, onClose, needsWallet, needsFBO }: Onboardi
       await new Promise((resolve) => setTimeout(resolve, 1000));
     } finally {
       setIsSyncingFBO(false);
+    }
+  };
+
+  const handleWalletSetup = async () => {
+    console.log(`[START] Onboarding: Linking Sovereign Vault (native)`);
+    try {
+      if (!vaultLinked) {
+        await createWallet();
+      }
+    } catch (error: any) {
+      console.error("🚨 [ONBOARDING_ERROR]", error.message);
+      setLoadError("Failed to generate secure vault.");
     }
   };
 
@@ -66,38 +77,26 @@ const OnboardingModal = ({ isVisible, onClose, needsWallet, needsFBO }: Onboardi
           )}
 
           {needsWallet && (
-            <ConnectButton.Custom>
-              {({ account, chain, openConnectModal, mounted }) => {
-                const ready = mounted;
-                const connected = ready && account && chain && vaultLinked;
-
-                return (
-                  <button
-                    onClick={() => {
-                      console.log(`[START] Onboarding: Linking Sovereign Vault (self-custody)`);
-                      openConnectModal();
-                    }}
-                    type="button"
-                    className="w-full group relative flex items-center p-4 bg-secondary/50 hover:bg-secondary border border-border hover:border-primary/50 rounded-xl transition-all duration-200"
-                  >
-                    <div className="mr-4 p-2 bg-blue-500/10 rounded-full">
-                      <Zap className="w-5 h-5 text-blue-500" />
-                    </div>
-                    <div className="flex-1 text-left">
-                      <span className="font-semibold block text-foreground">
-                        {connected ? "Sovereign Vault Linked" : "Link Sovereign Vault"}
-                      </span>
-                      <p className="text-xs text-muted-foreground">
-                        {connected
-                          ? account.displayName
-                          : "Self-custody via MetaMask, Coinbase Wallet, WalletConnect…"}
-                      </p>
-                    </div>
-                    {!connected && <ArrowRight className="w-4 h-4 text-muted-foreground" />}
-                  </button>
-                );
-              }}
-            </ConnectButton.Custom>
+            <button
+              onClick={handleWalletSetup}
+              type="button"
+              className="w-full group relative flex items-center p-4 bg-secondary/50 hover:bg-secondary border border-border hover:border-primary/50 rounded-xl transition-all duration-200"
+            >
+              <div className="mr-4 p-2 bg-blue-500/10 rounded-full">
+                <Zap className="w-5 h-5 text-blue-500" />
+              </div>
+              <div className="flex-1 text-left">
+                <span className="font-semibold block text-foreground">
+                  {vaultLinked ? "Sovereign Vault Linked" : "Link Sovereign Vault"}
+                </span>
+                <p className="text-xs text-muted-foreground">
+                  {vaultLinked && wallet?.address
+                    ? `${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)}`
+                    : "Initialize local secure enclave generation"}
+                </p>
+              </div>
+              {!vaultLinked && <ArrowRight className="w-4 h-4 text-muted-foreground" />}
+            </button>
           )}
 
           {needsFBO && (
