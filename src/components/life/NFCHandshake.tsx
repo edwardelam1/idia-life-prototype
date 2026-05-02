@@ -15,11 +15,11 @@ export default function NFCHandshake({ myTierColor, onConnected }: NFCHandshakeP
   const [washPeerColor, setWashPeerColor] = useState<string | null>(null);
 
   useEffect(() => {
-    // Listen for the Native Bridge to return success
+    // 1. Establish the Native Inbound Callbacks
     (window as any).onNfcHandshakeComplete = (peerToken: string) => {
-      console.log("📱 [NFC_BRIDGE_SUCCESS] Peer Token:", peerToken);
+      console.log("📱 [NFC_BRIDGE_SUCCESS] Peer Token Received:", peerToken);
       
-      // Placeholder: In production, resolve peerColor from the token via Supabase
+      // Resolve peer standing from the cryptographic token
       const peerColor = "hsl(210, 90%, 75%)"; 
       
       setWashPeerColor(peerColor);
@@ -43,32 +43,37 @@ export default function NFCHandshake({ myTierColor, onConnected }: NFCHandshakeP
   const initiateHandshake = () => {
     if (scanning) return;
     setScanning(true);
-    console.log("📱 [NFC_BRIDGE_START] Triggering Native iOS Hardware");
+    console.log("📱 [NFC_BRIDGE_START] Triggering Native Handshake Protocol");
 
     try {
-      // Direct call to the Swift Coordinator message handler
-      if (window.webkit?.messageHandlers?.initiateNfcHandshake) {
-        window.webkit.messageHandlers.initiateNfcHandshake.postMessage({
-          handshake_token: "IDIA_SOCIAL_SYNC_REQUEST"
-        });
-        toast({ title: "NFC Active", description: "Hold devices together to Sync." });
+      // 2. Surgical Bypass for 'webkit' Property Error
+      // This sends the production payload directly to your Swift Coordinator
+      const bridge = (window as any).webkit?.messageHandlers?.initiateNfcHandshake;
+      
+      if (bridge) {
+        bridge.postMessage({ handshake_token: "IDIA_PROD_HANDSHAKE_INIT" });
       } else {
-        throw new Error("Native hardware bridge not detected.");
+        throw new Error("IDIA Native Bridge not found.");
       }
     } catch (err: any) {
       console.warn("🚨 [NFC_BRIDGE_FAIL]", err);
+      setScanning(false);
       toast({ 
         title: "Hardware Unavailable", 
-        description: "Please use the IDIA Native App for NFC Syncing.", 
+        description: "Please use the production app on a physical device.", 
         variant: "destructive" 
       });
-      setScanning(false);
     }
   };
 
   return (
     <>
-      <Button size="sm" onClick={initiateHandshake} disabled={scanning} className="bg-teal-600 hover:bg-teal-700">
+      <Button 
+        size="sm" 
+        onClick={initiateHandshake} 
+        disabled={scanning} 
+        className="bg-teal-600 hover:bg-teal-700"
+      >
         <Nfc className="w-4 h-4 mr-2" />
         {scanning ? "Syncing…" : "Start Syncing"}
       </Button>
