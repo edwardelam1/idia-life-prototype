@@ -15,9 +15,11 @@ export default function NFCHandshake({ myTierColor, onConnected }: NFCHandshakeP
   const [washPeerColor, setWashPeerColor] = useState<string | null>(null);
 
   useEffect(() => {
-    // 1. Establish the Native Inbound Callbacks
-    (window as any).onNfcHandshakeComplete = (peerToken: string) => {
-      console.log("📱 [NFC_BRIDGE_SUCCESS] Peer Token Received:", peerToken);
+    console.log("📱 [START: NFCHandshake.useEffect] Mounting inbound hardware callbacks");
+    const nativeWindow = window as any;
+
+    nativeWindow.onNfcHandshakeComplete = (peerToken: string) => {
+      console.log("📱 [START: onNfcHandshakeComplete] Received peer token:", peerToken);
       
       // Resolve peer standing from the cryptographic token
       const peerColor = "hsl(210, 90%, 75%)"; 
@@ -26,50 +28,60 @@ export default function NFCHandshake({ myTierColor, onConnected }: NFCHandshakeP
       onConnected?.();
       setScanning(false);
       toast({ title: "Syncing Complete", description: "Connection established." });
+      
+      console.log("📱 [END: onNfcHandshakeComplete] UI state updated and scanning lock released");
     };
 
-    (window as any).onNfcHandshakeError = (err: string) => {
-      console.error("🚨 [NFC_BRIDGE_ERROR]", err);
+    nativeWindow.onNfcHandshakeError = (err: string) => {
+      console.error("🚨 [START: onNfcHandshakeError] Received hardware error:", err);
       setScanning(false);
       toast({ title: "Sync Failed", description: err, variant: "destructive" });
+      console.error("🚨 [END: onNfcHandshakeError] UI state reset and scanning lock released");
     };
 
+    console.log("📱 [END: NFCHandshake.useEffect] Callbacks successfully mounted to window");
+
     return () => {
-      delete (window as any).onNfcHandshakeComplete;
-      delete (window as any).onNfcHandshakeError;
+      console.log("📱 [START: NFCHandshake.cleanup] Removing inbound hardware callbacks");
+      delete nativeWindow.onNfcHandshakeComplete;
+      delete nativeWindow.onNfcHandshakeError;
+      console.log("📱 [END: NFCHandshake.cleanup] Cleanup complete");
     };
   }, [onConnected, toast]);
 
   const initiateHandshake = () => {
-    if (scanning) return;
+    console.log("📱 [START: NFCHandshake.initiateHandshake] Handshake execution requested");
+    
+    if (scanning) {
+      console.warn("📱 [END: NFCHandshake.initiateHandshake] Aborted: Hardware is already scanning");
+      return;
+    }
+    
     setScanning(true);
-    console.log("📱 [NFC_BRIDGE_START] Triggering Native Handshake Protocol");
+    console.log("📱 [PROCESS: NFCHandshake.initiateHandshake] Scanning lock engaged. Evaluating bridge context.");
 
-    try {
-      // 2. Surgical Bypass for 'webkit' Property Error
-      // This sends the production payload directly to your Swift Coordinator
-      const nativeWindow = window as any;
+    const nativeWindow = window as any;
 
     try {
       const nfcBridge = nativeWindow.webkit?.messageHandlers?.initiateNfcHandshake;
       
       if (nfcBridge) {
-        // Trigger the live NFC reader in your local Xcode shell
+        console.log("📱 [PROCESS: NFCHandshake.initiateHandshake] Hardware bridge located. Transmitting payload to Swift Coordinator.");
         nfcBridge.postMessage({ handshake_token: "IDIA_PROD_SYNC_001" });
-        console.log("📱 [NFC_BRIDGE] ACTION: Hardware triggered successfully.");
+        console.log("📱 [END: NFCHandshake.initiateHandshake] Payload transmitted successfully. Awaiting hardware callback.");
       } else {
+        console.warn("📱 [PROCESS: NFCHandshake.initiateHandshake] Bridge not found. Throwing environment error.");
         throw new Error("Bridge not found. Physical hardware required.");
       }
     } catch (err: any) {
-      console.warn("🚨 [NFC_BRIDGE] FAIL:", err);
+      console.error("🚨 [START: NFCHandshake.catch] Bridge transmission failed:", err);
       setScanning(false);
-    }
-  };
       toast({ 
         title: "Hardware Unavailable", 
         description: "Please use the production app on a physical device.", 
         variant: "destructive" 
       });
+      console.error("🚨 [END: NFCHandshake.catch] Fallback UI triggered and lock released");
     }
   };
 

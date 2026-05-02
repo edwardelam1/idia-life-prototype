@@ -6,7 +6,7 @@ console.log("[START] main.tsx: Entry Point Reached");
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
-import "./utils/AuthEventTracker";
+// import "./utils/AuthEventTracker"; // <-- DISABLE THIS UNTIL THE UI RENDERS
 
 const container = document.getElementById("root");
 import { http, createConfig } from "wagmi";
