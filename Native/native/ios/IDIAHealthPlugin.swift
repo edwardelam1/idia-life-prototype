@@ -1,6 +1,7 @@
 import Foundation
 import Capacitor
 import HealthKit
+import UIKit
 
 @objc(IDIAHealthPlugin)
 public class IDIAHealthPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -43,7 +44,8 @@ public class IDIAHealthPlugin: CAPPlugin, CAPBridgedPlugin {
         group.enter(); fetchSum(.activeEnergyBurned, .kilocalorie(), start, end) { v in if let v = v { result["calories"] = Int(v) }; group.leave() }
         group.enter(); fetchSum(.distanceWalkingRunning, .meter(), start, end) { v in if let v = v { result["distance"] = v }; group.leave() }
         group.enter(); fetchRecent(.bodyMass, .gramUnit(with: .kilo), start, end) { v in if let v = v { result["weight"] = v }; group.leave() }
-        group.notify(queue: .main) { call.resolve(result as! [String: Any]) }
+        group.enter(); fetchSleepHours(startDate: start, endDate: end) { v in if v > 0 { result["sleepHours"] = v }; group.leave() }
+        group.notify(queue: .main) { call.resolve(result) }
     }
     private func fetchSum(_ id: HKQuantityTypeIdentifier, _ unit: HKUnit, _ s: Date, _ e: Date, _ c: @escaping (Double?) -> Void) {
         guard let qt = HKQuantityType.quantityType(forIdentifier: id) else { c(nil); return }
@@ -54,5 +56,21 @@ public class IDIAHealthPlugin: CAPPlugin, CAPBridgedPlugin {
         guard let st = HKSampleType.quantityType(forIdentifier: id) else { c(nil); return }
         let q = HKSampleQuery(sampleType: st, predicate: HKQuery.predicateForSamples(withStart: s, end: e, options: .strictEndDate), limit: 1, sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]) { _, samples, _ in c((samples?.first as? HKQuantitySample)?.quantity.doubleValue(for: unit)) }
         healthStore.execute(q)
+    }
+    private func fetchSleepHours(startDate: Date, endDate: Date, completion: @escaping (Double) -> Void) {
+        guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { completion(0.0); return }
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
+        let query = HKSampleQuery(sampleType: sleepType, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, _ in
+            var total = 0.0
+            if let s = samples as? [HKCategorySample] {
+                for sample in s {
+                    if sample.value == HKCategoryValueSleepAnalysis.asleep.rawValue {
+                        total += sample.endDate.timeIntervalSince(sample.startDate)
+                    }
+                }
+            }
+            completion(total / 3600.0)
+        }
+        healthStore.execute(query)
     }
 }

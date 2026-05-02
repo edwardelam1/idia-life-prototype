@@ -17,7 +17,6 @@ const config: CapacitorConfig = {
     // Authorized navigation to prevent external browser pop-up stalling
     allowNavigation: ["*.coinbase.com", "*.base.org", "106c540d-44fd-41bf-9be1-771a4d91effc.lovableproject.com"],
   },
-  bundledWebRuntime: false,
 };
 
 export default config;
