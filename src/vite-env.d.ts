@@ -3,12 +3,13 @@
 interface Window {
   webkit?: {
     messageHandlers: {
-      initiateNfcHandshake: {
+      initiateNfcHandshake?: {
         postMessage: (message: any) => void;
       };
-      syncHealthData: {
+      syncHealthData?: {
         postMessage: (message: any) => void;
       };
+      [key: string]: { postMessage: (message: any) => void } | undefined;
     };
   };
   // IDIA Native Callbacks from the Swift Shell
