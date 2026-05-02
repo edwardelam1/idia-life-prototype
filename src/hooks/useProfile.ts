@@ -97,7 +97,7 @@ export const useProfile = () => {
 
       const { data, error } = await supabase
         .from('profiles')
-        .update(updates as never)
+        .update(updates)
         .eq('user_id', user.id)
         .select()
         .single();

@@ -85,11 +85,7 @@ const EnhancedProfileSettings: React.FC = () => {
       business: "Business",
       "non-profit": "Non-Profit",
     };
-    return (
-      <Badge variant="outline" className="text-[11px]">
-        {labels[type] || type}
-      </Badge>
-    );
+    return <Badge variant="outline" className="text-[11px]">{labels[type] || type}</Badge>;
   };
 
   return (
@@ -133,9 +129,7 @@ const EnhancedProfileSettings: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label htmlFor="display_name" className="text-xs">
-                Display Name
-              </Label>
+              <Label htmlFor="display_name" className="text-xs">Display Name</Label>
               <Input
                 id="display_name"
                 className="h-8"
@@ -145,9 +139,7 @@ const EnhancedProfileSettings: React.FC = () => {
               />
             </div>
             <div>
-              <Label htmlFor="ai_assistant_name" className="text-xs">
-                AI Assistant Name
-              </Label>
+              <Label htmlFor="ai_assistant_name" className="text-xs">AI Assistant Name</Label>
               <Input
                 id="ai_assistant_name"
                 className="h-8"
@@ -207,7 +199,9 @@ const EnhancedProfileSettings: React.FC = () => {
                 <CreditCard className="w-3 h-3" /> Trust Score
               </p>
               <p className="text-3xl font-semibold tracking-tight">
-                {profile?.trust_score !== null && profile?.trust_score !== undefined ? profile.trust_score : "—"}
+                {profile?.trust_score !== null && profile?.trust_score !== undefined
+                  ? profile.trust_score
+                  : "—"}
               </p>
             </div>
           </div>
@@ -227,7 +221,7 @@ const EnhancedProfileSettings: React.FC = () => {
             </div>
             <div className="text-center p-2 bg-muted rounded-md">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">IDIA-USD</p>
-              <p className="text-base font-semibold">${(balance.usdc_balance || 0).toFixed(2)}</p>
+              <p className="text-base font-semibold">${(balance.idia_beta_balance || 0).toFixed(2)}</p>
             </div>
             <div className="text-center p-2 bg-muted rounded-md">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">IDIA Tokens</p>

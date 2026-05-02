@@ -13,7 +13,7 @@ import { toast } from "@/components/ui/sonner";
 
 export type NFCBridgeMode = "STANDARD" | "PACE";
 
-type NFCWindow = Window & {
+interface NFCWindow extends Window {
   webkit?: {
     messageHandlers?: {
       initiateNfcScan?: { postMessage: (msg: unknown) => void };
@@ -21,7 +21,7 @@ type NFCWindow = Window & {
   };
   onNfcScanComplete?: (peerToken: string) => void;
   onNfcScanError?: (error: string) => void;
-};
+}
 
 const detectBridge = (): boolean => {
   if (typeof window === "undefined") return false;

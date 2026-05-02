@@ -22,7 +22,7 @@ export interface ProximityPeer {
   lastSeenAt: number;
 }
 
-type ProximityWindow = Window & {
+interface ProximityWindow extends Window {
   webkit?: {
     messageHandlers?: {
       proximityScan?: { postMessage: (msg: unknown) => void };
@@ -30,7 +30,7 @@ type ProximityWindow = Window & {
   };
   onProximityUpdate?: (peers: ProximityPeer[]) => void;
   onProximityError?: (error: string) => void;
-};
+}
 
 const detectBridge = (): boolean => {
   if (typeof window === "undefined") return false;

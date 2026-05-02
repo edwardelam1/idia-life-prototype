@@ -6,6 +6,7 @@
 
 import { ethers } from 'ethers';
 import { SecureStoragePlugin } from 'capacitor-secure-storage-plugin';
+import { isNative } from './platform';
 
 export interface NetworkConfig {
   name: string;
@@ -94,22 +95,6 @@ const KEYS = {
   NETWORK: 'idia_wallet_network',
 } as const;
 
-async function storeSecureKeys(mnemonic: string): Promise<void> {
-  console.log("[walletService] [storeSecureKeys] START - Initiating secure storage for keys.");
-  try {
-    await SecureStoragePlugin.set({ key: KEYS.MNEMONIC, value: mnemonic });
-    console.log("[walletService] [storeSecureKeys] KEYS.MNEMONIC stored.");
-    await SecureStoragePlugin.set({ key: KEYS.EXISTS, value: 'true' });
-    console.log("[walletService] [storeSecureKeys] KEYS.EXISTS stored.");
-    await SecureStoragePlugin.set({ key: KEYS.NETWORK, value: DEFAULT_NETWORK });
-    console.log("[walletService] [storeSecureKeys] KEYS.NETWORK stored.");
-  } catch (error) {
-    console.error("[walletService] [storeSecureKeys] ERROR:", error);
-    throw error;
-  }
-  console.log("[walletService] [storeSecureKeys] END - All secure keys stored.");
-}
-
 class WalletService {
   private wallet: ethers.HDNodeWallet | null = null;
   private activeNetwork = DEFAULT_NETWORK;
@@ -119,14 +104,14 @@ class WalletService {
   }
 
   async createWallet(): Promise<{ address: string; mnemonic: string }> {
-    console.log("[walletService] [createWallet] START");
     const w = ethers.Wallet.createRandom();
     const mnemonic = w.mnemonic?.phrase;
     if (!mnemonic) throw new Error('Failed to generate mnemonic');
     await storeSecureKeys(mnemonic);
     this.wallet = w as ethers.HDNodeWallet;
     this.activeNetwork = DEFAULT_NETWORK;
-    console.log("[walletService] [createWallet] END - address:", w.address);
+    this.wallet = w as ethers.HDNodeWallet;
+    this.activeNetwork = DEFAULT_NETWORK;
     return { address: w.address, mnemonic };
   }
 

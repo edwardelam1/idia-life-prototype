@@ -31,11 +31,11 @@ const WalletDashboard = () => {
 
     // DISCUSSION: Added Realtime Subscription for Live Transaction Updates
     let transactionChannel: any;
-
+   
     const setupRealtime = async () => {
       const {
         data: { user },
-        // @ts-ignore -
+      // @ts-ignore -
       } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -189,7 +189,7 @@ const WalletDashboard = () => {
             <div className="text-center">
               <p className="text-teal-100 text-xs font-medium">USDC</p>
               {/* Updated to use balance from hook */}
-              <p className="text-xl font-bold">${balance.usdc_balance.toFixed(2)}</p>
+              <p className="text-xl font-bold">${balance.idia_beta_balance.toFixed(2)}</p>
             </div>
             <div className="text-center">
               <p className="text-teal-100 text-xs font-medium">IDIA Token</p>
