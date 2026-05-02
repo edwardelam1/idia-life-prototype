@@ -61,33 +61,52 @@ class IDIAHealthPlugin : Plugin() {
 
     @PluginMethod
     override fun requestPermissions(call: PluginCall) {
+        Log.d(TAG, "[requestPermissions] START - intent fallback chain")
         val client = healthClient
         if (client == null) { call.resolve(JSObject().put("granted", false)); return }
         scope.launch {
             try {
-                val granted = client.permissionController.getGrantedPermissions()
+                val granted: Set<String> = client.permissionController.getGrantedPermissions()
                 val missing = PERMISSIONS - granted
-                if (missing.isEmpty()) { call.resolve(JSObject().put("granted", true)) }
-                else {
-                    activity.runOnUiThread {
-                        try {
-                            val intent = Intent("androidx.health.ACTION_MANAGE_HEALTH_PERMISSIONS")
-                            intent.putExtra(Intent.EXTRA_PACKAGE_NAME, context.packageName)
-                            activity.startActivity(intent)
-                            call.resolve(JSObject().put("granted", true))
-                        } catch (e: Exception) {
-                            try {
-                                val intent = context.packageManager.getLaunchIntentForPackage("com.google.android.apps.healthdata")
-                                if (intent != null) { activity.startActivity(intent); call.resolve(JSObject().put("granted", true)) }
-                                else {
-                                    activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata")))
-                                    call.resolve(JSObject().put("granted", false))
-                                }
-                            } catch (e2: Exception) { call.resolve(JSObject().put("granted", false)) }
+                if (missing.isEmpty()) {
+                    Log.d(TAG, "[requestPermissions] All permissions already granted.")
+                    call.resolve(JSObject().put("granted", true))
+                    return@launch
+                }
+                activity.runOnUiThread {
+                    try {
+                        val pm = context.packageManager
+                        val modern = Intent("androidx.health.ACTION_MANAGE_HEALTH_PERMISSIONS").apply {
+                            putExtra(Intent.EXTRA_PACKAGE_NAME, context.packageName)
                         }
+                        when {
+                            modern.resolveActivity(pm) != null -> {
+                                Log.d(TAG, "[requestPermissions] Launching modern ACTION_MANAGE_HEALTH_PERMISSIONS.")
+                                activity.startActivity(modern)
+                            }
+                            else -> {
+                                val legacy = Intent("androidx.health.ACTION_HEALTH_CONNECT_SETTINGS")
+                                if (legacy.resolveActivity(pm) != null) {
+                                    Log.d(TAG, "[requestPermissions] Launching legacy ACTION_HEALTH_CONNECT_SETTINGS.")
+                                    activity.startActivity(legacy)
+                                } else {
+                                    Log.d(TAG, "[requestPermissions] Falling back to Play Store.")
+                                    activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.apps.healthdata")))
+                                }
+                            }
+                        }
+                        // Do not lie. Resolve false; JS layer will poll checkPermissions on resume.
+                        call.resolve(JSObject().put("granted", false))
+                        Log.d(TAG, "[requestPermissions] END - resolved granted:false (poll on resume)")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "[requestPermissions] Intent chain failed", e)
+                        call.resolve(JSObject().put("granted", false))
                     }
                 }
-            } catch (e: Exception) { call.resolve(JSObject().put("granted", false)) }
+            } catch (e: Exception) {
+                Log.e(TAG, "[requestPermissions] Top-level failure", e)
+                call.resolve(JSObject().put("granted", false))
+            }
         }
     }
 
