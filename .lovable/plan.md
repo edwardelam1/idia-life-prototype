@@ -1,71 +1,90 @@
-## Goal
+# IDIA Protocol — Guarded Silent Vault Architecture
 
-End the current chaos where toasts appear at the top (shadcn `Toaster`) AND bottom-left (sonner), are oversized, and disappear with no history. Replace with a single minimalist notification system anchored next to the user avatar in the Header — with a persistent history log.
+Transition new accounts to silent on-device vault creation, protect legacy/existing identities with a Keychain + Supabase dual-check, and replace the disruptive Glass Shield/Floor Sensor with a mandatory one-time recovery-phrase backup gate.
 
-## Current State
+## 1. Vault Guard helper (new)
 
-- Two parallel toast systems are mounted in `src/App.tsx`:
-  - `@/components/ui/toaster` (Radix) → renders top of screen on mobile, bottom-right on desktop, large `p-6` cards.
-  - `@/components/ui/sonner` (Sonner) → pinned `bottom-left` with inline style `bottom: 5rem`.
-- 25+ files dispatch toasts via either `toast()` from sonner or `useToast()` from `@/hooks/use-toast`.
-- No persistence: notifications vanish after 4s; user can't review what fired.
+Create `src/lib/vaultGuard.ts` exporting `runVaultGuard(userId)`:
 
-## Target Design
+- `[START] Vault Guard` log.
+- `[PROCESS] Local check` → `walletService.hasWallet()`.
+- `[PROCESS] Remote check` → `supabase.from('profiles').select('wallet_address').eq('user_id', userId).maybeSingle()`.
+- Return `{ localExists, remoteExists, remoteAddress, isNewUser }` where `isNewUser = !localExists && !remoteExists`.
+- If new user: `[PROCESS] Silent vault create` → `walletService.createWallet()`, then `syncWalletToSupabase(address, userId)` (writes `wallet_address` to `profiles`), `[END] New vault provisioned`.
+- Else: `[INFO] Vault Guard: Identity detected in ${localExists ? 'Keychain' : 'Supabase Profile'}. Preserving identity.` and `[END] Existing identity preserved` (no wallet generation).
+- Return `{ isNewUser, address }` so the caller can route.
 
-A single notification surface with two parts:
+`syncWalletToSupabase` does an `update profiles set wallet_address = $1 where user_id = $2 and wallet_address is null` (defensive — never overwrites a legacy address) and dispatches the existing `vault-linked` event.
 
-1. **Bell icon next to the avatar** in `Header.tsx` (left of the avatar, right of the title). Shows an unread count dot.
-2. **Dropdown panel** (Radix Popover) anchored from the bell — compact list of the last 50 events, newest first. Each row: small icon, title, 1-line description, relative timestamp. Mark-all-read + clear actions.
-3. **Transient micro-toast** for active feedback: a tiny pill (~`text-xs`, single line, max 240px) that slides in from the bell, auto-dismisses in 3s, and is simultaneously appended to history. No more giant cards.
+## 2. Auth.tsx — post-auth lifecycle
 
-```text
- ┌──────────────────────────────────────────────┐
- │ [logo] IDIA Life          [🔔³] [👤] [⚙]    │  ← Header
- └────────────────────────────┬─────────────────┘
-                              │
-                  ┌───────────▼──────────────┐
-                  │ Notifications  [✓ all]   │
-                  │ ─────────────────────── │
-                  │ ✓ Vault linked    2m    │
-                  │ ⚠ EIN required   10m   │
-                  │ ✓ Profile saved   1h    │
-                  │           [Clear all]   │
-                  └─────────────────────────┘
+Replace the redirect inside `onAuthStateChange` (and after manual login/signup/OTP-reset success) with:
+
+```
+const session = ...
+if (session && !isResetMode) {
+  const { isNewUser } = await runVaultGuard(session.user.id);
+  navigate(isNewUser ? '/recovery-phrase' : '/', { replace: true });
+}
 ```
 
-## Implementation
+Wrap in try/catch with toast + `[END] Vault Guard failed` log; on failure, still navigate to `/` (never block legacy users). Existing OAuth/email flows remain — guard runs once per auth event.
 
-### 1. New notification store
-- Create `src/stores/notificationStore.ts` (zustand-free, simple module + React subscription via `useSyncExternalStore`) holding `Notification[]` (id, level: info/success/warning/error, title, description?, timestamp, read).
-- Persist to `localStorage` under `idia_notifications_v1`, cap at 50.
+## 3. New `/recovery-phrase` page
 
-### 2. New unified API
-- Create `src/lib/notify.ts` exporting `notify.success/info/warning/error(title, description?)`. It:
-  - Pushes to the store (history).
-  - Fires a minimalist sonner toast for the transient pill.
+Create `src/pages/RecoveryPhrase.tsx` and add route in `src/App.tsx`:
+`<Route path="/recovery-phrase" element={session ? <RecoveryPhrase /> : <Navigate to="/auth" replace />} />`.
 
-### 3. Replace existing systems
-- Remove `<Toaster />` (Radix) from `src/App.tsx` — keep only Sonner.
-- Reconfigure `src/components/ui/sonner.tsx`:
-  - `position="top-right"` so the pill animates from near the bell.
-  - Tighter sizing already partly in place; reduce to single-line, `max-w-[240px]`, `duration={3000}`.
-- Codemod all 25 callers from `toast({title, description, variant})` and `toast.success(...)` to `notify.success/error(...)`. Old `useToast` hook stays in place as a thin shim that forwards to `notify` so nothing breaks if missed.
+Page behavior:
+- `[START: Backup Generation]` log.
+- `useWallet().getSeedPhrase()` → render 12 words in a numbered 3×4 grid (glass card, monospace, blur-on-tap reveal toggle).
+- Show truncated public address.
+- **Download Recovery Key** button → builds a `.txt` blob:
+  ```
+  IDIA Sovereign Vault — Recovery Key
+  Address: 0x...
+  Created: <ISO>
+  Mnemonic: word1 word2 ...
+  ```
+  Triggers browser download via `URL.createObjectURL` (native: fallback to Capacitor `Filesystem` write to `Documents/`). Sets `downloaded = true`.
+- Checkbox: "I have safely backed up my keys" → sets `acknowledged = true`.
+- **Complete Setup** disabled until `downloaded || acknowledged`. On click: `[END: Backup Generation]`, navigate to `/onboarding` (existing PII flow).
+- No back navigation (mandatory gate).
 
-### 4. Bell + dropdown component
-- Create `src/components/NotificationBell.tsx` using existing `Popover` and the store. Renders bell icon, unread badge, dropdown with list, mark-all-read, clear-all.
-- Insert into `src/components/Header.tsx` immediately left of the avatar.
+## 4. MainApp.tsx cleanup
 
-### 5. Cleanup
-- Delete unused viewport bottom offset hacks.
-- Verify nothing else imports `@/components/ui/toaster`; if so, leave the file but stop mounting it.
+- Delete the Glass Shield `<div>` (lines around the absolute-positioned blur intercept).
+- Delete the Floor Sensor `useEffect` that triggers onboarding when `activeTab === 'wallet'`.
+- Delete the tab-lock cleanup `useEffect` for `showOnboarding`.
+- Remove `OnboardingModal` import and the trailing `{showOnboarding && ...}` JSX.
+- Remove `showOnboarding`, `hasDismissedOnboarding`, `sovereignOverride` state and the shift-click override wrapper.
+- Keep the audit `useEffect` (still useful for the `vault-linked` hydration and downstream UI).
 
-## Files Touched
+## 5. ProfileSettings.tsx — Vault Security section
 
-- New: `src/stores/notificationStore.ts`, `src/lib/notify.ts`, `src/components/NotificationBell.tsx`
-- Edited: `src/App.tsx` (remove Radix Toaster), `src/components/ui/sonner.tsx` (minimalist + top-right), `src/components/Header.tsx` (add bell), `src/hooks/use-toast.ts` (shim → notify)
-- Edited (codemod, mechanical): the 25 caller files listed above to use `notify.*` for cleaner call sites and guaranteed history capture
+Append a new section above the submit button:
 
-## Out of Scope
+```
+Vault Security
+─ View/Download Recovery Phrase  [button]
+```
 
-- Server-pushed notifications (this is purely the client surface; the existing `notificationHydrator.ts` can feed into `notify.*` later).
-- Per-category filtering in the dropdown (can add later if needed).
+Click handler:
+- Prompt local biometric/signature via existing `SovereignAuth` pattern (or a simple confirm modal if biometric unavailable).
+- On success: navigate to `/recovery-phrase?mode=view` — the page reads the `mode` param and hides the "Complete Setup" gate, showing only the phrase + download button + a "Done" button that returns to `/settings`.
+- `[START] / [END] Recovery Phrase Reveal` logs.
+
+## 6. Logging standard
+
+Every bridge action in vaultGuard, RecoveryPhrase, and the Auth post-auth handler emits `[START]`, `[PROCESS]`, `[END]` (and `[ERROR]` on catch) with the action name. No silent awaits.
+
+## Files touched
+
+- **new** `src/lib/vaultGuard.ts`
+- **new** `src/pages/RecoveryPhrase.tsx`
+- **edit** `src/pages/Auth.tsx` (post-auth guard in `onAuthStateChange`, login, signup, OTP reset success)
+- **edit** `src/App.tsx` (add `/recovery-phrase` route)
+- **edit** `src/components/MainApp.tsx` (remove Glass Shield, Floor Sensor, OnboardingModal usage)
+- **edit** `src/components/settings/ProfileSettings.tsx` (Vault Security section)
+
+No DB migration needed — `profiles.wallet_address` already exists.
