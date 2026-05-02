@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Mail, Lock, User, KeyRound } from "lucide-react";
+import { runVaultGuard } from "@/lib/vaultGuard";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
@@ -37,16 +38,23 @@ const Auth = () => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      // Only auto-redirect if they have a session AND they aren't in the middle of an OTP reset
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session && !isResetMode) {
-        // Surgical Fix: Land on root dashboard
-        navigate("/");
+        console.log("[START] Auth: post-auth Vault Guard handoff");
+        try {
+          const { isNewUser } = await runVaultGuard(session.user.id);
+          console.log(`[END] Auth: routing → ${isNewUser ? "/recovery-phrase" : "/"}`);
+          navigate(isNewUser ? "/recovery-phrase" : "/", { replace: true });
+        } catch (e: any) {
+          console.error("[ERROR] Auth: Vault Guard failed, falling back to dashboard", e);
+          toast({ title: "Vault check failed", description: e.message, variant: "destructive" });
+          navigate("/", { replace: true });
+        }
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, searchParams, isResetMode]);
+  }, [navigate, searchParams, isResetMode, toast]);
 
   // ==========================================
   // 1. STANDARD AUTH (LOGIN / SIGNUP / OAUTH)
