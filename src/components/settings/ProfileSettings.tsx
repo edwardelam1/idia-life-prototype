@@ -11,7 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Plus, CalendarIcon, Lock, Unlock, AlertTriangle } from 'lucide-react';
+import { X, Plus, CalendarIcon, Lock, Unlock, AlertTriangle, KeyRound } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useProfile } from '@/hooks/useProfile';
 import { useSecureProfile, SecurePII } from '@/hooks/useSecureProfile';
@@ -63,6 +64,20 @@ export function ProfileSettings() {
   const { profile, loading: profileLoading, updating, updateProfile } = useProfile();
   const { pii, loading: piiLoading, saving: piiSaving, save: savePII } = useSecureProfile();
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  const handleRevealRecoveryPhrase = async () => {
+    console.log("[START] Recovery Phrase Reveal");
+    const confirmed = window.confirm(
+      "Reveal your recovery phrase?\n\nAnyone with these 12 words controls your vault. Only proceed in a private location.",
+    );
+    if (!confirmed) {
+      console.log("[END] Recovery Phrase Reveal: cancelled");
+      return;
+    }
+    console.log("[END] Recovery Phrase Reveal: navigating to view");
+    navigate("/recovery-phrase?mode=view");
+  };
 
   const [locked, setLocked] = useState(true);
   const [newInterest, setNewInterest] = useState('');
@@ -458,6 +473,20 @@ export function ProfileSettings() {
             </Badge>
           ))}
         </div>
+      </div>
+
+      {/* Vault Security */}
+      <div className="space-y-3 pt-4 border-t border-border">
+        <Label className="text-base font-semibold flex items-center gap-2">
+          <KeyRound className="w-4 h-4" /> Vault Security
+        </Label>
+        <p className="text-xs text-muted-foreground">
+          Your 12-word recovery phrase is the only way to restore your vault. Reveal it only in a private location.
+        </p>
+        <Button type="button" variant="outline" className="w-full" onClick={handleRevealRecoveryPhrase}>
+          <KeyRound className="w-4 h-4 mr-2" />
+          View / Download Recovery Phrase
+        </Button>
       </div>
 
       {!locked && (

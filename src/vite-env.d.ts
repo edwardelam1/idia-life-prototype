@@ -2,14 +2,7 @@
 
 interface Window {
   webkit?: {
-    messageHandlers: {
-      initiateNfcHandshake: {
-        postMessage: (message: any) => void;
-      };
-      syncHealthData: {
-        postMessage: (message: any) => void;
-      };
-    };
+    messageHandlers?: Record<string, { postMessage: (message: any) => void } | undefined>;
   };
   // IDIA Native Callbacks from the Swift Shell
   onNfcHandshakeComplete?: (token: string) => void;
