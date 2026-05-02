@@ -48,20 +48,21 @@ export default function NFCHandshake({ myTierColor, onConnected }: NFCHandshakeP
     try {
       // 2. Surgical Bypass for 'webkit' Property Error
       // This sends the production payload directly to your Swift Coordinator
-      const bridge = (window as any).webkit?.messageHandlers?.initiateNfcHandshake;
+      const nativeWindow = window as any;
+
+    try {
+      const nfcBridge = nativeWindow.webkit?.messageHandlers?.initiateNfcHandshake;
       
-      if (bridge) {
-        bridge.postMessage({ handshake_token: "IDIA_PROD_HANDSHAKE_INIT" });
+      if (nfcBridge) {
+        // Trigger the live NFC reader in your local Xcode shell
+        nfcBridge.postMessage({ handshake_token: "IDIA_PROD_SYNC_001" });
+        console.log("📱 [NFC_BRIDGE] ACTION: Hardware triggered successfully.");
       } else {
-        throw new Error("IDIA Native Bridge not found.");
+        throw new Error("Bridge not found. Physical hardware required.");
       }
     } catch (err: any) {
-      console.warn("🚨 [NFC_BRIDGE_FAIL]", err);
+      console.warn("🚨 [NFC_BRIDGE] FAIL:", err);
       setScanning(false);
-      toast({ 
-        title: "Hardware Unavailable", 
-        description: "Please use the production app on a physical device.", 
-        variant: "destructive" 
       });
     }
   };
