@@ -1,21 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { createPublicClient, http, formatUnits } from "viem";
-import { base } from "viem/chains";
+import { ethers } from "ethers"; // <-- Swapped viem for ethers (Native Infrastructure)
 
 // Base Mainnet USDC Contract
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
-// Minimal ABI for read-only operations
+// Minimal Human-Readable ABI for read-only operations via ethers
 const USDC_ABI = [
-  {
-    name: "balanceOf",
-    type: "function",
-    inputs: [{ name: "account", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "view",
-  },
-] as const;
+  "function balanceOf(address account) view returns (uint256)"
+];
 
 export interface WalletBalance {
   usdc_balance: number;
@@ -67,7 +60,7 @@ export const useWalletBalance = () => {
       console.info(`⚙️ [DATA_APPLY_LOG] PAYLOAD:`, row);
       setBalance((prev) => ({
         cash_balance: Number(row.cash_balance) || 0,
-        usdc_balance: prev.usdc_balance, // Isolate USDC to Viem fetching only
+        usdc_balance: prev.usdc_balance, // Isolate USDC to ethers fetching only
         idia_token_balance: Number(row.idia_token_balance) || 0,
         total_earned: 0,
       }));
@@ -124,7 +117,7 @@ export const useWalletBalance = () => {
         tokenBalance = Number(walletData.idia_token_balance) || 0;
       }
 
-      // 2. Fetch Global Vault Identity from Profiles (Aligning with IDIA Hub's methodology)
+      // 2. Fetch Global Vault Identity from Profiles
       console.log("🌐 [FETCH_BALANCE_LOG] ACTION: Querying profiles for global wallet_address.");
       let usdcBalance = 0;
 
@@ -144,30 +137,24 @@ export const useWalletBalance = () => {
 
       if (walletAddress && walletAddress.startsWith("0x")) {
         console.log(`🌐 [FETCH_BALANCE_LOG] SUCCESS: Wallet identified: ${walletAddress}`);
-        console.log("🌐 [FETCH_BALANCE_LOG] ACTION: Initializing Base public client for USDC hydration.");
+        console.log("🌐 [FETCH_BALANCE_LOG] ACTION: Initializing ethers JSON RPC provider for USDC hydration.");
 
         try {
-          const publicClient = createPublicClient({
-            chain: base,
-            transport: http("https://mainnet.base.org"),
-          });
-
-          const rawBalance = await publicClient.readContract({
-            address: USDC_ADDRESS,
-            abi: USDC_ABI,
-            functionName: "balanceOf",
-            args: [walletAddress as `0x${string}`],
-          } as any);
-
-          usdcBalance = Number(formatUnits(rawBalance as bigint, 6));
+          // Replaced Viem with Ethers natively
+          const provider = new ethers.JsonRpcProvider("https://mainnet.base.org");
+          const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, provider);
+          
+          const rawBalance = await usdcContract.balanceOf(walletAddress);
+          usdcBalance = Number(ethers.formatUnits(rawBalance, 6));
+          
           console.log(`🌐 [FETCH_BALANCE_LOG] SUCCESS: Verified absolute on-chain USDC truth: $${usdcBalance}`);
         } catch (chainErr: any) {
-          console.error("🚨 [FETCH_BALANCE_LOG] ERROR_START: Viem smart contract read failed.");
+          console.error("🚨 [FETCH_BALANCE_LOG] ERROR_START: Ethers smart contract read failed.");
           console.error("🚨 [FETCH_BALANCE_LOG] ERROR_DETAILS:", chainErr.message || String(chainErr));
-          console.error("🚨 [FETCH_BALANCE_LOG] ERROR_END: Viem reading terminated.");
+          console.error("🚨 [FETCH_BALANCE_LOG] ERROR_END: Ethers reading terminated.");
         }
       } else {
-        console.log("🌐 [FETCH_BALANCE_LOG] INFO: No valid sovereign wallet mapped in profiles. Bypassing viem fetch.");
+        console.log("🌐 [FETCH_BALANCE_LOG] INFO: No valid sovereign wallet mapped in profiles. Bypassing ethers fetch.");
       }
 
       setBalance({
@@ -250,7 +237,7 @@ export const useWalletBalance = () => {
 
     // Auto-poll the blockchain every 15 seconds parallel to Hub's design
     const interval = setInterval(() => {
-      console.log("🔄 [REALTIME_SYNC_LOG] INFO: 15-second polling tick fired for Viem fetch.");
+      console.log("🔄 [REALTIME_SYNC_LOG] INFO: 15-second polling tick fired for ethers fetch.");
       fetchBalance();
     }, 15000);
 
