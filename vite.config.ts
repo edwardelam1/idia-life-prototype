@@ -15,10 +15,17 @@ export default defineConfig({
     sourcemap: false, // Disable for production stabilization
     rollupOptions: {
       output: {
-        // Force manual chunks to prevent oversized JS files that crash the iOS bridge
-        manualChunks: {
-          vendor: ["react", "react-dom", "lucide-react"],
-        },
+        // SURGICAL FIX: Vite 8 / Rolldown requires a function, not an object.
+        // This isolates React and Lucide into a vendor chunk to prevent iOS crashes.
+        manualChunks(id) {
+          if (
+            id.includes('node_modules/react') || 
+            id.includes('node_modules/react-dom') || 
+            id.includes('node_modules/lucide-react')
+          ) {
+            return 'vendor';
+          }
+        }
       },
     },
   },
