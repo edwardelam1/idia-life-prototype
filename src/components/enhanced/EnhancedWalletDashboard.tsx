@@ -320,19 +320,12 @@ const EnhancedWalletDashboard: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-foreground">IDIA Wallet</h1>
-        <Button variant="outline" size="sm" onClick={exportTaxableEvents}>
-          <Download className="w-4 h-4 mr-2" /> Tax Report
-        </Button>
-      </div>
-
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-4 w-full">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="transactions">History</TabsTrigger>
-          <TabsTrigger value="credit">Credit</TabsTrigger>
-          <TabsTrigger value="security">Security</TabsTrigger>
+        <TabsList className="grid grid-cols-4 w-full bg-muted/20 shrink-0">
+          <TabsTrigger value="overview" className="text-[11px] px-1">Overview</TabsTrigger>
+          <TabsTrigger value="transactions" className="text-[11px] px-1">History</TabsTrigger>
+          <TabsTrigger value="credit" className="text-[11px] px-1">Credit</TabsTrigger>
+          <TabsTrigger value="security" className="text-[11px] px-1">Security</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
