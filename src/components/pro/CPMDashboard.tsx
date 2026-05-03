@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
-import { Brain, Eye, Zap, Shield, Activity, Volume2, Accessibility, Wind, Heart, Info, RotateCcw, Target, Activity as Pulse, Trophy } from "lucide-react";
+import { Brain, Eye, Zap, Shield, Activity, Volume2, Accessibility, Wind, Heart, Info, RotateCcw, Target, Activity as Pulse, Trophy, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+// --- TYPES ALIGNED TO SOVEREIGN SCHEMA ---
 interface StagedHealthData {
   heart_rate: number;
   heart_rate_variability_ms: number;
@@ -23,9 +25,9 @@ const InfoIcon = ({ text }: { text: string }) => (
   <TooltipProvider>
     <Tooltip delayDuration={300}>
       <TooltipTrigger asChild>
-        <Info className="w-2.5 h-2.5 ml-1 opacity-30 hover:opacity-100 transition-opacity cursor-help" />
+        <Info className="w-2.5 h-2.5 ml-1 opacity-40 hover:opacity-100 transition-opacity cursor-help" />
       </TooltipTrigger>
-      <TooltipContent className="bg-black text-white border-white/10 text-[10px] max-w-[180px] p-2">
+      <TooltipContent className="bg-white text-slate-900 border-slate-200 text-[10px] max-w-[180px] p-2 shadow-xl">
         <p>{text}</p>
       </TooltipContent>
     </Tooltip>
@@ -52,7 +54,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     status: "CALIBRATING" as "CALIBRATING" | "ARMED" | "TRIGGERED"
   });
 
-  // 1. RSVP ROUND LOGIC
+  // 1. RSVP ROUND LOGIC (5-Round Battery)
   useEffect(() => {
     if (rsvpPhase === 'PRESENTING') {
       const timer = setTimeout(() => setRsvpPhase('MASK'), rsvpSpeed);
@@ -66,7 +68,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
           setRsvpWordIndex(prev => prev + 1);
           setRsvpPhase('PRESENTING');
         }
-      }, 40); // Standardized neural mask
+      }, 40);
       return () => clearTimeout(timer);
     }
   }, [rsvpPhase, rsvpSpeed, rsvpWordIndex, activeSequence]);
@@ -105,7 +107,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     }
   };
 
-  // 2. 40Hz RGB FULL-SCREEN BRIDGE
+  // 2. 40Hz RGB FULL-SCREEN (Edge-to-Edge) [cite: 123, 270]
   const triggerGammaSequence = async (active: boolean) => {
     setGammaActive(active);
     if (active) {
@@ -153,144 +155,160 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     return () => { isMounted = false; promise.then(c => { if(c) supabase.removeChannel(c); }); };
   }, [isMasked]);
 
-  if (loading && !isMasked) return <div className="p-8 text-center animate-pulse uppercase text-[10px] tracking-widest text-muted-foreground font-black">Hydrating IDIA Pro+...</div>;
+  if (loading && !isMasked) return <div className="p-8 text-center animate-pulse uppercase text-[10px] tracking-widest text-teal-600 font-black">Hydrating IDIA Pro+...</div>;
 
   return (
-    <div className="p-4 pb-24 space-y-4 animate-fade-in relative bg-background min-h-screen overflow-x-hidden">
+    <div className={`p-4 pb-24 space-y-4 animate-fade-in relative bg-white min-h-screen ${isMasked ? "blur-md pointer-events-none" : ""}`}>
       
-      {/* SEIZURE-LEVEL RGB 40Hz OVERLAY (FIXED INSET-0 EDGE TO EDGE) */}
+      {/* SEIZURE-LEVEL GLOBAL RGB OVERLAY */}
       {isFlashing && (
         <div 
-          className="fixed inset-0 z-[999] pointer-events-none animate-[seizure-rgb_25ms_linear_infinite]" 
+          className="fixed inset-0 z-[9999] pointer-events-none animate-[seizure-rgb_25ms_linear_infinite]" 
           style={{ mixBlendMode: 'screen' }}
         />
       )}
 
-      {/* HEADER */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[hsl(28,80%,55%)] to-[hsl(28,80%,45%)] flex items-center justify-center shadow-lg">
-            <Brain className="w-4 h-4 text-white" />
+      {/* MINIMALIST HEADER */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[hsl(178,42%,42%)] flex items-center justify-center shadow-lg">
+            <Brain className="w-5 h-5 text-white" />
           </div>
-          <div><h2 className="font-semibold text-foreground text-sm uppercase">Cognitive Performance</h2><p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">IDIA Life Pro+</p></div>
-        </div>
-        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[hsl(28,80%,55%)]/10 border border-[hsl(28,80%,55%)]/20"><span className="text-[8px] font-bold text-[hsl(28,80%,55%)] uppercase">Live Synapse</span></div>
-      </div>
-
-      {/* BIOMETRIC GRIDS */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-2xl border border-border bg-white shadow-sm p-4">
-          <h3 className="text-[9px] font-black text-muted-foreground mb-3 flex items-center gap-1.5 uppercase tracking-widest"><Eye className="w-3 h-3 text-[hsl(28,80%,55%)]" />Focus / Recovery</h3>
-          <div className="space-y-3">
-            <div><p className="text-[8px] font-black text-muted-foreground uppercase">Focus</p><p className="text-xl font-black text-foreground">{metrics.focusScore}%</p></div>
-            <div><p className="text-[8px] font-black text-muted-foreground uppercase">Recovery</p><p className="text-xl font-black text-foreground">{metrics.recovery}%</p></div>
+          <div>
+            <h2 className="font-bold text-slate-900 text-sm uppercase tracking-tight">Cognitive Performance</h2>
+            <p className="text-[10px] text-teal-600 uppercase font-black tracking-widest">IDIA Pro+</p>
           </div>
         </div>
-        <div className="rounded-2xl border border-border bg-white shadow-sm p-4">
-          <h3 className="text-[9px] font-black text-muted-foreground mb-3 flex items-center gap-1.5 uppercase tracking-widest"><Pulse className="w-3 h-3 text-[hsl(28,80%,55%)]" />Bio-State</h3>
-          <div className="space-y-3">
-            <div><p className="text-[8px] font-black text-muted-foreground uppercase">HRI Score</p><p className="text-xl font-black text-foreground">{metrics.hriScore}%</p></div>
-            <div><p className="text-[8px] font-black text-muted-foreground uppercase">Autonomic</p><p className="text-xl font-black text-foreground">{metrics.hrv}ms</p></div>
+        <Badge variant="outline" className="border-[hsl(178,42%,42%)] text-[hsl(178,42%,42%)] font-black uppercase text-[8px] animate-pulse">Live Synapse</Badge>
+      </div>
+
+      <Tabs defaultValue="biometrics" className="w-full">
+        <TabsList className="grid grid-cols-3 w-full bg-slate-100/50 p-1 rounded-xl h-12 mb-4">
+          <TabsTrigger value="biometrics" className="text-[10px] font-black uppercase data-[state=active]:bg-white data-[state=active]:text-teal-600 rounded-lg">Biometrics</TabsTrigger>
+          <TabsTrigger value="gamma" className="text-[10px] font-black uppercase data-[state=active]:bg-white data-[state=active]:text-teal-600 rounded-lg">Gamma</TabsTrigger>
+          <TabsTrigger value="memory" className="text-[10px] font-black uppercase data-[state=active]:bg-white data-[state=active]:text-teal-600 rounded-lg">Anchor</TabsTrigger>
+        </TabsList>
+
+        {/* 1. BIOMETRICS TAB: The 6 Markers */}
+        <TabsContent value="biometrics" className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: "Heart Rate", value: `${metrics.hr} BPM`, icon: Heart },
+              { label: "HRV Index", value: `${metrics.hrv} ms`, icon: Activity },
+              { label: "Acoustic", value: `${metrics.noise} dB`, icon: Volume2 },
+              { label: "Respiratory", value: `${metrics.resp} br/m`, icon: Wind },
+              { label: "Gait Balance", value: `${metrics.asymmetry}%`, icon: Accessibility },
+              { label: "HRI", value: `${metrics.hriScore}%`, icon: Shield },
+            ].map((b) => (
+              <div key={b.label} className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4 shadow-sm hover:shadow-md transition-all">
+                <div className="flex items-center gap-2 mb-2">
+                  <b.icon className="w-4 h-4 text-teal-600 opacity-70" />
+                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{b.label}</span>
+                </div>
+                <p className="text-xl font-black text-slate-900 tracking-tighter italic">{b.value}</p>
+              </div>
+            ))}
           </div>
-        </div>
-      </div>
 
-      {/* GAMMA TRIGGER */}
-      <div className="rounded-2xl border border-border bg-white shadow-sm p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3"><Zap className={`w-5 h-5 ${gammaActive ? "text-orange-500 animate-pulse" : "text-muted-foreground"}`} /><div><h3 className="text-xs font-black text-foreground uppercase tracking-wider">40Hz RGB Gamma Trigger</h3><p className="text-[9px] font-bold text-muted-foreground uppercase">Full Spectrum Entrainment</p></div></div>
-          <Switch checked={gammaActive} onCheckedChange={triggerGammaSequence} />
-        </div>
-      </div>
-
-      {/* INDUSTRIAL RSVP INSTRUMENT (5-ROUND) */}
-      <div className="rounded-3xl border-2 border-slate-900 bg-slate-900 shadow-2xl overflow-hidden">
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900">
-          <div className="flex items-center gap-2">
-            <Target className="w-4 h-4 text-[hsl(28,80%,55%)]" />
-            <h3 className="text-[10px] font-black text-white uppercase tracking-widest italic">Memory Anchor: Round {testRound}/5</h3>
+          <div className="rounded-2xl bg-[hsl(178,42%,42%)] p-5 text-white shadow-xl">
+             <div className="flex items-center gap-2 mb-1">
+                <Pulse className="w-4 h-4" />
+                <span className="text-[10px] font-black uppercase tracking-widest italic">Personal Alpha Status</span>
+             </div>
+             <p className="text-xs font-medium leading-relaxed opacity-90">
+               Principal is currently operating at <span className="font-bold underline">Peak Efficiency</span>. 
+               No cognitive drift detected in current cycle.
+             </p>
           </div>
-          {rsvpPhase !== 'IDLE' && <div className="text-[10px] font-mono text-[hsl(28,80%,55%)] font-black">Score: {cumulativeScore}</div>}
-        </div>
+        </TabsContent>
 
-        <div className="min-h-[280px] bg-black flex flex-col items-center justify-center p-6 relative">
-          <div className="absolute inset-4 border border-slate-800 pointer-events-none opacity-30" />
+        {/* 2. GAMMA TRIGGER TAB */}
+        <TabsContent value="gamma" className="space-y-4">
+          <div className="rounded-3xl border-2 border-slate-100 bg-white p-8 text-center shadow-sm">
+             <div className={`w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center border-4 transition-all duration-500 ${gammaActive ? 'border-orange-500 bg-orange-50' : 'border-slate-100 bg-slate-50'}`}>
+                <Zap className={`w-10 h-10 ${gammaActive ? 'text-orange-500 animate-pulse' : 'text-slate-300'}`} />
+             </div>
+             <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-2">40Hz Gamma Trigger</h3>
+             <p className="text-[11px] text-slate-500 max-w-[220px] mx-auto mb-8 font-medium">Full Spectrum Entrainment for pupillary latency and neural drive verification[cite: 123].</p>
+             
+             <div className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl">
+                <div className="text-left">
+                   <p className="text-[10px] font-black text-slate-900 uppercase">Hardware Armed</p>
+                   <p className="text-[9px] text-slate-400 font-bold uppercase">{gammaActive ? "Transmitting..." : "Standby"}</p>
+                </div>
+                <Switch checked={gammaActive} onCheckedChange={triggerGammaSequence} />
+             </div>
+          </div>
+        </TabsContent>
 
-          {rsvpPhase === 'CALIBRATING' && (
-            <div className="flex flex-col items-center gap-4 text-center">
-              <div className="w-12 h-12 rounded-full border-2 border-[hsl(28,80%,55%)] border-t-transparent animate-spin" />
-              <p className="text-[9px] font-black uppercase tracking-[0.4em] text-[hsl(28,80%,55%)]">Syncing Round {testRound}</p>
-            </div>
-          )}
-
-          {rsvpPhase === 'PRESENTING' && (
-            <div className="w-full text-center overflow-hidden">
-              <div className="text-4xl sm:text-6xl font-black text-white tracking-[0.15em] break-words uppercase px-2 animate-in zoom-in duration-75">
-                {activeSequence[rsvpWordIndex]}
+        {/* 3. MEMORY ANCHORING TAB: 5-Round Battery */}
+        <TabsContent value="memory" className="space-y-4">
+           <div className="rounded-3xl bg-slate-900 text-white shadow-2xl overflow-hidden min-h-[400px] flex flex-col">
+              <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                 <div className="flex items-center gap-2">
+                    <Target className="w-4 h-4 text-orange-400" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Memory Anchor: Round {testRound}/5</span>
+                 </div>
+                 {rsvpPhase !== 'IDLE' && <Badge className="bg-orange-500 text-slate-900 font-black">{cumulativeScore}</Badge>}
               </div>
-            </div>
-          )}
 
-          {rsvpPhase === 'MASK' && <div className="text-5xl font-black text-slate-800 opacity-40">#######</div>}
+              <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
+                 {/* LOCKED VIEWPORT FRAME */}
+                 <div className="absolute inset-6 border border-white/5 rounded-2xl pointer-events-none" />
 
-          {rsvpPhase === 'RECALL' && (
-            <div className="w-full space-y-6 z-10">
-              <p className="text-[10px] font-black text-center text-slate-400 uppercase tracking-[0.2em]">Input Sequence Sequence</p>
-              <div className="grid grid-cols-2 gap-2">
-                {[...activeSequence].sort().map((word) => (
-                  <Button 
-                    key={word} 
-                    variant="outline" 
-                    className={`text-[10px] font-black uppercase h-12 border-slate-700 bg-slate-900/50 text-slate-300 ${userRecall.includes(word) ? 'opacity-20 pointer-events-none' : 'hover:border-orange-500'}`}
-                    onClick={() => handleRecallSelection(word)}
-                  >
-                    {word}
-                  </Button>
-                ))}
+                 {rsvpPhase === 'IDLE' && (
+                    <div className="text-center space-y-6">
+                       <p className="text-[10px] text-white/50 uppercase font-black tracking-[0.2em]">Ready for Validation Battery?</p>
+                       <Button onClick={resetFullTest} className="bg-white text-slate-900 hover:bg-orange-400 hover:text-white font-black px-10 py-6 rounded-full uppercase italic transition-all">Initialize Battery</Button>
+                       <div className="flex justify-center gap-2">
+                          {[500, 300, 150].map(s => (
+                             <button key={s} onClick={() => setRsvpSpeed(s)} className={`text-[9px] font-black px-3 py-1 rounded border ${rsvpSpeed === s ? 'border-orange-500 text-orange-400' : 'border-white/10 text-white/30'}`}>{s === 500 ? 'LVL 1' : s === 300 ? 'NORM' : 'ALPHA'}</button>
+                          ))}
+                       </div>
+                    </div>
+                 )}
+
+                 {rsvpPhase === 'CALIBRATING' && <div className="text-center animate-pulse"><p className="text-[11px] font-black uppercase tracking-[0.5em] text-orange-400">Locking Focus...</p></div>}
+
+                 {rsvpPhase === 'PRESENTING' && <div className="w-full text-center"><p className="text-5xl font-black tracking-[0.2em] uppercase animate-in zoom-in duration-75 truncate">{activeSequence[rsvpWordIndex]}</p></div>}
+
+                 {rsvpPhase === 'MASK' && <p className="text-5xl font-black text-white/10 opacity-40">#######</p>}
+
+                 {rsvpPhase === 'RECALL' && (
+                    <div className="w-full space-y-4">
+                       <p className="text-[10px] font-black text-center text-white/40 uppercase tracking-widest">Input Sequence Sequence</p>
+                       <div className="grid grid-cols-2 gap-2">
+                          {[...activeSequence].sort().map(word => (
+                             <Button key={word} onClick={() => handleRecallSelection(word)} className={`h-12 border border-white/10 bg-white/5 text-[10px] font-black uppercase ${userRecall.includes(word) ? 'opacity-10' : 'hover:bg-orange-400 hover:text-slate-900'}`}>{word}</Button>
+                          ))}
+                       </div>
+                    </div>
+                 )}
+
+                 {rsvpPhase === 'ROUND_COMPLETE' && <p className="text-3xl font-black text-orange-400 italic animate-bounce">ROUND {testRound} SAVED</p>}
+
+                 {rsvpPhase === 'RESULT' && (
+                    <div className="text-center space-y-6">
+                       <Trophy className="w-12 h-12 text-orange-400 mx-auto" />
+                       <div>
+                          <p className="text-[11px] font-black text-white/50 uppercase tracking-widest">Cumulative Clutch Score</p>
+                          <p className="text-7xl font-black italic tracking-tighter text-white">{cumulativeScore}</p>
+                       </div>
+                       <Button variant="ghost" onClick={resetFullTest} className="text-white/40 font-black uppercase text-[10px] hover:text-orange-400"><RotateCcw className="w-3 h-3 mr-2" /> Reset Battery</Button>
+                    </div>
+                 )}
               </div>
-            </div>
-          )}
-
-          {rsvpPhase === 'ROUND_COMPLETE' && (
-            <div className="text-center animate-bounce">
-              <p className="text-3xl font-black text-emerald-500 italic">ROUND {testRound} SAVED</p>
-            </div>
-          )}
-
-          {rsvpPhase === 'RESULT' && (
-            <div className="text-center space-y-4">
-              <Trophy className="w-10 h-10 text-orange-400 mx-auto" />
-              <div>
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Cumulative Clutch Score</p>
-                <p className="text-7xl font-black italic text-white tracking-tighter">{cumulativeScore}</p>
-              </div>
-              <Button size="sm" variant="ghost" className="text-[10px] font-black text-slate-400 uppercase hover:text-white" onClick={resetFullTest}>
-                <RotateCcw className="w-3.5 h-3.5 mr-2" /> Reset Battery
-              </Button>
-            </div>
-          )}
-
-          {rsvpPhase === 'IDLE' && (
-            <div className="flex flex-col items-center gap-8">
-              <Button className="bg-[hsl(28,80%,55%)] text-slate-900 font-black px-12 py-6 rounded-full text-lg uppercase italic shadow-[0_0_30px_rgba(251,146,60,0.3)]" onClick={resetFullTest}>Initialize Battery</Button>
-              <div className="flex gap-2">
-                {[500, 300, 150].map((s) => (
-                  <button key={s} className={`text-[9px] font-black px-4 py-1 rounded border-2 ${rsvpSpeed === s ? "border-orange-500 text-white" : "border-slate-800 text-slate-500"}`} onClick={() => setRsvpSpeed(s)}>
-                    {s === 500 ? "LVL 1" : s === 300 ? "LVL 2" : "ALPHA"}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+           </div>
+        </TabsContent>
+      </Tabs>
 
       <style>{`
         @keyframes seizure-rgb {
           0% { background-color: #ff0000; }
-          25% { background-color: #00ff00; }
-          50% { background-color: #0000ff; }
-          75% { background-color: #ffffff; }
+          20% { background-color: #00ff00; }
+          40% { background-color: #0000ff; }
+          60% { background-color: #ffff00; }
+          80% { background-color: #ff00ff; }
           100% { background-color: #ff0000; }
         }
       `}</style>
