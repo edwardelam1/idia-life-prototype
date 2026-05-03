@@ -43,7 +43,7 @@ interface Transaction {
   transaction_type: string;
   amount: number;
   description: string;
-  source: string;
+  source: string; // Used to store Currency Type (USD, USDC, IDIA)
   created_at: string;
   metadata?: any;
 }
@@ -179,36 +179,50 @@ const EnhancedWalletDashboard: React.FC = () => {
   }, []);
 
   const fetchTransactions = async () => {
-    console.log("[START] Fetching transactions from fiat_ledger...");
+    console.log("💳 [START] Fetching multi-currency transactions from 'transactions' table...");
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        console.warn("💳 [FETCH_ABORTED] No authenticated user found.");
+        return;
+      }
 
       const { data, error } = await supabase
-        .from("fiat_ledger")
+        .from("transactions")
         .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(30);
 
       if (error) {
-        console.error("[ERROR] Transaction fetch failed:", error);
+        console.error("🚨 [FETCH_ERROR] Multi-currency query failed:", error);
       } else {
-        const mappedTransactions = (data || []).map((tx) => ({
-          id: tx.id,
-          transaction_type: tx.transaction_type,
-          amount: tx.amount_usd,
-          description: tx.description,
-          source: "IDIA Protocol",
-          created_at: tx.created_at,
-          metadata: tx.metadata,
-        }));
+        console.log(`💳 [SUCCESS] Ingested ${data?.length || 0} cross-ledger records.`);
+        
+        const mappedTransactions = (data || []).map((tx) => {
+          // Cast metadata to access currency safely and bypass missing 'currency' property on base type
+          const typedMetadata = tx.metadata as Record<string, any> | null;
+          const currencyType = (tx as any).currency || typedMetadata?.currency || "USD";
+          
+          return {
+            id: tx.id,
+            transaction_type: tx.transaction_type,
+            amount: tx.amount, // Aligned with database DECIMAL column
+            description: tx.description,
+            source: currencyType, 
+            created_at: tx.created_at,
+            metadata: tx.metadata,
+          };
+        });
+        
         setTransactions(mappedTransactions);
       }
     } catch (error) {
-      console.error("[ERROR] Silent stalling in fetchTransactions:", error);
+      console.error("🚨 [CRITICAL_FAILURE] Silent stalling in multi-currency fetch:", error);
+    } finally {
+      console.log("💳 [END] fetchTransactions routine complete.");
     }
   };
 
@@ -270,7 +284,12 @@ const EnhancedWalletDashboard: React.FC = () => {
     }
   };
 
-  const getTransactionIcon = (type: string) => {
+  const getTransactionIcon = (type: string, currency: string) => {
+    // Priority 1: Tokens get specific branding
+    if (currency === "USDC") return Shield;
+    if (currency === "IDIA Token") return BrainCircuit;
+
+    // Priority 2: Standard transaction types
     switch (type) {
       case "DATA_SALE_PAYOUT":
       case "data_reward":
@@ -289,7 +308,15 @@ const EnhancedWalletDashboard: React.FC = () => {
   };
 
   const getTransactionColor = (amount: number) => (amount > 0 ? "text-green-600" : "text-red-600");
-  const formatAmount = (amount: number) => `${amount > 0 ? "+" : ""}$${Math.abs(amount).toFixed(2)}`;
+  
+  const formatAmount = (amount: number, currency: string) => {
+    const prefix = amount > 0 ? "+" : "";
+    const value = Math.abs(amount).toFixed(2);
+    
+    if (currency === "USDC") return `${prefix}${value} USDC`;
+    if (currency === "IDIA Token") return `${prefix}${value} IDIA`;
+    return `${prefix}$${value}`; // Default USD
+  };
 
   if (loading || balanceLoading || isHydrating) {
     return (
@@ -419,12 +446,12 @@ const EnhancedWalletDashboard: React.FC = () => {
             <CardContent>
               {transactions.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground italic">
-                  No transactions found in fiat_ledger
+                  No multi-currency records found in IDIA Protocol
                 </div>
               ) : (
                 <div className="space-y-3">
                   {transactions.map((tx) => {
-                    const Icon = getTransactionIcon(tx.transaction_type);
+                    const Icon = getTransactionIcon(tx.transaction_type, tx.source);
                     return (
                       <div key={tx.id} className="flex items-center space-x-3 p-3 border rounded-lg">
                         <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
@@ -432,12 +459,17 @@ const EnhancedWalletDashboard: React.FC = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-medium truncate">{tx.description}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(tx.created_at).toLocaleDateString()}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(tx.created_at).toLocaleDateString()}
+                            </p>
+                            <Badge variant="outline" className="text-[9px] h-4 py-0 px-1 uppercase opacity-70">
+                              {tx.source}
+                            </Badge>
+                          </div>
                         </div>
                         <div className={`font-semibold ${getTransactionColor(tx.amount)}`}>
-                          {formatAmount(tx.amount)}
+                          {formatAmount(tx.amount, tx.source)}
                         </div>
                       </div>
                     );
