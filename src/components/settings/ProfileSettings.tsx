@@ -11,11 +11,14 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Plus, CalendarIcon, Lock, Unlock, AlertTriangle, KeyRound } from 'lucide-react';
+import { X, Plus, CalendarIcon, Lock, Unlock, AlertTriangle, KeyRound, Shield, Fingerprint, Download, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useProfile } from '@/hooks/useProfile';
 import { useSecureProfile, SecurePII } from '@/hooks/useSecureProfile';
+import { useWallet } from '@/hooks/useWallet';
+import { useSovereignWallet } from '@/hooks/useSovereignWallet';
+import { useEnhancedProfile } from '@/hooks/useEnhancedProfile';
 import { US_STATES, formatPhoneNumber } from '@/utils/usAddressValidation';
 import { useToast } from '@/hooks/use-toast';
 
