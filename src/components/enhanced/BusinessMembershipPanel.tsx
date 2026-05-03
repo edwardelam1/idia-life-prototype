@@ -139,6 +139,8 @@ const BusinessMembershipPanel: React.FC = () => {
   const [zip, setZip] = useState("");
   const [contactRole, setContactRole] = useState("Controlling Partner");
   const [docFiles, setDocFiles] = useState<Record<string, File>>({});
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   const [leaveTarget, setLeaveTarget] = useState<Membership | null>(null);
   const [leaving, setLeaving] = useState(false);
