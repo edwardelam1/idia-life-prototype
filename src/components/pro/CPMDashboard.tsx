@@ -1,31 +1,55 @@
 import { useState, useEffect } from "react";
-import { Brain, Eye, Zap, Shield } from "lucide-react";
+import { Brain, Eye, Zap, Shield, Activity, Volume2, Accessibility, Wind, Heart, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import BioTetherLink from "./BioTetherLink";
+
+// --- TYPES ALIGNED TO SOVEREIGN SCHEMA ---
+interface StagedHealthData {
+  heart_rate: number;
+  heart_rate_variability_ms: number;
+  respiratory_rate: number;
+  environmental_audio_exposure_db: number;
+  walking_asymmetry_percentage: number;
+  data_quality_score: number;
+  effort_score: number;
+}
 
 const RSVP_WORDS = ["FOCUS", "CLARITY", "RESOLVE", "EXECUTE", "DOMINATE", "OPTIMIZE", "TRANSCEND", "SOVEREIGN"];
 
-interface HealthUpdate {
-  data_quality_score: number | null;
-  heart_rate_variability_ms: number | null;
-  effort_score: number | null;
-}
+const InfoIcon = ({ text }: { text: string }) => (
+  <TooltipProvider>
+    <Tooltip delayDuration={300}>
+      <TooltipTrigger asChild>
+        <Info className="w-2.5 h-2.5 ml-1 opacity-30 hover:opacity-100 transition-opacity cursor-help" />
+      </TooltipTrigger>
+      <TooltipContent className="bg-black text-white border-white/10 text-[10px] max-w-[180px] p-2">
+        <p>{text}</p>
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
 
 const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
+  const [loading, setLoading] = useState(true);
   const [gammaActive, setGammaActive] = useState(false);
   const [rsvpActive, setRsvpActive] = useState(false);
   const [rsvpWord, setRsvpWord] = useState(0);
   const [rsvpSpeed, setRsvpSpeed] = useState(300);
 
-  const [biometrics, setBiometrics] = useState({
-    alphaPower: "12.4 µV²",
-    thetaBeta: "0.82",
-    focusScore: 87,
-    stressIndex: 0.34,
-    recovery: 78,
+  // Consolidated state for Pro + Pro+ Metrics
+  const [metrics, setMetrics] = useState({
+    // Occupational (Pro)
+    hr: 0, hrv: 0, resp: 0, noise: 0, asymmetry: 0,
+    // Cognitive (Pro+)
+    focusScore: 0,
+    stressIndex: 0,
+    recovery: 0,
+    hriScore: 0,
+    status: "CALIBRATING" as "CALIBRATING" | "ARMED" | "TRIGGERED"
   });
 
   // 1. RSVP cycling logic
@@ -37,75 +61,91 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     return () => clearInterval(interval);
   }, [rsvpActive, rsvpSpeed]);
 
-  // 2. Real-time Synapse Feed (No Mock Data)
+  // 2. Full Pipeline Hydration
   useEffect(() => {
     if (isMasked) return;
+    let isMounted = true;
 
-    const streamCognitiveMetrics = async () => {
-      const { data: health } = await (supabase
+    const streamAllMetrics = async () => {
+      // Initial Fetch from Staged Tier
+      const { data: health } = await supabase
         .from("staged_health_data" as any)
-        .select("data_quality_score, heart_rate_variability_ms, effort_score")
+        .select("*")
         .order("recorded_at", { ascending: false })
         .limit(1)
-        .maybeSingle() as any);
+        .maybeSingle();
 
-      if (health) {
-        setBiometrics((prev) => ({
-          ...prev,
-          focusScore: Math.round((health.data_quality_score || 0.87) * 100),
-          stressIndex: health.heart_rate_variability_ms
-            ? Number((100 / health.heart_rate_variability_ms).toFixed(2))
-            : 0.34,
-          recovery: Math.round(health.effort_score || 78),
-        }));
+      if (isMounted && health) {
+        const hData = health as StagedHealthData;
+        setMetrics({
+          hr: hData.heart_rate || 0,
+          hrv: hData.heart_rate_variability_ms || 0,
+          resp: hData.respiratory_rate || 0,
+          noise: hData.environmental_audio_exposure_db || 0,
+          asymmetry: hData.walking_asymmetry_percentage || 0,
+          focusScore: Math.round((hData.data_quality_score || 0) * 100),
+          stressIndex: hData.heart_rate_variability_ms ? Number((100 / hData.heart_rate_variability_ms).toFixed(2)) : 0,
+          recovery: Math.round(hData.effort_score || 0),
+          hriScore: Math.round((hData.data_quality_score || 0) * 100),
+          status: hData.heart_rate > 0 ? "ARMED" : "CALIBRATING",
+        });
       }
+      setLoading(false);
 
-      const channel = supabase
-        .channel("cpm_live_feed")
-        .on(
-          "postgres_changes" as any,
-          { event: "*", schema: "public", table: "staged_health_data" },
+      // Real-time listener for instant Pro+ updates
+      const channel = supabase.channel("cpm_pro_plus_feed")
+        .on("postgres_changes" as any, 
+          { event: "INSERT", schema: "public", table: "staged_health_data" },
           (payload: any) => {
-            const next = payload.new as HealthUpdate;
-            if (next) {
-              setBiometrics((prev) => ({
+            const next = payload.new as StagedHealthData;
+            if (next && isMounted) {
+              setMetrics(prev => ({
                 ...prev,
+                hr: next.heart_rate || prev.hr,
+                hrv: next.heart_rate_variability_ms || prev.hrv,
+                resp: next.respiratory_rate || prev.resp,
+                noise: next.environmental_audio_exposure_db || prev.noise,
+                asymmetry: next.walking_asymmetry_percentage || prev.asymmetry,
                 focusScore: next.data_quality_score ? Math.round(next.data_quality_score * 100) : prev.focusScore,
-                stressIndex: next.heart_rate_variability_ms
-                  ? Number((100 / next.heart_rate_variability_ms).toFixed(2))
-                  : prev.stressIndex,
+                stressIndex: next.heart_rate_variability_ms ? Number((100 / next.heart_rate_variability_ms).toFixed(2)) : prev.stressIndex,
+                recovery: next.effort_score ? Math.round(next.effort_score) : prev.recovery,
+                hriScore: next.data_quality_score ? Math.round(next.data_quality_score * 100) : prev.hriScore,
+                status: "ARMED"
               }));
+
               if (next.data_quality_score && next.data_quality_score < 0.4) {
-                toast({
-                  title: "⚠️ Cognitive Drift",
-                  description: "Focus score below optimal threshold.",
-                  variant: "destructive",
-                });
+                toast({ title: "⚠️ Cognitive Drift", description: "Focus score below optimal threshold.", variant: "destructive" });
               }
             }
-          },
-        )
-        .subscribe();
+          }
+        ).subscribe();
 
       return channel;
     };
 
-    const cpmChannel = streamCognitiveMetrics();
-    return () => {
-      cpmChannel.then((ch) => {
-        if (ch) supabase.removeChannel(ch);
-      });
+    const channelPromise = streamAllMetrics();
+    return () => { 
+      isMounted = false; 
+      channelPromise.then(ch => { if(ch) supabase.removeChannel(ch); });
     };
   }, [isMasked]);
 
-  const bioGrid = [
-    { label: "Alpha Power", value: biometrics.alphaPower, status: "elevated" },
-    { label: "Theta/Beta", value: biometrics.thetaBeta, status: "optimal" },
-    { label: "Gamma Band", value: gammaActive ? "42 Hz" : "—", status: gammaActive ? "active" : "standby" },
-    { label: "Focus Score", value: `${biometrics.focusScore}/100`, status: "high" },
-    { label: "Stress Index", value: biometrics.stressIndex.toString(), status: "low" },
-    { label: "Recovery %", value: `${biometrics.recovery}%`, status: "good" },
+  const cognitiveGrid = [
+    { label: "Focus Score", value: `${metrics.focusScore}/100`, info: "Real-time attention and engagement metric." },
+    { label: "Stress Index", value: metrics.stressIndex.toString(), info: "Autonomic load derived from HRV delta." },
+    { label: "Recovery %", value: `${metrics.recovery}%`, info: "Bio-restitution capacity for current cycle." },
   ];
+
+  const occupationalGrid = [
+    { label: "Heart Rate", value: `${metrics.hr} BPM`, icon: Heart },
+    { label: "HRV Index", value: `${metrics.hrv} ms`, icon: Activity },
+    { label: "Acoustic", value: `${metrics.noise} dB`, icon: Volume2 },
+    { label: "Respiratory", value: `${metrics.resp} br/m`, icon: Wind },
+    { label: "Gait Balance", value: `${metrics.asymmetry}%`, icon: Accessibility },
+    { label: "Reliability", value: `${metrics.hriScore}%`, icon: Shield },
+  ];
+
+  if (loading && !isMasked) return <div className="p-8 text-center animate-pulse uppercase text-[10px] tracking-widest text-muted-foreground font-black">Hydrating IDIA Pro+...</div>;
 
   return (
     <div className="p-4 pb-24 space-y-4 animate-fade-in relative bg-background min-h-screen">
@@ -114,14 +154,15 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
         <div className="fixed inset-0 z-40 pointer-events-none animate-[gamma-flicker_25ms_linear_infinite] bg-[hsl(28,80%,55%)]/5" />
       )}
 
+      {/* HEADER */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[hsl(28,80%,55%)] to-[hsl(28,80%,45%)] flex items-center justify-center">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[hsl(28,80%,55%)] to-[hsl(28,80%,45%)] flex items-center justify-center shadow-lg">
             <Brain className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h2 className="font-semibold text-foreground text-sm">Cognitive Performance</h2>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest">IDIA Life Pro+</p>
+            <h2 className="font-semibold text-foreground text-sm uppercase">Cognitive Performance</h2>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">IDIA Life Pro+</p>
           </div>
         </div>
         {!isMasked && (
@@ -132,33 +173,47 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
         )}
       </div>
 
-      <BioTetherLink isMasked={isMasked} />
-
-      {/* Biometric Grid */}
-      <div
-        className={`rounded-2xl border border-border bg-white shadow-sm p-4 transition-all ${isMasked ? "blur-sm opacity-60" : ""}`}
-      >
+      {/* COGNITIVE BIOMETRICS (Pro+) */}
+      <div className={`rounded-2xl border border-border bg-white shadow-sm p-4 transition-all ${isMasked ? "blur-sm opacity-60" : ""}`}>
         <h3 className="text-xs font-bold text-foreground mb-3 flex items-center gap-1.5 uppercase tracking-wider">
           <Eye className="w-3.5 h-3.5 text-[hsl(28,80%,55%)]" />
           Cognitive Biometrics
         </h3>
         <div className="grid grid-cols-3 gap-2">
-          {bioGrid.map((b) => (
+          {cognitiveGrid.map((b) => (
             <div key={b.label} className="rounded-xl bg-muted/30 p-2.5 text-center border border-border/50">
-              <p className="text-[9px] font-medium text-muted-foreground mb-1 uppercase">{b.label}</p>
+              <div className="flex justify-center mb-1"><InfoIcon text={b.info} /></div>
+              <p className="text-[9px] font-medium text-muted-foreground mb-1 uppercase tracking-tighter">{b.label}</p>
               <p className="text-xs font-black text-foreground">{isMasked ? "—" : b.value}</p>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Gamma Trigger */}
+      {/* OCCUPATIONAL BIOMETRICS (Ported from Pro) */}
+      <div className={`rounded-2xl border border-border bg-white shadow-sm p-4 transition-all ${isMasked ? "blur-sm opacity-60" : ""}`}>
+        <h3 className="text-xs font-bold text-foreground mb-3 flex items-center gap-1.5 uppercase tracking-wider">
+          <Activity className="w-3.5 h-3.5 text-[hsl(28,80%,55%)]" />
+          Occupational Biometrics
+        </h3>
+        <div className="grid grid-cols-3 gap-2">
+          {occupationalGrid.map((b) => (
+            <div key={b.label} className="rounded-xl bg-muted/30 p-2.5 text-center border border-border/50">
+              <div className="flex justify-center mb-1">
+                <b.icon className="w-3 h-3 text-[hsl(28,80%,55%)] opacity-70" />
+              </div>
+              <p className="text-[9px] font-medium text-muted-foreground mb-1 uppercase tracking-tighter">{b.label}</p>
+              <p className="text-xs font-black text-foreground">{isMasked ? "—" : b.value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* GAMMA TRIGGER */}
       <div className="rounded-2xl border border-border bg-white shadow-sm p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Zap
-              className={`w-4 h-4 ${gammaActive ? "text-[hsl(28,80%,55%)] animate-pulse" : "text-muted-foreground"}`}
-            />
+            <Zap className={`w-4 h-4 ${gammaActive ? "text-[hsl(28,80%,55%)] animate-pulse" : "text-muted-foreground"}`} />
             <div>
               <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">40Hz Gamma Trigger</h3>
               <p className="text-[10px] text-muted-foreground">Neural entrainment active</p>
@@ -168,7 +223,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
         </div>
       </div>
 
-      {/* RSVP Memory Anchoring */}
+      {/* RSVP MEMORY ANCHORING */}
       <div className="rounded-2xl border border-border bg-white shadow-sm p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
