@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { 
-  Zap, Info, Lock, Volume2, Target, RotateCcw, Smartphone 
+  Zap, Info, Lock, Volume2, Target, RotateCcw, Smartphone,
+  Heart, Activity, Wind, Accessibility, Shield
 } from "lucide-react";
 import { ComposedChart, Line, Bar, XAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,10 +24,32 @@ import {
 import GhostProtocolWrapper from "./GhostProtocol";
 import SovereignAuth from "./SovereignAuth";
 
-// --- TYPE DEFINITIONS ---
-interface HriScoreLog {
-  total_score: number;
+// --- EXPANDED SOVEREIGN SCHEMA (Full Apple HealthKit Payload) ---
+interface StagedHealthData {
+  heart_rate: number | null;
+  heart_rate_variability_ms: number | null;
+  respiratory_rate: number | null;
+  environmental_audio_exposure_db: number | null;
+  walking_asymmetry_percentage: number | null;
+  data_quality_score: number | null;
+  effort_score: number | null;
   created_at: string;
+  // --- Extended Apple Health Metrics ---
+  steps_count: number | null;
+  double_support_percentage: number | null;
+  step_length_cm: number | null;
+  walking_speed_kmh: number | null;
+  uv_exposure_index: number | null;
+  resting_heart_rate: number | null;
+  blood_oxygen_percentage: number | null;
+  walking_steadiness_percentage: number | null;
+  active_energy_kcal: number | null;
+  basal_energy_kcal: number | null;
+  body_temperature_f: number | null;
+  vo2_max: number | null;
+  blood_pressure_systolic: number | null;
+  blood_pressure_diastolic: number | null;
+  sleep_analysis_value: number | null;
 }
 
 interface FiatLedgerEntry {
@@ -58,9 +81,41 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
   // --- CORE STATE ---
   const [authVerified, setAuthVerified] = useState(false);
   const [fusionData, setFusionData] = useState<any[]>([]);
+  const [hasIdiaPayOrgAdmin, setHasIdiaPayOrgAdmin] = useState(false);
   
-  // Controls the sub-view inside the Pure Alpha tab
   const [pureAlphaView, setPureAlphaView] = useState<'fusion' | 'balance' | 'cash' | 'ghost' | 'acoustics'>('fusion');
+
+  // --- CORE BIOMETRICS STATE ---
+  const [metrics, setMetrics] = useState({
+    hr: null as number | null, 
+    hrv: null as number | null, 
+    resp: null as number | null, 
+    noise: null as number | null, 
+    asymmetry: null as number | null,
+    focusScore: null as number | null, 
+    stressIndex: null as number | null, 
+    recovery: null as number | null, 
+    hriScore: null as number | null,
+    status: "CALIBRATING" as "CALIBRATING" | "ARMED" | "TRIGGERED"
+  });
+
+  // --- EXTENDED TELEMETRY STATE ---
+  const [telemetry, setTelemetry] = useState({
+    steps: null as number | null,
+    restingHr: null as number | null,
+    spo2: null as number | null,
+    vo2Max: null as number | null,
+    temp: null as number | null,
+    bpSys: null as number | null,
+    bpDia: null as number | null,
+    activeEnergy: null as number | null,
+    basalEnergy: null as number | null,
+    steadiness: null as number | null,
+    doubleSupport: null as number | null,
+    stepLength: null as number | null,
+    uv: null as number | null,
+    sleep: null as number | null,
+  });
 
   // --- GAMMA & RSVP STATE ---
   const [gammaActive, setGammaActive] = useState(false);
@@ -92,30 +147,70 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
   // --- DATA FETCHING (Zero Mock Data) ---
   useEffect(() => {
     if (isMasked || !authVerified) return;
+    let isMounted = true;
 
     const fetchExecutiveData = async () => {
       try {
-        const { data: hriLogsRaw } = await (supabase
-          .from("hri_scores" as any)
-          .select("total_score, created_at")
-          .order("created_at", { ascending: false })
-          .limit(7) as any);
-        
-        const hriLogs = hriLogsRaw as HriScoreLog[] | null;
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData?.user?.app_metadata?.role === 'org_admin') {
+          setHasIdiaPayOrgAdmin(true);
+        }
 
-        const { data: ledgerRaw } = await (supabase
+        const { data: healthRaw } = await supabase
+          .from("staged_health_data" as any)
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(7);
+        
+        const healthLogs = healthRaw as StagedHealthData[] | null;
+
+        if (isMounted && healthLogs && healthLogs.length > 0) {
+          const latest = healthLogs[0];
+          
+          setMetrics({
+            hr: latest.heart_rate, 
+            hrv: latest.heart_rate_variability_ms,
+            resp: latest.respiratory_rate, 
+            noise: latest.environmental_audio_exposure_db,
+            asymmetry: latest.walking_asymmetry_percentage,
+            focusScore: latest.data_quality_score ? Math.round(latest.data_quality_score * 100) : null,
+            stressIndex: latest.heart_rate_variability_ms ? Number((100 / latest.heart_rate_variability_ms).toFixed(2)) : null,
+            recovery: latest.effort_score ? Math.round(latest.effort_score) : null,
+            hriScore: latest.data_quality_score ? Math.round(latest.data_quality_score * 100) : null,
+            status: latest.heart_rate ? "ARMED" : "CALIBRATING",
+          });
+
+          setTelemetry({
+            steps: latest.steps_count,
+            restingHr: latest.resting_heart_rate,
+            spo2: latest.blood_oxygen_percentage,
+            vo2Max: latest.vo2_max,
+            temp: latest.body_temperature_f,
+            bpSys: latest.blood_pressure_systolic,
+            bpDia: latest.blood_pressure_diastolic,
+            activeEnergy: latest.active_energy_kcal,
+            basalEnergy: latest.basal_energy_kcal,
+            steadiness: latest.walking_steadiness_percentage,
+            doubleSupport: latest.double_support_percentage,
+            stepLength: latest.step_length_cm,
+            uv: latest.uv_exposure_index,
+            sleep: latest.sleep_analysis_value
+          });
+        }
+
+        const { data: ledgerRaw } = await supabase
           .from("fiat_ledger" as any)
           .select("amount_usd, created_at")
           .order("created_at", { ascending: false })
-          .limit(7) as any);
+          .limit(7);
         
         const ledger = ledgerRaw as FiatLedgerEntry[] | null;
 
-        if (hriLogs && ledger) {
-          const chartData = hriLogs
+        if (isMounted && healthLogs && ledger) {
+          const chartData = healthLogs
             .map((log, i) => ({
               day: new Date(log.created_at).toLocaleDateString("en-US", { weekday: "short" }),
-              hrv: Math.round(log.total_score * 0.8),
+              hrv: log.heart_rate_variability_ms ? Math.round(log.heart_rate_variability_ms) : 0,
               revenue: ledger[i]?.amount_usd || 0,
             }))
             .reverse();
@@ -128,6 +223,47 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
     };
 
     fetchExecutiveData();
+
+    // 4. Live Synapse Subscription
+    const channel = supabase.channel("pure_alpha_live")
+      .on("postgres_changes" as any, { event: "INSERT", schema: "public", table: "staged_health_data" }, (payload: any) => {
+        const next = payload.new as StagedHealthData;
+        if (isMounted && next) {
+          setMetrics(prev => ({
+            ...prev,
+            hr: next.heart_rate !== null ? next.heart_rate : prev.hr, 
+            hrv: next.heart_rate_variability_ms !== null ? next.heart_rate_variability_ms : prev.hrv,
+            resp: next.respiratory_rate !== null ? next.respiratory_rate : prev.resp, 
+            noise: next.environmental_audio_exposure_db !== null ? next.environmental_audio_exposure_db : prev.noise,
+            asymmetry: next.walking_asymmetry_percentage !== null ? next.walking_asymmetry_percentage : prev.asymmetry,
+            hriScore: next.data_quality_score ? Math.round(next.data_quality_score * 100) : prev.hriScore,
+          }));
+
+          setTelemetry(prev => ({
+            ...prev,
+            steps: next.steps_count !== null ? next.steps_count : prev.steps,
+            restingHr: next.resting_heart_rate !== null ? next.resting_heart_rate : prev.restingHr,
+            spo2: next.blood_oxygen_percentage !== null ? next.blood_oxygen_percentage : prev.spo2,
+            vo2Max: next.vo2_max !== null ? next.vo2_max : prev.vo2Max,
+            temp: next.body_temperature_f !== null ? next.body_temperature_f : prev.temp,
+            bpSys: next.blood_pressure_systolic !== null ? next.blood_pressure_systolic : prev.bpSys,
+            bpDia: next.blood_pressure_diastolic !== null ? next.blood_pressure_diastolic : prev.bpDia,
+            activeEnergy: next.active_energy_kcal !== null ? next.active_energy_kcal : prev.activeEnergy,
+            basalEnergy: next.basal_energy_kcal !== null ? next.basal_energy_kcal : prev.basalEnergy,
+            steadiness: next.walking_steadiness_percentage !== null ? next.walking_steadiness_percentage : prev.steadiness,
+            doubleSupport: next.double_support_percentage !== null ? next.double_support_percentage : prev.doubleSupport,
+            stepLength: next.step_length_cm !== null ? next.step_length_cm : prev.stepLength,
+            uv: next.uv_exposure_index !== null ? next.uv_exposure_index : prev.uv,
+            sleep: next.sleep_analysis_value !== null ? next.sleep_analysis_value : prev.sleep,
+          }));
+        }
+      })
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
   }, [isMasked, authVerified]);
 
   // --- GAMMA & RSVP LOGIC ---
@@ -228,7 +364,6 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
 
   return (
     <GhostProtocolWrapper>
-      {/* GLOBAL RGB FLASH OVERRIDE */}
       {isFlashing && createPortal(
         <div 
           className="fixed -inset-[200%] z-[99999] pointer-events-none animate-[seizure-rgb_25ms_linear_infinite]" 
@@ -255,10 +390,11 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
           </Badge>
         </div>
 
-        {/* PRO+ MENU TABS (Pure Alpha, Gamma, Anchor) */}
+        {/* TOP LEVEL NAVIGATION */}
         <Tabs defaultValue="pure-alpha" className="w-full">
-          <TabsList className="flex w-full bg-transparent border-b border-slate-100 p-0 rounded-none h-10 mb-6 gap-8 overflow-x-auto no-scrollbar justify-start">
+          <TabsList className="flex w-full bg-transparent border-b border-slate-100 p-0 rounded-none h-10 mb-6 gap-6 overflow-x-auto no-scrollbar justify-start">
             <TabsTrigger value="pure-alpha" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Pure Alpha</TabsTrigger>
+            <TabsTrigger value="biometrics" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Biometrics</TabsTrigger>
             <TabsTrigger value="gamma" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Gamma</TabsTrigger>
             <TabsTrigger value="memory" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Anchor</TabsTrigger>
           </TabsList>
@@ -266,7 +402,6 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
           {/* 1. PURE ALPHA TAB */}
           <TabsContent value="pure-alpha" className="space-y-6 focus-visible:outline-none">
             
-            {/* Dynamic Buttons Row */}
             <div className="flex items-center gap-2 mb-2 overflow-x-auto no-scrollbar pb-2">
               <Badge 
                 onClick={() => setPureAlphaView('fusion')}
@@ -300,8 +435,6 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
               </Badge>
             </div>
 
-            {/* CONDITIONAL RENDERING BASED ON ACTIVE BUTTON */}
-
             {pureAlphaView === 'fusion' && (
               <Card className="border-slate-100 shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 <CardHeader className="p-5 pb-2">
@@ -312,17 +445,23 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                   <p className="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">Bio-State vs Liquid Revenue</p>
                 </CardHeader>
                 <CardContent className="p-0 h-56">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={fusionData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="day" tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: "900" }} axisLine={false} tickLine={false} />
-                      <RechartsTooltip
-                        contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", fontSize: "10px", fontWeight: "bold" }}
-                      />
-                      <Bar yAxisId="r" dataKey="revenue" fill="hsl(178, 42%, 42%)" radius={[4, 4, 0, 0]} opacity={0.8} />
-                      <Line yAxisId="l" type="monotone" dataKey="hrv" stroke="#f97316" strokeWidth={3} dot={{ r: 4, fill: "#f97316", strokeWidth: 2, stroke: "#fff" }} />
-                    </ComposedChart>
-                  </ResponsiveContainer>
+                  {hasIdiaPayOrgAdmin ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={fusionData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="day" tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: "900" }} axisLine={false} tickLine={false} />
+                        <RechartsTooltip
+                          contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", fontSize: "10px", fontWeight: "bold" }}
+                        />
+                        <Bar yAxisId="r" dataKey="revenue" fill="hsl(178, 42%, 42%)" radius={[4, 4, 0, 0]} opacity={0.8} />
+                        <Line yAxisId="l" type="monotone" dataKey="hrv" stroke="#f97316" strokeWidth={3} dot={{ r: 4, fill: "#f97316", strokeWidth: 2, stroke: "#fff" }} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-center p-4">
+                      <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">IDIA Pay Org Admin <br/> Sync Required</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -335,8 +474,8 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                   </CardTitle>
                   <p className="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">Asset & Liability Overview</p>
                 </CardHeader>
-                <CardContent className="p-5 text-center text-slate-400 text-[10px] uppercase font-black">
-                  [ BALANCE SHEET DATA ENDPOINT ]
+                <CardContent className="p-10 text-center text-slate-300 text-[10px] uppercase font-black">
+                  {hasIdiaPayOrgAdmin ? "No active ledger entries." : "IDIA Pay Org Admin Sync Required."}
                 </CardContent>
               </Card>
             )}
@@ -349,8 +488,8 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                   </CardTitle>
                   <p className="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">Liquidity Velocity</p>
                 </CardHeader>
-                <CardContent className="p-5 text-center text-slate-400 text-[10px] uppercase font-black">
-                  [ CASH FLOW DATA ENDPOINT ]
+                <CardContent className="p-10 text-center text-slate-300 text-[10px] uppercase font-black">
+                  {hasIdiaPayOrgAdmin ? "No active transaction flow." : "IDIA Pay Org Admin Sync Required."}
                 </CardContent>
               </Card>
             )}
@@ -367,7 +506,6 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                   </p>
                 </CardHeader>
                 <CardContent className="p-0">
-                  {/* Honey Pot State */}
                   <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
                     <div>
                       <p className="text-[10px] font-black text-slate-900 uppercase">Honey-Pot State</p>
@@ -375,8 +513,6 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                     </div>
                     <Switch checked={settings.honeyPot} onCheckedChange={() => toggleSetting('honeyPot')} className="data-[state=checked]:bg-orange-500" />
                   </div>
-                  
-                  {/* Shields folded into Ghost Protocol settings */}
                   <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
                     <div>
                       <p className="text-[10px] font-black text-slate-900 uppercase">Digital Ward (Minors)</p>
@@ -441,17 +577,82 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
 
           </TabsContent>
 
-          {/* 2. GAMMA TRIGGER TAB */}
+          {/* 2. BIOMETRICS TAB */}
+          <TabsContent value="biometrics" className="space-y-8 focus-visible:outline-none">
+            
+            {/* Top 6 Core Grid */}
+            <div className="grid grid-cols-2 gap-x-8 gap-y-6 pt-4">
+              {[
+                { label: "Heart Rate", value: metrics.hr !== null ? `${metrics.hr} BPM` : "--", icon: Heart },
+                { label: "HRV Index", value: metrics.hrv !== null ? `${metrics.hrv} ms` : "--", icon: Activity },
+                { label: "Acoustic", value: metrics.noise !== null ? `${metrics.noise} dB` : "--", icon: Volume2 },
+                { label: "Respiratory", value: metrics.resp !== null ? `${metrics.resp} br/m` : "--", icon: Wind },
+                { label: "Gait Balance", value: metrics.asymmetry !== null ? `${metrics.asymmetry}%` : "--", icon: Accessibility },
+                { label: "HRI Score", value: metrics.hriScore !== null ? `${metrics.hriScore}%` : "--", icon: Shield },
+              ].map((b) => (
+                <div key={b.label} className="p-0 border-none">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5 font-sans">
+                    <b.icon className="w-2.5 h-2.5" /> {b.label}
+                  </p>
+                  <p className="text-2xl font-bold text-slate-900 italic tracking-tighter font-sans">{b.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-2xl border border-teal-50 bg-teal-50/20 p-5">
+               <div className="flex items-center gap-2 mb-1 text-teal-800">
+                  <Activity className="w-4 h-4" />
+                  <span className="text-[10px] font-black uppercase tracking-widest italic font-sans">Operational Status</span>
+               </div>
+               <p className="text-xs font-medium leading-relaxed text-slate-600 font-sans">
+                 Cognitive load is currently <span className="font-bold text-teal-600 uppercase">Optimal</span>. 
+                 Reaction velocity remains within established personal alpha baseline.
+               </p>
+            </div>
+
+            {/* Comprehensive HealthKit Telemetry */}
+            <div className="pt-6 border-t border-slate-100">
+              <div className="flex items-center gap-2 mb-4">
+                <Activity className="w-4 h-4 text-slate-400" />
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Full HealthKit Telemetry</h3>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: "Steps", value: telemetry.steps !== null ? telemetry.steps : "--", unit: "" },
+                  { label: "Resting HR", value: telemetry.restingHr !== null ? telemetry.restingHr : "--", unit: "bpm" },
+                  { label: "Blood Oxygen", value: telemetry.spo2 !== null ? `${telemetry.spo2}` : "--", unit: "%" },
+                  { label: "VO2 Max", value: telemetry.vo2Max !== null ? telemetry.vo2Max : "--", unit: "mL/kg/min" },
+                  { label: "Body Temp", value: telemetry.temp !== null ? telemetry.temp : "--", unit: "°F" },
+                  { label: "Blood Pressure", value: (telemetry.bpSys && telemetry.bpDia) ? `${telemetry.bpSys}/${telemetry.bpDia}` : "--", unit: "mmHg" },
+                  { label: "Active Energy", value: telemetry.activeEnergy !== null ? telemetry.activeEnergy : "--", unit: "kcal" },
+                  { label: "Resting Energy", value: telemetry.basalEnergy !== null ? telemetry.basalEnergy : "--", unit: "kcal" },
+                  { label: "Steadiness", value: telemetry.steadiness !== null ? `${telemetry.steadiness}` : "--", unit: "%" },
+                  { label: "Double Support", value: telemetry.doubleSupport !== null ? `${telemetry.doubleSupport}` : "--", unit: "%" },
+                  { label: "Step Length", value: telemetry.stepLength !== null ? telemetry.stepLength : "--", unit: "cm" },
+                  { label: "UV Index", value: telemetry.uv !== null ? telemetry.uv : "--", unit: "" },
+                ].map(m => (
+                  <div key={m.label} className="p-3 border border-slate-100 rounded-xl bg-slate-50/50 flex flex-col justify-between">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">{m.label}</p>
+                    <p className="text-sm font-bold text-slate-900 italic tracking-tighter">{m.value} <span className="text-[9px] text-slate-400 not-italic">{m.unit}</span></p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+          </TabsContent>
+
+          {/* 3. GAMMA TRIGGER TAB */}
           <TabsContent value="gamma" className="space-y-6 focus-visible:outline-none">
             <div className="rounded-3xl border border-slate-50 bg-slate-50/30 p-10 text-center shadow-sm">
                <div className={`w-24 h-24 rounded-full mx-auto mb-8 flex items-center justify-center border-4 transition-all duration-700 ${gammaActive ? 'border-orange-500 bg-orange-50 scale-110 shadow-[0_0_40px_rgba(249,115,22,0.15)]' : 'border-white bg-white'}`}>
                   <Zap className={`w-10 h-10 ${gammaActive ? 'text-orange-500 animate-pulse' : 'text-slate-200'}`} />
                </div>
-               <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em] mb-4">40Hz Entrainment Trigger</h3>
-               <p className="text-[11px] text-slate-400 max-w-[220px] mx-auto mb-10 font-medium leading-relaxed">Active stimulation for pupillary response testing and neural drive peaking.</p>
+               <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em] mb-4 font-sans">40Hz Entrainment Trigger</h3>
+               <p className="text-[11px] text-slate-400 max-w-[200px] mx-auto mb-10 font-medium leading-relaxed font-sans">Active stimulation for pupillary response testing and neural drive peaking.</p>
                
                <div className="flex items-center justify-between bg-white border border-slate-100 p-5 rounded-2xl shadow-sm">
-                  <div className="text-left">
+                  <div className="text-left font-sans">
                      <p className="text-[10px] font-black text-slate-900 uppercase">Hardware Pulse</p>
                      <p className="text-[9px] text-teal-600 font-bold uppercase tracking-tighter">{gammaActive ? "Transmitting" : "Standby"}</p>
                   </div>
@@ -460,15 +661,15 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
             </div>
           </TabsContent>
 
-          {/* 3. MEMORY ANCHORING TAB */}
+          {/* 4. MEMORY ANCHORING TAB */}
           <TabsContent value="memory" className="space-y-6 focus-visible:outline-none">
-             <div className="rounded-3xl border border-slate-100 bg-white shadow-sm overflow-hidden min-h-[460px] flex flex-col">
+             <div className="rounded-3xl border border-slate-100 bg-white shadow-sm overflow-hidden min-h-[460px] flex flex-col font-sans">
                 <div className="p-5 border-b border-slate-50 flex items-center justify-between">
                    <div className="flex items-center gap-2">
                       <Target className="w-4 h-4 text-orange-500" />
                       <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Memory Anchor: {rsvpPhase !== 'IDLE' ? `${testRound}/5` : 'Validation'}</span>
                    </div>
-                   {rsvpPhase !== 'IDLE' && <Badge className="bg-orange-500 text-white font-black text-[9px] px-2.5">{cumulativeScore}</Badge>}
+                   {rsvpPhase !== 'IDLE' && <Badge className="bg-orange-500 text-white font-black text-[9px] px-2.5 shadow-sm">{cumulativeScore}</Badge>}
                 </div>
 
                 <div className="flex-1 flex flex-col items-center justify-center p-8 relative">
@@ -477,7 +678,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                          <div className="space-y-2">
                             <p className="text-[10px] text-slate-400 uppercase font-black tracking-[0.25em]">Operational Calibration</p>
                             <Smartphone className="w-8 h-8 text-slate-300 mx-auto animate-bounce mt-4" />
-                            <p className="text-[11px] text-slate-600 font-medium max-w-[190px]">Turn device horizontally to lock orientation for validation battery.</p>
+                            <p className="text-[11px] text-slate-600 font-medium max-w-[190px] mx-auto">Turn device horizontally to lock orientation for validation battery.</p>
                          </div>
                          <Button onClick={resetFullTest} className="bg-slate-900 text-white hover:bg-orange-500 font-black px-12 py-7 rounded-full uppercase italic transition-all shadow-md">Initialize Battery</Button>
                          <div className="flex justify-center gap-4">
