@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Zap, TrendingUp, Moon, DollarSign, ShieldCheck, Info, Lock, Volume2, Activity, UserMinus, ShieldAlert } from "lucide-react";
+import { Zap, TrendingUp, Moon, DollarSign, ShieldCheck, Info, Lock, Volume2, Activity, UserMinus, ShieldAlert, Eye } from "lucide-react";
 import { ComposedChart, Line, Bar, XAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
