@@ -183,6 +183,22 @@ const BusinessMembershipPanel: React.FC = () => {
     setZip("");
     setContactRole("Controlling Partner");
     setDocFiles({});
+    setLogoFile(null);
+    setLogoPreview(null);
+  };
+
+  const handleLogo = (file: File | undefined) => {
+    if (!file) return;
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      toast({ title: "Invalid logo", description: "JPG or PNG only.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "Logo too large", description: "5 MB maximum.", variant: "destructive" });
+      return;
+    }
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
   };
 
   if (loading) {
