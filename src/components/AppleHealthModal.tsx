@@ -17,9 +17,29 @@ interface AppleHealthModalProps {
 }
 
 const ALL_HEALTH_DATA_TYPES = [
+  // --- CORE ACTIVITY ---
   { id: "HKQuantityTypeIdentifierStepCount", name: "Steps", category: "Activity" },
-  { id: "HKQuantityTypeIdentifierHeartRate", name: "Heart Rate", category: "Vitals" },
   { id: "HKQuantityTypeIdentifierActiveEnergyBurned", name: "Active Energy Burned", category: "Activity" },
+  
+  // --- KEYSTONE VITALS (PURE ALPHA) ---
+  { id: "HKQuantityTypeIdentifierHeartRate", name: "Heart Rate", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierHeartRateVariabilitySDNN", name: "Heart Rate Variability", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierRespiratoryRate", name: "Respiratory Rate", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierOxygenSaturation", name: "Blood Oxygen", category: "Vitals" },
+  { id: "HKQuantityTypeIdentifierBodyTemperature", name: "Body Temperature", category: "Vitals" },
+
+  // --- KINETIC TELEMETRY (GAIT & MOBILITY) ---
+  { id: "HKQuantityTypeIdentifierWalkingAsymmetryPercentage", name: "Gait Asymmetry", category: "Mobility" },
+  { id: "HKQuantityTypeIdentifierWalkingDoubleSupportPercentage", name: "Double Support", category: "Mobility" },
+  { id: "HKQuantityTypeIdentifierWalkingSpeed", name: "Walking Speed", category: "Mobility" },
+  { id: "HKQuantityTypeIdentifierWalkingStepLength", name: "Step Length", category: "Mobility" },
+
+  // --- ENVIRONMENTAL AWARENESS ---
+  { id: "HKQuantityTypeIdentifierEnvironmentalAudioExposure", name: "Acoustic Floor (dB)", category: "Environment" },
+  { id: "HKQuantityTypeIdentifierUVExposure", name: "UV Exposure", category: "Environment" },
+
+  // --- SLEEP PROTOCOL ---
+  { id: "HKCategoryTypeIdentifierSleepAnalysis", name: "Sleep Analysis", category: "Vitals" },
 ];
 
 type ConnectionStatus = "idle" | "connecting" | "connected" | "error";
@@ -31,8 +51,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [authSession, setAuthSession] = useState<any>(null);
   const [selectedDataTypes, setSelectedDataTypes] = useState<Set<string>>(
-    new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.id)),
-  );
+  new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.id))
+);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [syncCount, setSyncCount] = useState(0);
   const [connectedThisSession, setConnectedThisSession] = useState(false);

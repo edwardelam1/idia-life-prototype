@@ -16,12 +16,17 @@ import AndroidHealthModal from "./AndroidHealthModal";
 // the deep database schema when you type `supabase.from()`.
 const supabase: any = typedSupabase;
 
-// THE BLOCKER: Strictly flat type.
+// THE BLOCKER: Strictly flat type expanded for telemetry awareness.
 interface DataBlocker {
   id: string;
   connection_type: string;
   user_id: string;
   status?: string;
+  metrics?: {
+    hrv?: number;
+    noise?: number;
+    asymmetry?: number;
+  };
 }
 
 const DataDashboard = () => {
