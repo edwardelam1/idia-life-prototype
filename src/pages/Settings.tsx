@@ -104,57 +104,52 @@ export default function Settings() {
         </div>
 
         {/* Settings Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-2">
-          {/* Changed grid-cols-5 to grid-cols-4 since we removed one tab */}
-          <TabsList className="grid w-full grid-cols-4 bg-muted">
-            <TabsTrigger value="idia-profile" className="flex items-center gap-2 data-[state=active]:bg-background">
-              <User className="w-4 h-4" />
-              <span className="hidden sm:inline">IDIA</span>
-            </TabsTrigger>
-            <TabsTrigger value="appearance" className="flex items-center gap-2 data-[state=active]:bg-background">
-              <Palette className="w-4 h-4" />
-              <span className="hidden sm:inline">Appearance</span>
-            </TabsTrigger>
-            <TabsTrigger value="privacy" className="flex items-center gap-2 data-[state=active]:bg-background">
-              <Shield className="w-4 h-4" />
-              <span className="hidden sm:inline">Privacy</span>
-            </TabsTrigger>
-            <TabsTrigger value="notifications" className="flex items-center gap-2 data-[state=active]:bg-background">
-              <Bell className="w-4 h-4" />
-              <span className="hidden sm:inline">Notifications</span>
-            </TabsTrigger>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
+          <TabsList className="grid grid-cols-4 w-full bg-muted/20 shrink-0">
+            <TabsTrigger value="idia-profile" className="text-[11px] px-1">IDIA</TabsTrigger>
+            <TabsTrigger value="appearance" className="text-[11px] px-1">Appearance</TabsTrigger>
+            <TabsTrigger value="privacy" className="text-[11px] px-1">Privacy</TabsTrigger>
+            <TabsTrigger value="notifications" className="text-[11px] px-1">Notifications</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="idia-profile">
-            <EnhancedProfileSettings />
+          <TabsContent value="idia-profile" className="flex-1 min-h-0 overflow-hidden mt-2">
+            <div className="h-full overflow-y-auto touch-pan-y no-scrollbar pr-1" style={{ WebkitOverflowScrolling: "touch" }}>
+              <EnhancedProfileSettings />
+            </div>
           </TabsContent>
 
-          <TabsContent value="appearance">
-            <AppearanceSettings />
+          <TabsContent value="appearance" className="flex-1 min-h-0 overflow-hidden mt-2">
+            <div className="h-full overflow-y-auto touch-pan-y no-scrollbar pr-1" style={{ WebkitOverflowScrolling: "touch" }}>
+              <AppearanceSettings />
+            </div>
           </TabsContent>
 
-          <TabsContent value="privacy">
-            <Card>
-              <CardHeader className="py-2 px-3">
-                <CardTitle className="text-sm font-semibold">Privacy & Data</CardTitle>
-                <CardDescription className="text-xs">Control your data sharing and privacy preferences</CardDescription>
-              </CardHeader>
-              <CardContent className="px-3 pb-3 pt-0">
-                <PrivacySettings />
-              </CardContent>
-            </Card>
+          <TabsContent value="privacy" className="flex-1 min-h-0 overflow-hidden mt-2">
+            <div className="h-full overflow-y-auto touch-pan-y no-scrollbar pr-1" style={{ WebkitOverflowScrolling: "touch" }}>
+              <Card>
+                <CardHeader className="py-2 px-3">
+                  <CardTitle className="text-sm font-semibold">Privacy & Data</CardTitle>
+                  <CardDescription className="text-xs">Control your data sharing and privacy preferences</CardDescription>
+                </CardHeader>
+                <CardContent className="px-3 pb-3 pt-0">
+                  <PrivacySettings />
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
-          <TabsContent value="notifications">
-            <Card>
-              <CardHeader className="py-2 px-3">
-                <CardTitle className="text-sm font-semibold">Notification Settings</CardTitle>
-                <CardDescription className="text-xs">Manage your notification preferences</CardDescription>
-              </CardHeader>
-              <CardContent className="px-3 pb-3 pt-0">
-                <NotificationSettings />
-              </CardContent>
-            </Card>
+          <TabsContent value="notifications" className="flex-1 min-h-0 overflow-hidden mt-2">
+            <div className="h-full overflow-y-auto touch-pan-y no-scrollbar pr-1" style={{ WebkitOverflowScrolling: "touch" }}>
+              <Card>
+                <CardHeader className="py-2 px-3">
+                  <CardTitle className="text-sm font-semibold">Notification Settings</CardTitle>
+                  <CardDescription className="text-xs">Manage your notification preferences</CardDescription>
+                </CardHeader>
+                <CardContent className="px-3 pb-3 pt-0">
+                  <NotificationSettings />
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
