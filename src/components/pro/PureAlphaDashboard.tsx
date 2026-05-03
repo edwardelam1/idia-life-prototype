@@ -1,12 +1,18 @@
 import { useState, useEffect } from "react";
-import { Zap, TrendingUp, Moon, DollarSign, ShieldCheck, Info, Lock, Volume2, Activity, UserMinus, ShieldAlert } from "lucide-react";
-import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
+import { createPortal } from "react-dom";
+import { 
+  Zap, Brain, ShieldCheck, Info, Lock, Volume2, Activity, UserMinus, ShieldAlert, 
+  Target, RotateCcw, Smartphone 
+} from "lucide-react";
+import { ComposedChart, Line, Bar, XAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // UI Components
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { 
   Tooltip, 
   TooltipContent, 
@@ -15,10 +21,10 @@ import {
 } from "@/components/ui/tooltip";
 
 // IDIA Protocol Components
-import GhostProtocol from "./GhostProtocol";
+import GhostProtocolWrapper from "./GhostProtocol"; // Renamed slightly internally to avoid component clash if needed, using user's import
 import SovereignAuth from "./SovereignAuth";
 
-// --- TYPE DEFINITIONS TO FIX INFERENCE ERRORS ---
+// --- TYPE DEFINITIONS ---
 interface HriScoreLog {
   total_score: number;
   created_at: string;
@@ -32,6 +38,8 @@ interface FiatLedgerEntry {
 interface PureAlphaDashboardProps {
   isMasked?: boolean;
 }
+
+const RSVP_WORDS = ["FOCUS", "CLARITY", "RESOLVE", "EXECUTE", "DOMINATE", "OPTIMIZE", "TRANSCEND", "SOVEREIGN", "VELOCITY", "BASELINE", "INTEGRITY", "ALPHA"];
 
 // Minimalist Info Helper
 const InfoIcon = ({ text }: { text: string }) => (
@@ -48,20 +56,43 @@ const InfoIcon = ({ text }: { text: string }) => (
 );
 
 const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
+  // --- CORE STATE ---
   const [authVerified, setAuthVerified] = useState(false);
   const [fusionData, setFusionData] = useState<any[]>([]);
-  const [liveMetrics, setLiveMetrics] = useState({
-    hrvAvg: "--ms",
-    sleepScore: "--/100",
-    weekRev: "$0.0K",
+
+  // --- GAMMA & RSVP STATE (Restored from Pro+) ---
+  const [gammaActive, setGammaActive] = useState(false);
+  const [isFlashing, setIsFlashing] = useState(false);
+  
+  const [rsvpPhase, setRsvpPhase] = useState<'IDLE' | 'CALIBRATING' | 'PRESENTING' | 'MASK' | 'RECALL' | 'ROUND_COMPLETE' | 'RESULT'>('IDLE');
+  const [testRound, setTestRound] = useState(1);
+  const [rsvpWordIndex, setRsvpWordIndex] = useState(0);
+  const [rsvpSpeed, setRsvpSpeed] = useState(300);
+  const [activeSequence, setActiveSequence] = useState<string[]>([]);
+  const [userRecall, setUserInput] = useState<string[]>([]);
+  const [cumulativeScore, setCumulativeScore] = useState(0);
+
+  // --- ADJUSTABLE SETTINGS STATE ---
+  const [settings, setSettings] = useState({
+    ghostProtocol: true,
+    digitalWard: false,
+    silverSentinel: false,
+    aegisProtocol: true,
+    ambientIsolation: true,
+    coercionDetector: true,
+    impactTraumaSync: true,
   });
 
+  const toggleSetting = (key: keyof typeof settings) => {
+    setSettings(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // --- DATA FETCHING (Zero Mock Data) ---
   useEffect(() => {
     if (isMasked || !authVerified) return;
 
     const fetchExecutiveData = async () => {
       try {
-        // 1. Fetch HRI Logs (Fixed Type Inference)
         const { data: hriLogsRaw } = await (supabase
           .from("hri_scores" as any)
           .select("total_score, created_at")
@@ -70,12 +101,11 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
         
         const hriLogs = hriLogsRaw as HriScoreLog[] | null;
 
-        // 2. Fetch Revenue (Fixed Type Inference)
         const { data: ledgerRaw } = await (supabase
           .from("fiat_ledger" as any)
           .select("amount_usd, created_at")
           .order("created_at", { ascending: false })
-          .limit(20) as any);
+          .limit(7) as any); // Matched limit to 7 to align arrays
         
         const ledger = ledgerRaw as FiatLedgerEntry[] | null;
 
@@ -84,18 +114,11 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
             .map((log, i) => ({
               day: new Date(log.created_at).toLocaleDateString("en-US", { weekday: "short" }),
               hrv: Math.round(log.total_score * 0.8),
-              revenue: ledger[i]?.amount_usd || 1200 + Math.random() * 500,
+              revenue: ledger[i]?.amount_usd || 0, // Mock data purged
             }))
             .reverse();
 
           setFusionData(chartData);
-
-          const totalRev = ledger.reduce((acc, curr) => acc + (curr.amount_usd || 0), 0);
-          setLiveMetrics({
-            hrvAvg: "72ms",
-            sleepScore: "88/100",
-            weekRev: `$${(totalRev / 1000).toFixed(1)}K`,
-          });
         }
       } catch (err) {
         console.error("Pure Alpha Egress Stalled:", err);
@@ -105,308 +128,359 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
     fetchExecutiveData();
   }, [isMasked, authVerified]);
 
+  // --- GAMMA & RSVP LOGIC ---
+  const getDynamicFontSize = (word: string) => {
+    const len = word.length;
+    if (len > 10) return "text-[8vw]"; 
+    if (len > 8) return "text-[10vw]"; 
+    return "text-[12vw]"; 
+  };
+
+  useEffect(() => {
+    if (rsvpPhase === 'PRESENTING') {
+      const timer = setTimeout(() => setRsvpPhase('MASK'), rsvpSpeed);
+      return () => clearTimeout(timer);
+    }
+    if (rsvpPhase === 'MASK') {
+      const timer = setTimeout(() => {
+        if (rsvpWordIndex >= activeSequence.length - 1) {
+          setRsvpPhase('RECALL');
+        } else {
+          setRsvpWordIndex(prev => prev + 1);
+          setRsvpPhase('PRESENTING');
+        }
+      }, 40);
+      return () => clearTimeout(timer);
+    }
+  }, [rsvpPhase, rsvpSpeed, rsvpWordIndex, activeSequence]);
+
+  const toggleOrientation = (landscape: boolean) => {
+    if (window.webkit?.messageHandlers?.syncHealthData) {
+      window.webkit.messageHandlers.syncHealthData.postMessage({ 
+        action: landscape ? "CMD_LOCK_LANDSCAPE" : "CMD_LOCK_PORTRAIT" 
+      });
+    }
+  };
+
+  const startNewRound = (round: number) => {
+    const sequence = [...RSVP_WORDS].sort(() => 0.5 - Math.random()).slice(0, 5);
+    setActiveSequence(sequence);
+    setUserInput([]);
+    setRsvpWordIndex(0);
+    setTestRound(round);
+    setRsvpPhase('CALIBRATING');
+    setTimeout(() => setRsvpPhase('PRESENTING'), 1000);
+  };
+
+  const resetFullTest = () => {
+    setCumulativeScore(0);
+    toggleOrientation(true);
+    startNewRound(1);
+  };
+
+  const endTest = () => {
+    setRsvpPhase('IDLE');
+    toggleOrientation(false);
+  };
+
+  const handleRecallSelection = (word: string) => {
+    if (userRecall.includes(word)) return;
+    const newRecall = [...userRecall, word];
+    setUserInput(newRecall);
+    
+    if (newRecall.length === activeSequence.length) {
+      const correct = newRecall.filter((w, i) => w === activeSequence[i]).length;
+      const roundScore = Math.round((correct / activeSequence.length * 100) * (1000 / rsvpSpeed));
+      setCumulativeScore(prev => prev + roundScore);
+      
+      if (testRound < 5) {
+        setRsvpPhase('ROUND_COMPLETE');
+        setTimeout(() => startNewRound(testRound + 1), 1200);
+      } else {
+        setRsvpPhase('RESULT');
+      }
+    }
+  };
+
+  const triggerGammaSequence = async (active: boolean) => {
+    setGammaActive(active);
+    if (active) {
+      if (window.webkit?.messageHandlers?.syncHealthData) {
+        window.webkit.messageHandlers.syncHealthData.postMessage({
+          action: "CMD_INIT_FLASHBULB", frequency: 40, force_brightness: 1.0, audio_enabled: true
+        });
+      }
+      setIsFlashing(true);
+    } else {
+      if (window.webkit?.messageHandlers?.syncHealthData) {
+        window.webkit.messageHandlers.syncHealthData.postMessage({ action: "CMD_STOP_FLASHBULB" });
+      }
+      setIsFlashing(false);
+    }
+  };
+
+  // --- RENDER ---
   if (!authVerified && !isMasked) {
     return <SovereignAuth onVerified={() => setAuthVerified(true)} />;
   }
 
   return (
-    <GhostProtocol>
-      <div className={`p-4 pb-24 space-y-4 animate-fade-in bg-white min-h-screen ${isMasked ? "blur-md" : ""}`}>
+    <GhostProtocolWrapper>
+      {/* GLOBAL RGB FLASH OVERRIDE */}
+      {isFlashing && createPortal(
+        <div 
+          className="fixed -inset-[200%] z-[99999] pointer-events-none animate-[seizure-rgb_25ms_linear_infinite]" 
+          style={{ mixBlendMode: 'difference' }}
+        />,
+        document.body
+      )}
+
+      <div className={`p-4 pb-24 space-y-4 animate-fade-in bg-white min-h-screen font-sans ${isMasked ? "blur-md pointer-events-none" : ""}`}>
         
         {/* Sovereign Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center shadow-lg">
-              <Zap className="w-4 h-4 text-white" />
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[hsl(178,42%,42%)] flex items-center justify-center shadow-sm">
+              <Zap className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="font-bold text-sm uppercase tracking-tighter italic">Executive Sovereignty</h2>
-              <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest">Pure Alpha Access</p>
+              <h2 className="font-bold text-slate-900 text-sm uppercase tracking-tighter">Executive Sovereignty</h2>
+              <p className="text-[10px] text-teal-600 uppercase font-black tracking-widest">Pure Alpha Access</p>
             </div>
           </div>
-          <Badge variant="outline" className="text-[8px] border-emerald-500/50 text-emerald-600 font-bold bg-emerald-50/50">
-            SOVEREIGN AUTH ACTIVE
+          <Badge variant="outline" className="text-[8px] border-teal-100 text-teal-600 font-bold px-2 py-0 uppercase">
+            Auth Active
           </Badge>
         </div>
 
-        {/* PRO+ MENU TABS */}
-        <Tabs defaultValue="pure-alpha" className="w-full pt-2">
-          <TabsList className="flex w-full bg-transparent border-b border-border/40 p-0 rounded-none h-10 mb-4 gap-4 overflow-x-auto no-scrollbar justify-start">
-            <TabsTrigger value="pure-alpha" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-black data-[state=active]:text-black rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Pure Alpha</TabsTrigger>
-            <TabsTrigger value="ghost-protocol" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-black data-[state=active]:text-black rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Ghost Protocol</TabsTrigger>
-            <TabsTrigger value="acoustics" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-black data-[state=active]:text-black rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Acoustics</TabsTrigger>
-            <TabsTrigger value="shields" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-black data-[state=active]:text-black rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Shields</TabsTrigger>
+        {/* PRO+ MENU TABS (Thin border-bottom design) */}
+        <Tabs defaultValue="pure-alpha" className="w-full">
+          <TabsList className="flex w-full bg-transparent border-b border-slate-100 p-0 rounded-none h-10 mb-6 gap-8 overflow-x-auto no-scrollbar justify-start">
+            <TabsTrigger value="pure-alpha" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Pure Alpha</TabsTrigger>
+            <TabsTrigger value="gamma" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Gamma</TabsTrigger>
+            <TabsTrigger value="memory" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Anchor</TabsTrigger>
           </TabsList>
 
-          {/* 1. PURE ALPHA DASHBOARD (Your exact existing code + IDIA Pay metrics) */}
-          <TabsContent value="pure-alpha" className="space-y-4">
+          {/* 1. PURE ALPHA TAB */}
+          <TabsContent value="pure-alpha" className="space-y-6 focus-visible:outline-none">
             
-            <div className="flex items-center gap-2 mb-2 overflow-x-auto no-scrollbar pb-1">
-              <Badge className="text-[9px] uppercase font-bold bg-black text-white hover:bg-black/80 cursor-pointer whitespace-nowrap">P&L Fusion Ledger</Badge>
-              <Badge variant="outline" className="text-[9px] uppercase font-bold text-muted-foreground cursor-pointer whitespace-nowrap">Balance Sheet</Badge>
-              <Badge variant="outline" className="text-[9px] uppercase font-bold text-muted-foreground cursor-pointer whitespace-nowrap">Cash Flow</Badge>
+            {/* Dynamic Buttons Row */}
+            <div className="flex items-center gap-2 mb-2 overflow-x-auto no-scrollbar pb-2">
+              <Badge className="text-[10px] uppercase font-bold bg-slate-900 text-white hover:bg-slate-800 cursor-pointer whitespace-nowrap px-3 py-1">P&L Fusion</Badge>
+              <Badge variant="outline" className="text-[10px] uppercase font-bold text-slate-500 cursor-pointer whitespace-nowrap px-3 py-1 hover:bg-slate-50">Balance Sheet</Badge>
+              <Badge variant="outline" className="text-[10px] uppercase font-bold text-slate-500 cursor-pointer whitespace-nowrap px-3 py-1 hover:bg-slate-50">Cash Flow</Badge>
+              <Badge variant="outline" className="text-[10px] uppercase font-bold text-slate-500 cursor-pointer whitespace-nowrap px-3 py-1 hover:bg-slate-50">Ghost Protocol</Badge>
+              <Badge variant="outline" className="text-[10px] uppercase font-bold text-slate-500 cursor-pointer whitespace-nowrap px-3 py-1 hover:bg-slate-50">Acoustics</Badge>
             </div>
 
             {/* P&L Fusion Ledger */}
-            <Card className="border-border/40 shadow-sm overflow-hidden">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center">
+            <Card className="border-slate-100 shadow-sm overflow-hidden">
+              <CardHeader className="p-5 pb-2">
+                <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center text-slate-900">
                   P&L Fusion Ledger
                   <InfoIcon text="Real-time correlation between your Autonomic Resilience (HRV) and Capital Generation." />
                 </CardTitle>
-                <p className="text-[9px] text-muted-foreground uppercase italic">Bio-state Correlation with Liquid Revenue</p>
+                <p className="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">Bio-State vs Liquid Revenue</p>
               </CardHeader>
               <CardContent className="p-0 h-56">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={fusionData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="#f0f0f0" />
-                    <XAxis dataKey="day" tick={{ fontSize: 9, fontWeight: "900" }} axisLine={false} tickLine={false} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="day" tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: "900" }} axisLine={false} tickLine={false} />
                     <RechartsTooltip
-                      contentStyle={{ borderRadius: "8px", border: "1px solid #eee", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)" }}
+                      contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", fontSize: "10px", fontWeight: "bold" }}
                     />
-                    <Bar yAxisId="r" dataKey="revenue" fill="hsl(178, 42%, 32%)" radius={[2, 2, 0, 0]} opacity={0.4} />
-                    <Line yAxisId="l" type="monotone" dataKey="hrv" stroke="hsl(28, 80%, 55%)" strokeWidth={3} dot={{ r: 3, fill: "hsl(28, 80%, 55%)" }} />
+                    <Bar yAxisId="r" dataKey="revenue" fill="hsl(178, 42%, 42%)" radius={[4, 4, 0, 0]} opacity={0.8} />
+                    <Line yAxisId="l" type="monotone" dataKey="hrv" stroke="#f97316" strokeWidth={3} dot={{ r: 4, fill: "#f97316", strokeWidth: 2, stroke: "#fff" }} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
 
-            {/* Executive Metrics Grid */}
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { 
-                    icon: TrendingUp, 
-                    label: "HRV Avg", 
-                    value: liveMetrics.hrvAvg, 
-                    color: "text-[hsl(178,42%,32%)]",
-                    info: "Your rolling 7-day autonomic baseline. Primary indicator of neurological readiness."
-                },
-                { 
-                    icon: Moon, 
-                    label: "Sleep", 
-                    value: liveMetrics.sleepScore, 
-                    color: "text-[hsl(28,80%,55%)]",
-                    info: "Combined depth and consistency score. Essential for complex financial signing authority."
-                },
-                { 
-                    icon: DollarSign, 
-                    label: "Week Rev", 
-                    value: liveMetrics.weekRev, 
-                    color: "text-black",
-                    info: "Total liquid sovereign yield captured during the current biological cycle."
-                },
-              ].map((m) => (
-                <div key={m.label} className="rounded-xl border border-border/60 bg-card p-3 text-center shadow-sm">
-                  <div className="flex justify-center items-center mb-1">
-                    <m.icon className={`w-3 h-3 ${m.color}`} />
-                    <InfoIcon text={m.info} />
-                  </div>
-                  <p className="text-[8px] font-black text-muted-foreground uppercase tracking-tighter">{m.label}</p>
-                  <p className="text-xs font-black text-foreground italic">{m.value}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Ground Truth Analytics */}
-            <div className="rounded-2xl border-2 border-black bg-black p-4 text-white shadow-2xl">
-              <div className="flex items-center gap-2 mb-2">
-                <ShieldCheck className="w-4 h-4 text-[hsl(28,80%,55%)]" />
-                <p className="text-[10px] font-black uppercase tracking-widest italic">Ground Truth Analytics</p>
-              </div>
-              <p className="text-[11px] leading-snug font-medium opacity-90">
-                Revenue velocity peaks when **HRV &gt; 62ms**. Current biological markers indicate an **87% probability** of
-                optimal executive function. <span className="text-[hsl(28,80%,55%)] font-bold">Executive signing authority is currently UNRESTRICTED.</span>
-              </p>
-            </div>
-          </TabsContent>
-
-          {/* 2. GHOST PROTOCOL TAB */}
-          <TabsContent value="ghost-protocol" className="space-y-4">
-            <Card className="border-border/40 shadow-sm overflow-hidden">
-              <CardHeader className="p-4 bg-muted/30 border-b border-border/40">
-                <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+            {/* Ghost Protocol & Shields Settings */}
+            <Card className="border-orange-100 bg-orange-50/30 shadow-sm overflow-hidden">
+              <CardHeader className="p-5 pb-2 border-b border-orange-100/50">
+                <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-slate-900">
                   <Lock className="w-4 h-4 text-orange-500" />
-                  Ghost Protocol 
+                  Ghost Protocol Settings
                 </CardTitle>
-                <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">
-                  Protect user life during armed robbery by simulating success while securing assets.
+                <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                  Configure autonomous duress defense and enclave routing.
                 </p>
               </CardHeader>
-              <CardContent className="p-4 space-y-4">
-                <div className="space-y-2">
-                  <Badge className="text-[9px] uppercase font-bold bg-orange-500">REQ-AUTH-7.3.1 (Trigger)</Badge>
-                  <p className="text-[10px] font-bold text-foreground uppercase">Detect Acute_Sympathetic_Dump:</p>
-                  <ul className="text-[10px] text-muted-foreground list-disc pl-4 space-y-1">
-                    <li>Heart Rate Spike (&gt; 40bpm delta)</li>
-                    <li>HRV Crash (&gt; 50% drop)</li>
-                    <li>Accelerometer = Stationary (Freeze response)</li>
-                  </ul>
+              <CardContent className="p-0">
+                <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-900 uppercase">Honey-Pot State</p>
+                    <p className="text-[9px] text-slate-500 mt-0.5">Simulate success & lock true ledger during HRV crash.</p>
+                  </div>
+                  <Switch checked={settings.ghostProtocol} onCheckedChange={() => toggleSetting('ghostProtocol')} className="data-[state=checked]:bg-orange-500" />
                 </div>
-                
-                <div className="space-y-2">
-                  <Badge variant="outline" className="text-[9px] uppercase font-bold">REQ-AUTH-7.3.2 (Action)</Badge>
-                  <p className="text-[10px] text-muted-foreground">Switch UI State to HONEY_POT (Duress Wallet).</p>
+                <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-900 uppercase">Digital Ward (Minors)</p>
+                    <p className="text-[9px] text-slate-500 mt-0.5">Segregate data & trigger route deviation alerts.</p>
+                  </div>
+                  <Switch checked={settings.digitalWard} onCheckedChange={() => toggleSetting('digitalWard')} />
                 </div>
-
-                <div className="space-y-2">
-                  <Badge variant="outline" className="text-[9px] uppercase font-bold">REQ-AUTH-7.3.3 (Deception)</Badge>
-                  <p className="text-[10px] text-muted-foreground">Display Fake Balance (e.g., $450 instead of $450,000); Simulate successful transfer UI flow.</p>
+                <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-900 uppercase">Silver Sentinel (Elders)</p>
+                    <p className="text-[9px] text-slate-500 mt-0.5">Cardio-ID verification & beneficiary wall blocks.</p>
+                  </div>
+                  <Switch checked={settings.silverSentinel} onCheckedChange={() => toggleSetting('silverSentinel')} />
                 </div>
-
-                <div className="space-y-2">
-                  <Badge variant="outline" className="text-[9px] uppercase font-bold border-rose-500/50 text-rose-600">REQ-AUTH-7.3.4 (Defense)</Badge>
-                  <p className="text-[10px] text-muted-foreground">Cryptographically lock real assets at the ledger level.</p>
-                </div>
-
-                <div className="space-y-2">
-                  <Badge variant="outline" className="text-[9px] uppercase font-bold border-rose-500/50 text-rose-600">REQ-AUTH-7.3.5 (Alert)</Badge>
-                  <p className="text-[10px] text-muted-foreground">Dispatch Silent Alarm DURESS_CODE_7500 to Security Operations Center (SOC) with GPS coordinates.</p>
+                <div className="flex items-center justify-between p-4">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-900 uppercase">Aegis Protocol</p>
+                    <p className="text-[9px] text-slate-500 mt-0.5">Truman sandbox & foreign IoT tracker sniffing.</p>
+                  </div>
+                  <Switch checked={settings.aegisProtocol} onCheckedChange={() => toggleSetting('aegisProtocol')} />
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
 
-          {/* 3. ACOUSTICS TAB */}
-          <TabsContent value="acoustics" className="space-y-4">
-            <Card className="border-border/40 shadow-sm overflow-hidden">
-              <CardHeader className="p-4 bg-muted/30 border-b border-border/40">
-                <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+            {/* Acoustics Settings */}
+            <Card className="border-slate-100 shadow-sm overflow-hidden">
+              <CardHeader className="p-5 pb-2 border-b border-slate-50">
+                <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-slate-900">
                   <Volume2 className="w-4 h-4 text-indigo-500" />
                   Acoustic Settings
                 </CardTitle>
-                <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">
-                  Environmental coercion engine and ambient threat detection.
+                <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                  Manage environmental coercion and ambient threat engines.
                 </p>
               </CardHeader>
-              <CardContent className="p-4 space-y-4">
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-foreground uppercase">Ambient Isolation Check</p>
-                  <p className="text-[10px] text-muted-foreground leading-relaxed">
-                    Continuously samples the acoustic floor to verify if the Principal is alone when operating in required isolation modes. Soft-blocks transactions if unexpected voices or movement are detected.
-                  </p>
+              <CardContent className="p-0">
+                <div className="flex items-center justify-between p-4 border-b border-slate-50">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-900 uppercase">Ambient Isolation</p>
+                    <p className="text-[9px] text-slate-500 mt-0.5">Soft-block if unexpected voices are detected.</p>
+                  </div>
+                  <Switch checked={settings.ambientIsolation} onCheckedChange={() => toggleSetting('ambientIsolation')} />
                 </div>
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-foreground uppercase">Coercion Detector</p>
-                  <p className="text-[10px] text-muted-foreground leading-relaxed">
-                    Analyzes Voice_Tremor and Acute_Stress markers during verbal authorization phrases.
-                  </p>
+                <div className="flex items-center justify-between p-4 border-b border-slate-50">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-900 uppercase">Coercion Detector</p>
+                    <p className="text-[9px] text-slate-500 mt-0.5">Analyze voice tremor & acute stress markers.</p>
+                  </div>
+                  <Switch checked={settings.coercionDetector} onCheckedChange={() => toggleSetting('coercionDetector')} />
                 </div>
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-foreground uppercase text-rose-600">Impact Trauma Log</p>
-                  <p className="text-[10px] text-muted-foreground leading-relaxed">
-                    Correlates High_Decibel_Audio with physical impact (&gt;4G force) to establish immutable records of physical distress.
-                  </p>
+                <div className="flex items-center justify-between p-4">
+                  <div>
+                    <p className="text-[10px] font-black text-rose-600 uppercase">Impact Trauma Sync</p>
+                    <p className="text-[9px] text-slate-500 mt-0.5">Log high-decibel audio + physical impact to vault.</p>
+                  </div>
+                  <Switch checked={settings.impactTraumaSync} onCheckedChange={() => toggleSetting('impactTraumaSync')} className="data-[state=checked]:bg-rose-500" />
                 </div>
               </CardContent>
             </Card>
+
           </TabsContent>
 
-          {/* 4. SHIELDS TAB */}
-          <TabsContent value="shields" className="space-y-4">
-            {/* DIGITAL WARD */}
-            <Card className="border-border/40 shadow-sm overflow-hidden">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                  <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
-                  8. Digital Ward Protocol (Minors)
-                </CardTitle>
-                <p className="text-[9px] text-muted-foreground uppercase italic">COPPA-Compliant Safety & Abuse Prevention</p>
-              </CardHeader>
-              <CardContent className="p-4 pt-2 space-y-3">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-foreground">8.1 Pediatric Enclave</p>
-                  <p className="text-[10px] text-muted-foreground">Minor data segregated (unique KMS). Ad-Tech Ban at SDK layer. Ephemeral Identity rotated every 24hrs.</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-foreground">8.2 Guardian Controls</p>
-                  <p className="text-[10px] text-muted-foreground">Cinderella Limit: No external transfers without 72-hour hold AND Secondary Guardian Biometric Approval.</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-foreground">8.3 Safe Passage</p>
-                  <p className="text-[10px] text-muted-foreground">Route Deviation (&gt;20mph outside polygon) triggers Silent Guardian Alert. Grooming Detector flags encrypted/late-night metadata.</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-foreground">8.4 CPS Tripwire</p>
-                  <p className="text-[10px] text-muted-foreground">Impact_Trauma (&gt;4G) + High_Decibel_Audio (filtered by aerobic HR context) logs to Immutable_Vault.</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* SILVER SENTINEL */}
-            <Card className="border-border/40 shadow-sm overflow-hidden">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                  <UserMinus className="w-3.5 h-3.5 text-indigo-500" />
-                  9. Silver Sentinel Protocol (Elders)
-                </CardTitle>
-                <p className="text-[9px] text-muted-foreground uppercase italic">Anti-Fraud & Autonomous Safety</p>
-              </CardHeader>
-              <CardContent className="p-4 pt-2 space-y-3">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-foreground">9.1 Proof-of-Life</p>
-                  <p className="text-[10px] text-muted-foreground">Cardio-ID ECG matching to prevent "Caregiver Swap". Frailty Pattern blocks mismatching gait variance. Probate Lock triggers on death detection.</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-foreground">9.2 Biological Triggers</p>
-                  <p className="text-[10px] text-muted-foreground">Fall Detection (Impact + Orientation + HR Spike). Wandering detection outside Safe Zone.</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-foreground">9.3 Anti-Exploitation</p>
-                  <p className="text-[10px] text-muted-foreground">Beneficiary Wall: Hard block on transfers to Guardians listed as Will Beneficiaries.</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* BREAK GLASS */}
-            <Card className="border-border/40 shadow-sm overflow-hidden">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                  <Activity className="w-3.5 h-3.5 text-blue-500" />
-                  10. Break-Glass Protocol
-                </CardTitle>
-                <p className="text-[9px] text-muted-foreground uppercase italic">Emergency Sovereignty Escalation</p>
-              </CardHeader>
-              <CardContent className="p-4 pt-2 space-y-3">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-foreground">10.1 Escalation Ladder</p>
-                  <p className="text-[10px] text-muted-foreground">Child: Emergency Cash. Spouse: Medical History + POA. EMT: Read-Only Triage (Allergies/Blood Type).</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-foreground">10.2 Triggers & Revocation</p>
-                  <p className="text-[10px] text-muted-foreground">Deadman Switch auto-grants if unresponsive &gt;10 mins. Auto-revocation once biometrics stabilize.</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* AEGIS PROTOCOL */}
-            <Card className="border-border/40 shadow-sm overflow-hidden">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                  <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
-                  11. Aegis Protocol
-                </CardTitle>
-                <p className="text-[9px] text-muted-foreground uppercase italic">Anti-Abuse & Coercion Shield</p>
-              </CardHeader>
-              <CardContent className="p-4 pt-2 space-y-3">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-foreground">11.1 Truman Sandbox</p>
-                  <p className="text-[10px] text-muted-foreground">"Shake-to-Sever" gesture migrates abuser to a Simulation_Shard with synthetic "Safe Routine" Pattern-of-Life data.</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-foreground">11.2 Stalking Detection</p>
-                  <p className="text-[10px] text-muted-foreground">Obsession Metric (&gt;50 location checks/day). Pre-loads Ghost Protocol if Victim HRV crashes upon Partner proximity.</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-foreground">11.3 Hitchhiker Protocol</p>
-                  <p className="text-[10px] text-muted-foreground">Passive BLE sniffing for unknown trackers persisting &gt;15 mins at driving speed. Provides AR Heatmap to locate device.</p>
-                </div>
-              </CardContent>
-            </Card>
+          {/* 2. GAMMA TRIGGER TAB */}
+          <TabsContent value="gamma" className="space-y-6 focus-visible:outline-none">
+            <div className="rounded-3xl border border-slate-50 bg-slate-50/30 p-10 text-center shadow-sm">
+               <div className={`w-24 h-24 rounded-full mx-auto mb-8 flex items-center justify-center border-4 transition-all duration-700 ${gammaActive ? 'border-orange-500 bg-orange-50 scale-110 shadow-[0_0_40px_rgba(249,115,22,0.15)]' : 'border-white bg-white'}`}>
+                  <Zap className={`w-10 h-10 ${gammaActive ? 'text-orange-500 animate-pulse' : 'text-slate-200'}`} />
+               </div>
+               <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em] mb-4">40Hz Entrainment Trigger</h3>
+               <p className="text-[11px] text-slate-400 max-w-[220px] mx-auto mb-10 font-medium leading-relaxed">Active stimulation for pupillary response testing and neural drive peaking.</p>
+               
+               <div className="flex items-center justify-between bg-white border border-slate-100 p-5 rounded-2xl shadow-sm">
+                  <div className="text-left">
+                     <p className="text-[10px] font-black text-slate-900 uppercase">Hardware Pulse</p>
+                     <p className="text-[9px] text-teal-600 font-bold uppercase tracking-tighter">{gammaActive ? "Transmitting" : "Standby"}</p>
+                  </div>
+                  <Switch checked={gammaActive} onCheckedChange={triggerGammaSequence} className="data-[state=checked]:bg-orange-500" />
+               </div>
+            </div>
           </TabsContent>
 
+          {/* 3. MEMORY ANCHORING TAB */}
+          <TabsContent value="memory" className="space-y-6 focus-visible:outline-none">
+             <div className="rounded-3xl border border-slate-100 bg-white shadow-sm overflow-hidden min-h-[460px] flex flex-col">
+                <div className="p-5 border-b border-slate-50 flex items-center justify-between">
+                   <div className="flex items-center gap-2">
+                      <Target className="w-4 h-4 text-orange-500" />
+                      <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Memory Anchor: {rsvpPhase !== 'IDLE' ? `${testRound}/5` : 'Validation'}</span>
+                   </div>
+                   {rsvpPhase !== 'IDLE' && <Badge className="bg-orange-500 text-white font-black text-[9px] px-2.5">{cumulativeScore}</Badge>}
+                </div>
+
+                <div className="flex-1 flex flex-col items-center justify-center p-8 relative">
+                   {rsvpPhase === 'IDLE' && (
+                      <div className="text-center space-y-10">
+                         <div className="space-y-2">
+                            <p className="text-[10px] text-slate-400 uppercase font-black tracking-[0.25em]">Operational Calibration</p>
+                            <Smartphone className="w-8 h-8 text-slate-300 mx-auto animate-bounce mt-4" />
+                            <p className="text-[11px] text-slate-600 font-medium max-w-[190px]">Turn device horizontally to lock orientation for validation battery.</p>
+                         </div>
+                         <Button onClick={resetFullTest} className="bg-slate-900 text-white hover:bg-orange-500 font-black px-12 py-7 rounded-full uppercase italic transition-all shadow-md">Initialize Battery</Button>
+                         <div className="flex justify-center gap-4">
+                            {[500, 300, 150].map(s => (
+                               <button key={s} onClick={() => setRsvpSpeed(s)} className={`text-[9px] font-black px-4 py-2 rounded-full border-2 transition-all ${rsvpSpeed === s ? 'border-teal-600 text-teal-600' : 'border-slate-50 text-slate-300'}`}>{s === 500 ? 'LVL 1' : s === 300 ? 'NORM' : 'ALPHA'}</button>
+                            ))}
+                         </div>
+                      </div>
+                   )}
+
+                   {rsvpPhase === 'CALIBRATING' && (
+                      <div className="text-center space-y-4">
+                         <div className="w-12 h-12 rounded-full border-4 border-teal-500 border-t-transparent animate-spin mx-auto" />
+                         <p className="text-[11px] font-black uppercase tracking-[0.5em] text-teal-600">Locking Focus</p>
+                      </div>
+                   )}
+
+                   {rsvpPhase === 'PRESENTING' && (
+                      <div className="w-full text-center px-4 h-32 flex items-center justify-center overflow-hidden">
+                         <p className={`${getDynamicFontSize(activeSequence[rsvpWordIndex])} font-black tracking-[0.2em] text-slate-900 uppercase animate-in zoom-in duration-75 whitespace-nowrap drop-shadow-sm leading-none`}>
+                            {activeSequence[rsvpWordIndex]}
+                         </p>
+                      </div>
+                   )}
+
+                   {rsvpPhase === 'MASK' && <p className="text-6xl font-black text-slate-50 select-none">#######</p>}
+
+                   {rsvpPhase === 'RECALL' && (
+                      <div className="w-full space-y-6">
+                         <p className="text-[10px] font-black text-slate-400 text-center uppercase tracking-[0.3em]">Sequence Verification</p>
+                         <div className="grid grid-cols-2 gap-3">
+                            {[...activeSequence].sort().map(word => (
+                               <Button key={word} onClick={() => handleRecallSelection(word)} variant="outline" className={`h-14 border-2 text-[11px] font-black uppercase transition-all ${userRecall.includes(word) ? 'bg-slate-50 text-slate-300 border-slate-50 scale-95 opacity-40' : 'border-slate-50 text-slate-700 hover:border-teal-500 hover:text-teal-600 shadow-sm'}`}>{word}</Button>
+                            ))}
+                         </div>
+                      </div>
+                   )}
+
+                   {rsvpPhase === 'ROUND_COMPLETE' && <p className="text-3xl font-black text-teal-600 italic tracking-tighter uppercase animate-pulse">ROUND {testRound} LOGGED</p>}
+
+                   {rsvpPhase === 'RESULT' && (
+                      <div className="text-center space-y-10 animate-in zoom-in duration-500">
+                         <Trophy className="w-20 h-20 text-orange-500 mx-auto" />
+                         <div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 text-center">Cumulative Clutch Score</p>
+                            <p className="text-9xl font-black italic tracking-tighter text-slate-900 leading-none text-center">{cumulativeScore}</p>
+                         </div>
+                         <Button variant="ghost" onClick={endTest} className="text-slate-300 font-black uppercase text-[11px] hover:text-teal-600 tracking-[0.2em] text-center"><RotateCcw className="w-4 h-4 mr-2" /> Exit to Portrait</Button>
+                      </div>
+                   )}
+                </div>
+             </div>
+          </TabsContent>
         </Tabs>
+
+        <style>{`
+          @keyframes seizure-rgb {
+            0% { background-color: #ff0000; }
+            25% { background-color: #00ff00; }
+            50% { background-color: #0000ff; }
+            75% { background-color: #ffffff; }
+            100% { background-color: #ff0000; }
+          }
+        `}</style>
       </div>
-    </GhostProtocol>
+    </GhostProtocolWrapper>
   );
 };
 
