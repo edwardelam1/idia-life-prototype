@@ -18,8 +18,8 @@ import GhostProtocol from "./GhostProtocol";
 import SovereignAuth from "./SovereignAuth";
 
 // --- TYPE DEFINITIONS ---
-interface HriScoreLog {
-  total_score: number;
+interface BioLedgerEntry {
+  heart_rate_variability_ms: number | null;
   created_at: string;
 }
 
@@ -60,13 +60,13 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
 
     const fetchExecutiveData = async () => {
       try {
-        const { data: hriLogsRaw } = await supabase
-          .from("hri_scores" as any)
-          .select("total_score, created_at")
+        const { data: bioLogsRaw } = await supabase
+          .from("staged_health_data" as any)
+          .select("heart_rate_variability_ms, created_at")
           .order("created_at", { ascending: false })
           .limit(7);
         
-        const hriLogs = hriLogsRaw as HriScoreLog[] | null;
+        const bioLogs = bioLogsRaw as BioLedgerEntry[] | null;
 
         const { data: ledgerRaw } = await supabase
           .from("fiat_ledger" as any)
@@ -76,11 +76,11 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
         
         const ledger = ledgerRaw as FiatLedgerEntry[] | null;
 
-        if (hriLogs && ledger) {
-          const chartData = hriLogs
+        if (bioLogs && ledger) {
+          const chartData = bioLogs
             .map((log, i) => ({
               day: new Date(log.created_at).toLocaleDateString("en-US", { weekday: "short" }),
-              hrv: Math.round(log.total_score * 0.8),
+              hrv: log.heart_rate_variability_ms ? Math.round(log.heart_rate_variability_ms) : 0,
               revenue: ledger[i]?.amount_usd || 1200 + Math.random() * 500,
             }))
             .reverse();
@@ -88,8 +88,10 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
           setFusionData(chartData);
 
           const totalRev = ledger.reduce((acc, curr) => acc + (curr.amount_usd || 0), 0);
+          const latestHrv = bioLogs[0]?.heart_rate_variability_ms;
+          
           setLiveMetrics({
-            hrvAvg: "72ms",
+            hrvAvg: latestHrv ? `${Math.round(latestHrv)}ms` : "Calibrating",
             sleepScore: "88/100",
             weekRev: `$${(totalRev / 1000).toFixed(1)}K`,
           });
