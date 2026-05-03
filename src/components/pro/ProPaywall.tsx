@@ -22,7 +22,7 @@ const tiers = [
     icon: Zap,
     color: "from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)]",
     border: "border-[hsl(178,42%,32%)/0.3]",
-    features: ["Human Reliability Index (HRI)", "Performance Tools", "Cognitive Alerts"],
+    features: ["Human Reliability Index", "Performance Tools", "Cognitive Alerts"],
   },
   {
     id: "pro_plus" as SubscriptionTier,
