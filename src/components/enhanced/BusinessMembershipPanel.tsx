@@ -34,7 +34,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Building, Clock, LogOut, Upload, Check } from "lucide-react";
+import { Building, Clock, LogOut, Upload, Check, ImagePlus } from "lucide-react";
 import {
   useBusinessMembership,
   type Membership,
