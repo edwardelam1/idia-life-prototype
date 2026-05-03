@@ -37,6 +37,7 @@ export interface IntakePayload {
   };
   contactRole: string;
   documentPaths: string[];
+  logoPath?: string | null;
 }
 
 interface State {

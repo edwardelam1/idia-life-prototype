@@ -29,6 +29,7 @@ export type Database = {
           entity_type: string | null
           id: string
           industry: string | null
+          logo_path: string | null
           request_type: string | null
           status: string | null
           submodule_id: string | null
@@ -50,6 +51,7 @@ export type Database = {
           entity_type?: string | null
           id?: string
           industry?: string | null
+          logo_path?: string | null
           request_type?: string | null
           status?: string | null
           submodule_id?: string | null
@@ -71,6 +73,7 @@ export type Database = {
           entity_type?: string | null
           id?: string
           industry?: string | null
+          logo_path?: string | null
           request_type?: string | null
           status?: string | null
           submodule_id?: string | null
