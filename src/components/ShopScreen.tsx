@@ -118,7 +118,7 @@ const ShopScreen = () => {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search Live IDIA Nodes..."
+                placeholder="Find your favorite shop here..."
                 className="pl-10 h-12 bg-white border-teal-100 shadow-sm rounded-2xl"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
