@@ -24,7 +24,7 @@ export const generateACAHash = async (
   // 3. Nestle the generated hash into the final payload
   const finalPayload = {
     ...basePayload,
-    aca_hash: hashHex,
+    aca_hash_key: hashHex,
   };
 
   return { hash: hashHex, payload: finalPayload };

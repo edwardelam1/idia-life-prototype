@@ -8,8 +8,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -23,10 +22,7 @@ function getEnv(...names: string[]): string {
 }
 
 const SUPABASE_URL = getEnv("SUPABASE_URL", "VITE_SUPABASE_URL");
-const SERVICE_ROLE_KEY = getEnv(
-  "SUPABASE_SERVICE_ROLE_KEY",
-  "SERVICE_ROLE_KEY"
-);
+const SERVICE_ROLE_KEY = getEnv("SUPABASE_SERVICE_ROLE_KEY", "SERVICE_ROLE_KEY");
 const ANON_KEY = getEnv("SUPABASE_ANON_KEY", "VITE_SUPABASE_PUBLISHABLE_KEY");
 
 // Star → trust_score delta (small, bounded — feeds the IDIA recalc)
@@ -126,11 +122,7 @@ Deno.serve(async (req) => {
     const delta = DELTA_BY_STARS[stars] ?? 0;
     let newScore: number | null = null;
     if (delta !== 0) {
-      const { data: prof } = await admin
-        .from("profiles")
-        .select("trust_score")
-        .eq("user_id", rateeId)
-        .maybeSingle();
+      const { data: prof } = await admin.from("profiles").select("trust_score").eq("user_id", rateeId).maybeSingle();
 
       const current = Number(prof?.trust_score ?? 0);
       newScore = Math.max(0, Math.min(999, current + delta));
@@ -140,15 +132,11 @@ Deno.serve(async (req) => {
         .eq("user_id", rateeId);
 
       // Snapshot for the trend chart
-      await admin
-        .from("trust_score_history")
-        .insert({ user_id: rateeId, score: newScore });
+      await admin.from("trust_score_history").insert({ user_id: rateeId, score: newScore });
     }
 
     // DELT Protocol: ACA hash for the egress
-    const aca = await generateAcaHash(
-      `${raterId}|${rateeId}|${stars}|${Date.now()}`
-    );
+    const aca = await generateAcaHash(`${raterId}|${rateeId}|${stars}|${Date.now()}`);
 
     console.log("[SUBMIT_RATING_END]", { stars, delta, aca: aca.slice(0, 12) });
 
@@ -158,12 +146,12 @@ Deno.serve(async (req) => {
         stars,
         applied_delta: delta,
         new_score: newScore,
-        aca_hash: aca,
+        aca_hash_key: aca,
       }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   } catch (err) {
     console.error("[SUBMIT_RATING_FATAL]", err);
