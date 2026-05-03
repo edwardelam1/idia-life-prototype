@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { 
-  Zap, Brain, ShieldCheck, Info, Lock, Volume2, Activity, UserMinus, ShieldAlert, 
-  Target, RotateCcw, Smartphone 
+  Zap, Info, Lock, Volume2, Target, RotateCcw, Smartphone 
 } from "lucide-react";
 import { ComposedChart, Line, Bar, XAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,7 +20,7 @@ import {
 } from "@/components/ui/tooltip";
 
 // IDIA Protocol Components
-import GhostProtocolWrapper from "./GhostProtocol"; // Renamed slightly internally to avoid component clash if needed, using user's import
+import GhostProtocolWrapper from "./GhostProtocol";
 import SovereignAuth from "./SovereignAuth";
 
 // --- TYPE DEFINITIONS ---
@@ -59,8 +58,11 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
   // --- CORE STATE ---
   const [authVerified, setAuthVerified] = useState(false);
   const [fusionData, setFusionData] = useState<any[]>([]);
+  
+  // Controls the sub-view inside the Pure Alpha tab
+  const [pureAlphaView, setPureAlphaView] = useState<'fusion' | 'balance' | 'cash' | 'ghost' | 'acoustics'>('fusion');
 
-  // --- GAMMA & RSVP STATE (Restored from Pro+) ---
+  // --- GAMMA & RSVP STATE ---
   const [gammaActive, setGammaActive] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
   
@@ -74,7 +76,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
 
   // --- ADJUSTABLE SETTINGS STATE ---
   const [settings, setSettings] = useState({
-    ghostProtocol: true,
+    honeyPot: true,
     digitalWard: false,
     silverSentinel: false,
     aegisProtocol: true,
@@ -105,7 +107,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
           .from("fiat_ledger" as any)
           .select("amount_usd, created_at")
           .order("created_at", { ascending: false })
-          .limit(7) as any); // Matched limit to 7 to align arrays
+          .limit(7) as any);
         
         const ledger = ledgerRaw as FiatLedgerEntry[] | null;
 
@@ -114,7 +116,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
             .map((log, i) => ({
               day: new Date(log.created_at).toLocaleDateString("en-US", { weekday: "short" }),
               hrv: Math.round(log.total_score * 0.8),
-              revenue: ledger[i]?.amount_usd || 0, // Mock data purged
+              revenue: ledger[i]?.amount_usd || 0,
             }))
             .reverse();
 
@@ -253,7 +255,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
           </Badge>
         </div>
 
-        {/* PRO+ MENU TABS (Thin border-bottom design) */}
+        {/* PRO+ MENU TABS (Pure Alpha, Gamma, Anchor) */}
         <Tabs defaultValue="pure-alpha" className="w-full">
           <TabsList className="flex w-full bg-transparent border-b border-slate-100 p-0 rounded-none h-10 mb-6 gap-8 overflow-x-auto no-scrollbar justify-start">
             <TabsTrigger value="pure-alpha" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Pure Alpha</TabsTrigger>
@@ -266,115 +268,176 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
             
             {/* Dynamic Buttons Row */}
             <div className="flex items-center gap-2 mb-2 overflow-x-auto no-scrollbar pb-2">
-              <Badge className="text-[10px] uppercase font-bold bg-slate-900 text-white hover:bg-slate-800 cursor-pointer whitespace-nowrap px-3 py-1">P&L Fusion</Badge>
-              <Badge variant="outline" className="text-[10px] uppercase font-bold text-slate-500 cursor-pointer whitespace-nowrap px-3 py-1 hover:bg-slate-50">Balance Sheet</Badge>
-              <Badge variant="outline" className="text-[10px] uppercase font-bold text-slate-500 cursor-pointer whitespace-nowrap px-3 py-1 hover:bg-slate-50">Cash Flow</Badge>
-              <Badge variant="outline" className="text-[10px] uppercase font-bold text-slate-500 cursor-pointer whitespace-nowrap px-3 py-1 hover:bg-slate-50">Ghost Protocol</Badge>
-              <Badge variant="outline" className="text-[10px] uppercase font-bold text-slate-500 cursor-pointer whitespace-nowrap px-3 py-1 hover:bg-slate-50">Acoustics</Badge>
+              <Badge 
+                onClick={() => setPureAlphaView('fusion')}
+                className={`text-[10px] uppercase font-bold cursor-pointer whitespace-nowrap px-3 py-1 ${pureAlphaView === 'fusion' ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+              >
+                P&L Fusion
+              </Badge>
+              <Badge 
+                onClick={() => setPureAlphaView('balance')}
+                className={`text-[10px] uppercase font-bold cursor-pointer whitespace-nowrap px-3 py-1 ${pureAlphaView === 'balance' ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+              >
+                Balance Sheet
+              </Badge>
+              <Badge 
+                onClick={() => setPureAlphaView('cash')}
+                className={`text-[10px] uppercase font-bold cursor-pointer whitespace-nowrap px-3 py-1 ${pureAlphaView === 'cash' ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+              >
+                Cash Flow
+              </Badge>
+              <Badge 
+                onClick={() => setPureAlphaView('ghost')}
+                className={`text-[10px] uppercase font-bold cursor-pointer whitespace-nowrap px-3 py-1 ${pureAlphaView === 'ghost' ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+              >
+                Ghost Protocol
+              </Badge>
+              <Badge 
+                onClick={() => setPureAlphaView('acoustics')}
+                className={`text-[10px] uppercase font-bold cursor-pointer whitespace-nowrap px-3 py-1 ${pureAlphaView === 'acoustics' ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+              >
+                Acoustics
+              </Badge>
             </div>
 
-            {/* P&L Fusion Ledger */}
-            <Card className="border-slate-100 shadow-sm overflow-hidden">
-              <CardHeader className="p-5 pb-2">
-                <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center text-slate-900">
-                  P&L Fusion Ledger
-                  <InfoIcon text="Real-time correlation between your Autonomic Resilience (HRV) and Capital Generation." />
-                </CardTitle>
-                <p className="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">Bio-State vs Liquid Revenue</p>
-              </CardHeader>
-              <CardContent className="p-0 h-56">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={fusionData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="day" tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: "900" }} axisLine={false} tickLine={false} />
-                    <RechartsTooltip
-                      contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", fontSize: "10px", fontWeight: "bold" }}
-                    />
-                    <Bar yAxisId="r" dataKey="revenue" fill="hsl(178, 42%, 42%)" radius={[4, 4, 0, 0]} opacity={0.8} />
-                    <Line yAxisId="l" type="monotone" dataKey="hrv" stroke="#f97316" strokeWidth={3} dot={{ r: 4, fill: "#f97316", strokeWidth: 2, stroke: "#fff" }} />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+            {/* CONDITIONAL RENDERING BASED ON ACTIVE BUTTON */}
 
-            {/* Ghost Protocol & Shields Settings */}
-            <Card className="border-orange-100 bg-orange-50/30 shadow-sm overflow-hidden">
-              <CardHeader className="p-5 pb-2 border-b border-orange-100/50">
-                <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-slate-900">
-                  <Lock className="w-4 h-4 text-orange-500" />
-                  Ghost Protocol Settings
-                </CardTitle>
-                <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
-                  Configure autonomous duress defense and enclave routing.
-                </p>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
-                  <div>
-                    <p className="text-[10px] font-black text-slate-900 uppercase">Honey-Pot State</p>
-                    <p className="text-[9px] text-slate-500 mt-0.5">Simulate success & lock true ledger during HRV crash.</p>
-                  </div>
-                  <Switch checked={settings.ghostProtocol} onCheckedChange={() => toggleSetting('ghostProtocol')} className="data-[state=checked]:bg-orange-500" />
-                </div>
-                <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
-                  <div>
-                    <p className="text-[10px] font-black text-slate-900 uppercase">Digital Ward (Minors)</p>
-                    <p className="text-[9px] text-slate-500 mt-0.5">Segregate data & trigger route deviation alerts.</p>
-                  </div>
-                  <Switch checked={settings.digitalWard} onCheckedChange={() => toggleSetting('digitalWard')} />
-                </div>
-                <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
-                  <div>
-                    <p className="text-[10px] font-black text-slate-900 uppercase">Silver Sentinel (Elders)</p>
-                    <p className="text-[9px] text-slate-500 mt-0.5">Cardio-ID verification & beneficiary wall blocks.</p>
-                  </div>
-                  <Switch checked={settings.silverSentinel} onCheckedChange={() => toggleSetting('silverSentinel')} />
-                </div>
-                <div className="flex items-center justify-between p-4">
-                  <div>
-                    <p className="text-[10px] font-black text-slate-900 uppercase">Aegis Protocol</p>
-                    <p className="text-[9px] text-slate-500 mt-0.5">Truman sandbox & foreign IoT tracker sniffing.</p>
-                  </div>
-                  <Switch checked={settings.aegisProtocol} onCheckedChange={() => toggleSetting('aegisProtocol')} />
-                </div>
-              </CardContent>
-            </Card>
+            {pureAlphaView === 'fusion' && (
+              <Card className="border-slate-100 shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                <CardHeader className="p-5 pb-2">
+                  <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center text-slate-900">
+                    P&L Fusion Ledger
+                    <InfoIcon text="Real-time correlation between your Autonomic Resilience (HRV) and Capital Generation." />
+                  </CardTitle>
+                  <p className="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">Bio-State vs Liquid Revenue</p>
+                </CardHeader>
+                <CardContent className="p-0 h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={fusionData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="day" tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: "900" }} axisLine={false} tickLine={false} />
+                      <RechartsTooltip
+                        contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", fontSize: "10px", fontWeight: "bold" }}
+                      />
+                      <Bar yAxisId="r" dataKey="revenue" fill="hsl(178, 42%, 42%)" radius={[4, 4, 0, 0]} opacity={0.8} />
+                      <Line yAxisId="l" type="monotone" dataKey="hrv" stroke="#f97316" strokeWidth={3} dot={{ r: 4, fill: "#f97316", strokeWidth: 2, stroke: "#fff" }} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
 
-            {/* Acoustics Settings */}
-            <Card className="border-slate-100 shadow-sm overflow-hidden">
-              <CardHeader className="p-5 pb-2 border-b border-slate-50">
-                <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-slate-900">
-                  <Volume2 className="w-4 h-4 text-indigo-500" />
-                  Acoustic Settings
-                </CardTitle>
-                <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
-                  Manage environmental coercion and ambient threat engines.
-                </p>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="flex items-center justify-between p-4 border-b border-slate-50">
-                  <div>
-                    <p className="text-[10px] font-black text-slate-900 uppercase">Ambient Isolation</p>
-                    <p className="text-[9px] text-slate-500 mt-0.5">Soft-block if unexpected voices are detected.</p>
+            {pureAlphaView === 'balance' && (
+              <Card className="border-slate-100 shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                <CardHeader className="p-5">
+                  <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center text-slate-900">
+                    Balance Sheet
+                  </CardTitle>
+                  <p className="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">Asset & Liability Overview</p>
+                </CardHeader>
+                <CardContent className="p-5 text-center text-slate-400 text-[10px] uppercase font-black">
+                  [ BALANCE SHEET DATA ENDPOINT ]
+                </CardContent>
+              </Card>
+            )}
+
+            {pureAlphaView === 'cash' && (
+              <Card className="border-slate-100 shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                <CardHeader className="p-5">
+                  <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center text-slate-900">
+                    Cash Flow
+                  </CardTitle>
+                  <p className="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">Liquidity Velocity</p>
+                </CardHeader>
+                <CardContent className="p-5 text-center text-slate-400 text-[10px] uppercase font-black">
+                  [ CASH FLOW DATA ENDPOINT ]
+                </CardContent>
+              </Card>
+            )}
+
+            {pureAlphaView === 'ghost' && (
+              <Card className="border-orange-100 bg-orange-50/30 shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                <CardHeader className="p-5 pb-2 border-b border-orange-100/50">
+                  <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                    <Lock className="w-4 h-4 text-orange-500" />
+                    Ghost Protocol Settings
+                  </CardTitle>
+                  <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                    Configure autonomous duress defense and enclave routing.
+                  </p>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {/* Honey Pot State */}
+                  <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-900 uppercase">Honey-Pot State</p>
+                      <p className="text-[9px] text-slate-500 mt-0.5">Simulate success & lock true ledger during HRV crash.</p>
+                    </div>
+                    <Switch checked={settings.honeyPot} onCheckedChange={() => toggleSetting('honeyPot')} className="data-[state=checked]:bg-orange-500" />
                   </div>
-                  <Switch checked={settings.ambientIsolation} onCheckedChange={() => toggleSetting('ambientIsolation')} />
-                </div>
-                <div className="flex items-center justify-between p-4 border-b border-slate-50">
-                  <div>
-                    <p className="text-[10px] font-black text-slate-900 uppercase">Coercion Detector</p>
-                    <p className="text-[9px] text-slate-500 mt-0.5">Analyze voice tremor & acute stress markers.</p>
+                  
+                  {/* Shields folded into Ghost Protocol settings */}
+                  <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-900 uppercase">Digital Ward (Minors)</p>
+                      <p className="text-[9px] text-slate-500 mt-0.5">Segregate data & trigger route deviation alerts.</p>
+                    </div>
+                    <Switch checked={settings.digitalWard} onCheckedChange={() => toggleSetting('digitalWard')} />
                   </div>
-                  <Switch checked={settings.coercionDetector} onCheckedChange={() => toggleSetting('coercionDetector')} />
-                </div>
-                <div className="flex items-center justify-between p-4">
-                  <div>
-                    <p className="text-[10px] font-black text-rose-600 uppercase">Impact Trauma Sync</p>
-                    <p className="text-[9px] text-slate-500 mt-0.5">Log high-decibel audio + physical impact to vault.</p>
+                  <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-900 uppercase">Silver Sentinel (Elders)</p>
+                      <p className="text-[9px] text-slate-500 mt-0.5">Cardio-ID verification & beneficiary wall blocks.</p>
+                    </div>
+                    <Switch checked={settings.silverSentinel} onCheckedChange={() => toggleSetting('silverSentinel')} />
                   </div>
-                  <Switch checked={settings.impactTraumaSync} onCheckedChange={() => toggleSetting('impactTraumaSync')} className="data-[state=checked]:bg-rose-500" />
-                </div>
-              </CardContent>
-            </Card>
+                  <div className="flex items-center justify-between p-4">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-900 uppercase">Aegis Protocol</p>
+                      <p className="text-[9px] text-slate-500 mt-0.5">Truman sandbox & foreign IoT tracker sniffing.</p>
+                    </div>
+                    <Switch checked={settings.aegisProtocol} onCheckedChange={() => toggleSetting('aegisProtocol')} />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {pureAlphaView === 'acoustics' && (
+              <Card className="border-slate-100 shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                <CardHeader className="p-5 pb-2 border-b border-slate-50">
+                  <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                    <Volume2 className="w-4 h-4 text-indigo-500" />
+                    Acoustic Settings
+                  </CardTitle>
+                  <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                    Manage environmental coercion and ambient threat engines.
+                  </p>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="flex items-center justify-between p-4 border-b border-slate-50">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-900 uppercase">Ambient Isolation</p>
+                      <p className="text-[9px] text-slate-500 mt-0.5">Soft-block if unexpected voices are detected.</p>
+                    </div>
+                    <Switch checked={settings.ambientIsolation} onCheckedChange={() => toggleSetting('ambientIsolation')} />
+                  </div>
+                  <div className="flex items-center justify-between p-4 border-b border-slate-50">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-900 uppercase">Coercion Detector</p>
+                      <p className="text-[9px] text-slate-500 mt-0.5">Analyze voice tremor & acute stress markers.</p>
+                    </div>
+                    <Switch checked={settings.coercionDetector} onCheckedChange={() => toggleSetting('coercionDetector')} />
+                  </div>
+                  <div className="flex items-center justify-between p-4">
+                    <div>
+                      <p className="text-[10px] font-black text-rose-600 uppercase">Impact Trauma Sync</p>
+                      <p className="text-[9px] text-slate-500 mt-0.5">Log high-decibel audio + physical impact to vault.</p>
+                    </div>
+                    <Switch checked={settings.impactTraumaSync} onCheckedChange={() => toggleSetting('impactTraumaSync')} className="data-[state=checked]:bg-rose-500" />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
           </TabsContent>
 
