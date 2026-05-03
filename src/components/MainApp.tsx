@@ -8,7 +8,7 @@ import ShopScreen from "./ShopScreen";
 import GovernanceScreen from "./GovernanceScreen";
 import ProScreen from "./pro/ProScreen";
 import Header from "./Header";
-import FriendAssistant from "./FriendAssistant";
+import { FriendAssistantProvider } from "./FriendAssistant";
 import WelcomeSequence from "./life/WelcomeSequence";
 
 const MainApp = () => {
@@ -81,6 +81,7 @@ const MainApp = () => {
   const ActiveComponent = tabs.find((tab) => tab.id === activeTab)?.component || EnhancedWalletDashboard;
 
   return (
+    <FriendAssistantProvider>
     <div className="flex flex-col h-screen overflow-hidden bg-background">
       <Header />
 
@@ -117,21 +118,11 @@ const MainApp = () => {
         </div>
       </nav>
 
-      {showFriend && (
-        <FriendAssistant
-          isVisible={showFriend}
-          onClose={() => {
-            setShowFriend(false);
-            setFriendTrigger(undefined);
-          }}
-          trigger={friendTrigger}
-        />
-      )}
-
       {showWelcome && (
         <WelcomeSequence tabRefs={tabRefs} onComplete={() => setShowWelcome(false)} />
       )}
     </div>
+    </FriendAssistantProvider>
   );
 };
 
