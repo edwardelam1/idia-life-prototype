@@ -1,32 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@/components/ui/sonner";
 
-/**
- * useNFCBridge — IDIA Sovereign Handshake Bridge
- *
- * Bridges the React UI to the native iOS WebKit message handler responsible
- * for the physical NFC handshake. Maintains a graceful web fallback and
- * re-broadcasts native callbacks as CustomEvents so multiple components
- * (Life now, Vote/PACE later) can subscribe without colliding on the
- * window globals.
- */
-
 export type NFCBridgeMode = "STANDARD" | "PACE";
 
 interface NFCWindow extends Window {
   webkit?: {
     messageHandlers?: {
-      initiateNfcScan?: { postMessage: (msg: unknown) => void };
+      // Corrected to match the working Payroll/Handshake components
+      initiateNfcHandshake?: { postMessage: (msg: unknown) => void };
     };
   };
-  onNfcScanComplete?: (peerToken: string) => void;
-  onNfcScanError?: (error: string) => void;
+  // Corrected to match the native Swift callback targets
+  onNfcHandshakeComplete?: (peerToken: string) => void;
+  onNfcHandshakeError?: (error: string) => void;
 }
 
 const detectBridge = (): boolean => {
   if (typeof window === "undefined") return false;
   const w = window as NFCWindow;
-  return Boolean(w.webkit?.messageHandlers?.initiateNfcScan?.postMessage);
+  // Look for initiateNfcHandshake instead of initiateNfcScan
+  return Boolean(w.webkit?.messageHandlers?.initiateNfcHandshake?.postMessage);
 };
 
 export function useNFCBridge() {
@@ -34,7 +27,6 @@ export function useNFCBridge() {
   const [isScanning, setIsScanning] = useState(false);
   const scanningRef = useRef(false);
 
-  // ---- Listener installation (paired logging) -----------------------------
   useEffect(() => {
     console.log("[BRIDGE_INIT_START]");
     setIsBridgeAvailable(detectBridge());
@@ -42,70 +34,85 @@ export function useNFCBridge() {
     console.log("[BRIDGE_LISTENER_INIT_START]");
     const w = window as NFCWindow;
 
+    // Standardized callback that the native iOS side actually calls
     const completeHandler = (peerToken: string) => {
-      console.log("[BRIDGE_SCAN_COMPLETE]", { tokenLength: peerToken?.length ?? 0 });
+      console.log("[BRIDGE_NATIVE_CALLBACK_RECEIVED_START]");
+      console.log("[BRIDGE_HANDSHAKE_COMPLETE]", { tokenLength: peerToken?.length ?? 0 });
       scanningRef.current = false;
       setIsScanning(false);
+      
       window.dispatchEvent(
         new CustomEvent("nfc:scan-complete", { detail: { peerToken } })
       );
+      console.log("[BRIDGE_NATIVE_CALLBACK_RECEIVED_END]");
     };
 
     const errorHandler = (error: string) => {
-      console.log("[BRIDGE_SCAN_ERROR]", { error });
+      console.log("[BRIDGE_NATIVE_ERROR_RECEIVED_START]");
+      console.log("[BRIDGE_HANDSHAKE_ERROR]", { error });
       scanningRef.current = false;
       setIsScanning(false);
+      
       window.dispatchEvent(
         new CustomEvent("nfc:scan-error", { detail: { error } })
       );
+      console.log("[BRIDGE_NATIVE_ERROR_RECEIVED_END]");
     };
 
-    w.onNfcScanComplete = completeHandler;
-    w.onNfcScanError = errorHandler;
+    // Attach to the specific window globals expected by your Swift Coordinator
+    w.onNfcHandshakeComplete = completeHandler;
+    w.onNfcHandshakeError = errorHandler;
 
     console.log("[BRIDGE_LISTENER_INIT_END]");
 
     return () => {
       console.log("[BRIDGE_LISTENER_TEARDOWN_START]");
       const cleanup = window as NFCWindow;
-      if (cleanup.onNfcScanComplete === completeHandler) cleanup.onNfcScanComplete = undefined;
-      if (cleanup.onNfcScanError === errorHandler) cleanup.onNfcScanError = undefined;
+      if (cleanup.onNfcHandshakeComplete === completeHandler) cleanup.onNfcHandshakeComplete = undefined;
+      if (cleanup.onNfcHandshakeError === errorHandler) cleanup.onNfcHandshakeError = undefined;
       console.log("[BRIDGE_LISTENER_TEARDOWN_END]");
       console.log("[BRIDGE_INIT_END]");
     };
   }, []);
 
-  // ---- Outbound: initiate handshake ---------------------------------------
   const initiateSovereignHandshake = useCallback(
     (mode: NFCBridgeMode = "STANDARD") => {
       console.log("[BRIDGE_HANDSHAKE_START]", { mode });
 
       if (scanningRef.current) {
-        console.log("[BRIDGE_HANDSHAKE_END]", { reason: "already_scanning" });
+        console.warn("[BRIDGE_HANDSHAKE_ABORTED] Already scanning");
         return;
       }
 
       const w = window as NFCWindow;
-      const handler = w.webkit?.messageHandlers?.initiateNfcScan;
+      // Updated to match the handler that worked in your Payroll log
+      const handler = w.webkit?.messageHandlers?.initiateNfcHandshake;
 
       if (!handler?.postMessage) {
+        console.error("[BRIDGE_HANDSHAKE_FAILED] initiateNfcHandshake handler missing");
         toast("Hardware not available", {
-          description:
-            "Please open IDIA Life on your mobile device to activate the physical handshake hardware.",
+          description: "Please open IDIA Life on your mobile device to activate the physical handshake hardware.",
         });
-        console.log("[BRIDGE_HANDSHAKE_END]", { reason: "bridge_missing" });
         return;
       }
 
       try {
         scanningRef.current = true;
         setIsScanning(true);
-        handler.postMessage({ action: "start_scan", mode });
-        console.log("[BRIDGE_HANDSHAKE_END]", { dispatched: true });
+        
+        console.log("[BRIDGE_IPC_DISPATCH_START]");
+        // Aligning payload structure with NFCPayrollModal
+        handler.postMessage({ 
+          action: "start_scan", 
+          mode, 
+          handshake_token: mode === "STANDARD" ? "IDIA_LIFE_SYNC_001" : "IDIA_PACE_SYNC_001" 
+        });
+        console.log("[BRIDGE_IPC_DISPATCH_END]");
+        
       } catch (err) {
         scanningRef.current = false;
         setIsScanning(false);
-        console.log("[BRIDGE_HANDSHAKE_END]", { error: String(err) });
+        console.error("[BRIDGE_HANDSHAKE_CRASH]", { error: String(err) });
         toast("Could not start handshake", {
           description: "Please try again in a moment.",
         });
