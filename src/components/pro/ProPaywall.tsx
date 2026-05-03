@@ -19,10 +19,10 @@ const tiers = [
     price: "$9.99",
     period: "/mo",
     subtitle: "Workforce Optimization",
-    icon: Crown,
+    icon: Zap,
     color: "from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)]",
     border: "border-[hsl(178,42%,32%)/0.3]",
-    features: ["Human Reliability Index (HRI)", "Performance Tools", "Bio-Tether Link", "Cognitive Alerts"],
+    features: ["Human Reliability Index (HRI)", "Performance Tools", "Cognitive Alerts"],
   },
   {
     id: "pro_plus" as SubscriptionTier,
@@ -34,7 +34,7 @@ const tiers = [
     color: "from-[hsl(28,80%,55%)] to-[hsl(28,80%,45%)]",
     border: "border-[hsl(28,80%,55%)/0.3]",
     popular: true,
-    features: ["Everything in Pro", "CPM Dashboard", "40Hz Gamma Trigger", "Memory Anchoring"],
+    features: ["Everything in Pro", "Pro+ Dashboard", "40Hz Gamma Trigger", "Memory Anchoring"],
   },
   {
     id: "pure_alpha" as SubscriptionTier,
@@ -42,10 +42,10 @@ const tiers = [
     price: "$99.99",
     period: "/mo",
     subtitle: "Executive Sovereignty",
-    icon: Zap,
+    icon: Crown,
     color: "from-[hsl(270,60%,50%)] to-[hsl(270,60%,35%)]",
     border: "border-[hsl(270,60%,50%)/0.3]",
-    features: ["Everything in Pro+", "P&L Fusion", "Ghost Protocol", "Sovereign Biometrics"],
+    features: ["Everything in Pro+", "P&L Fusion", "Ghost Protocol"],
   },
 ];
 
