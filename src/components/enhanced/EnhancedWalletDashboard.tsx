@@ -376,32 +376,6 @@ const EnhancedWalletDashboard: React.FC = () => {
             </Button>
           </div>
 
-          <Card>
-            <CardHeader className="py-2 px-3">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <TrendingUp className="w-4 h-4" /> Trust Score & Credit
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center border-r">
-                  <div className="text-xl font-bold text-primary">{profile?.trust_score ?? "NO SCORE"}</div>
-                  <Badge variant={profile?.trust_score ? "secondary" : "outline"} className="text-[10px]">
-                    {profile?.trust_score ? "Active" : "Unverified"}
-                  </Badge>
-                </div>
-                <div className="text-center">
-                  <div className="text-xl font-bold text-green-600">
-                    ${profile?.available_credit_line?.toLocaleString() || 0}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground uppercase">Available Credit</p>
-                </div>
-              </div>
-              <div className="mt-4">
-                <TestModal />
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="transactions" className="space-y-4">
