@@ -8,7 +8,6 @@ import {
   TooltipProvider, 
   TooltipTrigger 
 } from "@/components/ui/tooltip";
-import BioTetherLink from "./BioTetherLink";
 
 // --- TYPES ALIGNED TO SOVEREIGN SCHEMA ---
 interface StagedHealthData {
@@ -45,7 +44,7 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     let isMounted = true;
 
     const fetchLatestMetrics = async () => {
-      // 1. Fully Connected Ingress: Fetching latest record from Staged Tier
+      // Fully Connected Ingress: Fetching latest record from Staged Tier
       const { data: health } = await supabase
         .from("staged_health_data" as any)
         .select("heart_rate, heart_rate_variability_ms, respiratory_rate, environmental_audio_exposure_db, walking_asymmetry_percentage, data_quality_score")
@@ -69,7 +68,7 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
 
     fetchLatestMetrics();
 
-    // 2. Real-time Live Tether: Instant UI update on health sync completion
+    // Real-time Live Tether: Instant UI update on health sync completion
     const channel = supabase.channel("hri_pro_stream")
       .on("postgres_changes" as any, { 
         event: "INSERT", 
@@ -101,26 +100,25 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     { label: "Heart Rate", value: `${metrics.hr} BPM`, icon: Heart, info: "Real-time cardiac frequency." },
     { label: "HRV Index", value: `${metrics.hrv} ms`, icon: Activity, info: "Autonomic nervous system resilience baseline." },
     { label: "Acoustic", value: `${metrics.noise} dB`, icon: Volume2, info: "Ambient environmental stress monitoring." },
-    { label: "Respiratory", value: `${metrics.resp} br/m`, info: "Breathing frequency pattern." , icon: Wind },
+    { label: "Respiratory", value: `${metrics.resp} br/m`, icon: Wind, info: "Breathing frequency pattern." },
     { label: "Gait Balance", value: `${metrics.asymmetry}%`, icon: Accessibility, info: "Kinetic walking symmetry percentage." },
     { label: "Reliability", value: `${metrics.hriScore}%`, icon: ShieldCheck, info: "Aggregated Human Reliability Index (HRI) score." },
   ];
 
   if (loading && !isMasked) {
-    return <div className="p-8 text-center animate-pulse uppercase text-[10px] tracking-widest text-muted-foreground font-black">Hydrating Occupational Performance...</div>;
+    return <div className="p-8 text-center animate-pulse uppercase text-[10px] tracking-widest text-muted-foreground font-black">Hydrating IDIA Pro...</div>;
   }
 
   return (
     <div className={`p-4 pb-24 space-y-4 animate-fade-in bg-background min-h-screen ${isMasked ? "blur-md opacity-40" : ""}`}>
       
-      {/* UNIFIED HEADER: Aligned to CPM Style */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[hsl(28,80%,55%)] to-[hsl(28,80%,45%)] flex items-center justify-center shadow-lg">
             <ShieldCheck className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h2 className="font-semibold text-foreground text-sm">Occupational Performance</h2>
+            <h2 className="font-semibold text-foreground text-sm uppercase">Occupational Performance</h2>
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">IDIA Pro</p>
           </div>
         </div>
@@ -129,9 +127,6 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
         </Badge>
       </div>
 
-      <BioTetherLink isMasked={isMasked} />
-
-      {/* CORE BIOMETRIC GRID: Scrubbed of Keystone references */}
       <div className={`rounded-2xl border border-border bg-white shadow-sm p-4 transition-all`}>
         <h3 className="text-xs font-bold text-foreground mb-3 uppercase tracking-wider flex items-center gap-1.5">
           <Activity className="w-3.5 h-3.5 text-[hsl(28,80%,55%)]" />
@@ -151,7 +146,6 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
         </div>
       </div>
 
-      {/* SYSTEM STATE: Burnout Prediction (Replaces Sovereign Yield) */}
       <div className="rounded-2xl border-2 border-[hsl(28,80%,55%)] bg-[hsl(28,80%,55%)]/5 p-4 text-foreground shadow-sm">
         <div className="flex items-center gap-2 mb-1">
           <ShieldCheck className="w-4 h-4 text-[hsl(28,80%,55%)]" />
