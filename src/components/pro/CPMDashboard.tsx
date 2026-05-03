@@ -27,7 +27,7 @@ const InfoIcon = ({ text }: { text: string }) => (
       <TooltipTrigger asChild>
         <Info className="w-2.5 h-2.5 ml-1 opacity-20 hover:opacity-100 transition-opacity cursor-help" />
       </TooltipTrigger>
-      <TooltipContent className="bg-white text-slate-900 border-slate-100 text-[10px] max-w-[180px] p-2 shadow-2xl font-sans">
+      <TooltipContent className="bg-white text-slate-900 border-slate-200 text-[10px] max-w-[180px] p-2 shadow-2xl font-sans">
         <p>{text}</p>
       </TooltipContent>
     </Tooltip>
@@ -54,10 +54,12 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     status: "CALIBRATING" as "CALIBRATING" | "ARMED" | "TRIGGERED"
   });
 
-  // Dynamic font sizing to prevent wrapping
+  // DYNAMIC FONT SCALE: Prevents wrapping by calculating against character length
   const getDynamicFontSize = (word: string) => {
-    if (word.length > 10) return "text-3xl";
-    if (word.length > 8) return "text-4xl";
+    const len = word.length;
+    if (len > 12) return "text-2xl";
+    if (len > 10) return "text-3xl";
+    if (len > 8) return "text-4xl";
     return "text-5xl";
   };
 
@@ -164,14 +166,15 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
   return (
     <div className={`p-4 pb-24 space-y-6 animate-fade-in relative bg-white min-h-screen font-sans ${isMasked ? "blur-md pointer-events-none" : ""}`}>
       
+      {/* 40Hz RGB OVERLAY: FIXED INSET OVERRIDE FOR HEADER/NAV BAR COVERAGE */}
       {isFlashing && (
         <div 
-          className="fixed inset-0 z-[9999] pointer-events-none animate-[seizure-rgb_25ms_linear_infinite]" 
+          className="fixed -inset-20 z-[9999] pointer-events-none animate-[seizure-rgb_25ms_linear_infinite]" 
           style={{ mixBlendMode: 'difference' }}
         />
       )}
 
-      {/* MINIMALIST HEADER */}
+      {/* HEADER */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-[hsl(178,42%,42%)] flex items-center justify-center shadow-sm">
@@ -182,19 +185,19 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
             <p className="text-[10px] text-teal-600 uppercase font-black tracking-widest">Personal Alpha Suite</p>
           </div>
         </div>
-        <Badge variant="outline" className="border-teal-100 text-teal-600 font-black uppercase text-[8px] px-2 py-0 font-sans">Live Synapse</Badge>
+        <Badge variant="outline" className="border-teal-100 text-teal-600 font-black uppercase text-[8px] px-2 py-0">Live Synapse</Badge>
       </div>
 
       <Tabs defaultValue="biometrics" className="w-full">
-        {/* MIRRORED MINIMAL TABS */}
-        <TabsList className="flex w-full bg-transparent border-b border-slate-100 p-0 rounded-none h-10 mb-6 gap-6">
-          <TabsTrigger value="biometrics" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all font-sans">Biometrics</TabsTrigger>
-          <TabsTrigger value="gamma" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all font-sans">Gamma</TabsTrigger>
-          <TabsTrigger value="memory" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all font-sans">Anchor</TabsTrigger>
+        {/* MINIMAL THIN TAB DESIGN (MIRRORS WALLET/LIFE PAGES) */}
+        <TabsList className="flex w-full bg-transparent border-b border-slate-100 p-0 rounded-none h-10 mb-8 gap-8">
+          <TabsTrigger value="biometrics" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all">Biometrics</TabsTrigger>
+          <TabsTrigger value="gamma" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all">Gamma</TabsTrigger>
+          <TabsTrigger value="memory" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all">Anchor</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="biometrics" className="space-y-6 focus-visible:outline-none">
-          <div className="grid grid-cols-2 gap-4">
+        <TabsContent value="biometrics" className="space-y-8 focus-visible:outline-none">
+          <div className="grid grid-cols-2 gap-x-8 gap-y-6">
             {[
               { label: "Heart Rate", value: `${metrics.hr} BPM`, icon: Heart },
               { label: "HRV Index", value: `${metrics.hrv} ms`, icon: Activity },
@@ -203,39 +206,39 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
               { label: "Gait Balance", value: `${metrics.asymmetry}%`, icon: Accessibility },
               { label: "HRI Score", value: `${metrics.hriScore}%`, icon: Shield },
             ].map((b) => (
-              <div key={b.label} className="p-1">
-                <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1 flex items-center gap-1 font-sans">
+              <div key={b.label} className="p-0 border-none">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
                   <b.icon className="w-2.5 h-2.5" /> {b.label}
                 </p>
-                <p className="text-xl font-bold text-slate-900 italic tracking-tighter font-sans">{b.value}</p>
+                <p className="text-2xl font-bold text-slate-900 italic tracking-tighter">{b.value}</p>
               </div>
             ))}
           </div>
 
-          <div className="rounded-2xl border border-teal-50 bg-teal-50/30 p-5">
-             <div className="flex items-center gap-2 mb-1 text-teal-700">
+          <div className="rounded-2xl border border-teal-50 bg-teal-50/20 p-5">
+             <div className="flex items-center gap-2 mb-1 text-teal-800">
                 <Pulse className="w-4 h-4" />
-                <span className="text-[10px] font-black uppercase tracking-widest italic font-sans">Operational Status</span>
+                <span className="text-[10px] font-black uppercase tracking-widest italic">Operational Status</span>
              </div>
-             <p className="text-xs font-medium leading-relaxed text-slate-600 font-sans">
-               Cognitive load is currently <span className="font-bold text-teal-600">Optimal</span>. 
+             <p className="text-xs font-medium leading-relaxed text-slate-600">
+               Cognitive load is currently <span className="font-bold text-teal-600 uppercase">Optimal</span>. 
                Reaction velocity remains within established personal alpha baseline.
              </p>
           </div>
         </TabsContent>
 
         <TabsContent value="gamma" className="space-y-6 focus-visible:outline-none">
-          <div className="rounded-3xl border border-slate-100 bg-white p-10 text-center">
-             <div className={`w-24 h-24 rounded-full mx-auto mb-8 flex items-center justify-center border-4 transition-all duration-700 ${gammaActive ? 'border-orange-500 bg-orange-50/50 scale-110 shadow-[0_0_40px_rgba(249,115,22,0.2)]' : 'border-slate-50 bg-slate-50'}`}>
-                <Zap className={`w-12 h-12 ${gammaActive ? 'text-orange-500 animate-pulse' : 'text-slate-200'}`} />
+          <div className="rounded-3xl border border-slate-50 bg-slate-50/30 p-10 text-center">
+             <div className={`w-24 h-24 rounded-full mx-auto mb-8 flex items-center justify-center border-4 transition-all duration-700 ${gammaActive ? 'border-orange-500 bg-orange-50 scale-110 shadow-[0_0_40px_rgba(249,115,22,0.15)]' : 'border-white bg-white'}`}>
+                <Zap className={`w-10 h-10 ${gammaActive ? 'text-orange-500 animate-pulse' : 'text-slate-200'}`} />
              </div>
-             <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest mb-3 font-sans">40Hz Entrainment Trigger</h3>
-             <p className="text-[11px] text-slate-400 max-w-[200px] mx-auto mb-10 font-medium leading-relaxed font-sans">Full spectrum stimulation for pupillary response and neural drive verification.</p>
+             <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em] mb-4">40Hz Entrainment Trigger</h3>
+             <p className="text-[11px] text-slate-400 max-w-[220px] mx-auto mb-10 font-medium leading-relaxed">Active stimulation for pupillary response testing and neural drive peaking.</p>
              
-             <div className="flex items-center justify-between border border-slate-100 p-5 rounded-2xl">
+             <div className="flex items-center justify-between bg-white border border-slate-100 p-5 rounded-2xl shadow-sm">
                 <div className="text-left">
-                   <p className="text-[10px] font-black text-slate-900 uppercase font-sans">Hardware Pulse</p>
-                   <p className="text-[9px] text-teal-600 font-bold uppercase tracking-tighter font-sans">{gammaActive ? "Active Broadcast" : "Standby"}</p>
+                   <p className="text-[10px] font-black text-slate-900 uppercase">Hardware Pulse</p>
+                   <p className="text-[9px] text-teal-600 font-bold uppercase tracking-tighter">{gammaActive ? "Transmitting" : "Standby"}</p>
                 </div>
                 <Switch checked={gammaActive} onCheckedChange={triggerGammaSequence} className="data-[state=checked]:bg-orange-500" />
              </div>
@@ -243,26 +246,26 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
         </TabsContent>
 
         <TabsContent value="memory" className="space-y-6 focus-visible:outline-none">
-           <div className="rounded-3xl border border-slate-100 bg-white shadow-sm overflow-hidden min-h-[440px] flex flex-col">
-              <div className="p-4 border-b border-slate-50 flex items-center justify-between">
+           <div className="rounded-3xl border border-slate-100 bg-white shadow-sm overflow-hidden min-h-[460px] flex flex-col">
+              <div className="p-5 border-b border-slate-50 flex items-center justify-between">
                  <div className="flex items-center gap-2">
                     <Target className="w-4 h-4 text-orange-500" />
-                    <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest font-sans">Memory Anchor: {rsvpPhase !== 'IDLE' ? `${testRound}/5` : 'Validation'}</span>
+                    <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Memory Anchor: {rsvpPhase !== 'IDLE' ? `${testRound}/5` : 'Validation'}</span>
                  </div>
-                 {rsvpPhase !== 'IDLE' && <Badge className="bg-orange-500 text-white font-black text-[9px] font-sans">{cumulativeScore}</Badge>}
+                 {rsvpPhase !== 'IDLE' && <Badge className="bg-orange-500 text-white font-black text-[9px] px-2.5">{cumulativeScore}</Badge>}
               </div>
 
               <div className="flex-1 flex flex-col items-center justify-center p-8 relative">
                  {rsvpPhase === 'IDLE' && (
-                    <div className="text-center space-y-8">
+                    <div className="text-center space-y-10">
                        <div className="space-y-2">
-                          <p className="text-[10px] text-slate-400 uppercase font-black tracking-[0.2em] font-sans">Calibration Required</p>
-                          <p className="text-[11px] text-slate-600 font-medium max-w-[180px] font-sans">Verify working memory latency before high-stakes signing.</p>
+                          <p className="text-[10px] text-slate-400 uppercase font-black tracking-[0.25em]">Operational Calibration</p>
+                          <p className="text-[11px] text-slate-600 font-medium max-w-[190px]">Verify working memory latency before high-stakes capital deployment.</p>
                        </div>
-                       <Button onClick={resetFullTest} className="bg-slate-900 text-white hover:bg-orange-500 font-black px-12 py-7 rounded-full uppercase italic transition-all shadow-lg font-sans">Initialize Test</Button>
-                       <div className="flex justify-center gap-3">
+                       <Button onClick={resetFullTest} className="bg-slate-900 text-white hover:bg-orange-500 font-black px-12 py-7 rounded-full uppercase italic transition-all shadow-md">Initialize Battery</Button>
+                       <div className="flex justify-center gap-4">
                           {[500, 300, 150].map(s => (
-                             <button key={s} onClick={() => setRsvpSpeed(s)} className={`text-[9px] font-black px-4 py-1.5 rounded-full border-2 transition-all font-sans ${rsvpSpeed === s ? 'border-teal-600 text-teal-600' : 'border-slate-100 text-slate-300'}`}>{s === 500 ? 'LVL 1' : s === 300 ? 'NORM' : 'ALPHA'}</button>
+                             <button key={s} onClick={() => setRsvpSpeed(s)} className={`text-[9px] font-black px-4 py-2 rounded-full border-2 transition-all ${rsvpSpeed === s ? 'border-teal-600 text-teal-600' : 'border-slate-50 text-slate-300'}`}>{s === 500 ? 'LVL 1' : s === 300 ? 'NORM' : 'ALPHA'}</button>
                           ))}
                        </div>
                     </div>
@@ -271,53 +274,53 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                  {rsvpPhase === 'CALIBRATING' && (
                     <div className="text-center space-y-4">
                        <div className="w-12 h-12 rounded-full border-4 border-teal-500 border-t-transparent animate-spin mx-auto" />
-                       <p className="text-[11px] font-black uppercase tracking-[0.5em] text-teal-600 font-sans">Locking Focus</p>
+                       <p className="text-[11px] font-black uppercase tracking-[0.5em] text-teal-600">Locking Focus</p>
                     </div>
                  )}
 
                  {rsvpPhase === 'PRESENTING' && (
-                    <div className="w-full text-center px-4 overflow-hidden">
-                       <p className={`${getDynamicFontSize(activeSequence[rsvpWordIndex])} font-black tracking-[0.15em] text-slate-900 uppercase animate-in zoom-in duration-75 whitespace-nowrap font-sans`}>
+                    <div className="w-full text-center px-4 h-24 flex items-center justify-center overflow-hidden">
+                       <p className={`${getDynamicFontSize(activeSequence[rsvpWordIndex])} font-black tracking-[0.2em] text-slate-900 uppercase animate-in zoom-in duration-75 whitespace-nowrap`}>
                           {activeSequence[rsvpWordIndex]}
                        </p>
                     </div>
                  )}
 
-                 {rsvpPhase === 'MASK' && <p className="text-5xl font-black text-slate-50 font-sans">#######</p>}
+                 {rsvpPhase === 'MASK' && <p className="text-5xl font-black text-slate-50">#######</p>}
 
                  {rsvpPhase === 'RECALL' && (
                     <div className="w-full space-y-6">
-                       <div className="text-center font-sans">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Select Order</p>
-                          <div className="flex justify-center gap-1.5">
+                       <div className="text-center">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">Sequence Order</p>
+                          <div className="flex justify-center gap-2">
                              {activeSequence.map((_, i) => (
-                                <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i < userRecall.length ? 'bg-orange-500 scale-125' : 'bg-slate-100'}`} />
+                                <div key={i} className={`w-2 h-2 rounded-full transition-all duration-300 ${i < userRecall.length ? 'bg-orange-500 scale-110 shadow-sm' : 'bg-slate-100'}`} />
                              ))}
                           </div>
                        </div>
                        <div className="grid grid-cols-2 gap-3">
                           {[...activeSequence].sort().map(word => (
-                             <Button key={word} onClick={() => handleRecallSelection(word)} variant="outline" className={`h-12 border-2 text-[10px] font-black uppercase transition-all font-sans ${userRecall.includes(word) ? 'bg-slate-50 text-slate-200 border-slate-50 scale-95' : 'border-slate-100 text-slate-600 hover:border-teal-600 hover:text-teal-600'}`}>{word}</Button>
+                             <Button key={word} onClick={() => handleRecallSelection(word)} variant="outline" className={`h-14 border-2 text-[11px] font-black uppercase transition-all ${userRecall.includes(word) ? 'bg-slate-50 text-slate-300 border-slate-50 scale-95 opacity-40' : 'border-slate-50 text-slate-700 hover:border-teal-500 hover:text-teal-600 shadow-sm'}`}>{word}</Button>
                           ))}
                        </div>
                     </div>
                  )}
 
                  {rsvpPhase === 'ROUND_COMPLETE' && (
-                    <div className="text-center space-y-4 font-sans">
-                       <Pulse className="w-12 h-12 text-teal-500 mx-auto animate-pulse" />
-                       <p className="text-2xl font-black text-teal-600 italic uppercase">ROUND {testRound} LOGGED</p>
+                    <div className="text-center space-y-4">
+                       <Pulse className="w-14 h-14 text-teal-500 mx-auto animate-pulse" />
+                       <p className="text-3xl font-black text-teal-600 italic tracking-tighter uppercase">ROUND {testRound} LOGGED</p>
                     </div>
                  )}
 
                  {rsvpPhase === 'RESULT' && (
-                    <div className="text-center space-y-8 animate-in zoom-in duration-500 font-sans">
-                       <Trophy className="w-16 h-16 text-orange-500 mx-auto drop-shadow-sm" />
+                    <div className="text-center space-y-10 animate-in zoom-in duration-500">
+                       <Trophy className="w-20 h-20 text-orange-500 mx-auto drop-shadow-lg" />
                        <div>
-                          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Cumulative Clutch Score</p>
-                          <p className="text-8xl font-black italic tracking-tighter text-slate-900">{cumulativeScore}</p>
+                          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Cumulative Clutch Score</p>
+                          <p className="text-9xl font-black italic tracking-tighter text-slate-900 leading-none">{cumulativeScore}</p>
                        </div>
-                       <Button variant="ghost" onClick={resetFullTest} className="text-slate-300 font-black uppercase text-[10px] hover:text-teal-600 tracking-widest font-sans"><RotateCcw className="w-3 h-3 mr-2" /> Reset Battery</Button>
+                       <Button variant="ghost" onClick={resetFullTest} className="text-slate-300 font-black uppercase text-[11px] hover:text-teal-600 tracking-[0.2em]"><RotateCcw className="w-4 h-4 mr-2" /> Reset Battery</Button>
                     </div>
                  )}
               </div>
