@@ -36,12 +36,11 @@ const InfoIcon = ({ text }: { text: string }) => (
 const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
   const [loading, setLoading] = useState(true);
   const [gammaActive, setGammaActive] = useState(false);
-  const [isFlashing, setIsFlashing] = useState(false);
   const [rsvpActive, setRsvpActive] = useState(false);
   const [rsvpWord, setRsvpWord] = useState(0);
   const [rsvpSpeed, setRsvpSpeed] = useState(300);
 
-  // Consolidated state for Pro + Pro+ Metrics (Zero Mock Data)
+  // Consolidated state for Pro + Pro+ Metrics
   const [metrics, setMetrics] = useState({
     // Occupational (Pro)
     hr: 0, hrv: 0, resp: 0, noise: 0, asymmetry: 0,
@@ -62,38 +61,13 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     return () => clearInterval(interval);
   }, [rsvpActive, rsvpSpeed]);
 
-  // 2. 40Hz Hardware Bridge: Visual + Auditory Entrainment
-  const triggerGammaSequence = async (active: boolean) => {
-    setGammaActive(active);
-    
-    if (active) {
-      // Dispatch CMD_INIT_FLASHBULB to Native iOS/Android Bridge [cite: 123, 270]
-      if (window.webkit?.messageHandlers?.syncHealthData) {
-        window.webkit.messageHandlers.syncHealthData.postMessage({
-          action: "CMD_INIT_FLASHBULB",
-          frequency: 40,
-          force_brightness: 1.0,
-          audio_enabled: true
-        });
-      }
-      setIsFlashing(true);
-    } else {
-      if (window.webkit?.messageHandlers?.syncHealthData) {
-        window.webkit.messageHandlers.syncHealthData.postMessage({
-          action: "CMD_STOP_FLASHBULB"
-        });
-      }
-      setIsFlashing(false);
-    }
-  };
-
-  // 3. Full Pipeline Hydration (Live-Wire) [cite: 22, 23]
+  // 2. Full Pipeline Hydration
   useEffect(() => {
     if (isMasked) return;
     let isMounted = true;
 
     const streamAllMetrics = async () => {
-      // Initial Ingress from Staged Tier
+      // Initial Fetch from Staged Tier
       const { data: health } = await supabase
         .from("staged_health_data" as any)
         .select("*")
@@ -118,7 +92,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
       }
       setLoading(false);
 
-      // Real-time listener for instant biometric propagation [cite: 36]
+      // Real-time listener for instant Pro+ updates
       const channel = supabase.channel("cpm_pro_plus_feed")
         .on("postgres_changes" as any, 
           { event: "INSERT", schema: "public", table: "staged_health_data" },
@@ -175,12 +149,9 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
 
   return (
     <div className="p-4 pb-24 space-y-4 animate-fade-in relative bg-background min-h-screen">
-      {/* 40Hz FULL-SCREEN FLASH OVERLAY (100% Coverage) [cite: 123, 270] */}
-      {isFlashing && (
-        <div 
-          className="fixed inset-0 z-[100] pointer-events-none bg-white animate-[gamma-flash_25ms_steps(2)_infinite]" 
-          style={{ mixBlendMode: 'difference' }}
-        />
+      {/* 40Hz Gamma Flicker Overlay */}
+      {gammaActive && (
+        <div className="fixed inset-0 z-40 pointer-events-none animate-[gamma-flicker_25ms_linear_infinite] bg-[hsl(28,80%,55%)]/5" />
       )}
 
       {/* HEADER */}
@@ -248,15 +219,11 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
               <p className="text-[10px] text-muted-foreground">Neural entrainment active</p>
             </div>
           </div>
-          <Switch 
-            checked={gammaActive} 
-            onCheckedChange={triggerGammaSequence} 
-            disabled={isMasked} 
-          />
+          <Switch checked={gammaActive} onCheckedChange={setGammaActive} disabled={isMasked} />
         </div>
       </div>
 
-      {/* RSVP MEMORY ANCHORING [cite: 281] */}
+      {/* RSVP MEMORY ANCHORING */}
       <div className="rounded-2xl border border-border bg-white shadow-sm p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -295,9 +262,9 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
       </div>
 
       <style>{`
-        @keyframes gamma-flash {
-          0% { opacity: 0; }
-          100% { opacity: 1; }
+        @keyframes gamma-flicker {
+          0%, 100% { opacity: 0; }
+          50% { opacity: 1; }
         }
       `}</style>
     </div>
