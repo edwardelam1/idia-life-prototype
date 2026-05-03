@@ -37,7 +37,6 @@ import {
 } from "lucide-react";
 
 // Placeholder — derives a peer tier hue from the opaque native peer token
-// until the finalized iOS contract ships. Stable hash → hue.
 function peerColorFromToken(token: string): string {
   let h = 0;
   for (let i = 0; i < token.length; i++) h = (h * 31 + token.charCodeAt(i)) >>> 0;
@@ -60,8 +59,7 @@ function tierColorForScore(score: number | null | undefined): string {
 }
 
 const LifeScreen: React.FC = () => {
-  const { friends, trustCircles, goodDeeds, socialMetrics, loading, acceptFriendRequest, reload } =
-    useSocialGraph();
+  const { friends, trustCircles, goodDeeds, socialMetrics, loading, acceptFriendRequest, reload } = useSocialGraph();
 
   const { profile, updateProfile, loading: profileLoading } = useEnhancedProfile();
 
@@ -74,17 +72,14 @@ const LifeScreen: React.FC = () => {
   const [showTestModal, setShowTestModal] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
 
-  // NFC Bridge — Sovereign Handshake to native iOS hardware
   const { isBridgeAvailable, isScanning, initiateSovereignHandshake } = useNFCBridge();
   const [washPeerColor, setWashPeerColor] = useState<string | null>(null);
   const [rateTarget, setRateTarget] = useState<string | null>(null);
   const [proximityOpen, setProximityOpen] = useState(false);
 
-  // Local PII Vault — IndexedDB-only labels for Connections (never sent to cloud)
   const [labels, setLabels] = useState<Record<string, ConnectionLabel>>({});
   const [labelTarget, setLabelTarget] = useState<string | null>(null);
 
-  // Load local labels for the current Connections list
   useEffect(() => {
     if (!friends.length) {
       setLabels({});
@@ -94,11 +89,8 @@ const LifeScreen: React.FC = () => {
     localPIIVault.lookupBatch(ids).then(setLabels);
   }, [friends]);
 
-  // After a successful Sync, prompt the user to label the new Connection.
-  // This pairs with the most-recently created accepted Connection in the list.
   const promptLabelForLatestSync = () => {
-    const latest = [...friends]
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+    const latest = [...friends].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
     if (latest) setLabelTarget(latest.id);
   };
 
@@ -110,9 +102,7 @@ const LifeScreen: React.FC = () => {
       console.log("[LIFE_NFC_HANDSHAKE_RESOLVED]", { peerColor });
       setWashPeerColor(peerColor);
       toast.success("Sync complete", { description: "You made a new Connection." });
-      // After the color wash, prompt the user to rate the Sync
       setTimeout(() => setRateTarget(detail?.peerToken ?? ""), 3600);
-      // Then prompt the user to label this Connection on-device only
       setTimeout(() => promptLabelForLatestSync(), 4200);
     };
     const onError = () => {
@@ -129,7 +119,6 @@ const LifeScreen: React.FC = () => {
     };
   }, []);
 
-  // Granular layout calibration logging — paired start/end on mount/unmount
   useLayoutEffect(() => {
     console.log("[VIEWPORT_CALIBRATION_START]");
     return () => {
@@ -137,7 +126,6 @@ const LifeScreen: React.FC = () => {
     };
   }, []);
 
-  // Granular NFC UI relocation sync logging — paired
   useEffect(() => {
     console.log("[NFC_UI_RELOCATION_SYNC_START]");
     return () => {
@@ -145,7 +133,6 @@ const LifeScreen: React.FC = () => {
     };
   }, []);
 
-  // Syncing terminology init — paired
   useEffect(() => {
     console.log("[SYNCING_TERMINOLOGY_INIT_START]");
     return () => {
@@ -157,10 +144,6 @@ const LifeScreen: React.FC = () => {
     fireGraffitiConfetti();
   }, []);
 
-  // Phase 5 — Evidence-Based Good Deeds.
-  // Requires both a description AND an evidence file. Uploads to the
-  // `deed-evidence` private bucket, inserts the deed row, then asks the
-  // verify-good-deed-evidence edge function to judge it with Lovable AI.
   const handleSubmitGoodDeed = async () => {
     const title = newDeedTitle.trim();
     const description = newDeedDescription.trim();
@@ -171,13 +154,14 @@ const LifeScreen: React.FC = () => {
     setIsSubmittingDeed(true);
     console.log("[GOOD_DEED_SUBMISSION_START]");
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         toast("Please sign in to submit a Good Deed.");
         return;
       }
 
-      // 1. Insert the deed row first to get an id we can use for the path
       const { data: inserted, error: insertErr } = await supabase
         .from("good_deeds")
         .insert({
@@ -190,34 +174,24 @@ const LifeScreen: React.FC = () => {
         .maybeSingle();
       if (insertErr || !inserted) throw insertErr ?? new Error("Insert failed");
 
-      // 2. Upload the evidence file to {user.id}/{deed.id}.{ext}
       const ext = (newDeedFile.name.split(".").pop() || "bin").toLowerCase().slice(0, 8);
       const path = `${user.id}/${inserted.id}.${ext}`;
-      const { error: uploadErr } = await supabase.storage
-        .from("deed-evidence")
-        .upload(path, newDeedFile, {
-          cacheControl: "3600",
-          upsert: true,
-          contentType: newDeedFile.type || undefined,
-        });
+      const { error: uploadErr } = await supabase.storage.from("deed-evidence").upload(path, newDeedFile, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: newDeedFile.type || undefined,
+      });
       if (uploadErr) throw uploadErr;
 
-      // 3. Persist the storage path on the deed row
-      await supabase
-        .from("good_deeds")
-        .update({ evidence_url: path })
-        .eq("id", inserted.id);
+      await supabase.from("good_deeds").update({ evidence_url: path }).eq("id", inserted.id);
 
       toast.success("Submitted for review", {
         description: "Your Good Deed is being checked by the Friend AI.",
       });
 
-      // 4. Fire the AI verifier — the toast above is shown right away so the
-      //    user is not blocked while the model decides.
-      const { data: verifyData, error: verifyErr } = await supabase.functions.invoke(
-        "verify-good-deed-evidence",
-        { body: { deed_id: inserted.id } },
-      );
+      const { data: verifyData, error: verifyErr } = await supabase.functions.invoke("verify-good-deed-evidence", {
+        body: { deed_id: inserted.id },
+      });
       if (verifyErr) {
         const msg = verifyErr.message || "";
         if (msg.includes("429")) {
@@ -251,7 +225,6 @@ const LifeScreen: React.FC = () => {
     }
   };
 
-  // --- IDIA EDGE FUNCTION EXECUTION (preserved) ---
   const handleCalculateScore = async (moduleScores: Record<string, number>) => {
     setIsCalculating(true);
     console.log("[STANDING_SYNC_START]");
@@ -283,13 +256,9 @@ const LifeScreen: React.FC = () => {
     }
   };
 
-  // Submit a Sync rating to the IDIA Protocol via the edge function.
   const handleSubmitRating = async (rateeId: string, stars: number) => {
     console.log("[RATING_SUBMIT_START]", { rateeId, stars });
     try {
-      // The "rateeId" here may be an opaque NFC peer token until the iOS bridge
-      // returns a real user UUID. If it does not look like a UUID, abort the
-      // network call but still keep the local UX so the user is not blocked.
       const looksLikeUuid = /^[0-9a-f-]{36}$/i.test(rateeId);
       if (!looksLikeUuid) {
         toast("Rating saved on device", {
@@ -337,17 +306,25 @@ const LifeScreen: React.FC = () => {
     <div className="h-full max-h-full overflow-hidden flex flex-col">
       <Tabs defaultValue="overview" className="flex-1 min-h-0 flex flex-col gap-2">
         <TabsList className="grid grid-cols-5 w-full bg-muted/20 shrink-0">
-          <TabsTrigger value="overview" className="text-[11px] px-1">Overview</TabsTrigger>
-          <TabsTrigger value="friends" className="text-[11px] px-1">Connections</TabsTrigger>
-          <TabsTrigger value="sphere" className="text-[11px] px-1">Sphere</TabsTrigger>
-          <TabsTrigger value="circles" className="text-[11px] px-1">Circles</TabsTrigger>
-          <TabsTrigger value="deeds" className="text-[11px] px-1">Deeds</TabsTrigger>
+          <TabsTrigger value="overview" className="text-[11px] px-1">
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="friends" className="text-[11px] px-1">
+            Connections
+          </TabsTrigger>
+          <TabsTrigger value="sphere" className="text-[11px] px-1">
+            Sphere
+          </TabsTrigger>
+          <TabsTrigger value="circles" className="text-[11px] px-1">
+            Circles
+          </TabsTrigger>
+          <TabsTrigger value="deeds" className="text-[11px] px-1">
+            Deeds
+          </TabsTrigger>
         </TabsList>
 
-        {/* OVERVIEW — zero-scroll, all elements fit on a standard mobile viewport */}
         <TabsContent value="overview" className="flex-1 min-h-0 overflow-hidden m-0">
           <div className="h-full flex flex-col gap-2">
-            {/* Standing Card — contains Orb + Action Panel + relocated NFC */}
             <Card className="bg-white border-teal-100 shadow-sm flex-1 min-h-0 overflow-hidden">
               <CardContent className="p-4 h-full">
                 <div className="flex flex-col items-center gap-3 h-full">
@@ -382,7 +359,6 @@ const LifeScreen: React.FC = () => {
                       </DialogContent>
                     </Dialog>
 
-                    {/* Sovereign Handshake — Sync with a Friend via native NFC bridge */}
                     <div className="mt-7 pt-3 border-t border-teal-100 flex flex-col items-center gap-2">
                       <div className="flex items-center gap-2">
                         <Button
@@ -394,21 +370,9 @@ const LifeScreen: React.FC = () => {
                           <Nfc className="w-4 h-4 mr-2" />
                           {isScanning ? "Listening for a tap…" : "Start Syncing"}
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            console.log("[PROXIMITY_OPEN_REQUESTED]");
-                            setProximityOpen(true);
-                          }}
-                          className="border-teal-200 text-teal-700 hover:bg-teal-50"
-                        >
-                          <Radar className="w-4 h-4 mr-2" />
-                          Nearby
-                        </Button>
                       </div>
                       <p className="text-[10px] text-muted-foreground text-center leading-tight px-2">
-                        Tap two phones together to Sync, or open Nearby to see anonymous people in range.
+                        Sync with another user in person by tapping your phones back-to-back.
                       </p>
                     </div>
                   </div>
@@ -416,7 +380,6 @@ const LifeScreen: React.FC = () => {
               </CardContent>
             </Card>
 
-            {/* Compact metrics row */}
             <div className="grid grid-cols-3 gap-2 shrink-0">
               <Card className="bg-white border-none shadow-sm">
                 <CardContent className="p-2 flex flex-col items-center">
@@ -459,7 +422,7 @@ const LifeScreen: React.FC = () => {
                 <div className="text-center py-8 space-y-3">
                   <p className="text-muted-foreground">You do not have any Connections yet.</p>
                   <p className="text-xs text-muted-foreground">
-                    You cannot add a Connection by searching. You must Sync in person by tapping two phones together.
+                    You must Sync in person by tapping two phones together.
                   </p>
                 </div>
               ) : (
@@ -471,9 +434,7 @@ const LifeScreen: React.FC = () => {
                     return (
                       <div key={f.id} className="flex items-center space-x-3 p-3 border border-teal-50 rounded-lg">
                         <Avatar>
-                          <AvatarFallback className="bg-teal-100 text-teal-700">
-                            {initials}
-                          </AvatarFallback>
+                          <AvatarFallback className="bg-teal-100 text-teal-700">{initials}</AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-foreground truncate">{displayName}</p>
@@ -559,14 +520,17 @@ const LifeScreen: React.FC = () => {
             <CardHeader className="shrink-0">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-foreground text-base">Good Deeds</CardTitle>
-                <Dialog open={deedDialogOpen} onOpenChange={(o) => {
-                  setDeedDialogOpen(o);
-                  if (!o) {
-                    setNewDeedTitle("");
-                    setNewDeedDescription("");
-                    setNewDeedFile(null);
-                  }
-                }}>
+                <Dialog
+                  open={deedDialogOpen}
+                  onOpenChange={(o) => {
+                    setDeedDialogOpen(o);
+                    if (!o) {
+                      setNewDeedTitle("");
+                      setNewDeedDescription("");
+                      setNewDeedFile(null);
+                    }
+                  }}
+                >
                   <DialogTrigger asChild>
                     <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
                       <Award className="w-4 h-4 mr-2" />
@@ -579,8 +543,8 @@ const LifeScreen: React.FC = () => {
                     </DialogHeader>
                     <div className="space-y-4">
                       <p className="text-xs text-muted-foreground leading-snug">
-                        You must show proof. Add a photo, a short video, or a voice note that
-                        shows the Good Deed. Then write what you did.
+                        You must show proof. Add a photo, a short video, or a voice note that shows the Good Deed. Then
+                        write what you did.
                       </p>
                       <Input
                         placeholder="Title of your Good Deed"
@@ -608,19 +572,14 @@ const LifeScreen: React.FC = () => {
                           className="border-teal-100 file:mr-3 file:rounded-md file:border-0 file:bg-teal-50 file:px-3 file:py-1.5 file:text-xs file:text-teal-700"
                         />
                         {newDeedFile && (
-                          <p className="text-[11px] text-muted-foreground truncate">
-                            {newDeedFile.name}
-                          </p>
+                          <p className="text-[11px] text-muted-foreground truncate">{newDeedFile.name}</p>
                         )}
                       </div>
                       <Button
                         className="w-full bg-teal-600 hover:bg-teal-700"
                         onClick={handleSubmitGoodDeed}
                         disabled={
-                          isSubmittingDeed ||
-                          !newDeedTitle.trim() ||
-                          !newDeedDescription.trim() ||
-                          !newDeedFile
+                          isSubmittingDeed || !newDeedTitle.trim() || !newDeedDescription.trim() || !newDeedFile
                         }
                       >
                         {isSubmittingDeed ? "Submitting…" : "Submit for Verification"}
@@ -692,7 +651,6 @@ const LifeScreen: React.FC = () => {
         onPeerSelected={(peer) => {
           console.log("[PROXIMITY_HANDSHAKE_TRIGGER]");
           setProximityOpen(false);
-          // Defer slightly so the overlay can dismiss before the NFC sheet appears.
           window.setTimeout(() => initiateSovereignHandshake("STANDARD"), 250);
         }}
       />
