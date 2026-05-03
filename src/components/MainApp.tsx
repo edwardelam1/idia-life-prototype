@@ -86,7 +86,7 @@ const MainApp = () => {
 
       <main className="flex-1 overflow-hidden pt-[calc(3.5rem+env(safe-area-inset-top))] relative">
         <div className="h-full max-w-4xl mx-auto">
-          <div className="h-full px-2 pb-2 overflow-y-auto">
+          <div className="h-full px-2 pb-2 overflow-y-auto touch-pan-y no-scrollbar" style={{ WebkitOverflowScrolling: "touch" }}>
             <ActiveComponent />
           </div>
         </div>
