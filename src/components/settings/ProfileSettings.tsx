@@ -498,19 +498,47 @@ export function ProfileSettings() {
         </div>
       </div>
 
-      {/* Vault Security */}
+      {/* --- VAULT SECURITY SECTION --- */}
       <div className="space-y-3 pt-4 border-t border-border">
         <Label className="text-base font-semibold flex items-center gap-2">
-          <KeyRound className="w-4 h-4" /> Vault Security
+          <Shield className="w-4 h-4" /> Vault Security
         </Label>
+
+        {/* Identity Status Card */}
+        <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Sovereign Identity</span>
+            <Badge variant={hasWallet ? "default" : "destructive"} className="text-xs">
+              {hasWallet ? "Hardware Linked" : "Hardware Missing"}
+            </Badge>
+          </div>
+          <p className="text-xs font-mono text-muted-foreground break-all">
+            {globalWalletAddress || "No global address found."}
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          {hasWallet && (
+            <Button type="button" variant="outline" className="w-full" onClick={handleViewRecovery}>
+              <Fingerprint className="w-4 h-4 mr-2" />
+              View Recovery Phrase
+            </Button>
+          )}
+
+          {isLegacyMissingHardware && (
+            <Button type="button" variant="outline" className="w-full" onClick={handleRestoreLegacy}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Restore Legacy Vault
+            </Button>
+          )}
+        </div>
+
         <p className="text-xs text-muted-foreground">
-          Your 12-word recovery phrase is the only way to restore your vault. Reveal it only in a private location.
+          Your IDIA Vault uses on-device Secure Enclave technology. IDIA Data Inc. never stores your private keys.{" "}
+          <strong>Always maintain a physical backup.</strong>
         </p>
-        <Button type="button" variant="outline" className="w-full" onClick={handleRevealRecoveryPhrase}>
-          <KeyRound className="w-4 h-4 mr-2" />
-          View / Download Recovery Phrase
-        </Button>
       </div>
+      {/* --- END VAULT SECURITY SECTION --- */}
 
       {!locked && (
         <div className="flex justify-end">
