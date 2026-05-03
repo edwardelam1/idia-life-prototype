@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 
 // Placeholder — derives a peer tier hue from the opaque native peer token
+// until the finalized iOS contract ships. Stable hash → hue.
 function peerColorFromToken(token: string): string {
   let h = 0;
   for (let i = 0; i < token.length; i++) h = (h * 31 + token.charCodeAt(i)) >>> 0;
@@ -59,7 +60,8 @@ function tierColorForScore(score: number | null | undefined): string {
 }
 
 const LifeScreen: React.FC = () => {
-  const { friends, trustCircles, goodDeeds, socialMetrics, loading, acceptFriendRequest, reload } = useSocialGraph();
+  const { friends, trustCircles, goodDeeds, socialMetrics, loading, acceptFriendRequest, reload } =
+    useSocialGraph();
 
   const { profile, updateProfile, loading: profileLoading } = useEnhancedProfile();
 
@@ -72,14 +74,17 @@ const LifeScreen: React.FC = () => {
   const [showTestModal, setShowTestModal] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
 
+  // NFC Bridge — Sovereign Handshake to native iOS hardware
   const { isBridgeAvailable, isScanning, initiateSovereignHandshake } = useNFCBridge();
   const [washPeerColor, setWashPeerColor] = useState<string | null>(null);
   const [rateTarget, setRateTarget] = useState<string | null>(null);
   const [proximityOpen, setProximityOpen] = useState(false);
 
+  // Local PII Vault — IndexedDB-only labels for Connections (never sent to cloud)
   const [labels, setLabels] = useState<Record<string, ConnectionLabel>>({});
   const [labelTarget, setLabelTarget] = useState<string | null>(null);
 
+  // Load local labels for the current Connections list
   useEffect(() => {
     if (!friends.length) {
       setLabels({});
@@ -89,8 +94,10 @@ const LifeScreen: React.FC = () => {
     localPIIVault.lookupBatch(ids).then(setLabels);
   }, [friends]);
 
+  // After a successful Sync, prompt the user to label the new Connection.
   const promptLabelForLatestSync = () => {
-    const latest = [...friends].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+    const latest = [...friends]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
     if (latest) setLabelTarget(latest.id);
   };
 
@@ -102,7 +109,9 @@ const LifeScreen: React.FC = () => {
       console.log("[LIFE_NFC_HANDSHAKE_RESOLVED]", { peerColor });
       setWashPeerColor(peerColor);
       toast.success("Sync complete", { description: "You made a new Connection." });
+      // After the color wash, prompt the user to rate the Sync
       setTimeout(() => setRateTarget(detail?.peerToken ?? ""), 3600);
+      // Then prompt the user to label this Connection on-device only
       setTimeout(() => promptLabelForLatestSync(), 4200);
     };
     const onError = () => {
@@ -119,6 +128,7 @@ const LifeScreen: React.FC = () => {
     };
   }, []);
 
+  // Granular layout calibration logging
   useLayoutEffect(() => {
     console.log("[VIEWPORT_CALIBRATION_START]");
     return () => {
@@ -126,6 +136,7 @@ const LifeScreen: React.FC = () => {
     };
   }, []);
 
+  // Granular NFC UI relocation sync logging
   useEffect(() => {
     console.log("[NFC_UI_RELOCATION_SYNC_START]");
     return () => {
@@ -133,6 +144,7 @@ const LifeScreen: React.FC = () => {
     };
   }, []);
 
+  // Syncing terminology init
   useEffect(() => {
     console.log("[SYNCING_TERMINOLOGY_INIT_START]");
     return () => {
@@ -144,6 +156,7 @@ const LifeScreen: React.FC = () => {
     fireGraffitiConfetti();
   }, []);
 
+  // Phase 5 — Evidence-Based Good Deeds.
   const handleSubmitGoodDeed = async () => {
     const title = newDeedTitle.trim();
     const description = newDeedDescription.trim();
@@ -154,14 +167,13 @@ const LifeScreen: React.FC = () => {
     setIsSubmittingDeed(true);
     console.log("[GOOD_DEED_SUBMISSION_START]");
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         toast("Please sign in to submit a Good Deed.");
         return;
       }
 
+      // 1. Insert the deed row first
       const { data: inserted, error: insertErr } = await supabase
         .from("good_deeds")
         .insert({
@@ -174,33 +186,36 @@ const LifeScreen: React.FC = () => {
         .maybeSingle();
       if (insertErr || !inserted) throw insertErr ?? new Error("Insert failed");
 
+      // 2. Upload the evidence file
       const ext = (newDeedFile.name.split(".").pop() || "bin").toLowerCase().slice(0, 8);
       const path = `${user.id}/${inserted.id}.${ext}`;
-      const { error: uploadErr } = await supabase.storage.from("deed-evidence").upload(path, newDeedFile, {
-        cacheControl: "3600",
-        upsert: true,
-        contentType: newDeedFile.type || undefined,
-      });
+      const { error: uploadErr } = await supabase.storage
+        .from("deed-evidence")
+        .upload(path, newDeedFile, {
+          cacheControl: "3600",
+          upsert: true,
+          contentType: newDeedFile.type || undefined,
+        });
       if (uploadErr) throw uploadErr;
 
-      await supabase.from("good_deeds").update({ evidence_url: path }).eq("id", inserted.id);
+      // 3. Persist the storage path
+      await supabase
+        .from("good_deeds")
+        .update({ evidence_url: path })
+        .eq("id", inserted.id);
 
       toast.success("Submitted for review", {
         description: "Your Good Deed is being checked by the Friend AI.",
       });
 
-      const { data: verifyData, error: verifyErr } = await supabase.functions.invoke("verify-good-deed-evidence", {
-        body: { deed_id: inserted.id },
-      });
+      // 4. Fire the AI verifier
+      const { data: verifyData, error: verifyErr } = await supabase.functions.invoke(
+        "verify-good-deed-evidence",
+        { body: { deed_id: inserted.id } },
+      );
       if (verifyErr) {
-        const msg = verifyErr.message || "";
-        if (msg.includes("429")) {
-          toast("Too many requests. Please try again in a minute.");
-        } else if (msg.includes("402")) {
-          toast("AI credits are out. The team has been notified.");
-        } else {
-          toast("Could not finish AI review. Your Deed will stay as Pending.");
-        }
+        console.error("[DEED_AI_ERROR]", verifyErr);
+        toast("Could not finish AI review. Your Deed will stay as Pending.");
       } else if (verifyData?.verdict === "accept") {
         toast.success("Verified!", {
           description: verifyData.reason || "Your Good Deed was approved.",
@@ -225,16 +240,15 @@ const LifeScreen: React.FC = () => {
     }
   };
 
+  // --- IDIA EDGE FUNCTION EXECUTION ---
   const handleCalculateScore = async (moduleScores: Record<string, number>) => {
     setIsCalculating(true);
     console.log("[STANDING_SYNC_START]");
     try {
-      const { tut, ...actualTelemetry } = moduleScores;
-
       const { data, error } = await supabase.functions.invoke("calculate-trust-score", {
         body: {
           user_id: profile?.user_id,
-          telemetry: actualTelemetry,
+          telemetry: moduleScores,
         },
       });
 
@@ -273,10 +287,9 @@ const LifeScreen: React.FC = () => {
       toast.success("Rating saved", {
         description: stars >= 4 ? "Thank you for the kind feedback." : "Your honest rating helps the network.",
       });
-      console.log("[RATING_SUBMIT_END]", data);
     } catch (err) {
       console.error("[RATING_SUBMIT_ERROR]", err);
-      toast("Could not save rating", { description: "Please try again in a moment." });
+      toast("Could not save rating");
     }
   };
 
@@ -306,21 +319,11 @@ const LifeScreen: React.FC = () => {
     <div className="h-full max-h-full overflow-hidden flex flex-col">
       <Tabs defaultValue="overview" className="flex-1 min-h-0 flex flex-col gap-2">
         <TabsList className="grid grid-cols-5 w-full bg-muted/20 shrink-0">
-          <TabsTrigger value="overview" className="text-[11px] px-1">
-            Overview
-          </TabsTrigger>
-          <TabsTrigger value="friends" className="text-[11px] px-1">
-            Connections
-          </TabsTrigger>
-          <TabsTrigger value="sphere" className="text-[11px] px-1">
-            Sphere
-          </TabsTrigger>
-          <TabsTrigger value="circles" className="text-[11px] px-1">
-            Circles
-          </TabsTrigger>
-          <TabsTrigger value="deeds" className="text-[11px] px-1">
-            Deeds
-          </TabsTrigger>
+          <TabsTrigger value="overview" className="text-[11px] px-1">Overview</TabsTrigger>
+          <TabsTrigger value="friends" className="text-[11px] px-1">Connections</TabsTrigger>
+          <TabsTrigger value="sphere" className="text-[11px] px-1">Sphere</TabsTrigger>
+          <TabsTrigger value="circles" className="text-[11px] px-1">Circles</TabsTrigger>
+          <TabsTrigger value="deeds" className="text-[11px] px-1">Deeds</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="flex-1 min-h-0 overflow-hidden m-0">
@@ -359,11 +362,18 @@ const LifeScreen: React.FC = () => {
                       </DialogContent>
                     </Dialog>
 
+                    {/* NFC Sync Section — Nearby button purged for social engineering requirement */}
                     <div className="mt-7 pt-3 border-t border-teal-100 flex flex-col items-center gap-2">
                       <div className="flex items-center gap-2">
                         <Button
                           size="sm"
-                          onClick={() => initiateSovereignHandshake("STANDARD")}
+                          onClick={() => {
+                            console.log("[SYNC_INIT_START]");
+                            console.log("[SYNC_INIT_PROCESS] Bridge Available:", isBridgeAvailable);
+                            console.log("[SYNC_INIT_PROCESS] Invoking native handshake via useNFCBridge...");
+                            initiateSovereignHandshake("STANDARD");
+                            console.log("[SYNC_INIT_END]");
+                          }}
                           disabled={isScanning}
                           className="font-bold shadow-lg shadow-teal-500/25 bg-gradient-to-r from-teal-500 via-amber-400 to-orange-500 hover:from-teal-600 hover:via-amber-500 hover:to-orange-600 text-white border-none backdrop-blur-md"
                         >
