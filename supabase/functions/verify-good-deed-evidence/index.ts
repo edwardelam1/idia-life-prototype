@@ -12,8 +12,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 interface VerifyBody {
@@ -33,10 +32,10 @@ Deno.serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     if (!LOVABLE_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: "AI gateway is not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ error: "AI gateway is not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // --- 1. JWT validation (in-code, per Edge Function Standards) ---
@@ -131,8 +130,7 @@ Deno.serve(async (req) => {
             content: [
               {
                 type: "text",
-                text:
-                  `Title: ${deed.title}\n\nDescription: ${deed.description}\n\nDecide: accept or reject. Provide a one-sentence reason in plain fifth-grade English with no contractions.`,
+                text: `Title: ${deed.title}\n\nDescription: ${deed.description}\n\nDecide: accept or reject. Provide a one-sentence reason in plain fifth-grade English with no contractions.`,
               },
               { type: "image_url", image_url: { url: signed.signedUrl } },
             ],
@@ -164,10 +162,10 @@ Deno.serve(async (req) => {
       const t = await aiResp.text();
       console.error("[AI_GATEWAY_ERROR]", aiResp.status, t);
       if (aiResp.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limits exceeded, please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
+        return new Response(JSON.stringify({ error: "Rate limits exceeded, please try again later." }), {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
       if (aiResp.status === 402) {
         return new Response(
@@ -208,11 +206,7 @@ Deno.serve(async (req) => {
     }
 
     if (verdict === "accept") {
-      const { data: profile } = await admin
-        .from("profiles")
-        .select("trust_score")
-        .eq("user_id", userId)
-        .maybeSingle();
+      const { data: profile } = await admin.from("profiles").select("trust_score").eq("user_id", userId).maybeSingle();
       const next = (profile?.trust_score ?? 850) + TRUST_SCORE_BUMP_ON_ACCEPT;
       await admin.from("profiles").update({ trust_score: next }).eq("user_id", userId);
       await admin.from("trust_score_history").insert({ user_id: userId, score: next });
@@ -227,16 +221,16 @@ Deno.serve(async (req) => {
         verdict,
         reason,
         status: newStatus,
-        aca_hash: acaHash,
+        aca_hash_key: acaHash,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
     console.error("[VERIFY_GOOD_DEED_FATAL]", e);
-    return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
 

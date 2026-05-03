@@ -10,43 +10,43 @@ const corsHeaders = {
 
 // Map Apple HealthKit identifiers to internal schema keys
 const healthKitKeyMapping: Record<string, string> = {
-  "HKQuantityTypeIdentifierStepCount": "steps",
-  "HKQuantityTypeIdentifierDistanceWalkingRunning": "distanceWalkingRunning",
-  "HKQuantityTypeIdentifierDistanceCycling": "distanceCycling",
-  "HKQuantityTypeIdentifierFlightsClimbed": "flightsClimbed",
-  "HKQuantityTypeIdentifierActiveEnergyBurned": "activeEnergyBurned",
-  "HKQuantityTypeIdentifierBasalEnergyBurned": "restingEnergyBurned",
-  "HKQuantityTypeIdentifierAppleExerciseTime": "exerciseTime",
-  "HKQuantityTypeIdentifierHeartRate": "heartRate",
-  "HKQuantityTypeIdentifierHeartRateVariabilitySDNN": "heartRateVariability",
-  "HKQuantityTypeIdentifierOxygenSaturation": "bloodOxygenSaturation",
-  "HKQuantityTypeIdentifierBloodPressureSystolic": "bloodPressureSystolic",
-  "HKQuantityTypeIdentifierBloodPressureDiastolic": "bloodPressureDiastolic",
-  "HKQuantityTypeIdentifierRespiratoryRate": "respiratoryRate",
-  "HKQuantityTypeIdentifierBodyTemperature": "bodyTemperature",
-  "HKQuantityTypeIdentifierVO2Max": "vo2Max",
-  "HKQuantityTypeIdentifierHeight": "height",
-  "HKQuantityTypeIdentifierBodyMass": "weight",
-  "HKQuantityTypeIdentifierBodyMassIndex": "bodyMassIndex",
-  "HKQuantityTypeIdentifierBodyFatPercentage": "bodyFatPercentage",
-  "HKQuantityTypeIdentifierLeanBodyMass": "leanBodyMass",
-  "HKQuantityTypeIdentifierWaistCircumference": "waistCircumference",
-  "HKQuantityTypeIdentifierDietaryEnergyConsumed": "dietaryEnergyConsumed",
-  "HKQuantityTypeIdentifierDietaryFatTotal": "totalFat",
-  "HKQuantityTypeIdentifierDietaryFatSaturated": "saturatedFat",
-  "HKQuantityTypeIdentifierDietaryCarbohydrates": "carbohydrates",
-  "HKQuantityTypeIdentifierDietaryFiber": "fiber",
-  "HKQuantityTypeIdentifierDietarySugar": "sugar",
-  "HKQuantityTypeIdentifierDietaryProtein": "protein",
-  "HKQuantityTypeIdentifierDietaryWater": "water",
-  "HKQuantityTypeIdentifierDietaryCaffeine": "caffeine",
-  "HKQuantityTypeIdentifierWalkingSpeed": "walkingSpeed",
-  "HKQuantityTypeIdentifierWalkingStepLength": "stepLength",
-  "HKCategoryTypeIdentifierSleepAnalysis": "sleepAnalysis",
-  "HKCategoryTypeIdentifierMindfulSession": "mindfulSession",
-  "HKCategoryTypeIdentifierMenstrualFlow": "menstrualFlow",
-  "HKQuantityTypeIdentifierBasalBodyTemperature": "basalBodyTemperature",
-  "HKWorkoutTypeIdentifier": "workouts",
+  HKQuantityTypeIdentifierStepCount: "steps",
+  HKQuantityTypeIdentifierDistanceWalkingRunning: "distanceWalkingRunning",
+  HKQuantityTypeIdentifierDistanceCycling: "distanceCycling",
+  HKQuantityTypeIdentifierFlightsClimbed: "flightsClimbed",
+  HKQuantityTypeIdentifierActiveEnergyBurned: "activeEnergyBurned",
+  HKQuantityTypeIdentifierBasalEnergyBurned: "restingEnergyBurned",
+  HKQuantityTypeIdentifierAppleExerciseTime: "exerciseTime",
+  HKQuantityTypeIdentifierHeartRate: "heartRate",
+  HKQuantityTypeIdentifierHeartRateVariabilitySDNN: "heartRateVariability",
+  HKQuantityTypeIdentifierOxygenSaturation: "bloodOxygenSaturation",
+  HKQuantityTypeIdentifierBloodPressureSystolic: "bloodPressureSystolic",
+  HKQuantityTypeIdentifierBloodPressureDiastolic: "bloodPressureDiastolic",
+  HKQuantityTypeIdentifierRespiratoryRate: "respiratoryRate",
+  HKQuantityTypeIdentifierBodyTemperature: "bodyTemperature",
+  HKQuantityTypeIdentifierVO2Max: "vo2Max",
+  HKQuantityTypeIdentifierHeight: "height",
+  HKQuantityTypeIdentifierBodyMass: "weight",
+  HKQuantityTypeIdentifierBodyMassIndex: "bodyMassIndex",
+  HKQuantityTypeIdentifierBodyFatPercentage: "bodyFatPercentage",
+  HKQuantityTypeIdentifierLeanBodyMass: "leanBodyMass",
+  HKQuantityTypeIdentifierWaistCircumference: "waistCircumference",
+  HKQuantityTypeIdentifierDietaryEnergyConsumed: "dietaryEnergyConsumed",
+  HKQuantityTypeIdentifierDietaryFatTotal: "totalFat",
+  HKQuantityTypeIdentifierDietaryFatSaturated: "saturatedFat",
+  HKQuantityTypeIdentifierDietaryCarbohydrates: "carbohydrates",
+  HKQuantityTypeIdentifierDietaryFiber: "fiber",
+  HKQuantityTypeIdentifierDietarySugar: "sugar",
+  HKQuantityTypeIdentifierDietaryProtein: "protein",
+  HKQuantityTypeIdentifierDietaryWater: "water",
+  HKQuantityTypeIdentifierDietaryCaffeine: "caffeine",
+  HKQuantityTypeIdentifierWalkingSpeed: "walkingSpeed",
+  HKQuantityTypeIdentifierWalkingStepLength: "stepLength",
+  HKCategoryTypeIdentifierSleepAnalysis: "sleepAnalysis",
+  HKCategoryTypeIdentifierMindfulSession: "mindfulSession",
+  HKCategoryTypeIdentifierMenstrualFlow: "menstrualFlow",
+  HKQuantityTypeIdentifierBasalBodyTemperature: "basalBodyTemperature",
+  HKWorkoutTypeIdentifier: "workouts",
 };
 
 serve(async (req) => {
@@ -67,16 +67,22 @@ serve(async (req) => {
 
     // Parse query params (native iOS bridge sends aca_hash as URL param)
     const url = new URL(req.url);
-    const queryAcaHash = url.searchParams.get("aca_hash");
+    const queryAcaHash = url.searchParams.get("aca_hash_key");
 
     // Fuzzy key matching — prioritize query param from native bridge
     const userId = rawBody.user_id || rawBody.userId || rawBody.config?.user_id;
-    const acaHash = queryAcaHash || rawBody.aca_hash || rawBody.acaHash;
+    const acaHash = queryAcaHash || rawBody.aca_hash_key || rawBody.acaHash;
 
     // Broad health data extraction — the iOS bridge may use various keys
-    let healthData = rawBody.apple_health_data || rawBody.healthData || rawBody.health_data
-      || rawBody.data || rawBody.samples || rawBody.config?.apple_health_data
-      || rawBody.config?.healthData || rawBody.config?.health_data;
+    let healthData =
+      rawBody.apple_health_data ||
+      rawBody.healthData ||
+      rawBody.health_data ||
+      rawBody.data ||
+      rawBody.samples ||
+      rawBody.config?.apple_health_data ||
+      rawBody.config?.healthData ||
+      rawBody.config?.health_data;
 
     // If no nested health data object found, check if health types are at the root level
     // (e.g., the bridge sends { user_id, aca_hash, steps: [...], heartRate: [...] })
@@ -101,14 +107,22 @@ serve(async (req) => {
 
     if (!userId) {
       return new Response(JSON.stringify({ success: false, error: "Missing required field: user_id" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     if (!acaHash) {
-      return new Response(JSON.stringify({ success: false, error: "Missing required field: aca_hash. DELT Protocol requires a valid audit anchor." }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Missing required field: aca_hash_key. DELT Protocol requires a valid audit anchor.",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     // DELT/ACA Verification — lookup user's platform_guid first, then verify ACA against it
@@ -121,7 +135,8 @@ serve(async (req) => {
     const platformGuid = profile?.platform_guid;
     if (!platformGuid) {
       return new Response(JSON.stringify({ success: false, error: "No profile/platform_guid found for user" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -133,9 +148,13 @@ serve(async (req) => {
       .maybeSingle();
 
     if (!acaRecord) {
-      return new Response(JSON.stringify({ success: false, error: "DELT Protocol Verification Failed. No matching audit record found." }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ success: false, error: "DELT Protocol Verification Failed. No matching audit record found." }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     console.log("✅ DELT Protocol verified for user:", userId, "platform_guid:", platformGuid);
@@ -153,14 +172,18 @@ serve(async (req) => {
 
     // Handle automated sync with no health data
     if ((automatedSync || forceRealDataOnly) && Object.keys(processableData).length === 0) {
-      return new Response(JSON.stringify({ success: true, message: "No new health data available for sync", processed_count: 0 }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ success: true, message: "No new health data available for sync", processed_count: 0 }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     if (Object.keys(processableData).length === 0) {
       return new Response(JSON.stringify({ success: false, error: "Missing required field: apple_health_data" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -171,7 +194,11 @@ serve(async (req) => {
         if (Array.isArray(processableData[dataType])) {
           const realOnly = processableData[dataType].filter((item: any) => {
             if (typeof item !== "object" || item === null) return true; // primitives are real
-            return !(item.simulated === true || item.metadata?.simulated === true || (typeof item.value === "object" && item.value?.simulated === true));
+            return !(
+              item.simulated === true ||
+              item.metadata?.simulated === true ||
+              (typeof item.value === "object" && item.value?.simulated === true)
+            );
           });
           if (realOnly.length > 0) filteredData[dataType] = realOnly;
         } else {
@@ -181,9 +208,17 @@ serve(async (req) => {
       });
       const filteredCount = Object.values(filteredData).reduce((t, arr) => t + arr.length, 0);
       if (filteredCount === 0) {
-        return new Response(JSON.stringify({ success: true, message: "Only simulated data filtered out", processed_count: 0, skipped_simulated: true }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: "Only simulated data filtered out",
+            processed_count: 0,
+            skipped_simulated: true,
+          }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
       }
       processableData = filteredData;
     }
@@ -191,41 +226,73 @@ serve(async (req) => {
     console.log("Processing Apple Health data for user:", userId, "types:", Object.keys(processableData));
 
     // Update connection status
-    await supabase.from("data_connections").upsert({
-      user_id: userId,
-      connection_type: "apple_health",
-      connection_name: "Apple Health",
-      is_active: true,
-      last_sync_at: new Date().toISOString(),
-    }, { onConflict: "user_id,connection_type" });
+    await supabase.from("data_connections").upsert(
+      {
+        user_id: userId,
+        connection_type: "apple_health",
+        connection_name: "Apple Health",
+        is_active: true,
+        last_sync_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,connection_type" },
+    );
 
     // Process health data into raw_health_data (the canonical table) — BATCHED
     const processedData: any[] = [];
     const recordsToInsert: any[] = [];
     const healthDataTypes = [
-      "steps", "distanceWalkingRunning", "distanceCycling", "flightsClimbed",
-      "activeEnergyBurned", "restingEnergyBurned", "exerciseTime",
-      "heartRate", "heartRateVariability", "bloodOxygenSaturation",
-      "bloodPressureSystolic", "bloodPressureDiastolic", "respiratoryRate",
-      "bodyTemperature", "vo2Max",
-      "height", "weight", "bodyMassIndex", "bodyFatPercentage",
-      "leanBodyMass", "waistCircumference",
-      "dietaryEnergyConsumed", "totalFat", "saturatedFat", "carbohydrates",
-      "fiber", "sugar", "protein", "water", "caffeine",
-      "sleep", "sleepAnalysis",
-      "walkingSpeed", "stepLength",
-      "menstrualFlow", "basalBodyTemperature",
-      "mindfulSession", "moodScore", "stateOfMind",
-      "symptoms", "clinicalRecords", "medications",
+      "steps",
+      "distanceWalkingRunning",
+      "distanceCycling",
+      "flightsClimbed",
+      "activeEnergyBurned",
+      "restingEnergyBurned",
+      "exerciseTime",
+      "heartRate",
+      "heartRateVariability",
+      "bloodOxygenSaturation",
+      "bloodPressureSystolic",
+      "bloodPressureDiastolic",
+      "respiratoryRate",
+      "bodyTemperature",
+      "vo2Max",
+      "height",
+      "weight",
+      "bodyMassIndex",
+      "bodyFatPercentage",
+      "leanBodyMass",
+      "waistCircumference",
+      "dietaryEnergyConsumed",
+      "totalFat",
+      "saturatedFat",
+      "carbohydrates",
+      "fiber",
+      "sugar",
+      "protein",
+      "water",
+      "caffeine",
+      "sleep",
+      "sleepAnalysis",
+      "walkingSpeed",
+      "stepLength",
+      "menstrualFlow",
+      "basalBodyTemperature",
+      "mindfulSession",
+      "moodScore",
+      "stateOfMind",
+      "symptoms",
+      "clinicalRecords",
+      "medications",
     ];
 
     for (const dataType of healthDataTypes) {
       if (!processableData[dataType]) continue;
-      const dataArray = Array.isArray(processableData[dataType]) ? processableData[dataType] : [processableData[dataType]];
+      const dataArray = Array.isArray(processableData[dataType])
+        ? processableData[dataType]
+        : [processableData[dataType]];
       for (const record of dataArray) {
-        const actualValue = (typeof record === "object" && record !== null && record.value !== undefined)
-          ? record.value
-          : record;
+        const actualValue =
+          typeof record === "object" && record !== null && record.value !== undefined ? record.value : record;
 
         const healthRecord: any = {
           user_id: userId,
@@ -233,15 +300,22 @@ serve(async (req) => {
           raw_payload: {
             dataType,
             value: actualValue,
-            unit: (typeof record === "object" && record !== null) ? (record.unit || null) : null,
-            startDate: (typeof record === "object" && record !== null) ? (record.startDate || record.date) : null,
-            endDate: (typeof record === "object" && record !== null) ? (record.endDate || record.date) : null,
-            sourceBundle: (typeof record === "object" && record !== null) ? (record.sourceBundle || "com.apple.health") : "com.apple.health",
-            sourceName: (typeof record === "object" && record !== null) ? (record.sourceName || "Apple Health") : "Apple Health",
-            metadata: (typeof record === "object" && record !== null) ? (record.metadata || {}) : {},
+            unit: typeof record === "object" && record !== null ? record.unit || null : null,
+            startDate: typeof record === "object" && record !== null ? record.startDate || record.date : null,
+            endDate: typeof record === "object" && record !== null ? record.endDate || record.date : null,
+            sourceBundle:
+              typeof record === "object" && record !== null
+                ? record.sourceBundle || "com.apple.health"
+                : "com.apple.health",
+            sourceName:
+              typeof record === "object" && record !== null ? record.sourceName || "Apple Health" : "Apple Health",
+            metadata: typeof record === "object" && record !== null ? record.metadata || {} : {},
             originalRecord: typeof record === "object" ? record : { value: actualValue },
           },
-          recorded_at: (typeof record === "object" && record !== null) ? (record.startDate || record.date || new Date().toISOString()) : new Date().toISOString(),
+          recorded_at:
+            typeof record === "object" && record !== null
+              ? record.startDate || record.date || new Date().toISOString()
+              : new Date().toISOString(),
           processing_status: "pending",
           processed: false,
         };
@@ -251,7 +325,12 @@ serve(async (req) => {
           if (!isNaN(parsed)) healthRecord.step_count = parsed;
         }
 
-        recordsToInsert.push({ __dataType: dataType, __actualValue: actualValue, __recordedAt: healthRecord.recorded_at, ...healthRecord });
+        recordsToInsert.push({
+          __dataType: dataType,
+          __actualValue: actualValue,
+          __recordedAt: healthRecord.recorded_at,
+          ...healthRecord,
+        });
       }
     }
 
@@ -279,7 +358,12 @@ serve(async (req) => {
           processing_status: "pending",
           processed: false,
         };
-        recordsToInsert.push({ __dataType: "workout", __actualValue: workout.workoutActivityType, __recordedAt: workout.startDate, ...rec });
+        recordsToInsert.push({
+          __dataType: "workout",
+          __actualValue: workout.workoutActivityType,
+          __recordedAt: workout.startDate,
+          ...rec,
+        });
       }
     }
 
@@ -317,16 +401,19 @@ serve(async (req) => {
 
     console.log(`✅ Processed ${processedData.length} health records with DELT anchor: ${acaHash.substring(0, 12)}...`);
 
-    return new Response(JSON.stringify({
-      success: true,
-      message: "Apple Health data synced successfully",
-      processed_data: processedData,
-      processed_count: processedData.length,
-      delt_anchor: acaHash.substring(0, 12),
-      sync_timestamp: new Date().toISOString(),
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Apple Health data synced successfully",
+        processed_data: processedData,
+        processed_count: processedData.length,
+        delt_anchor: acaHash.substring(0, 12),
+        sync_timestamp: new Date().toISOString(),
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("Apple Health Sync Error:", message);

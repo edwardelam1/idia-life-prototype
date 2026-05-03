@@ -71,7 +71,7 @@ const DataSourceModal = ({ source, isOpen, onClose, onComplete }: DataSourceModa
         return;
       } else if (sourceName.includes("strava")) {
         const { data, error } = await supabase.functions.invoke("strava-auth-url", {
-          body: { userId, aca_hash: hash, aca_payload: payload },
+          body: { userId, aca_hash_key: hash, aca_payload: payload },
         });
         if (error) {
           setErrorMessage("Failed to connect to Strava. Please try again.");
@@ -89,7 +89,7 @@ const DataSourceModal = ({ source, isOpen, onClose, onComplete }: DataSourceModa
         }
       } else if (sourceName.includes("google") || sourceName.includes("fit")) {
         const { error } = await supabase.functions.invoke("google-fit-sync", {
-          body: { user_id: userId, aca_hash: hash, sync_type: "manual", aca_payload: payload },
+          body: { user_id: userId, aca_hash_key: hash, sync_type: "manual", aca_payload: payload },
         });
         if (error) {
           setErrorMessage("Google Fit requires OAuth authorization. Please contact support.");
@@ -97,7 +97,7 @@ const DataSourceModal = ({ source, isOpen, onClose, onComplete }: DataSourceModa
         }
       } else if (sourceName.includes("ford")) {
         const { data, error } = await supabase.functions.invoke("ford-auth-url", {
-          body: { userId, aca_hash: hash, aca_payload: payload },
+          body: { userId, aca_hash_key: hash, aca_payload: payload },
         });
         if (error) {
           setErrorMessage("Failed to connect to FordConnect. Please try again.");
