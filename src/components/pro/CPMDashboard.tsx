@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Brain, Eye, Zap, Shield, Activity, Volume2, Accessibility, Wind, Heart, Info, RotateCcw, Target, Activity as Pulse, Trophy, ChevronRight } from "lucide-react";
+import { Brain, Eye, Zap, Shield, Activity, Volume2, Accessibility, Wind, Heart, Info, RotateCcw, Target, Activity as Pulse, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -25,9 +25,9 @@ const InfoIcon = ({ text }: { text: string }) => (
   <TooltipProvider>
     <Tooltip delayDuration={300}>
       <TooltipTrigger asChild>
-        <Info className="w-2.5 h-2.5 ml-1 opacity-40 hover:opacity-100 transition-opacity cursor-help" />
+        <Info className="w-2.5 h-2.5 ml-1 opacity-20 hover:opacity-100 transition-opacity cursor-help" />
       </TooltipTrigger>
-      <TooltipContent className="bg-white text-slate-900 border-slate-200 text-[10px] max-w-[180px] p-2 shadow-xl">
+      <TooltipContent className="bg-white text-slate-900 border-slate-200 text-[10px] max-w-[180px] p-2 shadow-2xl">
         <p>{text}</p>
       </TooltipContent>
     </Tooltip>
@@ -80,7 +80,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     setRsvpWordIndex(0);
     setTestRound(round);
     setRsvpPhase('CALIBRATING');
-    setTimeout(() => setRsvpPhase('PRESENTING'), 1200);
+    setTimeout(() => setRsvpPhase('PRESENTING'), 1000);
   };
 
   const resetFullTest = () => {
@@ -100,7 +100,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
       
       if (testRound < 5) {
         setRsvpPhase('ROUND_COMPLETE');
-        setTimeout(() => startNewRound(testRound + 1), 1500);
+        setTimeout(() => startNewRound(testRound + 1), 1200);
       } else {
         setRsvpPhase('RESULT');
       }
@@ -147,7 +147,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
       setLoading(false);
       const ch = supabase.channel("cpm_feed").on("postgres_changes" as any, { event: "INSERT", schema: "public", table: "staged_health_data" }, (p: any) => {
         const n = p.new as StagedHealthData;
-        if (n && isMounted) setMetrics(prev => ({...prev, hr: n.heart_rate || prev.hr, hrv: n.heart_rate_variability_ms || prev.hrv, focusScore: n.data_quality_score ? Math.round(n.data_quality_score * 100) : prev.focusScore }));
+        if (n && isMounted) setMetrics(prev => ({...prev, hr: n.heart_rate || prev.hr, hrv: n.heart_rate_variability_ms || prev.hrv, hriScore: n.data_quality_score ? Math.round(n.data_quality_score * 100) : prev.hriScore }));
       }).subscribe();
       return ch;
     };
@@ -155,146 +155,169 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     return () => { isMounted = false; promise.then(c => { if(c) supabase.removeChannel(c); }); };
   }, [isMasked]);
 
-  if (loading && !isMasked) return <div className="p-8 text-center animate-pulse uppercase text-[10px] tracking-widest text-teal-600 font-black">Hydrating IDIA Pro+...</div>;
+  if (loading && !isMasked) return <div className="p-8 text-center animate-pulse uppercase text-[10px] tracking-widest text-teal-600 font-sans font-black">Hydrating IDIA Pro+...</div>;
 
   return (
-    <div className={`p-4 pb-24 space-y-4 animate-fade-in relative bg-white min-h-screen ${isMasked ? "blur-md pointer-events-none" : ""}`}>
+    <div className={`p-4 pb-24 space-y-6 animate-fade-in relative bg-white min-h-screen font-sans ${isMasked ? "blur-md pointer-events-none" : ""}`}>
       
-      {/* SEIZURE-LEVEL GLOBAL RGB OVERLAY */}
+      {/* SEIZURE-LEVEL GLOBAL RGB OVERLAY (Edge-to-Edge) */}
       {isFlashing && (
         <div 
           className="fixed inset-0 z-[9999] pointer-events-none animate-[seizure-rgb_25ms_linear_infinite]" 
-          style={{ mixBlendMode: 'screen' }}
+          style={{ mixBlendMode: 'difference' }}
         />
       )}
 
-      {/* MINIMALIST HEADER */}
-      <div className="flex items-center justify-between mb-4">
+      {/* HEADER */}
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[hsl(178,42%,42%)] flex items-center justify-center shadow-lg">
+          <div className="w-10 h-10 rounded-full bg-[hsl(178,42%,42%)] flex items-center justify-center shadow-sm">
             <Brain className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="font-bold text-slate-900 text-sm uppercase tracking-tight">Cognitive Performance</h2>
-            <p className="text-[10px] text-teal-600 uppercase font-black tracking-widest">IDIA Pro+</p>
+            <h2 className="font-bold text-slate-900 text-sm uppercase tracking-tighter">Cognitive Performance</h2>
+            <p className="text-[10px] text-teal-600 uppercase font-black tracking-widest">Personal Alpha Suite</p>
           </div>
         </div>
-        <Badge variant="outline" className="border-[hsl(178,42%,42%)] text-[hsl(178,42%,42%)] font-black uppercase text-[8px] animate-pulse">Live Synapse</Badge>
+        <Badge variant="outline" className="border-teal-100 text-teal-600 font-black uppercase text-[8px] px-2 py-0">Live Synapse</Badge>
       </div>
 
       <Tabs defaultValue="biometrics" className="w-full">
-        <TabsList className="grid grid-cols-3 w-full bg-slate-100/50 p-1 rounded-xl h-12 mb-4">
-          <TabsTrigger value="biometrics" className="text-[10px] font-black uppercase data-[state=active]:bg-white data-[state=active]:text-teal-600 rounded-lg">Biometrics</TabsTrigger>
-          <TabsTrigger value="gamma" className="text-[10px] font-black uppercase data-[state=active]:bg-white data-[state=active]:text-teal-600 rounded-lg">Gamma</TabsTrigger>
-          <TabsTrigger value="memory" className="text-[10px] font-black uppercase data-[state=active]:bg-white data-[state=active]:text-teal-600 rounded-lg">Anchor</TabsTrigger>
+        {/* MINIMAL THIN TAB DESIGN (MIRRORS WALLET/LIFE) */}
+        <TabsList className="flex w-full bg-transparent border-b border-slate-100 p-0 rounded-none h-10 mb-6 gap-6">
+          <TabsTrigger value="biometrics" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all">Biometrics</TabsTrigger>
+          <TabsTrigger value="gamma" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all">Gamma</TabsTrigger>
+          <TabsTrigger value="memory" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all">Anchor</TabsTrigger>
         </TabsList>
 
-        {/* 1. BIOMETRICS TAB: The 6 Markers */}
-        <TabsContent value="biometrics" className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+        {/* 1. BIOMETRICS TAB: The 6 Minimalist Markers */}
+        <TabsContent value="biometrics" className="space-y-6 focus-visible:outline-none">
+          <div className="grid grid-cols-2 gap-4">
             {[
               { label: "Heart Rate", value: `${metrics.hr} BPM`, icon: Heart },
               { label: "HRV Index", value: `${metrics.hrv} ms`, icon: Activity },
               { label: "Acoustic", value: `${metrics.noise} dB`, icon: Volume2 },
               { label: "Respiratory", value: `${metrics.resp} br/m`, icon: Wind },
               { label: "Gait Balance", value: `${metrics.asymmetry}%`, icon: Accessibility },
-              { label: "HRI", value: `${metrics.hriScore}%`, icon: Shield },
+              { label: "HRI Score", value: `${metrics.hriScore}%`, icon: Shield },
             ].map((b) => (
-              <div key={b.label} className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4 shadow-sm hover:shadow-md transition-all">
-                <div className="flex items-center gap-2 mb-2">
-                  <b.icon className="w-4 h-4 text-teal-600 opacity-70" />
-                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{b.label}</span>
-                </div>
-                <p className="text-xl font-black text-slate-900 tracking-tighter italic">{b.value}</p>
+              <div key={b.label} className="p-1">
+                <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1 flex items-center gap-1">
+                  <b.icon className="w-2.5 h-2.5" /> {b.label}
+                </p>
+                <p className="text-xl font-bold text-slate-900 italic tracking-tighter">{b.value}</p>
               </div>
             ))}
           </div>
 
-          <div className="rounded-2xl bg-[hsl(178,42%,42%)] p-5 text-white shadow-xl">
-             <div className="flex items-center gap-2 mb-1">
+          <div className="rounded-2xl border border-teal-50 bg-teal-50/30 p-5">
+             <div className="flex items-center gap-2 mb-1 text-teal-700">
                 <Pulse className="w-4 h-4" />
-                <span className="text-[10px] font-black uppercase tracking-widest italic">Personal Alpha Status</span>
+                <span className="text-[10px] font-black uppercase tracking-widest italic">Operational Status</span>
              </div>
-             <p className="text-xs font-medium leading-relaxed opacity-90">
-               Principal is currently operating at <span className="font-bold underline">Peak Efficiency</span>. 
-               No cognitive drift detected in current cycle.
+             <p className="text-xs font-medium leading-relaxed text-slate-600">
+               Cognitive load is currently <span className="font-bold text-teal-600">Optimal</span>. 
+               Reaction velocity remains within established personal alpha baseline.
              </p>
           </div>
         </TabsContent>
 
         {/* 2. GAMMA TRIGGER TAB */}
-        <TabsContent value="gamma" className="space-y-4">
-          <div className="rounded-3xl border-2 border-slate-100 bg-white p-8 text-center shadow-sm">
-             <div className={`w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center border-4 transition-all duration-500 ${gammaActive ? 'border-orange-500 bg-orange-50' : 'border-slate-100 bg-slate-50'}`}>
-                <Zap className={`w-10 h-10 ${gammaActive ? 'text-orange-500 animate-pulse' : 'text-slate-300'}`} />
+        <TabsContent value="gamma" className="space-y-6 focus-visible:outline-none">
+          <div className="rounded-3xl border border-slate-100 bg-white p-10 text-center">
+             <div className={`w-24 h-24 rounded-full mx-auto mb-8 flex items-center justify-center border-4 transition-all duration-700 ${gammaActive ? 'border-orange-500 bg-orange-50/50 scale-110 shadow-[0_0_40px_rgba(249,115,22,0.2)]' : 'border-slate-50 bg-slate-50'}`}>
+                <Zap className={`w-12 h-12 ${gammaActive ? 'text-orange-500 animate-pulse' : 'text-slate-200'}`} />
              </div>
-             <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-2">40Hz Gamma Trigger</h3>
-             <p className="text-[11px] text-slate-500 max-w-[220px] mx-auto mb-8 font-medium">Full Spectrum Entrainment for pupillary latency and neural drive verification[cite: 123].</p>
+             <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest mb-3">40Hz Entrainment Trigger</h3>
+             <p className="text-[11px] text-slate-400 max-w-[200px] mx-auto mb-10 font-medium leading-relaxed">Full spectrum stimulation for pupillary response and neural drive verification.</p>
              
-             <div className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl">
+             <div className="flex items-center justify-between border border-slate-100 p-5 rounded-2xl">
                 <div className="text-left">
-                   <p className="text-[10px] font-black text-slate-900 uppercase">Hardware Armed</p>
-                   <p className="text-[9px] text-slate-400 font-bold uppercase">{gammaActive ? "Transmitting..." : "Standby"}</p>
+                   <p className="text-[10px] font-black text-slate-900 uppercase">Hardware Pulse</p>
+                   <p className="text-[9px] text-teal-600 font-bold uppercase tracking-tighter">{gammaActive ? "Active Broadcast" : "Standby"}</p>
                 </div>
-                <Switch checked={gammaActive} onCheckedChange={triggerGammaSequence} />
+                <Switch checked={gammaActive} onCheckedChange={triggerGammaSequence} className="data-[state=checked]:bg-orange-500" />
              </div>
           </div>
         </TabsContent>
 
-        {/* 3. MEMORY ANCHORING TAB: 5-Round Battery */}
-        <TabsContent value="memory" className="space-y-4">
-           <div className="rounded-3xl bg-slate-900 text-white shadow-2xl overflow-hidden min-h-[400px] flex flex-col">
-              <div className="p-4 border-b border-white/10 flex items-center justify-between">
+        {/* 3. MEMORY ANCHORING TAB: 5-Round Light Mode Battery */}
+        <TabsContent value="memory" className="space-y-6 focus-visible:outline-none">
+           <div className="rounded-3xl border border-slate-100 bg-white shadow-sm overflow-hidden min-h-[440px] flex flex-col">
+              <div className="p-4 border-b border-slate-50 flex items-center justify-between">
                  <div className="flex items-center gap-2">
-                    <Target className="w-4 h-4 text-orange-400" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Memory Anchor: Round {testRound}/5</span>
+                    <Target className="w-4 h-4 text-orange-500" />
+                    <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Memory Anchor: {rsvpPhase !== 'IDLE' ? `${testRound}/5` : 'Validation'}</span>
                  </div>
-                 {rsvpPhase !== 'IDLE' && <Badge className="bg-orange-500 text-slate-900 font-black">{cumulativeScore}</Badge>}
+                 {rsvpPhase !== 'IDLE' && <Badge className="bg-orange-500 text-white font-black text-[9px]">{cumulativeScore}</Badge>}
               </div>
 
-              <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
-                 {/* LOCKED VIEWPORT FRAME */}
-                 <div className="absolute inset-6 border border-white/5 rounded-2xl pointer-events-none" />
-
+              <div className="flex-1 flex flex-col items-center justify-center p-8 relative">
                  {rsvpPhase === 'IDLE' && (
-                    <div className="text-center space-y-6">
-                       <p className="text-[10px] text-white/50 uppercase font-black tracking-[0.2em]">Ready for Validation Battery?</p>
-                       <Button onClick={resetFullTest} className="bg-white text-slate-900 hover:bg-orange-400 hover:text-white font-black px-10 py-6 rounded-full uppercase italic transition-all">Initialize Battery</Button>
-                       <div className="flex justify-center gap-2">
+                    <div className="text-center space-y-8">
+                       <div className="space-y-2">
+                          <p className="text-[10px] text-slate-400 uppercase font-black tracking-[0.2em]">Calibration Required</p>
+                          <p className="text-[11px] text-slate-600 font-medium max-w-[180px]">Verify working memory latency before high-stakes signing.</p>
+                       </div>
+                       <Button onClick={resetFullTest} className="bg-slate-900 text-white hover:bg-orange-500 font-black px-12 py-7 rounded-full uppercase italic transition-all shadow-lg">Initialize Test</Button>
+                       <div className="flex justify-center gap-3">
                           {[500, 300, 150].map(s => (
-                             <button key={s} onClick={() => setRsvpSpeed(s)} className={`text-[9px] font-black px-3 py-1 rounded border ${rsvpSpeed === s ? 'border-orange-500 text-orange-400' : 'border-white/10 text-white/30'}`}>{s === 500 ? 'LVL 1' : s === 300 ? 'NORM' : 'ALPHA'}</button>
+                             <button key={s} onClick={() => setRsvpSpeed(s)} className={`text-[9px] font-black px-4 py-1.5 rounded-full border-2 transition-all ${rsvpSpeed === s ? 'border-teal-600 text-teal-600' : 'border-slate-100 text-slate-300'}`}>{s === 500 ? 'LVL 1' : s === 300 ? 'NORM' : 'ALPHA'}</button>
                           ))}
                        </div>
                     </div>
                  )}
 
-                 {rsvpPhase === 'CALIBRATING' && <div className="text-center animate-pulse"><p className="text-[11px] font-black uppercase tracking-[0.5em] text-orange-400">Locking Focus...</p></div>}
+                 {rsvpPhase === 'CALIBRATING' && (
+                    <div className="text-center space-y-4">
+                       <div className="w-12 h-12 rounded-full border-4 border-teal-500 border-t-transparent animate-spin mx-auto" />
+                       <p className="text-[11px] font-black uppercase tracking-[0.5em] text-teal-600">Locking Focus</p>
+                    </div>
+                 )}
 
-                 {rsvpPhase === 'PRESENTING' && <div className="w-full text-center"><p className="text-5xl font-black tracking-[0.2em] uppercase animate-in zoom-in duration-75 truncate">{activeSequence[rsvpWordIndex]}</p></div>}
+                 {rsvpPhase === 'PRESENTING' && (
+                    <div className="w-full text-center px-4">
+                       <p className="text-5xl font-black tracking-[0.15em] text-slate-900 uppercase animate-in zoom-in duration-75 break-words">
+                          {activeSequence[rsvpWordIndex]}
+                       </p>
+                    </div>
+                 )}
 
-                 {rsvpPhase === 'MASK' && <p className="text-5xl font-black text-white/10 opacity-40">#######</p>}
+                 {rsvpPhase === 'MASK' && <p className="text-5xl font-black text-slate-100">#######</p>}
 
                  {rsvpPhase === 'RECALL' && (
-                    <div className="w-full space-y-4">
-                       <p className="text-[10px] font-black text-center text-white/40 uppercase tracking-widest">Input Sequence Sequence</p>
-                       <div className="grid grid-cols-2 gap-2">
+                    <div className="w-full space-y-6">
+                       <div className="text-center">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Select Order</p>
+                          <div className="flex justify-center gap-1.5">
+                             {activeSequence.map((_, i) => (
+                                <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i < userRecall.length ? 'bg-orange-500 scale-125' : 'bg-slate-100'}`} />
+                             ))}
+                          </div>
+                       </div>
+                       <div className="grid grid-cols-2 gap-3">
                           {[...activeSequence].sort().map(word => (
-                             <Button key={word} onClick={() => handleRecallSelection(word)} className={`h-12 border border-white/10 bg-white/5 text-[10px] font-black uppercase ${userRecall.includes(word) ? 'opacity-10' : 'hover:bg-orange-400 hover:text-slate-900'}`}>{word}</Button>
+                             <Button key={word} onClick={() => handleRecallSelection(word)} variant="outline" className={`h-12 border-2 text-[10px] font-black uppercase transition-all ${userRecall.includes(word) ? 'bg-slate-50 text-slate-200 border-slate-50 scale-95' : 'border-slate-100 text-slate-600 hover:border-teal-600 hover:text-teal-600'}`}>{word}</Button>
                           ))}
                        </div>
                     </div>
                  )}
 
-                 {rsvpPhase === 'ROUND_COMPLETE' && <p className="text-3xl font-black text-orange-400 italic animate-bounce">ROUND {testRound} SAVED</p>}
+                 {rsvpPhase === 'ROUND_COMPLETE' && (
+                    <div className="text-center space-y-4">
+                       <Pulse className="w-12 h-12 text-teal-500 mx-auto animate-pulse" />
+                       <p className="text-2xl font-black text-teal-600 italic">ROUND {testRound} LOGGED</p>
+                    </div>
+                 )}
 
                  {rsvpPhase === 'RESULT' && (
-                    <div className="text-center space-y-6">
-                       <Trophy className="w-12 h-12 text-orange-400 mx-auto" />
+                    <div className="text-center space-y-8 animate-in zoom-in duration-500">
+                       <Trophy className="w-16 h-16 text-orange-500 mx-auto drop-shadow-sm" />
                        <div>
-                          <p className="text-[11px] font-black text-white/50 uppercase tracking-widest">Cumulative Clutch Score</p>
-                          <p className="text-7xl font-black italic tracking-tighter text-white">{cumulativeScore}</p>
+                          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Cumulative Clutch Score</p>
+                          <p className="text-8xl font-black italic tracking-tighter text-slate-900">{cumulativeScore}</p>
                        </div>
-                       <Button variant="ghost" onClick={resetFullTest} className="text-white/40 font-black uppercase text-[10px] hover:text-orange-400"><RotateCcw className="w-3 h-3 mr-2" /> Reset Battery</Button>
+                       <Button variant="ghost" onClick={resetFullTest} className="text-slate-300 font-black uppercase text-[10px] hover:text-teal-600 tracking-widest"><RotateCcw className="w-3 h-3 mr-2" /> Reset Battery</Button>
                     </div>
                  )}
               </div>
@@ -305,10 +328,9 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
       <style>{`
         @keyframes seizure-rgb {
           0% { background-color: #ff0000; }
-          20% { background-color: #00ff00; }
-          40% { background-color: #0000ff; }
-          60% { background-color: #ffff00; }
-          80% { background-color: #ff00ff; }
+          25% { background-color: #00ff00; }
+          50% { background-color: #0000ff; }
+          75% { background-color: #ffffff; }
           100% { background-color: #ff0000; }
         }
       `}</style>
