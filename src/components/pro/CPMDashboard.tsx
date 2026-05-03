@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Brain, Eye, Zap, Shield, Activity, Volume2, Accessibility, Wind, Heart, Info, CheckCircle2, RotateCcw, Target } from "lucide-react";
+import { Brain, Eye, Zap, Shield, Activity, Volume2, Accessibility, Wind, Heart, Info, CheckCircle2, RotateCcw, Target, Cpu, Activity as Pulse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -38,8 +38,8 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
   const [gammaActive, setGammaActive] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
   
-  // --- HIGH-FIDELITY RSVP ENGINE ---
-  const [rsvpPhase, setRsvpPhase] = useState<'IDLE' | 'CALIBRATING' | 'PRESENTING' | 'RECALL' | 'RESULT'>('IDLE');
+  // --- ROBUST RSVP ENGINE ---
+  const [rsvpPhase, setRsvpPhase] = useState<'IDLE' | 'CALIBRATING' | 'PRESENTING' | 'MASK' | 'RECALL' | 'RESULT'>('IDLE');
   const [rsvpWordIndex, setRsvpWordIndex] = useState(0);
   const [rsvpSpeed, setRsvpSpeed] = useState(300);
   const [activeSequence, setActiveSequence] = useState<string[]>([]);
@@ -52,23 +52,27 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     status: "CALIBRATING" as "CALIBRATING" | "ARMED" | "TRIGGERED"
   });
 
-  // 1. ROBUST RSVP LOGIC (Phase-Controlled Transition)
+  // 1. ROBUST RSVP LOGIC (Presentation with Inter-Stimulus Masking)
   useEffect(() => {
-    if (rsvpPhase !== 'PRESENTING') return;
+    if (rsvpPhase === 'PRESENTING') {
+      const timer = setTimeout(() => {
+        setRsvpPhase('MASK');
+      }, rsvpSpeed);
+      return () => clearTimeout(timer);
+    }
 
-    const interval = setInterval(() => {
-      setRsvpWordIndex((prev) => {
-        if (prev >= activeSequence.length - 1) {
-          clearInterval(interval);
-          setTimeout(() => setRsvpPhase('RECALL'), 400);
-          return prev;
+    if (rsvpPhase === 'MASK') {
+      const timer = setTimeout(() => {
+        if (rsvpWordIndex >= activeSequence.length - 1) {
+          setRsvpPhase('RECALL');
+        } else {
+          setRsvpWordIndex(prev => prev + 1);
+          setRsvpPhase('PRESENTING');
         }
-        return prev + 1;
-      });
-    }, rsvpSpeed);
-
-    return () => clearInterval(interval);
-  }, [rsvpPhase, rsvpSpeed, activeSequence]);
+      }, 50); // High-frequency neural mask
+      return () => clearTimeout(timer);
+    }
+  }, [rsvpPhase, rsvpSpeed, rsvpWordIndex, activeSequence]);
 
   const startRSVPSession = () => {
     const sequence = [...RSVP_WORDS].sort(() => 0.5 - Math.random()).slice(0, 5);
@@ -77,9 +81,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     setRsvpWordIndex(0);
     setClutchScore(null);
     setRsvpPhase('CALIBRATING');
-    
-    // 1-second visual "Lock-In" before firing firehose
-    setTimeout(() => setRsvpPhase('PRESENTING'), 1200);
+    setTimeout(() => setRsvpPhase('PRESENTING'), 1000);
   };
 
   const handleRecallSelection = (word: string) => {
@@ -92,10 +94,9 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
       const accuracy = correct / activeSequence.length;
       const speedFactor = 1000 / rsvpSpeed;
       const score = Math.round((accuracy * 100) * speedFactor);
-      
       setClutchScore(score);
       setRsvpPhase('RESULT');
-      if (score > 150) toast({ title: "⚡ PEAK NEURAL DRIVE", description: "Clutch Score exceeds operational baseline." });
+      if (score > 180) toast({ title: "⚡ ALPHA SYNC DETECTED", description: "Clutch Score exceeds operational baseline." });
     }
   };
 
@@ -177,131 +178,129 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
       </div>
 
       {/* BIOMETRIC GRIDS */}
-      <div className={`rounded-2xl border border-border bg-white shadow-sm p-4 transition-all ${isMasked ? "blur-sm opacity-60" : ""}`}>
-        <h3 className="text-xs font-bold text-foreground mb-3 flex items-center gap-1.5 uppercase tracking-wider"><Eye className="w-3.5 h-3.5 text-[hsl(28,80%,55%)]" />Cognitive Biometrics</h3>
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: "Focus Score", value: `${metrics.focusScore}/100`, info: "Attention metric." },
-            { label: "Stress Index", value: metrics.stressIndex.toString(), info: "Autonomic load." },
-            { label: "Recovery %", value: `${metrics.recovery}%`, info: "Bio-restitution." },
-          ].map((b) => (
-            <div key={b.label} className="rounded-xl bg-muted/30 p-2.5 text-center border border-border/50"><div className="flex justify-center mb-1"><InfoIcon text={b.info} /></div><p className="text-[9px] font-medium text-muted-foreground mb-1 uppercase tracking-tighter">{b.label}</p><p className="text-xs font-black text-foreground">{isMasked ? "—" : b.value}</p></div>
-          ))}
+      <div className="grid grid-cols-2 gap-3">
+        <div className={`rounded-2xl border border-border bg-white shadow-sm p-4 transition-all ${isMasked ? "blur-sm opacity-60" : ""}`}>
+          <h3 className="text-[9px] font-black text-muted-foreground mb-3 flex items-center gap-1.5 uppercase tracking-widest"><Eye className="w-3 h-3 text-[hsl(28,80%,55%)]" />Focus / Recovery</h3>
+          <div className="space-y-3">
+            {[
+              { label: "Focus", value: `${metrics.focusScore}%` },
+              { label: "Recovery", value: `${metrics.recovery}%` },
+            ].map((b) => (
+              <div key={b.label}><p className="text-[8px] font-black text-muted-foreground uppercase">{b.label}</p><p className="text-xl font-black text-foreground">{isMasked ? "—" : b.value}</p></div>
+            ))}
+          </div>
         </div>
-      </div>
-
-      <div className={`rounded-2xl border border-border bg-white shadow-sm p-4 transition-all ${isMasked ? "blur-sm opacity-60" : ""}`}>
-        <h3 className="text-xs font-bold text-foreground mb-3 flex items-center gap-1.5 uppercase tracking-wider"><Activity className="w-3.5 h-3.5 text-[hsl(28,80%,55%)]" />Occupational Biometrics</h3>
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: "Heart Rate", value: `${metrics.hr} BPM`, icon: Heart },
-            { label: "HRV Index", value: `${metrics.hrv} ms`, icon: Activity },
-            { label: "Acoustic", value: `${metrics.noise} dB`, icon: Volume2 },
-            { label: "Respiratory", value: `${metrics.resp} br/m`, icon: Wind },
-            { label: "Gait Balance", value: `${metrics.asymmetry}%`, icon: Accessibility },
-            { label: "Reliability", value: `${metrics.hriScore}%`, icon: Shield },
-          ].map((b) => (
-            <div key={b.label} className="rounded-xl bg-muted/30 p-2.5 text-center border border-border/50"><div className="flex justify-center mb-1"><b.icon className="w-3 h-3 text-[hsl(28,80%,55%)] opacity-70" /></div><p className="text-[9px] font-medium text-muted-foreground mb-1 uppercase tracking-tighter">{b.label}</p><p className="text-xs font-black text-foreground">{isMasked ? "—" : b.value}</p></div>
-          ))}
+        <div className={`rounded-2xl border border-border bg-white shadow-sm p-4 transition-all ${isMasked ? "blur-sm opacity-60" : ""}`}>
+          <h3 className="text-[9px] font-black text-muted-foreground mb-3 flex items-center gap-1.5 uppercase tracking-widest"><Pulse className="w-3 h-3 text-[hsl(28,80%,55%)]" />Bio-State</h3>
+          <div className="space-y-3">
+            <div><p className="text-[8px] font-black text-muted-foreground uppercase">HRI Score</p><p className="text-xl font-black text-foreground">{isMasked ? "—" : metrics.hriScore}%</p></div>
+            <div><p className="text-[8px] font-black text-muted-foreground uppercase">Autonomic</p><p className="text-xl font-black text-foreground">{isMasked ? "—" : metrics.hrv}ms</p></div>
+          </div>
         </div>
       </div>
 
       {/* GAMMA TRIGGER */}
       <div className="rounded-2xl border border-border bg-white shadow-sm p-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2"><Zap className={`w-4 h-4 ${gammaActive ? "text-[hsl(28,80%,55%)] animate-pulse" : "text-muted-foreground"}`} /><div><h3 className="text-xs font-bold text-foreground uppercase tracking-wider">40Hz Gamma Trigger</h3><p className="text-[10px] text-muted-foreground">Neural entrainment active</p></div></div>
+          <div className="flex items-center gap-3"><Zap className={`w-5 h-5 ${gammaActive ? "text-[hsl(28,80%,55%)] animate-pulse" : "text-muted-foreground"}`} /><div><h3 className="text-xs font-black text-foreground uppercase tracking-wider">40Hz Gamma Trigger</h3><p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tighter">Entrainment Status: {gammaActive ? "Active" : "Standby"}</p></div></div>
           <Switch checked={gammaActive} onCheckedChange={triggerGammaSequence} disabled={isMasked} />
         </div>
       </div>
 
-      {/* ROBUST MEMORY ANCHORING RSVP */}
-      <div className="rounded-2xl border border-border bg-white shadow-sm p-4 overflow-hidden">
-        <div className="flex items-center justify-between mb-3">
+      {/* INDUSTRIAL RSVP INSTRUMENT */}
+      <div className="rounded-3xl border-2 border-slate-900 bg-slate-900 shadow-2xl overflow-hidden">
+        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900">
           <div className="flex items-center gap-2">
-            <Shield className="w-4 h-4 text-[hsl(28,80%,55%)]" />
-            <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">Memory Anchoring RSVP</h3>
+            <Target className="w-4 h-4 text-[hsl(28,80%,55%)]" />
+            <h3 className="text-[10px] font-black text-white uppercase tracking-widest italic">Memory Anchor V.2</h3>
           </div>
           <Button
             size="sm"
-            variant={rsvpPhase !== 'IDLE' ? "destructive" : "default"}
-            className={`text-[10px] font-bold uppercase h-7 ${rsvpPhase === 'IDLE' ? "bg-[hsl(28,80%,55%)]" : ""}`}
+            className={`text-[9px] font-black uppercase h-7 px-4 ${rsvpPhase === 'IDLE' ? "bg-[hsl(28,80%,55%)] text-slate-900" : "bg-slate-800 text-white"}`}
             onClick={() => rsvpPhase === 'IDLE' ? startRSVPSession() : setRsvpPhase('IDLE')}
             disabled={isMasked}
           >
-            {rsvpPhase === 'IDLE' ? "Start Validation" : "Reset"}
+            {rsvpPhase === 'IDLE' ? "Initialize" : "Abort"}
           </Button>
         </div>
 
-        <div className="min-h-[220px] bg-slate-50/50 rounded-xl flex flex-col items-center justify-center p-4 relative">
+        <div className="min-h-[260px] bg-black flex flex-col items-center justify-center p-6 relative">
+          {/* DIGITAL FRAME DECOR */}
+          <div className="absolute inset-4 border border-slate-800 pointer-events-none opacity-50" />
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[8px] font-mono text-slate-600 uppercase tracking-[0.5em]">Neural-Interface-01</div>
+
           {rsvpPhase === 'CALIBRATING' && (
-            <div className="flex flex-col items-center gap-3 animate-pulse">
-              <Target className="w-8 h-8 text-slate-400" />
-              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Lock Focus</p>
+            <div className="flex flex-col items-center gap-4 text-center">
+              <div className="w-16 h-16 rounded-full border-2 border-[hsl(28,80%,55%)] border-t-transparent animate-spin" />
+              <p className="text-[11px] font-black uppercase tracking-[0.4em] text-[hsl(28,80%,55%)] animate-pulse">Locking Focus...</p>
             </div>
           )}
 
           {rsvpPhase === 'PRESENTING' && (
-            <div className="text-5xl font-black text-foreground tracking-[0.25em] animate-in zoom-in duration-75">
+            <div className="text-6xl font-black text-white tracking-[0.15em] drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] transition-all transform scale-110">
               {activeSequence[rsvpWordIndex]}
             </div>
           )}
 
+          {rsvpPhase === 'MASK' && (
+            <div className="text-6xl font-black text-slate-800 tracking-[0.1em] opacity-40">
+              #######
+            </div>
+          )}
+
           {rsvpPhase === 'RECALL' && (
-            <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-2">
-              <div className="text-center">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Validation Hand-off</p>
-                <p className="text-[9px] text-slate-500 italic">Select sequence in seen order</p>
+            <div className="w-full space-y-6 z-10">
+              <div className="text-center space-y-1">
+                <p className="text-[10px] font-black text-[hsl(28,80%,55%)] uppercase tracking-[0.3em]">Validation Required</p>
+                <p className="text-[8px] text-slate-500 uppercase font-bold">Input Sequence in Linear Order</p>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {[...activeSequence].sort().map((word) => (
                   <Button 
                     key={word} 
                     variant="outline" 
-                    className={`text-[9px] font-black uppercase h-10 border-2 transition-all ${userRecall.includes(word) ? 'bg-slate-900 text-white border-slate-900 scale-95' : 'hover:border-slate-900'}`}
+                    className={`text-[9px] font-black uppercase h-12 border-slate-700 bg-slate-900/50 text-slate-300 transition-all ${userRecall.includes(word) ? 'opacity-20 scale-90 border-slate-800' : 'hover:border-[hsl(28,80%,55%)] hover:text-white'}`}
                     onClick={() => handleRecallSelection(word)}
                   >
                     {word}
                   </Button>
                 ))}
               </div>
-              <div className="flex justify-center gap-1.5">
-                {activeSequence.map((_, i) => (
-                  <div key={i} className={`w-1.5 h-1.5 rounded-full ${i < userRecall.length ? 'bg-[hsl(28,80%,55%)]' : 'bg-slate-200'}`} />
-                ))}
-              </div>
             </div>
           )}
 
           {rsvpPhase === 'RESULT' && (
-            <div className="text-center space-y-3 animate-in zoom-in duration-300">
-              <Badge className="bg-emerald-500 text-white border-none uppercase text-[8px] font-black px-3 py-1">Identity Verified</Badge>
-              <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-2">Clutch Score established</div>
-              <div className="text-6xl font-black italic tracking-tighter text-[hsl(28,80%,55%)] drop-shadow-sm">{clutchScore}</div>
-              <p className="text-[10px] font-bold text-slate-600 max-w-[220px] mx-auto leading-tight uppercase">
-                Working memory baseline anchor identified at {rsvpSpeed}ms intervals.
-              </p>
-              <Button size="sm" variant="ghost" className="mt-4 text-[9px] font-black uppercase flex items-center gap-2 hover:bg-slate-100" onClick={startRSVPSession}>
-                <RotateCcw className="w-3.5 h-3.5" /> Re-Anchor Session 
+            <div className="text-center space-y-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                <span className="text-[9px] font-black text-emerald-500 uppercase">Principal Verified</span>
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Calculated Clutch Score</p>
+                <p className="text-7xl font-black italic text-white tracking-tighter drop-shadow-lg">{clutchScore}</p>
+              </div>
+              <Button size="sm" variant="ghost" className="text-[10px] font-black text-slate-400 uppercase hover:text-white" onClick={startRSVPSession}>
+                <RotateCcw className="w-3.5 h-3.5 mr-2" /> Re-Anchor Baseline 
               </Button>
             </div>
           )}
 
           {rsvpPhase === 'IDLE' && (
-            <div className="flex flex-col items-center gap-6 animate-in fade-in">
-              <div className="w-12 h-12 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center">
-                <Target className="w-5 h-5 text-slate-300" />
-              </div>
-              <div className="text-center space-y-1">
-                <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Cognitive Calibration</p>
-                <p className="text-[9px] text-slate-500 max-w-[180px] leading-tight">Verifies working memory latency before high-risk operations.</p>
-              </div>
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col items-center gap-8">
+              <div className="grid grid-cols-3 gap-2">
                 {[500, 300, 150].map((s) => (
-                  <button key={s} className={`text-[9px] font-black px-4 py-1.5 rounded-lg uppercase transition-all border-2 ${rsvpSpeed === s ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-400 border-slate-200 hover:border-slate-300"}`} onClick={() => setRsvpSpeed(s)}>
-                    {s === 500 ? "Slow" : s === 300 ? "Norm" : "Alpha"}
+                  <button 
+                    key={s} 
+                    className={`text-[10px] font-black px-5 py-2 rounded-lg uppercase transition-all border-2 ${rsvpSpeed === s ? "bg-[hsl(28,80%,55%)] text-slate-900 border-[hsl(28,80%,55%)]" : "bg-slate-900 text-slate-500 border-slate-800 hover:border-slate-600"}`} 
+                    onClick={() => setRsvpSpeed(s)}
+                  >
+                    {s === 500 ? "Level 1" : s === 300 ? "Level 2" : "Alpha"}
                   </button>
                 ))}
               </div>
+              <p className="text-[9px] text-slate-600 uppercase font-black tracking-widest text-center max-w-[200px] leading-relaxed">
+                Verifies working memory latency before high-stakes capital signing operations.
+              </p>
             </div>
           )}
         </div>
