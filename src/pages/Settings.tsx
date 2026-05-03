@@ -67,10 +67,10 @@ export default function Settings() {
   };
 
   return (
-    <div className="min-h-screen bg-background pt-[max(0.5rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
-      <div className="container max-w-4xl mx-auto py-2 px-2 sm:px-3">
+    <div className="flex flex-col h-screen overflow-hidden bg-background pt-[max(0.5rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
+      <div className="container max-w-4xl mx-auto py-2 px-2 sm:px-3 flex flex-col flex-1 min-h-0">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mb-2">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mb-2 shrink-0">
           <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="flex items-center gap-2 shrink-0">
             <ArrowLeft className="w-4 h-4" />
             Back
