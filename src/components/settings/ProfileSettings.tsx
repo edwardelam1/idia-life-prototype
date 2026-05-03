@@ -64,23 +64,43 @@ const ACTIVITY_PREFERENCE_OPTIONS = [
 ];
 
 export function ProfileSettings() {
-  const { profile, loading: profileLoading, updating, updateProfile } = useProfile();
+  const { profile: baseProfile, loading: profileLoading, updating, updateProfile } = useProfile();
+  const { profile: enhancedProfile } = useEnhancedProfile();
   const { pii, loading: piiLoading, saving: piiSaving, save: savePII } = useSecureProfile();
+  const { hasWallet, getSeedPhrase } = useWallet();
+  const { globalWalletAddress } = useSovereignWallet(enhancedProfile?.id);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const profile = baseProfile;
 
-  const handleRevealRecoveryPhrase = async () => {
-    console.log("[START] Recovery Phrase Reveal");
-    const confirmed = window.confirm(
-      "Reveal your recovery phrase?\n\nAnyone with these 12 words controls your vault. Only proceed in a private location.",
-    );
-    if (!confirmed) {
-      console.log("[END] Recovery Phrase Reveal: cancelled");
-      return;
+  // Legacy user: cloud identity exists but local Secure Enclave is empty
+  const isLegacyMissingHardware = !!globalWalletAddress && !hasWallet;
+
+  const handleViewRecovery = async () => {
+    console.log("🔐 [START: Recovery Phrase Reveal] Prompting for identity verification.");
+    try {
+      const phrase = await getSeedPhrase();
+      if (phrase) {
+        console.log("🔐 [PROCESS] Phrase retrieved from Secure Enclave.");
+        navigate(`/recovery-phrase?mode=view`);
+      } else {
+        toast({ title: "No vault found", description: "No recovery phrase available on this device.", variant: "destructive" });
+      }
+    } catch (error) {
+      console.error("🚨 [ERROR] Reveal failed:", error);
+      toast({ title: "Verification failed", description: "Unable to access Secure Enclave.", variant: "destructive" });
+    } finally {
+      console.log("🔐 [END: Recovery Phrase Reveal] Verification session closed.");
     }
-    console.log("[END] Recovery Phrase Reveal: navigating to view");
-    navigate("/recovery-phrase?mode=view");
   };
+
+  const handleRestoreLegacy = async () => {
+    console.log("🔄 [START: Legacy Restore] Initiating hardware re-provisioning.");
+    window.dispatchEvent(new CustomEvent("open-wallet-import", { detail: { reason: "legacy-restore" } }));
+    toast({ title: "Restore Legacy Vault", description: "Open the Wallet tab to import your 12-word phrase." });
+    console.log("🔄 [END: Legacy Restore] Import modal dispatched.");
+  };
+
 
   const [locked, setLocked] = useState(true);
   const [newInterest, setNewInterest] = useState('');
