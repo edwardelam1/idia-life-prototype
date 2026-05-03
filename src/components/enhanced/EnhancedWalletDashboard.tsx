@@ -346,8 +346,8 @@ const EnhancedWalletDashboard: React.FC = () => {
   );
 
   return (
-    <div className="space-y-4">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+    <div className="h-full flex flex-col gap-4 overflow-hidden">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
         <TabsList className="grid grid-cols-4 w-full bg-muted/20 shrink-0">
           <TabsTrigger value="overview" className="text-[11px] px-1">Overview</TabsTrigger>
           <TabsTrigger value="transactions" className="text-[11px] px-1">History</TabsTrigger>
@@ -405,46 +405,41 @@ const EnhancedWalletDashboard: React.FC = () => {
 
         </TabsContent>
 
-        <TabsContent value="transactions" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>History</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {transactions.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground italic">
-                  No multi-currency records found in IDIA Protocol
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {transactions.map((tx) => {
-                    const Icon = getTransactionIcon(tx.transaction_type, tx.source);
-                    return (
-                      <div key={tx.id} className="flex items-center space-x-3 p-3 border rounded-lg">
-                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                          <Icon className="w-5 h-5 text-muted-foreground" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{tx.description}</p>
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(tx.created_at).toLocaleDateString()}
-                            </p>
-                            <Badge variant="outline" className="text-[9px] h-4 py-0 px-1 uppercase opacity-70">
-                              {tx.source}
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className={`font-semibold ${getTransactionColor(tx.amount)}`}>
-                          {formatAmount(tx.amount, tx.source)}
+        <TabsContent value="transactions" className="flex-1 min-h-0 overflow-hidden mt-2">
+          <div className="h-full overflow-y-auto touch-pan-y no-scrollbar pr-1" style={{ WebkitOverflowScrolling: "touch" }}>
+            {transactions.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground italic">
+                No multi-currency records found in IDIA Protocol
+              </div>
+            ) : (
+              <div className="space-y-3 pb-4">
+                {transactions.map((tx) => {
+                  const Icon = getTransactionIcon(tx.transaction_type, tx.source);
+                  return (
+                    <div key={tx.id} className="flex items-center space-x-3 p-3 border rounded-lg bg-card">
+                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                        <Icon className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{tx.description}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(tx.created_at).toLocaleDateString()}
+                          </p>
+                          <Badge variant="outline" className="text-[9px] h-4 py-0 px-1 uppercase opacity-70">
+                            {tx.source}
+                          </Badge>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                      <div className={`font-semibold ${getTransactionColor(tx.amount)}`}>
+                        {formatAmount(tx.amount, tx.source)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="credit" className="space-y-4">
