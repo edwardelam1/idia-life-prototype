@@ -34,7 +34,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Building, Clock, LogOut, Upload, Check } from "lucide-react";
+import { Building, Clock, LogOut, Upload, Check, ImagePlus } from "lucide-react";
 import {
   useBusinessMembership,
   type Membership,
@@ -139,6 +139,8 @@ const BusinessMembershipPanel: React.FC = () => {
   const [zip, setZip] = useState("");
   const [contactRole, setContactRole] = useState("Controlling Partner");
   const [docFiles, setDocFiles] = useState<Record<string, File>>({});
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   const [leaveTarget, setLeaveTarget] = useState<Membership | null>(null);
   const [leaving, setLeaving] = useState(false);
@@ -181,6 +183,22 @@ const BusinessMembershipPanel: React.FC = () => {
     setZip("");
     setContactRole("Controlling Partner");
     setDocFiles({});
+    setLogoFile(null);
+    setLogoPreview(null);
+  };
+
+  const handleLogo = (file: File | undefined) => {
+    if (!file) return;
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      toast({ title: "Invalid logo", description: "JPG or PNG only.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "Logo too large", description: "5 MB maximum.", variant: "destructive" });
+      return;
+    }
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
   };
 
   if (loading) {
@@ -266,6 +284,18 @@ const BusinessMembershipPanel: React.FC = () => {
         documentPaths.push(path);
       }
 
+      // Upload optional logo to public bucket {uid}/{requestId}.{ext}
+      let logoPath: string | null = null;
+      if (logoFile) {
+        const ext = logoFile.type === "image/png" ? "png" : "jpg";
+        const path = `${user.id}/${requestId}.${ext}`;
+        const { error: logoErr } = await supabase.storage
+          .from("business-logos")
+          .upload(path, logoFile, { contentType: logoFile.type, upsert: true });
+        if (logoErr) throw logoErr;
+        logoPath = path;
+      }
+
       const payload: IntakePayload = {
         requestId,
         companyName,
@@ -276,6 +306,7 @@ const BusinessMembershipPanel: React.FC = () => {
         address: { street1, street2, city, state: stateCode, zip },
         contactRole,
         documentPaths,
+        logoPath,
       };
       await submitIntake(payload);
 
@@ -418,196 +449,146 @@ const BusinessMembershipPanel: React.FC = () => {
             Apply for Business Account
           </Button>
         </DialogTrigger>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Business Account Application</DialogTitle>
-            <DialogDescription>
-              Intake only. After you submit, the IDIA Hub team completes KYB verification and
-              provisions your business.
+        <DialogContent className="max-w-md p-0 overflow-hidden max-h-[92vh] flex flex-col">
+          <DialogHeader className="px-4 pt-3 pb-1 shrink-0">
+            <DialogTitle className="text-base text-center">Business Application</DialogTitle>
+            <DialogDescription className="sr-only">
+              Intake only. KYB review happens in the IDIA Hub app.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Legal Business Name</Label>
-              <Input
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                placeholder="Acme Corp"
+          {/* Logo upload — top center */}
+          <div className="flex justify-center pt-1 pb-2 shrink-0">
+            <label
+              htmlFor="business-logo-upload"
+              className="relative w-16 h-16 rounded-full border-2 border-dashed border-border bg-muted/40 hover:bg-muted cursor-pointer flex items-center justify-center overflow-hidden transition-colors"
+              title="Upload logo (JPG or PNG)"
+            >
+              {logoPreview ? (
+                <img src={logoPreview} alt="Logo preview" className="w-full h-full object-cover" />
+              ) : (
+                <ImagePlus className="w-5 h-5 text-muted-foreground" />
+              )}
+              <input
+                id="business-logo-upload"
+                type="file"
+                accept="image/jpeg,image/png"
+                className="sr-only"
+                onChange={(e) => handleLogo(e.target.files?.[0])}
               />
-            </div>
+            </label>
+          </div>
+
+          <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-4 pb-3 space-y-2">
+            <Input
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              placeholder="Legal business name"
+              className="h-9"
+            />
 
             <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1.5">
-                <Label className="text-xs">EIN</Label>
-                <Input
-                  value={ein}
-                  onChange={(e) => setEin(formatEIN(e.target.value))}
-                  placeholder="12-3456789"
-                  inputMode="numeric"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Business Type</Label>
-                <Select
-                  value={entityType}
-                  onValueChange={(v) => setEntityType(v as EntityType)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ENTITY_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Industry</Label>
-                <Select
-                  value={verticalId}
-                  onValueChange={(v) => {
-                    setVerticalId(v);
-                    setSubmoduleId("");
-                  }}
-                  disabled={taxLoading}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={taxLoading ? "Loading..." : "Select"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {verticals.map((v) => (
-                      <SelectItem key={v.id} value={v.id}>
-                        {v.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Sub-module</Label>
-                <Select
-                  value={submoduleId}
-                  onValueChange={setSubmoduleId}
-                  disabled={!verticalId || filteredSubmodules.length === 0}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredSubmodules.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs">Street Address</Label>
               <Input
-                value={street1}
-                onChange={(e) => setStreet1(e.target.value)}
-                placeholder="123 Main St"
+                value={ein}
+                onChange={(e) => setEin(formatEIN(e.target.value))}
+                placeholder="EIN ##-#######"
+                inputMode="numeric"
+                className="h-9"
               />
-              <Input
-                value={street2}
-                onChange={(e) => setStreet2(e.target.value)}
-                placeholder="Suite / Unit (optional)"
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div className="space-y-1.5 col-span-1">
-                <Label className="text-xs">City</Label>
-                <Input value={city} onChange={(e) => setCity(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">State</Label>
-                <Select value={stateCode} onValueChange={setStateCode}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="--" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {US_STATES.map((s) => (
-                      <SelectItem key={s.code} value={s.code}>
-                        {s.code}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">ZIP</Label>
-                <Input
-                  value={zip}
-                  onChange={(e) => setZip(e.target.value)}
-                  placeholder="12345"
-                  inputMode="numeric"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs">Your Role</Label>
-              <Select value={contactRole} onValueChange={setContactRole}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+              <Select value={entityType} onValueChange={(v) => setEntityType(v as EntityType)}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Type" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Controlling Partner">Controlling Partner</SelectItem>
-                  <SelectItem value="Authorized Signatory">Authorized Signatory</SelectItem>
+                  {ENTITY_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
 
+            <div className="grid grid-cols-2 gap-2">
+              <Select
+                value={verticalId}
+                onValueChange={(v) => { setVerticalId(v); setSubmoduleId(""); }}
+                disabled={taxLoading}
+              >
+                <SelectTrigger className="h-9"><SelectValue placeholder={taxLoading ? "..." : "Industry"} /></SelectTrigger>
+                <SelectContent>
+                  {verticals.map((v) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select
+                value={submoduleId}
+                onValueChange={setSubmoduleId}
+                disabled={!verticalId || filteredSubmodules.length === 0}
+              >
+                <SelectTrigger className="h-9"><SelectValue placeholder="Sub-module" /></SelectTrigger>
+                <SelectContent>
+                  {filteredSubmodules.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Input
+              value={street1}
+              onChange={(e) => setStreet1(e.target.value)}
+              placeholder="Street address"
+              className="h-9"
+            />
+
+            <div className="grid grid-cols-6 gap-2">
+              <Input
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="City"
+                className="h-9 col-span-3"
+              />
+              <Select value={stateCode} onValueChange={setStateCode}>
+                <SelectTrigger className="h-9 col-span-1 px-2"><SelectValue placeholder="ST" /></SelectTrigger>
+                <SelectContent>
+                  {US_STATES.map((s) => <SelectItem key={s.code} value={s.code}>{s.code}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Input
+                value={zip}
+                onChange={(e) => setZip(e.target.value)}
+                placeholder="ZIP"
+                inputMode="numeric"
+                className="h-9 col-span-2"
+              />
+            </div>
+
+            <Select value={contactRole} onValueChange={setContactRole}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Controlling Partner">Controlling Partner</SelectItem>
+                <SelectItem value="Authorized Signatory">Authorized Signatory</SelectItem>
+              </SelectContent>
+            </Select>
+
             {requiredDocs.length > 0 && (
-              <div className="space-y-2 rounded-md border p-2.5">
-                <p className="text-xs font-medium">Required Documents (PDF)</p>
+              <div className="space-y-1.5 pt-1">
                 {requiredDocs.map((d) => {
                   const file = docFiles[d.key];
                   return (
-                    <div key={d.key} className="space-y-1">
-                      <Label className="text-[11px] text-muted-foreground">{d.label}</Label>
-                      <div className="flex items-center gap-2">
+                    <div key={d.key} className="flex items-center gap-2">
+                      <Label className="text-[11px] text-muted-foreground w-1/2 truncate">{d.label}</Label>
+                      <div className="flex items-center gap-1 flex-1 min-w-0">
                         <Input
                           type="file"
                           accept="application/pdf"
                           onChange={(e) => handleFile(d.key, e.target.files?.[0])}
-                          className="text-xs"
+                          className="text-xs h-8"
                         />
-                        {file && (
-                          <Check className="w-4 h-4 text-primary shrink-0" />
-                        )}
+                        {file && <Check className="w-4 h-4 text-primary shrink-0" />}
                       </div>
-                      {file && (
-                        <p className="text-[10px] text-muted-foreground truncate">
-                          {file.name} ({Math.round(file.size / 1024)} KB)
-                        </p>
-                      )}
                     </div>
                   );
                 })}
               </div>
             )}
+          </div>
 
-            <Button className="w-full" onClick={handleSubmit} disabled={submitting}>
-              {submitting ? (
-                "Submitting..."
-              ) : (
-                <>
-                  <Upload className="w-4 h-4 mr-2" />
-                  Submit Application
-                </>
-              )}
+          <div className="px-4 pb-3 pt-2 border-t shrink-0">
+            <Button className="w-full h-9" onClick={handleSubmit} disabled={submitting}>
+              {submitting ? "Submitting..." : (<><Upload className="w-4 h-4 mr-2" />Submit Application</>)}
             </Button>
           </div>
         </DialogContent>
