@@ -20,7 +20,7 @@ const ALL_HEALTH_DATA_TYPES = [
   // --- CORE ACTIVITY ---
   { id: "HKQuantityTypeIdentifierStepCount", name: "Steps", category: "Activity" },
   { id: "HKQuantityTypeIdentifierActiveEnergyBurned", name: "Active Energy Burned", category: "Activity" },
-  
+
   // --- KEYSTONE VITALS (PURE ALPHA) ---
   { id: "HKQuantityTypeIdentifierHeartRate", name: "Heart Rate", category: "Vitals" },
   { id: "HKQuantityTypeIdentifierHeartRateVariabilitySDNN", name: "Heart Rate Variability", category: "Vitals" },
@@ -51,8 +51,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [authSession, setAuthSession] = useState<any>(null);
   const [selectedDataTypes, setSelectedDataTypes] = useState<Set<string>>(
-  new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.id))
-);
+    new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.id)),
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [syncCount, setSyncCount] = useState(0);
   const [connectedThisSession, setConnectedThisSession] = useState(false);
@@ -263,15 +263,15 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setIsConnecting(false);
       };
 
-        try {
+      try {
         webkit.messageHandlers.syncHealthData.postMessage({
           action: "comprehensive_health_sync",
-          endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash=${hash}`,
+          endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash_key=${hash}`,
           user_id: currentUserId,
           auth_token: authSession?.access_token,
-          aca_hash: hash,
+          aca_hash_key: hash,
           sync_session_id: sessionId,
-          requestedDataTypes: {} // 🚨 THE MISSING KEY: Add this so Swift doesn't crash!
+          requestedDataTypes: {}, // 🚨 THE MISSING KEY: Add this so Swift doesn't crash!
         });
       } catch (postErr: any) {
         setErrorMessage(`Native bridge dispatch failed.`);
@@ -414,7 +414,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
                   <Zap className="w-6 h-6 text-green-600" />
                 </div>
                 <h3 className="font-medium text-green-800 text-lg">Data Anchored!</h3>
-                <p className="text-sm text-muted-foreground mt-1">Your Apple Health data blocks are flowing into the vault.</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Your Apple Health data blocks are flowing into the vault.
+                </p>
               </div>
               <div className="flex space-x-3">
                 <Button variant="outline" className="flex-1" onClick={closeAndReset}>
