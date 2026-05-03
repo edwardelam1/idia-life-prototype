@@ -153,6 +153,7 @@ export const useBusinessMembership = () => {
         address_zip: payload.address.zip.trim(),
         contact_role: payload.contactRole,
         document_paths: payload.documentPaths,
+        logo_path: payload.logoPath ?? null,
         request_type: "Personal to Business",
         status: "pending",
       } as any);
