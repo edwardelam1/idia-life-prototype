@@ -284,6 +284,18 @@ const BusinessMembershipPanel: React.FC = () => {
         documentPaths.push(path);
       }
 
+      // Upload optional logo to public bucket {uid}/{requestId}.{ext}
+      let logoPath: string | null = null;
+      if (logoFile) {
+        const ext = logoFile.type === "image/png" ? "png" : "jpg";
+        const path = `${user.id}/${requestId}.${ext}`;
+        const { error: logoErr } = await supabase.storage
+          .from("business-logos")
+          .upload(path, logoFile, { contentType: logoFile.type, upsert: true });
+        if (logoErr) throw logoErr;
+        logoPath = path;
+      }
+
       const payload: IntakePayload = {
         requestId,
         companyName,
@@ -294,6 +306,7 @@ const BusinessMembershipPanel: React.FC = () => {
         address: { street1, street2, city, state: stateCode, zip },
         contactRole,
         documentPaths,
+        logoPath,
       };
       await submitIntake(payload);
 
