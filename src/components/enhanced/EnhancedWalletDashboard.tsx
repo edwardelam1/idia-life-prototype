@@ -320,19 +320,12 @@ const EnhancedWalletDashboard: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-foreground">IDIA Wallet</h1>
-        <Button variant="outline" size="sm" onClick={exportTaxableEvents}>
-          <Download className="w-4 h-4 mr-2" /> Tax Report
-        </Button>
-      </div>
-
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-4 w-full">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="transactions">History</TabsTrigger>
-          <TabsTrigger value="credit">Credit</TabsTrigger>
-          <TabsTrigger value="security">Security</TabsTrigger>
+        <TabsList className="grid grid-cols-4 w-full bg-muted/20 shrink-0">
+          <TabsTrigger value="overview" className="text-[11px] px-1">Overview</TabsTrigger>
+          <TabsTrigger value="transactions" className="text-[11px] px-1">History</TabsTrigger>
+          <TabsTrigger value="credit" className="text-[11px] px-1">Credit</TabsTrigger>
+          <TabsTrigger value="security" className="text-[11px] px-1">Security</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -383,32 +376,6 @@ const EnhancedWalletDashboard: React.FC = () => {
             </Button>
           </div>
 
-          <Card>
-            <CardHeader className="py-2 px-3">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <TrendingUp className="w-4 h-4" /> Trust Score & Credit
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center border-r">
-                  <div className="text-xl font-bold text-primary">{profile?.trust_score ?? "NO SCORE"}</div>
-                  <Badge variant={profile?.trust_score ? "secondary" : "outline"} className="text-[10px]">
-                    {profile?.trust_score ? "Active" : "Unverified"}
-                  </Badge>
-                </div>
-                <div className="text-center">
-                  <div className="text-xl font-bold text-green-600">
-                    ${profile?.available_credit_line?.toLocaleString() || 0}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground uppercase">Available Credit</p>
-                </div>
-              </div>
-              <div className="mt-4">
-                <TestModal />
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="transactions" className="space-y-4">
