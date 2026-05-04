@@ -6,17 +6,23 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { 
-  ArrowUpRight, 
-  ArrowDownLeft, 
-  User, 
+import {
+  ArrowUpRight,
+  ArrowDownLeft,
+  User,
   DollarSign,
   QrCode,
   Copy,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useEnhancedProfile } from '@/hooks/useEnhancedProfile';
+import { useSovereignWallet } from '@/hooks/useSovereignWallet';
+import { useWallet } from '@/hooks/useWallet';
+
+const truncateAddress = (addr: string) =>
+  addr.length > 14 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr;
 
 interface SendRequestModalProps {
   isOpen: boolean;
@@ -30,6 +36,10 @@ const SendRequestModal: React.FC<SendRequestModalProps> = ({ isOpen, onClose }) 
   const [note, setNote] = useState('');
   const [step, setStep] = useState<'form' | 'confirm' | 'success'>('form');
   const { toast } = useToast();
+  const { profile } = useEnhancedProfile();
+  const { globalWalletAddress } = useSovereignWallet(profile?.id || profile?.user_id || null);
+  const { wallet: nativeWallet } = useWallet();
+  const userWalletAddress = globalWalletAddress || nativeWallet?.address || null;
 
   const handleSend = () => {
     if (!recipient || !amount) {
@@ -119,21 +129,27 @@ const SendRequestModal: React.FC<SendRequestModalProps> = ({ isOpen, onClose }) 
           <CardContent className="p-4">
             <div className="flex items-start space-x-3">
               <QrCode className="w-5 h-5 text-blue-600 mt-0.5" />
-              <div className="text-sm text-blue-800">
-                <p className="font-medium">Your Wallet Address:</p>
-                <div className="mt-1 flex items-center space-x-2">
-                  <code className="text-xs bg-blue-100 px-2 py-1 rounded">
-                    IDIA-wallet-***4829
-                  </code>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => copyToClipboard('IDIA-wallet-abc123def456')}
-                    className="h-6 w-6 p-0"
-                  >
-                    <Copy className="w-3 h-3" />
-                  </Button>
-                </div>
+              <div className="text-sm text-blue-800 min-w-0 flex-1">
+                <p className="font-medium">Your USDC Wallet Address:</p>
+                {userWalletAddress ? (
+                  <div className="mt-1 flex items-center space-x-2">
+                    <code className="text-xs bg-blue-100 px-2 py-1 rounded font-mono">
+                      {truncateAddress(userWalletAddress)}
+                    </code>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => copyToClipboard(userWalletAddress)}
+                      className="h-6 w-6 p-0"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="mt-1 text-xs text-blue-700/80">
+                    No wallet linked yet. Create or import one in the Wallet tab.
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>
