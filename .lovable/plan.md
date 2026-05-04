@@ -1,90 +1,46 @@
-# IDIA Protocol — Guarded Silent Vault Architecture
+## Scope (STRICT)
 
-Transition new accounts to silent on-device vault creation, protect legacy/existing identities with a Keychain + Supabase dual-check, and replace the disruptive Glass Shield/Floor Sensor with a mandatory one-time recovery-phrase backup gate.
+Only `src/components/DataDashboard.tsx` is edited. No other files, no schema changes, no hook changes. The Wallet page (`WalletDashboard.tsx`) and its hook (`useWalletBalance`) are read-only references.
 
-## 1. Vault Guard helper (new)
+## Change 1 — Replace "Cash Account" card with the USDC card
 
-Create `src/lib/vaultGuard.ts` exporting `runVaultGuard(userId)`:
+The teal gradient header on the Data tab currently shows `Cash Account` + `$X USD` from `wallets.cash_balance`. Replace it with the **USDC tile** mirroring the Wallet page (`balance.usdc_balance` from `useWalletBalance`), while preserving the existing connection sync badge (Idle / Synced Recently / No Data Found / Checking…).
 
-- `[START] Vault Guard` log.
-- `[PROCESS] Local check` → `walletService.hasWallet()`.
-- `[PROCESS] Remote check` → `supabase.from('profiles').select('wallet_address').eq('user_id', userId).maybeSingle()`.
-- Return `{ localExists, remoteExists, remoteAddress, isNewUser }` where `isNewUser = !localExists && !remoteExists`.
-- If new user: `[PROCESS] Silent vault create` → `walletService.createWallet()`, then `syncWalletToSupabase(address, userId)` (writes `wallet_address` to `profiles`), `[END] New vault provisioned`.
-- Else: `[INFO] Vault Guard: Identity detected in ${localExists ? 'Keychain' : 'Supabase Profile'}. Preserving identity.` and `[END] Existing identity preserved` (no wallet generation).
-- Return `{ isNewUser, address }` so the caller can route.
+Specifically:
+- Import `useWalletBalance` and pull `balance` (drop the `wallets.cash_balance` fetch + `setTotalEarnings` + the `wallets` realtime channel — they are no longer rendered).
+- Replace the label `Cash Account` with `USDC` and the figure `${totalEarnings.toFixed(2)} USD` with `${balance.usdc_balance.toFixed(2)}` (matching Wallet page formatting).
+- Keep the same teal gradient `Card`, the same right-side circular icon (swap `DollarSign` for a USDC-appropriate look — keep `DollarSign` for visual consistency with Wallet, since Wallet doesn't use a separate USDC icon).
+- Keep `getSyncStatusBadge()` rendered next to the label exactly as today.
+- Subtitle text updates to: "USDC balance from connected sources" (connected) / "Connect data sources to start earning USDC" (none).
 
-`syncWalletToSupabase` does an `update profiles set wallet_address = $1 where user_id = $2 and wallet_address is null` (defensive — never overwrites a legacy address) and dispatches the existing `vault-linked` event.
+## Change 2 — Move tabs above the USDC card and restyle to match Wallet
 
-## 2. Auth.tsx — post-auth lifecycle
+Move the `Tabs` component so the `TabsList` (Connections / Transactions) renders **above** the USDC card (between the page top / header and the card). The card and the tab panels stay inside the same `<Tabs>` wrapper so state is preserved; the USDC card sits inside `TabsContent` for both tabs OR is hoisted above and the Tabs wrap only the list + panels.
 
-Replace the redirect inside `onAuthStateChange` (and after manual login/signup/OTP-reset success) with:
+Chosen approach: **hoist the `TabsList` above the card**, keep `Tabs` wrapping everything, and place the USDC card between `TabsList` and `TabsContent`. This matches the requested order: header → tabs → USDC card → tab content.
 
-```
-const session = ...
-if (session && !isResetMode) {
-  const { isNewUser } = await runVaultGuard(session.user.id);
-  navigate(isNewUser ? '/recovery-phrase' : '/', { replace: true });
-}
-```
+Restyle `TabsList` / `TabsTrigger` to mirror the Wallet's `EnhancedWalletDashboard` styling for consistency:
 
-Wrap in try/catch with toast + `[END] Vault Guard failed` log; on failure, still navigate to `/` (never block legacy users). Existing OAuth/email flows remain — guard runs once per auth event.
-
-## 3. New `/recovery-phrase` page
-
-Create `src/pages/RecoveryPhrase.tsx` and add route in `src/App.tsx`:
-`<Route path="/recovery-phrase" element={session ? <RecoveryPhrase /> : <Navigate to="/auth" replace />} />`.
-
-Page behavior:
-- `[START: Backup Generation]` log.
-- `useWallet().getSeedPhrase()` → render 12 words in a numbered 3×4 grid (glass card, monospace, blur-on-tap reveal toggle).
-- Show truncated public address.
-- **Download Recovery Key** button → builds a `.txt` blob:
-  ```
-  IDIA Sovereign Vault — Recovery Key
-  Address: 0x...
-  Created: <ISO>
-  Mnemonic: word1 word2 ...
-  ```
-  Triggers browser download via `URL.createObjectURL` (native: fallback to Capacitor `Filesystem` write to `Documents/`). Sets `downloaded = true`.
-- Checkbox: "I have safely backed up my keys" → sets `acknowledged = true`.
-- **Complete Setup** disabled until `downloaded || acknowledged`. On click: `[END: Backup Generation]`, navigate to `/onboarding` (existing PII flow).
-- No back navigation (mandatory gate).
-
-## 4. MainApp.tsx cleanup
-
-- Delete the Glass Shield `<div>` (lines around the absolute-positioned blur intercept).
-- Delete the Floor Sensor `useEffect` that triggers onboarding when `activeTab === 'wallet'`.
-- Delete the tab-lock cleanup `useEffect` for `showOnboarding`.
-- Remove `OnboardingModal` import and the trailing `{showOnboarding && ...}` JSX.
-- Remove `showOnboarding`, `hasDismissedOnboarding`, `sovereignOverride` state and the shift-click override wrapper.
-- Keep the audit `useEffect` (still useful for the `vault-linked` hydration and downstream UI).
-
-## 5. ProfileSettings.tsx — Vault Security section
-
-Append a new section above the submit button:
-
-```
-Vault Security
-─ View/Download Recovery Phrase  [button]
+```tsx
+<TabsList className="grid grid-cols-2 w-full bg-muted/20 shrink-0">
+  <TabsTrigger value="connections" className="text-[11px] px-1">Connections</TabsTrigger>
+  <TabsTrigger value="audit" className="text-[11px] px-1">Transactions</TabsTrigger>
+</TabsList>
 ```
 
-Click handler:
-- Prompt local biometric/signature via existing `SovereignAuth` pattern (or a simple confirm modal if biometric unavailable).
-- On success: navigate to `/recovery-phrase?mode=view` — the page reads the `mode` param and hides the "Complete Setup" gate, showing only the phrase + download button + a "Done" button that returns to `/settings`.
-- `[START] / [END] Recovery Phrase Reveal` logs.
+The `FileKey` icon inside the Transactions trigger is removed to match the Wallet's text-only triggers.
 
-## 6. Logging standard
+## Resulting layout
 
-Every bridge action in vaultGuard, RecoveryPhrase, and the Auth post-auth handler emits `[START]`, `[PROCESS]`, `[END]` (and `[ERROR]` on catch) with the action name. No silent awaits.
+```text
+[ Header (untouched) ]
+[ Tabs:  Connections | Transactions ]   ← restyled, moved up
+[ USDC teal card + sync badge ]         ← was Cash Account
+[ Tab panel: Connections list  OR  Audit Log ]
+```
 
-## Files touched
+## Out of scope
 
-- **new** `src/lib/vaultGuard.ts`
-- **new** `src/pages/RecoveryPhrase.tsx`
-- **edit** `src/pages/Auth.tsx` (post-auth guard in `onAuthStateChange`, login, signup, OTP reset success)
-- **edit** `src/App.tsx` (add `/recovery-phrase` route)
-- **edit** `src/components/MainApp.tsx` (remove Glass Shield, Floor Sensor, OnboardingModal usage)
-- **edit** `src/components/settings/ProfileSettings.tsx` (Vault Security section)
-
-No DB migration needed — `profiles.wallet_address` already exists.
+- No edits to `WalletDashboard`, `useWalletBalance`, header, nav, other tabs, Pro, Vote, Settings, Profile, Friend AI.
+- No DB / RLS / edge function changes.
+- No removal of the audit log panel or Apple Health modal wiring.
