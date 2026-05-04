@@ -95,8 +95,8 @@ export const useProfile = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user found');
 
-      const { data, error } = await supabase
-        .from('profiles')
+      const { data, error } = await (supabase
+        .from('profiles') as any)
         .update(updates)
         .eq('user_id', user.id)
         .select()

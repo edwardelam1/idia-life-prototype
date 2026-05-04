@@ -181,12 +181,13 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
           }
 
           // Fetch Live Settings
-          const { data: prefsRaw } = await supabase
+          const { data: prefsRawData } = await supabase
             .from("security_preferences" as any)
             .select("*")
             .eq("user_id", userData.user.id)
             .maybeSingle();
-            
+          const prefsRaw = prefsRawData as any;
+
           if (prefsRaw && isMounted) {
             setSettings({
               honey_pot: prefsRaw.honey_pot ?? true,
