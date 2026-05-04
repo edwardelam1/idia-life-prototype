@@ -1,38 +1,43 @@
-# Move Sync Badge to Connection Icon
+# Move Sovereign Auth to Pro Tab Entry
 
-**STRICT BOUNDARY**: Only `src/components/DataDashboard.tsx` is edited.
+**STRICT BOUNDARY**: Edits limited to `src/components/pro/ProScreen.tsx` and `src/components/pro/PureAlphaDashboard.tsx`.
 
-## Change
-
-The sync badge (Idle / Synced Recently / No Data Found / Checking…) currently sits next to the "USDC" label on the teal balance card. It will be:
-
-1. **Removed** from the USDC card header (the `USDC` label stays on its own).
-2. **Rendered directly underneath the Apple Health icon** in the "Connected Data Sources" section, tethered to that specific source.
-
-The badge logic (`getSyncStatusBadge()`) and the `lastSyncStatus` state remain unchanged — only its render location moves. It is scoped to Apple Health, since `lastSyncStatus` is derived from `apple_health` ACA records.
-
-## Per-source design (future-proofing)
-
-To make it clear each future connection owns its own badge:
-
-- Wrap the badge call in a small helper `renderSyncBadgeFor(connectionType)` that, for now, returns the existing badge only when `connectionType === "apple_health"` and otherwise returns null.
-- When new sources (Strava, Ford, Nike, Google Fit) are added later, each will get its own state slice and its own branch in this helper. No global "sync status" badge.
-
-## Layout (Connected Data Sources)
+## New flow
 
 ```text
-[ Apple Health icon w/ green check ]
-        Synced Recently
+Pro icon (menu) → SovereignAuth → ProPaywall (if no tier) → Tier dashboard
 ```
 
-The icon stays centered; the badge appears centered directly below it with a small top margin (`mt-2`). The icon container becomes a vertical flex stack (`flex flex-col items-center`) so the badge is visually tethered to that single source. Multiple connected sources continue to lay out horizontally (`space-x-8`), each with its own icon + badge stack.
+Previously SovereignAuth ran inside `PureAlphaDashboard` (only Pure Alpha subscribers ever saw it). It now gates the entire Pro tab — every user sees the auto-unlock vault sequence the moment they tap Pro on the bottom nav, before paywall or any dashboard.
 
-## Empty state
+## Changes
 
-When Apple Health is not yet connected (shown in "Available Data Sources"), no badge renders — the badge only appears once a connection row exists in `connections`.
+### 1. `src/components/pro/ProScreen.tsx`
+- Add `useState` for `authVerified` (default `false`).
+- Import `SovereignAuth`.
+- After the `loading` check and before the `!tier` paywall check, render:
+  ```tsx
+  if (!authVerified) {
+    return <SovereignAuth onVerified={() => setAuthVerified(true)} />;
+  }
+  ```
+- Rest of the tier-switching logic unchanged.
+
+### 2. `src/components/pro/PureAlphaDashboard.tsx`
+- Remove the `import SovereignAuth from "./SovereignAuth";` line.
+- Remove the `authVerified` state and its setter.
+- Remove the render guard `if (!authVerified && !isMasked) return <SovereignAuth ... />;`.
+- Remove `authVerified` from the data-fetching `useEffect` dependency array; replace the `if (isMasked || !authVerified) return;` early-return with `if (isMasked) return;`.
+
+Pure Alpha users now reach the dashboard directly because SovereignAuth already ran at the tab level.
+
+## Behavior notes
+
+- Auth state is per-mount of `ProScreen`. Leaving the Pro tab and returning re-runs the vault sequence — matches the "every entry to Pro" intent.
+- No nav, header, or other tab changes. Paywall and tier dashboards are untouched aside from the removed Pure Alpha gate.
 
 ## Out of scope
 
-- USDC balance, amount, subtitle text, gradient styling — untouched.
-- Tabs, header, other tabs, edge functions — untouched.
-- No new state, no schema changes.
+- No changes to `SovereignAuth.tsx` itself.
+- No changes to `useSubscription`, paywall pricing, or tier logic.
+- No persistence of the verified state across app sessions.
