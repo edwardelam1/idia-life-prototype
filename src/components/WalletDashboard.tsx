@@ -256,7 +256,13 @@ const WalletDashboard = () => {
         </CardContent>
       </Card>
 
-      <AddFundsModal isOpen={isAddFundsOpen} onClose={() => setIsAddFundsOpen(false)} />
+      <AddFundsModal
+        isOpen={isAddFundsOpen}
+        onClose={() => setIsAddFundsOpen(false)}
+        fiatEnabled={fiatProvisioned}
+        usdcEnabled={usdcProvisioned}
+        usdcAddress={usdcAddress}
+      />
     </div>
   );
 };
