@@ -397,7 +397,13 @@ const EnhancedWalletDashboard: React.FC = () => {
             <Button variant="outline" className="h-14 flex-col text-xs" onClick={() => setShowNFCModal(true)}>
               <Smartphone className="w-5 h-5 mb-1" /> Tap Pay
             </Button>
-            <Button variant="outline" className="h-14 flex-col text-xs" onClick={() => setShowAddFundsModal(true)}>
+            <Button
+              variant="outline"
+              className="h-14 flex-col text-xs"
+              onClick={() => setShowAddFundsModal(true)}
+              disabled={!fiatProvisioned && !usdcProvisioned}
+              title={!fiatProvisioned && !usdcProvisioned ? "Set up a wallet rail to add funds" : undefined}
+            >
               <Plus className="w-5 h-5 mb-1" /> Add Funds
             </Button>
           </div>
