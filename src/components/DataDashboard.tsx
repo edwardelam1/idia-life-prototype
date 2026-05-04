@@ -156,20 +156,7 @@ const DataDashboard = () => {
       setLastSyncStatus(calculatedSyncStatus);
       setConnections(cleaned);
 
-      // 5. Fetch Vault Balance from public.wallets (ground truth)
-      console.log("💵 [DASHBOARD_LOG] Fetching vault balance from public.wallets...");
-      const walletRes = await supabase
-        .from("wallets")
-        .select("cash_balance")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (walletRes.error) {
-        console.error("[FATAL: Vault_Sync] Unreachable state. Check Supabase connection.", walletRes.error.message);
-        setTotalEarnings(0);
-      } else {
-        setTotalEarnings(Number(walletRes.data?.cash_balance) || 0);
-      }
+      // Wallet balance handled by useWalletBalance hook (USDC tile).
     } catch (error: any) {
       console.error("🚨 [DASHBOARD_LOG] FATAL Error in fetchConnections:", error.message);
     } finally {
