@@ -44,6 +44,9 @@ const purgeLegacyWalletCache = () => {
 export const useWalletBalance = () => {
   const [balance, setBalance] = useState<WalletBalance>(ZERO_FLOOR);
   const [loading, setLoading] = useState(true);
+  const [fiatProvisioned, setFiatProvisioned] = useState(false);
+  const [usdcProvisioned, setUsdcProvisioned] = useState(false);
+  const [usdcAddress, setUsdcAddress] = useState<string | null>(null);
 
   const applyRow = useCallback((row: any | null, userId: string) => {
     console.log("⚙️ [DATA_APPLY_LOG] START: Executing applyRow for user:", userId);
