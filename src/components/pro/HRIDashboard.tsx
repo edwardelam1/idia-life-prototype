@@ -45,12 +45,13 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
 
     const fetchLatestMetrics = async () => {
       // Fully Connected Ingress: Fetching latest record from Staged Tier
-      const { data: health } = await supabase
+      const { data: healthRaw } = await supabase
         .from("staged_health_data" as any)
         .select("heart_rate, heart_rate_variability_ms, respiratory_rate, environmental_audio_exposure_db, walking_asymmetry_percentage, data_quality_score")
         .order("recorded_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+      const health = healthRaw as any;
 
       if (isMounted && health) {
         setMetrics({
