@@ -2,24 +2,26 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { supabase } from '@/integrations/supabase/client';
 import CollapsedAvatar from './CollapsedAvatar';
 import ExpandedChat from './ExpandedChat';
+import SovereignVisualizer from './SovereignVisualizer'; // Integrated 3D Engine
 import { FriendState, Message } from './types';
 import { AudioRecorder } from '@/utils/AudioRecorder';
 import { getContextualGreeting } from './orbUtils';
 import { useSyllableBlinking } from './useSyllableBlinking';
 import { eventTracker } from '@/utils/EventTracker';
-import { X, Keyboard, Mic, MicOff, Activity } from 'lucide-react'; // Added icons for Live UI
+import { X, Keyboard, Mic, MicOff } from 'lucide-react'; 
 import { Badge } from "@/components/ui/badge";
+import { useProfile } from "@/hooks/useProfile";
 
 type Trigger = 'social' | 'wallet' | 'data' | 'achievement' | undefined;
 
 interface FriendAssistantContextValue {
   open: (trigger?: Trigger) => void;
-  startLiveMode: () => void; // Replaced expand() as primary entry
+  startLiveMode: () => void;
   switchToText: () => void;
   close: () => void;
   isVisible: boolean;
-  isLiveMode: boolean; // Tracks if we are in immersive voice mode
-  isTextMode: boolean; // Tracks if we are in fallback text mode
+  isLiveMode: boolean;
+  isTextMode: boolean;
   friendState: FriendState;
   isSyllableBlinking: boolean;
   isListening: boolean;
@@ -34,6 +36,8 @@ export const useFriendAssistant = () => {
 };
 
 export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { profile } = useProfile();
+  
   const [isVisible, setIsVisible] = useState(true);
   const [isLiveMode, setIsLiveMode] = useState(false);
   const [isTextMode, setIsTextMode] = useState(false);
@@ -43,10 +47,11 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
   const [inputValue, setInputValue] = useState('');
   const [friendState, setFriendState] = useState<FriendState>('idle');
   const [isListening, setIsListening] = useState(false);
-  const [, setCurrentSpeechText] = useState('');
   const [isVoiceMode, setIsVoiceMode] = useState(false);
   const audioRecorderRef = useRef<AudioRecorder | null>(null);
 
+  const assistantName = (profile as any)?.ai_assistant_name || "Friend";
+console.log(`=== [IDENTITY_LOAD] Assistant resolved as: ${assistantName} ===`);
   const { } = useSyllableBlinking();
   const isSyllableBlinking = friendState === 'speaking';
 
@@ -62,9 +67,9 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
   }, [trigger, messages.length]);
 
   const speakText = useCallback(async (text: string) => {
+    console.log("=== [VOICE_OUT_START] Synthesizing response: ", text.substring(0, 30), "... ===");
     try {
       setFriendState('speaking');
-      setCurrentSpeechText(text);
       const { data, error } = await supabase.functions.invoke('text-to-speech', {
         body: { text, voice: '9BWtsMINqrJLrRacOk9x' },
       });
@@ -72,9 +77,13 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
       if (data?.audioContent) {
         const audio = new Audio(`data:audio/mpeg;base64,${data.audioContent}`);
         audio.onended = () => {
-          setCurrentSpeechText('');
-          if (isVoiceMode) setTimeout(() => startVoiceListening(), 500);
-          else setFriendState('idle');
+          console.log("=== [VOICE_OUT_END] Audio playback completed ===");
+          if (isVoiceMode) {
+            console.log("=== [VOICE_LOOP] Returning to listener mode ===");
+            setTimeout(() => startVoiceListening(), 400);
+          } else {
+            setFriendState('idle');
+          }
         };
         audio.volume = 0.8;
         await audio.play();
@@ -82,13 +91,13 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
         setFriendState('idle');
       }
     } catch (e) {
-      console.error('speakText error', e);
+      console.error('=== [VOICE_OUT_CRITICAL] TTS Failure:', e, "=== ");
       setFriendState('idle');
     }
   }, [isVoiceMode]);
 
-  // Wired to call your Deno Edge Function instead of hardcoded responses
   const generateAIResponse = useCallback(async (userText: string) => {
+    console.log("=== [AI_CHAT_START] Dispatching message to Edge Function ===");
     try {
       setFriendState('thinking');
       const { data, error } = await supabase.functions.invoke('ai-chat', {
@@ -101,7 +110,8 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
 
       if (error) throw error;
 
-      const responseText = data?.response || "I'm processing that, give me one second.";
+      const responseText = data?.response || "I'm having trouble connecting right now.";
+      console.log("=== [AI_CHAT_RESPONSE] Received: ", responseText.substring(0, 30), "... ===");
       
       const aiResponse: Message = {
         id: Date.now().toString() + '_ai',
@@ -111,58 +121,54 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
       };
       
       setMessages(prev => [...prev, aiResponse]);
-      
-      eventTracker.trackAIInteraction({
-        interaction_type: isVoiceMode ? 'voice' : 'text',
-        conversation_length: messages.length + 1,
-        topics: [trigger || 'general'],
-        satisfaction: 0.8,
-        voice_duration: isVoiceMode ? 3 : 0,
-        feature: trigger,
-        errors: 0,
-      });
-
       await speakText(responseText);
     } catch (e) {
-      console.error('AI Response Error:', e);
+      console.error('=== [AI_CHAT_CRITICAL] Chain stalled:', e, "=== ");
       setFriendState('idle');
     }
   }, [isVoiceMode, messages.length, trigger, speakText]);
 
   const processVoiceInput = useCallback(async (audioData: string) => {
+    console.log("=== [VOICE_IN_START] Stream received, processing transcription ===");
     try {
       setFriendState('thinking');
       setIsListening(false);
       const { data, error } = await supabase.functions.invoke('voice-to-text', { body: { audio: audioData } });
+      
       if (error) throw error;
+      
       if (data?.text?.trim()) {
+        console.log("=== [VOICE_IN_SUCCESS] Decoded text: ", data.text, "===");
         setMessages(prev => [...prev, { id: Date.now().toString(), text: data.text, isUser: true, timestamp: new Date() }]);
         await generateAIResponse(data.text);
       } else if (isVoiceMode) {
-        setTimeout(() => startVoiceListening(), 500);
+        console.warn("=== [VOICE_IN_EMPTY] No voice detected, cycling listener ===");
+        setTimeout(() => startVoiceListening(), 400);
       } else {
         setFriendState('idle');
       }
     } catch (e) {
-      console.error('processVoiceInput error', e);
+      console.error('=== [VOICE_IN_CRITICAL] STT Failed:', e, "===");
       setFriendState('idle');
     }
   }, [isVoiceMode, generateAIResponse]);
 
   const startVoiceListening = async () => {
+    console.log("=== [LISTENER_START] Hardware mic engaged ===");
     try {
       setIsListening(true);
       setFriendState('listening');
       audioRecorderRef.current = new AudioRecorder(processVoiceInput, () => {});
       await audioRecorderRef.current.start();
     } catch (e) {
-      console.error(e);
+      console.error("=== [LISTENER_ERROR] Mic access denied or failed ===");
       setIsListening(false);
       setFriendState('idle');
     }
   };
 
   const stopVoiceListening = () => {
+    console.log("=== [LISTENER_STOP] Hardware mic disengaged ===");
     if (audioRecorderRef.current) {
       audioRecorderRef.current.stop();
       audioRecorderRef.current = null;
@@ -195,21 +201,22 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
 
   const value: FriendAssistantContextValue = {
     open: (t) => { setTrigger(t); setIsVisible(true); },
-    // PRIMARY ENTRY POINT: Drops user straight into immersive voice mode
     startLiveMode: async () => {
+      console.log("=== [UI_PIVOT] Switching to Sovereign Live Mode ===");
       setIsTextMode(false);
       setIsLiveMode(true);
       setIsVoiceMode(true);
       await startVoiceListening();
     },
-    // SECONDARY ENTRY POINT: Fallback to chat UI
     switchToText: () => {
+      console.log("=== [UI_PIVOT] Switching to Text Interface ===");
       setIsLiveMode(false);
       setIsTextMode(true);
       setIsVoiceMode(false);
       stopVoiceListening();
     },
     close: () => {
+      console.log("=== [UI_SHUTDOWN] Terminating assistant session ===");
       setIsLiveMode(false);
       setIsTextMode(false);
       setIsVoiceMode(false);
@@ -224,7 +231,6 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
     isListening,
   };
 
-  // Listen to legacy showFriend events
   useEffect(() => {
     const handler = (e: any) => {
       setTrigger(e.detail?.trigger);
@@ -238,76 +244,54 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
     <FriendAssistantContext.Provider value={value}>
       {children}
       
-      {/* GEMINI LIVE-STYLE IMMERSIVE OVERLAY */}
+      {/* IMMERSIVE LIVE UI */}
       {isVisible && isLiveMode && (
-        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xl flex flex-col items-center justify-center animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center animate-in fade-in duration-500 overflow-hidden">
           
-          {/* Header Controls */}
-          <div className="absolute top-8 w-full px-8 flex justify-between items-center">
-            <Badge variant="outline" className="border-white/20 text-white/50 uppercase tracking-widest bg-black/50">
-              Live Session
+          {/* 3D PARTICLE ENGINE */}
+          <SovereignVisualizer 
+            state={friendState} 
+            severity={trigger === 'achievement' ? 'important' : 'normal'} 
+          />
+
+          {/* Header Identity */}
+          <div className="absolute top-8 w-full px-8 flex justify-between items-center z-50">
+            <Badge variant="outline" className="border-white/10 text-white/40 uppercase tracking-[0.4em] bg-black/20 backdrop-blur-md px-4 py-1">
+              {assistantName} Live
             </Badge>
             <button onClick={value.close} className="p-3 bg-white/5 hover:bg-white/10 rounded-full transition-colors">
-              <X className="w-5 h-5 text-white/70" />
+              <X className="w-6 h-6 text-white/50" />
             </button>
           </div>
 
-          {/* Dynamic Central Orb */}
-          <div className="relative w-full max-w-sm aspect-square flex items-center justify-center">
-            {/* Ambient Glow */}
-            <div className={`absolute inset-0 rounded-full blur-[100px] transition-all duration-1000 opacity-60
-              ${friendState === 'listening' ? 'bg-blue-500 scale-110' : 
-                friendState === 'thinking' ? 'bg-purple-500 scale-90' : 
-                friendState === 'speaking' ? 'bg-teal-400 scale-125' : 'bg-slate-500 scale-100'}`} 
-            />
-            
-            {/* Core Orb Container */}
-            <div className={`relative z-10 w-48 h-48 rounded-full flex items-center justify-center transition-all duration-700
-              ${friendState === 'thinking' ? 'animate-spin' : ''}
-              ${friendState === 'speaking' ? 'animate-pulse' : ''}
-              bg-gradient-to-br from-white/20 to-white/5 border border-white/30 backdrop-blur-md shadow-[inset_0_0_40px_rgba(255,255,255,0.2)]`}
-            >
-               {/* Internal Visualizer */}
-               {friendState === 'listening' && <Mic className="w-12 h-12 text-white/80 animate-pulse" />}
-               {friendState === 'thinking' && <Activity className="w-12 h-12 text-white/80" />}
-               {friendState === 'speaking' && (
-                 <div className="flex gap-2 items-center">
-                   <div className="w-2 h-8 bg-white/80 rounded-full animate-[pulse_0.4s_ease-in-out_infinite]" />
-                   <div className="w-2 h-12 bg-white/80 rounded-full animate-[pulse_0.6s_ease-in-out_infinite]" />
-                   <div className="w-2 h-8 bg-white/80 rounded-full animate-[pulse_0.5s_ease-in-out_infinite]" />
-                 </div>
-               )}
-            </div>
-          </div>
-
-          {/* Status Text */}
-          <div className="mt-16 text-center space-y-2 h-20">
-            <p className="text-white/40 font-black uppercase tracking-[0.3em] text-xs">
-              {friendState === 'listening' ? 'Listening...' : 
-               friendState === 'thinking' ? 'Processing...' : 
-               friendState === 'speaking' ? 'Speaking...' : 'Standby'}
+          {/* Status Indicators */}
+          <div className="absolute bottom-40 text-center z-50 pointer-events-none">
+            <p className="text-white/20 font-black uppercase tracking-[0.6em] text-[10px] animate-pulse">
+              {friendState === 'listening' ? 'Ingesting Stream' : 
+               friendState === 'thinking' ? 'Analyzing Patterns' : 
+               friendState === 'speaking' ? `Projecting ${assistantName}` : ''}
             </p>
           </div>
 
-          {/* Footer Controls */}
-          <div className="absolute bottom-12 w-full flex justify-center gap-6">
+          {/* Controls */}
+          <div className="absolute bottom-12 w-full flex justify-center gap-8 z-50">
             <button 
               onClick={handleVoiceToggle}
-              className={`p-5 rounded-full backdrop-blur-md transition-all ${isListening ? 'bg-rose-500/20 text-rose-400 border border-rose-500/50' : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'}`}
+              className={`p-6 rounded-full backdrop-blur-xl transition-all duration-500 ${isListening ? 'bg-teal-500/20 text-teal-400 border border-teal-500/50 shadow-[0_0_30px_rgba(20,184,166,0.1)]' : 'bg-white/5 text-white border border-white/10'}`}
             >
-              {isListening ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+              {isListening ? <Mic className="w-8 h-8" /> : <MicOff className="w-8 h-8" />}
             </button>
             <button 
               onClick={value.switchToText}
-              className="p-5 rounded-full bg-white/5 text-white/50 hover:text-white hover:bg-white/10 border border-white/5 backdrop-blur-md transition-all"
+              className="p-6 rounded-full bg-white/5 text-white/30 border border-white/5 backdrop-blur-xl hover:text-white transition-colors"
             >
-              <Keyboard className="w-6 h-6" />
+              <Keyboard className="w-8 h-8" />
             </button>
           </div>
         </div>
       )}
 
-      {/* FALLBACK: STANDARD TEXT CHAT UI */}
+      {/* TEXT FALLBACK UI */}
       {isVisible && isTextMode && (
         <div className="fixed bottom-4 right-4 z-50">
           <ExpandedChat
@@ -341,7 +325,7 @@ export const FriendOrb: React.FC = () => {
       friendState={friendState}
       isListening={isListening}
       isSyllableBlinking={isSyllableBlinking}
-      onOrbClick={startLiveMode} // Re-routed to Live Mode immediately
+      onOrbClick={startLiveMode} 
     />
   );
 };
