@@ -287,5 +287,5 @@ export const useWalletBalance = () => {
     };
   }, [fetchBalance, applyRow]);
 
-  return { balance, loading, refreshBalance: fetchBalance };
+  return { balance, loading, refreshBalance: fetchBalance, fiatProvisioned, usdcProvisioned, usdcAddress };
 };
