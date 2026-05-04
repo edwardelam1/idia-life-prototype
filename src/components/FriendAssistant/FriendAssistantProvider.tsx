@@ -8,6 +8,7 @@ import { getContextualGreeting } from './orbUtils';
 import { useSyllableBlinking } from './useSyllableBlinking';
 import { eventTracker } from '@/utils/EventTracker';
 import { X, Keyboard, Mic, MicOff, Activity } from 'lucide-react'; // Added icons for Live UI
+import { Badge } from "@/components/ui/badge";
 
 type Trigger = 'social' | 'wallet' | 'data' | 'achievement' | undefined;
 
