@@ -47,13 +47,18 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
   const [isListening, setIsListening] = useState(false);
   const [isVoiceMode, setIsVoiceMode] = useState(false);
   
-  // NATIVE MEDIA RECORDER REFS (Replacing AudioRecorder.ts)
+  // Hardware Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const activeStreamRef = useRef<MediaStream | null>(null);
   const globalAudioCtxRef = useRef<AudioContext | any>(null);
 
-  const assistantName = (profile as any)?.ai_assistant_name || "Friend";
+  // VAD (Voice Activity Detection) Refs
+  const vadFrameRef = useRef<number | null>(null);
+  const silenceTimerRef = useRef<number>(0);
+
+  const rawCustomName = (profile as any)?.ai_assistant_name;
+  const assistantName = rawCustomName || "Friend";
   const { } = useSyllableBlinking();
   const isSyllableBlinking = friendState === 'speaking';
 
@@ -82,11 +87,9 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
       if (error) throw error;
       
       if (data?.audioContent) {
-        // 1. Grab the hardware-unlocked Audio Context
         const audioCtx = globalAudioCtxRef.current || new (window.AudioContext || (window as any).webkitAudioContext)();
         if (audioCtx.state === 'suspended') await audioCtx.resume();
 
-        // 2. Convert Base64 to Raw Binary Buffer
         const binaryString = window.atob(data.audioContent);
         const len = binaryString.length;
         const bytes = new Uint8Array(len);
@@ -94,24 +97,20 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
           bytes[i] = binaryString.charCodeAt(i);
         }
 
-        // 3. Decode and Route to Hardware Speakers
         const audioBuffer = await audioCtx.decodeAudioData(bytes.buffer);
         const source = audioCtx.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(audioCtx.destination);
 
-        // 4. Handle Lifecycle
         source.onended = () => {
           console.log("=== [VOICE_OUT_END] Playback completed ===");
           if (isVoiceMode) {
-            console.log("=== [VOICE_LOOP] Recycling listener context ===");
             setTimeout(() => startVoiceListening(), 400);
           } else {
             setFriendState('idle');
           }
         };
 
-        // Fire the audio
         source.start(0);
       } else {
         setFriendState('idle');
@@ -182,18 +181,15 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
     }
   }, [isVoiceMode, generateAIResponse]);
 
-  // --- NATIVE MEDIA RECORDER IMPLEMENTATION ---
   const startVoiceListening = async () => {
     console.log("=== [LISTENER_START] Activating local hardware mic ===");
     try {
-      // Re-use active stream if it exists, otherwise request a new one
       let stream = activeStreamRef.current;
       if (!stream) {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         activeStreamRef.current = stream;
       }
 
-      // Initialize MediaRecorder
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
@@ -205,8 +201,13 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
       };
 
       mediaRecorder.onstop = () => {
-        console.log("=== [LISTENER_STOP] Compiling audio buffer ===");
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' }); // webm is standard for STT
+        console.log("=== [LISTENER_STOP] MediaRecorder halted. Compiling buffer ===");
+        if (vadFrameRef.current) {
+          cancelAnimationFrame(vadFrameRef.current);
+          vadFrameRef.current = null;
+        }
+
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' }); 
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
         reader.onloadend = () => {
@@ -221,8 +222,53 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
       setIsListening(true);
       setFriendState('listening');
 
+      // --- VOICE ACTIVITY DETECTION (VAD) ENGINE ---
+      console.log("=== [VAD_INIT] Booting Silence Detector ===");
+      const audioCtx = globalAudioCtxRef.current;
+      
+      if (audioCtx && audioCtx.state === 'running') {
+        const source = audioCtx.createMediaStreamSource(stream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 512;
+        analyser.minDecibels = -80;
+        analyser.maxDecibels = -10;
+        source.connect(analyser);
+
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        
+        const SILENCE_THRESHOLD = 5; 
+        const MAX_SILENCE_MS = 1500; 
+        silenceTimerRef.current = Date.now();
+
+        const monitorAudio = () => {
+          analyser.getByteFrequencyData(dataArray);
+          
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) {
+            sum += dataArray[i];
+          }
+          const averageVolume = sum / bufferLength;
+
+          if (averageVolume > SILENCE_THRESHOLD) {
+            silenceTimerRef.current = Date.now();
+          } else {
+            const silenceDuration = Date.now() - silenceTimerRef.current;
+            if (silenceDuration > MAX_SILENCE_MS) {
+              console.log(`=== [VAD_TRIGGER] ${MAX_SILENCE_MS}ms of silence detected. Auto-cutting mic. ===`);
+              if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+                mediaRecorderRef.current.stop();
+              }
+              return; 
+            }
+          }
+          vadFrameRef.current = requestAnimationFrame(monitorAudio);
+        };
+
+        monitorAudio();
+      }
     } catch (e) {
-      console.error("=== [LISTENER_ERROR] Hardware access denied ===", e);
+      console.error("=== [LISTENER_CRITICAL] Hardware access denied or stalled ===", e);
       setIsListening(false);
       setIsVoiceMode(false);
       setFriendState('idle');
@@ -233,21 +279,26 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
     }
-    // We intentionally keep the stream "hot" in activeStreamRef.current 
-    // to prevent iOS from requiring permission again during the same session.
+    if (vadFrameRef.current) {
+      cancelAnimationFrame(vadFrameRef.current);
+      vadFrameRef.current = null;
+    }
     setIsListening(false);
     setFriendState('idle');
   };
 
   const fullyShutdownMic = () => {
     stopVoiceListening();
+    if (vadFrameRef.current) {
+      cancelAnimationFrame(vadFrameRef.current);
+      vadFrameRef.current = null;
+    }
     if (activeStreamRef.current) {
       activeStreamRef.current.getTracks().forEach(track => track.stop());
       activeStreamRef.current = null;
     }
   };
 
-  // --- THE SYNCHRONOUS TRAPDOOR ---
   const initHardwareSync = () => {
     if (!globalAudioCtxRef.current) {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -261,15 +312,12 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
   };
 
   const startLiveMode = () => {
-    // 1. OPEN THE VISUALIZER UI IMMEDIATELY
     setIsTextMode(false);
     setIsLiveMode(true);
     setIsVisible(true);
 
-    // 2. WAKE UP AUDIO ENGINE SYNCHRONOUSLY
     initHardwareSync();
 
-    // 3. ATTEMPT TO CONNECT MIC
     const bootSequence = async () => {
       try {
         setIsVoiceMode(true);
@@ -289,7 +337,6 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
 
     if (isVoiceMode) {
       setIsVoiceMode(false);
-      // When the user manually mutes, we fully release the hardware
       fullyShutdownMic();
     } else {
       setIsVoiceMode(true);
@@ -349,12 +396,25 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
       {isVisible && isLiveMode && (
         <div className="fixed inset-0 z-[100] bg-white dark:bg-black flex flex-col items-center justify-center animate-in fade-in duration-500 overflow-hidden">
           
-          <SovereignVisualizer 
-            state={friendState} 
-            severity={trigger === 'achievement' ? 'important' : 'normal'} 
-          />
+          {rawCustomName && (
+            <div 
+              className="absolute inset-0 flex items-center justify-center z-0 pointer-events-none select-none transition-transform duration-75"
+              style={{ transform: 'translate(calc(var(--roll) * -30px), calc(var(--pitch) * 30px))' }}
+            >
+              <h1 className="text-[15vw] font-thin uppercase tracking-[0.3em] text-slate-400/10 dark:text-white/5 blur-[2px]">
+                {rawCustomName}
+              </h1>
+            </div>
+          )}
 
-          <div className="absolute top-8 w-full px-8 flex justify-between items-center z-50">
+          <div className="absolute inset-0 z-10 pointer-events-none">
+            <SovereignVisualizer 
+              state={friendState} 
+              severity={trigger === 'achievement' ? 'important' : 'normal'} 
+            />
+          </div>
+
+          <div className="absolute top-16 w-full px-8 flex justify-between items-center z-50">
             <Badge variant="outline" className="border-black/10 dark:border-white/10 text-slate-800 dark:text-white/40 uppercase tracking-[0.4em] bg-white/20 dark:bg-black/20 backdrop-blur-md px-4 py-1 shadow-sm">
               {assistantName} Live
             </Badge>
