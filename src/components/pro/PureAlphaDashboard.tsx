@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { 
   Zap, Info, Lock, Volume2, Target, RotateCcw, Smartphone,
-  Heart, Activity, Wind, Accessibility, Shield, Trophy
+  Heart, Activity, Wind, Accessibility, Shield, Trophy, ShieldCheck, ShieldAlert
 } from "lucide-react";
 import { ComposedChart, Line, Bar, XAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,12 +19,13 @@ import {
   TooltipProvider, 
   TooltipTrigger 
 } from "@/components/ui/tooltip";
+import { toast } from "@/hooks/use-toast";
 
 // IDIA Protocol Components
 import GhostProtocolWrapper from "./GhostProtocol";
 import SovereignAuth from "./SovereignAuth";
 
-// --- EXPANDED SOVEREIGN SCHEMA (Full Apple HealthKit Payload) ---
+// --- EXPANDED SOVEREIGN SCHEMA ---
 interface StagedHealthData {
   heart_rate: number | null;
   heart_rate_variability_ms: number | null;
@@ -34,7 +35,6 @@ interface StagedHealthData {
   data_quality_score: number | null;
   effort_score: number | null;
   created_at: string;
-  // --- Extended Apple Health Metrics ---
   steps_count: number | null;
   double_support_percentage: number | null;
   step_length_cm: number | null;
@@ -54,6 +54,16 @@ interface StagedHealthData {
 
 interface FiatLedgerEntry {
   amount_usd: number;
+  created_at: string;
+}
+
+// Live-Wired Event Logs
+interface SecurityEventLog {
+  id: string;
+  protocol: 'ghost' | 'acoustic';
+  event_type: string;
+  severity: 'info' | 'warning' | 'critical';
+  description: string;
   created_at: string;
 }
 
@@ -80,41 +90,28 @@ const InfoIcon = ({ text }: { text: string }) => (
 const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
   // --- CORE STATE ---
   const [authVerified, setAuthVerified] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const [fusionData, setFusionData] = useState<any[]>([]);
   const [hasIdiaPayOrgAdmin, setHasIdiaPayOrgAdmin] = useState(false);
   
   const [pureAlphaView, setPureAlphaView] = useState<'fusion' | 'balance' | 'cash' | 'ghost' | 'acoustics'>('fusion');
 
+  // --- LOGS STATE ---
+  const [ghostLogs, setGhostLogs] = useState<SecurityEventLog[]>([]);
+  const [acousticLogs, setAcousticLogs] = useState<SecurityEventLog[]>([]);
+
   // --- CORE BIOMETRICS STATE ---
   const [metrics, setMetrics] = useState({
-    hr: null as number | null, 
-    hrv: null as number | null, 
-    resp: null as number | null, 
-    noise: null as number | null, 
-    asymmetry: null as number | null,
-    focusScore: null as number | null, 
-    stressIndex: null as number | null, 
-    recovery: null as number | null, 
-    hriScore: null as number | null,
+    hr: null as number | null, hrv: null as number | null, resp: null as number | null, noise: null as number | null, asymmetry: null as number | null,
+    focusScore: null as number | null, stressIndex: null as number | null, recovery: null as number | null, hriScore: null as number | null,
     status: "CALIBRATING" as "CALIBRATING" | "ARMED" | "TRIGGERED"
   });
 
-  // --- EXTENDED TELEMETRY STATE ---
   const [telemetry, setTelemetry] = useState({
-    steps: null as number | null,
-    restingHr: null as number | null,
-    spo2: null as number | null,
-    vo2Max: null as number | null,
-    temp: null as number | null,
-    bpSys: null as number | null,
-    bpDia: null as number | null,
-    activeEnergy: null as number | null,
-    basalEnergy: null as number | null,
-    steadiness: null as number | null,
-    doubleSupport: null as number | null,
-    stepLength: null as number | null,
-    uv: null as number | null,
-    sleep: null as number | null,
+    steps: null as number | null, restingHr: null as number | null, spo2: null as number | null, vo2Max: null as number | null,
+    temp: null as number | null, bpSys: null as number | null, bpDia: null as number | null, activeEnergy: null as number | null,
+    basalEnergy: null as number | null, steadiness: null as number | null, doubleSupport: null as number | null,
+    stepLength: null as number | null, uv: null as number | null, sleep: null as number | null,
   });
 
   // --- GAMMA & RSVP STATE ---
@@ -131,17 +128,42 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
 
   // --- ADJUSTABLE SETTINGS STATE ---
   const [settings, setSettings] = useState({
-    honeyPot: true,
-    digitalWard: false,
-    silverSentinel: false,
-    aegisProtocol: true,
-    ambientIsolation: true,
-    coercionDetector: true,
-    impactTraumaSync: true,
+    honey_pot: true,
+    digital_ward: false,
+    silver_sentinel: false,
+    aegis_protocol: true,
+    ambient_isolation: true,
+    coercion_detector: true,
+    impact_trauma_sync: true,
   });
 
-  const toggleSetting = (key: keyof typeof settings) => {
-    setSettings(prev => ({ ...prev, [key]: !prev[key] }));
+  // Live-Wired Settings Sync
+  const toggleSetting = async (key: keyof typeof settings) => {
+    const newValue = !settings[key];
+    
+    // Optimistic UI Update
+    setSettings(prev => ({ ...prev, [key]: newValue }));
+
+    if (!userId) return;
+
+    try {
+      // Upsert configuration directly to DB
+      const { error } = await supabase
+        .from('security_preferences' as any)
+        .upsert({ user_id: userId, [key]: newValue }, { onConflict: 'user_id' });
+      
+      if (error) throw error;
+
+      toast({
+        title: "Protocol Configuration Updated",
+        description: `${key.replace('_', ' ').toUpperCase()} is now ${newValue ? 'ARMED' : 'DISARMED'}.`,
+        variant: newValue ? "default" : "destructive",
+      });
+    } catch (err) {
+      console.error("Failed to sync security preference:", err);
+      // Revert on failure
+      setSettings(prev => ({ ...prev, [key]: !newValue }));
+    }
   };
 
   // --- DATA FETCHING (Zero Mock Data) ---
@@ -152,8 +174,43 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
     const fetchExecutiveData = async () => {
       try {
         const { data: userData } = await supabase.auth.getUser();
-        if (userData?.user?.app_metadata?.role === 'org_admin') {
-          setHasIdiaPayOrgAdmin(true);
+        if (userData?.user) {
+          if (isMounted) setUserId(userData.user.id);
+          if (userData.user.app_metadata?.role === 'org_admin') {
+            setHasIdiaPayOrgAdmin(true);
+          }
+
+          // Fetch Live Settings
+          const { data: prefsRaw } = await supabase
+            .from("security_preferences" as any)
+            .select("*")
+            .eq("user_id", userData.user.id)
+            .maybeSingle();
+            
+          if (prefsRaw && isMounted) {
+            setSettings({
+              honey_pot: prefsRaw.honey_pot ?? true,
+              digital_ward: prefsRaw.digital_ward ?? false,
+              silver_sentinel: prefsRaw.silver_sentinel ?? false,
+              aegis_protocol: prefsRaw.aegis_protocol ?? true,
+              ambient_isolation: prefsRaw.ambient_isolation ?? true,
+              coercion_detector: prefsRaw.coercion_detector ?? true,
+              impact_trauma_sync: prefsRaw.impact_trauma_sync ?? true,
+            });
+          }
+        }
+
+        // Fetch Event Logs
+        const { data: logsRaw } = await supabase
+          .from("security_event_logs" as any)
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(20);
+        
+        const logs = logsRaw as unknown as SecurityEventLog[] | null;
+        if (logs && isMounted) {
+          setGhostLogs(logs.filter(l => l.protocol === 'ghost'));
+          setAcousticLogs(logs.filter(l => l.protocol === 'acoustic'));
         }
 
         const { data: healthRaw } = await supabase
@@ -162,18 +219,14 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
           .order("created_at", { ascending: false })
           .limit(7);
         
-        // ADDED: "as unknown" to bypass strict tuple checking errors
         const healthLogs = healthRaw as unknown as StagedHealthData[] | null;
 
         if (isMounted && healthLogs && healthLogs.length > 0) {
           const latest = healthLogs[0];
           
           setMetrics({
-            hr: latest.heart_rate, 
-            hrv: latest.heart_rate_variability_ms,
-            resp: latest.respiratory_rate, 
-            noise: latest.environmental_audio_exposure_db,
-            asymmetry: latest.walking_asymmetry_percentage,
+            hr: latest.heart_rate, hrv: latest.heart_rate_variability_ms, resp: latest.respiratory_rate, 
+            noise: latest.environmental_audio_exposure_db, asymmetry: latest.walking_asymmetry_percentage,
             focusScore: latest.data_quality_score ? Math.round(latest.data_quality_score * 100) : null,
             stressIndex: latest.heart_rate_variability_ms ? Number((100 / latest.heart_rate_variability_ms).toFixed(2)) : null,
             recovery: latest.effort_score ? Math.round(latest.effort_score) : null,
@@ -182,20 +235,11 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
           });
 
           setTelemetry({
-            steps: latest.steps_count,
-            restingHr: latest.resting_heart_rate,
-            spo2: latest.blood_oxygen_percentage,
-            vo2Max: latest.vo2_max,
-            temp: latest.body_temperature_f,
-            bpSys: latest.blood_pressure_systolic,
-            bpDia: latest.blood_pressure_diastolic,
-            activeEnergy: latest.active_energy_kcal,
-            basalEnergy: latest.basal_energy_kcal,
-            steadiness: latest.walking_steadiness_percentage,
-            doubleSupport: latest.double_support_percentage,
-            stepLength: latest.step_length_cm,
-            uv: latest.uv_exposure_index,
-            sleep: latest.sleep_analysis_value
+            steps: latest.steps_count, restingHr: latest.resting_heart_rate, spo2: latest.blood_oxygen_percentage,
+            vo2Max: latest.vo2_max, temp: latest.body_temperature_f, bpSys: latest.blood_pressure_systolic,
+            bpDia: latest.blood_pressure_diastolic, activeEnergy: latest.active_energy_kcal, basalEnergy: latest.basal_energy_kcal,
+            steadiness: latest.walking_steadiness_percentage, doubleSupport: latest.double_support_percentage,
+            stepLength: latest.step_length_cm, uv: latest.uv_exposure_index, sleep: latest.sleep_analysis_value
           });
         }
 
@@ -205,7 +249,6 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
           .order("created_at", { ascending: false })
           .limit(7);
         
-        // ADDED: "as unknown" to bypass strict tuple checking errors
         const ledger = ledgerRaw as unknown as FiatLedgerEntry[] | null;
 
         if (isMounted && healthLogs && ledger) {
@@ -226,8 +269,8 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
 
     fetchExecutiveData();
 
-    // 4. Live Synapse Subscription
-    const channel = supabase.channel("pure_alpha_live")
+    // Live Synapse Subscriptions
+    const healthChannel = supabase.channel("pure_alpha_live")
       .on("postgres_changes" as any, { event: "INSERT", schema: "public", table: "staged_health_data" }, (payload: any) => {
         const next = payload.new as StagedHealthData;
         if (isMounted && next) {
@@ -240,31 +283,24 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
             asymmetry: next.walking_asymmetry_percentage !== null ? next.walking_asymmetry_percentage : prev.asymmetry,
             hriScore: next.data_quality_score ? Math.round(next.data_quality_score * 100) : prev.hriScore,
           }));
+        }
+      })
+      .subscribe();
 
-          setTelemetry(prev => ({
-            ...prev,
-            steps: next.steps_count !== null ? next.steps_count : prev.steps,
-            restingHr: next.resting_heart_rate !== null ? next.resting_heart_rate : prev.restingHr,
-            spo2: next.blood_oxygen_percentage !== null ? next.blood_oxygen_percentage : prev.spo2,
-            vo2Max: next.vo2_max !== null ? next.vo2_max : prev.vo2Max,
-            temp: next.body_temperature_f !== null ? next.body_temperature_f : prev.temp,
-            bpSys: next.blood_pressure_systolic !== null ? next.blood_pressure_systolic : prev.bpSys,
-            bpDia: next.blood_pressure_diastolic !== null ? next.blood_pressure_diastolic : prev.bpDia,
-            activeEnergy: next.active_energy_kcal !== null ? next.active_energy_kcal : prev.activeEnergy,
-            basalEnergy: next.basal_energy_kcal !== null ? next.basal_energy_kcal : prev.basalEnergy,
-            steadiness: next.walking_steadiness_percentage !== null ? next.walking_steadiness_percentage : prev.steadiness,
-            doubleSupport: next.double_support_percentage !== null ? next.double_support_percentage : prev.doubleSupport,
-            stepLength: next.step_length_cm !== null ? next.step_length_cm : prev.stepLength,
-            uv: next.uv_exposure_index !== null ? next.uv_exposure_index : prev.uv,
-            sleep: next.sleep_analysis_value !== null ? next.sleep_analysis_value : prev.sleep,
-          }));
+    const logsChannel = supabase.channel("pure_alpha_logs")
+      .on("postgres_changes" as any, { event: "INSERT", schema: "public", table: "security_event_logs" }, (payload: any) => {
+        const newLog = payload.new as SecurityEventLog;
+        if (isMounted && newLog) {
+          if (newLog.protocol === 'ghost') setGhostLogs(prev => [newLog, ...prev]);
+          if (newLog.protocol === 'acoustic') setAcousticLogs(prev => [newLog, ...prev]);
         }
       })
       .subscribe();
 
     return () => {
       isMounted = false;
-      supabase.removeChannel(channel);
+      supabase.removeChannel(healthChannel);
+      supabase.removeChannel(logsChannel);
     };
   }, [isMasked, authVerified]);
 
@@ -497,84 +533,148 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
             )}
 
             {pureAlphaView === 'ghost' && (
-              <Card className="border-orange-100 bg-orange-50/30 shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                <CardHeader className="p-5 pb-2 border-b border-orange-100/50">
-                  <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-slate-900">
-                    <Lock className="w-4 h-4 text-orange-500" />
-                    Ghost Protocol Settings
-                  </CardTitle>
-                  <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
-                    Configure autonomous duress defense and enclave routing.
-                  </p>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
-                    <div>
-                      <p className="text-[10px] font-black text-slate-900 uppercase">Honey-Pot State</p>
-                      <p className="text-[9px] text-slate-500 mt-0.5">Simulate success & lock true ledger during HRV crash.</p>
+              <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                <Card className="border-orange-100 bg-orange-50/30 shadow-sm overflow-hidden">
+                  <CardHeader className="p-5 pb-2 border-b border-orange-100/50">
+                    <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                      <Lock className="w-4 h-4 text-orange-500" />
+                      Ghost Protocol Configuration
+                    </CardTitle>
+                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                      Configure autonomous duress defense and enclave routing.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
+                      <div>
+                        <p className="text-[10px] font-black text-slate-900 uppercase">Honey-Pot State</p>
+                        <p className="text-[9px] text-slate-500 mt-0.5">Simulate success & lock true ledger during HRV crash.</p>
+                      </div>
+                      <Switch checked={settings.honey_pot} onCheckedChange={() => toggleSetting('honey_pot')} className="data-[state=checked]:bg-orange-500" />
                     </div>
-                    <Switch checked={settings.honeyPot} onCheckedChange={() => toggleSetting('honeyPot')} className="data-[state=checked]:bg-orange-500" />
-                  </div>
-                  <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
-                    <div>
-                      <p className="text-[10px] font-black text-slate-900 uppercase">Digital Ward (Minors)</p>
-                      <p className="text-[9px] text-slate-500 mt-0.5">Segregate data & trigger route deviation alerts.</p>
+                    <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
+                      <div>
+                        <p className="text-[10px] font-black text-slate-900 uppercase">Digital Ward (Minors)</p>
+                        <p className="text-[9px] text-slate-500 mt-0.5">Segregate data & trigger route deviation alerts.</p>
+                      </div>
+                      <Switch checked={settings.digital_ward} onCheckedChange={() => toggleSetting('digital_ward')} />
                     </div>
-                    <Switch checked={settings.digitalWard} onCheckedChange={() => toggleSetting('digitalWard')} />
-                  </div>
-                  <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
-                    <div>
-                      <p className="text-[10px] font-black text-slate-900 uppercase">Silver Sentinel (Elders)</p>
-                      <p className="text-[9px] text-slate-500 mt-0.5">Cardio-ID verification & beneficiary wall blocks.</p>
+                    <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
+                      <div>
+                        <p className="text-[10px] font-black text-slate-900 uppercase">Silver Sentinel (Elders)</p>
+                        <p className="text-[9px] text-slate-500 mt-0.5">Cardio-ID verification & beneficiary wall blocks.</p>
+                      </div>
+                      <Switch checked={settings.silver_sentinel} onCheckedChange={() => toggleSetting('silver_sentinel')} />
                     </div>
-                    <Switch checked={settings.silverSentinel} onCheckedChange={() => toggleSetting('silverSentinel')} />
-                  </div>
-                  <div className="flex items-center justify-between p-4">
-                    <div>
-                      <p className="text-[10px] font-black text-slate-900 uppercase">Aegis Protocol</p>
-                      <p className="text-[9px] text-slate-500 mt-0.5">Truman sandbox & foreign IoT tracker sniffing.</p>
+                    <div className="flex items-center justify-between p-4">
+                      <div>
+                        <p className="text-[10px] font-black text-slate-900 uppercase">Aegis Protocol</p>
+                        <p className="text-[9px] text-slate-500 mt-0.5">Truman sandbox & foreign IoT tracker sniffing.</p>
+                      </div>
+                      <Switch checked={settings.aegis_protocol} onCheckedChange={() => toggleSetting('aegis_protocol')} />
                     </div>
-                    <Switch checked={settings.aegisProtocol} onCheckedChange={() => toggleSetting('aegisProtocol')} />
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+
+                {/* GHOST PROTOCOL LOGS */}
+                <Card className="border-slate-100 shadow-sm overflow-hidden">
+                  <CardHeader className="p-4 border-b border-slate-50 bg-slate-50/50">
+                    <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-900 flex items-center gap-2">
+                      <Activity className="w-3.5 h-3.5 text-slate-400" /> Activity Logs
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {ghostLogs.length > 0 ? (
+                      <ul className="divide-y divide-slate-50">
+                        {ghostLogs.map(log => (
+                          <li key={log.id} className="p-4 flex justify-between items-center bg-white">
+                            <div>
+                              <p className={`text-[10px] font-bold uppercase ${log.severity === 'critical' ? 'text-rose-600' : 'text-slate-900'}`}>{log.event_type}</p>
+                              <p className="text-[9px] text-slate-500 mt-0.5">{log.description}</p>
+                            </div>
+                            <span className="text-[9px] font-mono font-bold text-slate-400">{new Date(log.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="p-8 text-center bg-white">
+                        <ShieldCheck className="w-6 h-6 text-slate-200 mx-auto mb-2" />
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Zero Intrusions</p>
+                        <p className="text-[9px] text-slate-400 font-medium mt-1">No ghost protocol events detected.</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
             {pureAlphaView === 'acoustics' && (
-              <Card className="border-slate-100 shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                <CardHeader className="p-5 pb-2 border-b border-slate-50">
-                  <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-slate-900">
-                    <Volume2 className="w-4 h-4 text-indigo-500" />
-                    Acoustic Settings
-                  </CardTitle>
-                  <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
-                    Manage environmental coercion and ambient threat engines.
-                  </p>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="flex items-center justify-between p-4 border-b border-slate-50">
-                    <div>
-                      <p className="text-[10px] font-black text-slate-900 uppercase">Ambient Isolation</p>
-                      <p className="text-[9px] text-slate-500 mt-0.5">Soft-block if unexpected voices are detected.</p>
+              <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                <Card className="border-slate-100 shadow-sm overflow-hidden">
+                  <CardHeader className="p-5 pb-2 border-b border-slate-50 bg-indigo-50/10">
+                    <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                      <Volume2 className="w-4 h-4 text-indigo-500" />
+                      Acoustic Configuration
+                    </CardTitle>
+                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                      Manage environmental coercion and ambient threat engines.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="flex items-center justify-between p-4 border-b border-slate-50">
+                      <div>
+                        <p className="text-[10px] font-black text-slate-900 uppercase">Ambient Isolation</p>
+                        <p className="text-[9px] text-slate-500 mt-0.5">Soft-block if unexpected voices are detected.</p>
+                      </div>
+                      <Switch checked={settings.ambient_isolation} onCheckedChange={() => toggleSetting('ambient_isolation')} />
                     </div>
-                    <Switch checked={settings.ambientIsolation} onCheckedChange={() => toggleSetting('ambientIsolation')} />
-                  </div>
-                  <div className="flex items-center justify-between p-4 border-b border-slate-50">
-                    <div>
-                      <p className="text-[10px] font-black text-slate-900 uppercase">Coercion Detector</p>
-                      <p className="text-[9px] text-slate-500 mt-0.5">Analyze voice tremor & acute stress markers.</p>
+                    <div className="flex items-center justify-between p-4 border-b border-slate-50">
+                      <div>
+                        <p className="text-[10px] font-black text-slate-900 uppercase">Coercion Detector</p>
+                        <p className="text-[9px] text-slate-500 mt-0.5">Analyze voice tremor & acute stress markers.</p>
+                      </div>
+                      <Switch checked={settings.coercion_detector} onCheckedChange={() => toggleSetting('coercion_detector')} />
                     </div>
-                    <Switch checked={settings.coercionDetector} onCheckedChange={() => toggleSetting('coercionDetector')} />
-                  </div>
-                  <div className="flex items-center justify-between p-4">
-                    <div>
-                      <p className="text-[10px] font-black text-rose-600 uppercase">Impact Trauma Sync</p>
-                      <p className="text-[9px] text-slate-500 mt-0.5">Log high-decibel audio + physical impact to vault.</p>
+                    <div className="flex items-center justify-between p-4">
+                      <div>
+                        <p className="text-[10px] font-black text-rose-600 uppercase">Impact Trauma Sync</p>
+                        <p className="text-[9px] text-slate-500 mt-0.5">Log high-decibel audio + physical impact to vault.</p>
+                      </div>
+                      <Switch checked={settings.impact_trauma_sync} onCheckedChange={() => toggleSetting('impact_trauma_sync')} className="data-[state=checked]:bg-rose-500" />
                     </div>
-                    <Switch checked={settings.impactTraumaSync} onCheckedChange={() => toggleSetting('impactTraumaSync')} className="data-[state=checked]:bg-rose-500" />
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+
+                {/* ACOUSTICS LOGS */}
+                <Card className="border-slate-100 shadow-sm overflow-hidden">
+                  <CardHeader className="p-4 border-b border-slate-50 bg-slate-50/50">
+                    <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-900 flex items-center gap-2">
+                      <Volume2 className="w-3.5 h-3.5 text-slate-400" /> Acoustic Logs
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {acousticLogs.length > 0 ? (
+                      <ul className="divide-y divide-slate-50">
+                        {acousticLogs.map(log => (
+                          <li key={log.id} className="p-4 flex justify-between items-center bg-white">
+                            <div>
+                              <p className={`text-[10px] font-bold uppercase ${log.severity === 'critical' ? 'text-rose-600' : 'text-slate-900'}`}>{log.event_type}</p>
+                              <p className="text-[9px] text-slate-500 mt-0.5">{log.description}</p>
+                            </div>
+                            <span className="text-[9px] font-mono font-bold text-slate-400">{new Date(log.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="p-8 text-center bg-white">
+                        <ShieldCheck className="w-6 h-6 text-slate-200 mx-auto mb-2" />
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Environment Secure</p>
+                        <p className="text-[9px] text-slate-400 font-medium mt-1">No acoustic coercion events logged.</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
           </TabsContent>
