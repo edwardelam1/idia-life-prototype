@@ -144,16 +144,18 @@ export const useWalletBalance = () => {
 
       if (walletAddress && walletAddress.startsWith("0x")) {
         console.log(`🌐 [FETCH_BALANCE_LOG] SUCCESS: Wallet identified: ${walletAddress}`);
+        setUsdcProvisioned(true);
+        setUsdcAddress(walletAddress);
         console.log("🌐 [FETCH_BALANCE_LOG] ACTION: Initializing ethers JSON RPC provider for USDC hydration.");
 
         try {
           // Replaced Viem with Ethers natively
           const provider = new ethers.JsonRpcProvider("https://mainnet.base.org");
           const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, provider);
-          
+
           const rawBalance = await usdcContract.balanceOf(walletAddress);
           usdcBalance = Number(ethers.formatUnits(rawBalance, 6));
-          
+
           console.log(`🌐 [FETCH_BALANCE_LOG] SUCCESS: Verified absolute on-chain USDC truth: $${usdcBalance}`);
         } catch (chainErr: any) {
           console.error("🚨 [FETCH_BALANCE_LOG] ERROR_START: Ethers smart contract read failed.");
@@ -162,6 +164,8 @@ export const useWalletBalance = () => {
         }
       } else {
         console.log("🌐 [FETCH_BALANCE_LOG] INFO: No valid sovereign wallet mapped in profiles. Bypassing ethers fetch.");
+        setUsdcProvisioned(false);
+        setUsdcAddress(null);
       }
 
       setBalance({
