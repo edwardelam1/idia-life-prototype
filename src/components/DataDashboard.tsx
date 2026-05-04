@@ -190,6 +190,12 @@ const DataDashboard = () => {
     }
   };
 
+  // Per-source sync badge. Each connection type owns its own badge state.
+  const renderSyncBadgeFor = (connectionType: string) => {
+    if (connectionType === "apple_health") return getSyncStatusBadge();
+    return null;
+  };
+
   const handleAppleHealthComplete = async () => {
     try {
       console.log("🔗 [DASHBOARD_LOG] Apple Health connection complete.");
@@ -275,7 +281,6 @@ const DataDashboard = () => {
               <div>
                 <div className="flex items-center space-x-2 mb-1">
                   <p className="text-teal-100">USDC</p>
-                  {getSyncStatusBadge()}
                 </div>
                 <p className="text-3xl font-bold">
                   ${balanceLoading ? "0.00" : balance.usdc_balance.toFixed(2)}
@@ -323,21 +328,24 @@ const DataDashboard = () => {
                 {visibleConnections.map((connection) => (
                   <div
                     key={connection.id}
-                    className="relative cursor-pointer group"
+                    className="flex flex-col items-center cursor-pointer group"
                     onClick={() => {
                       if (connection.connection_type === "apple_health") setShowAppleHealthModal(true);
                     }}
                   >
-                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border-2 border-green-500 transition-all group-hover:shadow-md group-hover:scale-105">
-                      <img
-                        src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
-                        alt={connection.connection_type}
-                        className="w-full h-full object-contain p-2"
-                      />
+                    <div className="relative">
+                      <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border-2 border-green-500 transition-all group-hover:shadow-md group-hover:scale-105">
+                        <img
+                          src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
+                          alt={connection.connection_type}
+                          className="w-full h-full object-contain p-2"
+                        />
+                      </div>
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background">
+                        <CheckCircle className="w-3 h-3 text-white" />
+                      </div>
                     </div>
-                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background">
-                      <CheckCircle className="w-3 h-3 text-white" />
-                    </div>
+                    <div className="mt-2">{renderSyncBadgeFor(connection.connection_type)}</div>
                   </div>
                 ))}
               </div>
