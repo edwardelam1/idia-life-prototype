@@ -190,6 +190,12 @@ const DataDashboard = () => {
     }
   };
 
+  // Per-source sync badge. Each connection type owns its own badge state.
+  const renderSyncBadgeFor = (connectionType: string) => {
+    if (connectionType === "apple_health") return getSyncStatusBadge();
+    return null;
+  };
+
   const handleAppleHealthComplete = async () => {
     try {
       console.log("🔗 [DASHBOARD_LOG] Apple Health connection complete.");
