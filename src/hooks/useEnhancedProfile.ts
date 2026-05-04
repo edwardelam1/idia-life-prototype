@@ -152,13 +152,13 @@ export const useEnhancedProfile = () => {
 
       const { data, error } = await (supabase
         .from("profiles") as any)
-        .update({
+        .upsert({
+          user_id: user.id,
           ...rest,
           trust_score: trust_score,
           available_credit_line: available_credit_line,
           updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", user.id)
+        }, { onConflict: "user_id" })
         .select()
         .single();
 
@@ -211,11 +211,13 @@ export const useEnhancedProfile = () => {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${user.id}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
+      const fileExt = (file.name.split(".").pop() || "png").toLowerCase();
+      // Folder must be the user's id so RLS (storage.foldername(name))[1] = auth.uid() passes.
+      const filePath = `${user.id}/avatar.${fileExt}`;
 
-      const { error: uploadError } = await supabase.storage.from("avatars").upload(filePath, file, { upsert: true });
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, { upsert: true, contentType: file.type });
 
       if (uploadError) throw uploadError;
 
@@ -223,9 +225,22 @@ export const useEnhancedProfile = () => {
         data: { publicUrl },
       } = supabase.storage.from("avatars").getPublicUrl(filePath);
 
-      await updateProfile({ avatar_url: publicUrl });
-    } catch (error) {
+      // Cache-bust so the new image swaps in immediately.
+      const bustedUrl = `${publicUrl}?t=${Date.now()}`;
+
+      await updateProfile({ avatar_url: bustedUrl });
+
+      toast({
+        title: "Avatar updated",
+        description: "Your profile picture has been changed.",
+      });
+    } catch (error: any) {
       console.error("Error uploading avatar:", error);
+      toast({
+        title: "Upload failed",
+        description: error?.message || "Could not upload avatar.",
+        variant: "destructive",
+      });
     } finally {
       setUpdating(false);
     }
