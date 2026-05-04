@@ -51,7 +51,7 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
   
   const audioRecorderRef = useRef<AudioRecorder | null>(null);
   
-  // 1. GLOBAL AUDIO CONTEXT REF (Critical for iOS)
+  // GLOBAL AUDIO CONTEXT REF (Critical for iOS Safari)
   const globalAudioCtxRef = useRef<AudioContext | any>(null);
 
   const assistantName = (profile as any)?.ai_assistant_name || "Friend";
@@ -59,10 +59,7 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
   const isSyllableBlinking = friendState === 'speaking';
 
   useEffect(() => {
-    if (!profile) {
-      console.log("=== [GREETING_HALT] Waiting for profile identity resolution... ===");
-      return;
-    }
+    if (!profile) return;
 
     if (messages.length === 0) {
       console.log(`=== [INITIAL_GREETING_START] Identity Resolved: ${assistantName} ===`);
@@ -73,7 +70,6 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
         isUser: false,
         timestamp: new Date(),
       }]);
-      console.log("=== [INITIAL_GREETING_END] Greeting established in local buffer ===");
     }
   }, [trigger, messages.length, profile, assistantName]);
 
@@ -90,7 +86,6 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
         audio.onended = () => {
           console.log("=== [VOICE_OUT_END] Playback completed ===");
           if (isVoiceMode) {
-            console.log("=== [VOICE_LOOP] Recycling listener context ===");
             setTimeout(() => startVoiceListening(), 400);
           } else {
             setFriendState('idle');
@@ -102,13 +97,13 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
         setFriendState('idle');
       }
     } catch (e) {
-      console.error('=== [VOICE_OUT_CRITICAL] TTS Engine Stalled:', e, "=== ");
+      console.error('=== [VOICE_OUT_CRITICAL] TTS Engine Stalled:', e);
       setFriendState('idle');
     }
   }, [isVoiceMode]);
 
   const generateAIResponse = useCallback(async (userText: string) => {
-    console.log("=== [AI_CHAT_START] Dispatching to Edge Function: ", userText.substring(0, 30), " ===");
+    console.log("=== [AI_CHAT_START] Dispatching to Edge Function ===");
     try {
       setFriendState('thinking');
       const { data, error } = await supabase.functions.invoke('ai-chat', {
@@ -123,7 +118,6 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
       if (error) throw error;
 
       const responseText = data?.response || "I'm processing a high-load request. Give me one moment.";
-      console.log("=== [AI_CHAT_RESPONSE] Egress received: ", responseText.substring(0, 30), "===");
       
       const aiResponse: Message = {
         id: Date.now().toString() + '_ai',
@@ -135,13 +129,13 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
       setMessages(prev => [...prev, aiResponse]);
       await speakText(responseText);
     } catch (e) {
-      console.error('=== [AI_CHAT_CRITICAL] Brain Egress Stalled:', e, "=== ");
+      console.error('=== [AI_CHAT_CRITICAL] Brain Egress Stalled:', e);
       setFriendState('idle');
     }
   }, [isVoiceMode, messages.length, trigger, speakText, profile?.id]);
 
   const processVoiceInput = useCallback(async (audioData: string) => {
-    console.log("=== [VOICE_IN_START] Audio stream captured, initiating transcription ===");
+    console.log("=== [VOICE_IN_START] Processing transcription ===");
     try {
       setFriendState('thinking');
       setIsListening(false);
@@ -150,7 +144,7 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
       if (error) throw error;
       
       if (data?.text?.trim()) {
-        console.log("=== [VOICE_IN_SUCCESS] Decoded: ", data.text, "===");
+        console.log("=== [VOICE_IN_SUCCESS] Decoded: ", data.text);
         setMessages(prev => [...prev, { id: Date.now().toString(), text: data.text, isUser: true, timestamp: new Date() }]);
         await generateAIResponse(data.text);
       } else if (isVoiceMode) {
@@ -160,7 +154,7 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
         setFriendState('idle');
       }
     } catch (e) {
-      console.error('=== [VOICE_IN_CRITICAL] STT Failed:', e, "===");
+      console.error('=== [VOICE_IN_CRITICAL] STT Failed:', e);
       setFriendState('idle');
     }
   }, [isVoiceMode, generateAIResponse]);
@@ -173,8 +167,9 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
       audioRecorderRef.current = new AudioRecorder(processVoiceInput, () => {});
       await audioRecorderRef.current.start();
     } catch (e) {
-      console.error("=== [LISTENER_ERROR] Hardware access denied ===");
+      console.error("=== [LISTENER_ERROR] Hardware access denied ===", e);
       setIsListening(false);
+      setIsVoiceMode(false);
       setFriendState('idle');
     }
   };
@@ -189,9 +184,8 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
     setFriendState('idle');
   };
 
-  // --- THE SYNCHRONOUS TRAPDOOR (iOS Safari Fix) ---
+  // --- THE SYNCHRONOUS TRAPDOOR ---
   const initHardwareSync = () => {
-    console.log("=== [HARDWARE_WAKE] Physical touch registered. Waking WebKit sensors. ===");
     if (!globalAudioCtxRef.current) {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
@@ -200,60 +194,50 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
     }
     if (globalAudioCtxRef.current && globalAudioCtxRef.current.state === 'suspended') {
       globalAudioCtxRef.current.resume();
-      console.log("=== [AUDIO_CONTEXT_RESUMED] WebKit Audio Engine unlocked. ===");
     }
   };
 
-  // 2. Updated startLiveMode (Called when they tap the Orb)
   const startLiveMode = () => {
-    // SYNCHRONOUS FIRE - Do not await this!
+    // 1. OPEN THE VISUALIZER UI IMMEDIATELY 
+    // This bypasses the iOS iframe failure, ensuring the black screen and sphere load regardless of mic permissions.
+    setIsTextMode(false);
+    setIsLiveMode(true);
+    setIsVisible(true);
+
+    // 2. WAKE UP AUDIO ENGINE SYNCHRONOUSLY
     initHardwareSync();
 
-    // Async Boot Sequence
+    // 3. ATTEMPT TO CONNECT MIC IN BACKGROUND
     const bootSequence = async () => {
-      console.log("=== [MIC_HANDSHAKE_START] Requesting secure stream... ===");
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(t => t.stop());
-        console.log("=== [MIC_HANDSHAKE_SUCCESS] Permissions granted. ===");
-
-        setIsTextMode(false);
-        setIsLiveMode(true);
         setIsVoiceMode(true);
         await startVoiceListening();
-
       } catch (err) {
-        console.error("=== [MIC_CRITICAL_FAIL] iOS rejected the stream:", err, "===");
-        alert("Sovereign Live requires Microphone access. Please check iOS Settings > Safari > Microphone.");
+        console.error("=== [MIC_CRITICAL_FAIL] iOS rejected the stream:", err);
+        setIsVoiceMode(false);
+        setIsListening(false);
+        alert("Sovereign Live requires Microphone access. Note: iOS Safari blocks microphones inside embedded previews. Open the standalone app URL to test voice.");
       }
     };
 
     bootSequence();
   };
 
-  // 3. Updated handleVoiceToggle (Called when they tap the Mic button)
   const handleVoiceToggle = () => {
-    // SYNCHRONOUS FIRE - Must re-assert on toggle
     initHardwareSync();
 
     const toggleSequence = async () => {
-      console.log("=== [UI_INTERACTION] Hardware toggle requested ===");
-      
       if (isVoiceMode) {
-        console.log("=== [MIC_DISENGAGE] Suspending stream ===");
         setIsVoiceMode(false);
         stopVoiceListening();
       } else {
-        console.log("=== [MIC_RE_ENGAGE] Asserting hardware stream ===");
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          stream.getTracks().forEach(t => t.stop());
-
           setIsVoiceMode(true);
           await startVoiceListening();
         } catch (err) {
-          console.error("=== [MIC_CRITICAL_FAIL] Cannot re-engage stream:", err, "===");
-          alert("Microphone access was revoked or lost.");
+          console.error("=== [MIC_CRITICAL_FAIL] Cannot re-engage stream:", err);
+          setIsVoiceMode(false);
+          setIsListening(false);
         }
       }
     };
@@ -275,17 +259,14 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
 
   const value: FriendAssistantContextValue = {
     open: (t) => { setTrigger(t); setIsVisible(true); },
-    // Notice startLiveMode is now bound to the synchronous trapdoor version
     startLiveMode,
     switchToText: () => {
-      console.log("=== [UI_PIVOT] Reverting to Text Standard ===");
       setIsLiveMode(false);
       setIsTextMode(true);
       setIsVoiceMode(false);
       stopVoiceListening();
     },
     close: () => {
-      console.log("=== [UI_SHUTDOWN] Terminating session ===");
       setIsLiveMode(false);
       setIsTextMode(false);
       setIsVoiceMode(false);
@@ -313,7 +294,6 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
     <FriendAssistantContext.Provider value={value}>
       {children}
       
-      {/* IMMERSIVE LIVE UI (Gemini Live Protocol) */}
       {isVisible && isLiveMode && (
         <div className="fixed inset-0 z-[100] bg-white dark:bg-black flex flex-col items-center justify-center animate-in fade-in duration-500 overflow-hidden">
           
@@ -322,7 +302,6 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
             severity={trigger === 'achievement' ? 'important' : 'normal'} 
           />
 
-          {/* Header Protocol */}
           <div className="absolute top-8 w-full px-8 flex justify-between items-center z-50">
             <Badge variant="outline" className="border-black/10 dark:border-white/10 text-slate-800 dark:text-white/40 uppercase tracking-[0.4em] bg-white/20 dark:bg-black/20 backdrop-blur-md px-4 py-1 shadow-sm">
               {assistantName} Live
@@ -332,7 +311,6 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
             </button>
           </div>
 
-          {/* Projection Status */}
           <div className="absolute bottom-40 text-center z-50 pointer-events-none">
             <p className="text-slate-600 dark:text-white/20 font-black uppercase tracking-[0.6em] text-[10px] animate-pulse">
               {friendState === 'listening' ? 'Ingesting Stream' : 
@@ -341,7 +319,6 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
             </p>
           </div>
 
-          {/* Sovereign Controls */}
           <div className="absolute bottom-12 w-full flex justify-center gap-8 z-50">
             <button 
               onClick={handleVoiceToggle}
@@ -359,7 +336,6 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
         </div>
       )}
 
-      {/* FALLBACK UI */}
       {isVisible && isTextMode && (
         <div className="fixed bottom-4 right-4 z-50">
           <ExpandedChat
