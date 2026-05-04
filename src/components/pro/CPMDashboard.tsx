@@ -157,7 +157,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     const stream = async () => {
       const { data: health } = await supabase.from("staged_health_data" as any).select("*").order("recorded_at", { ascending: false }).limit(1).maybeSingle();
       if (isMounted && health) {
-        const hData = health as StagedHealthData;
+        const hData = health as unknown as StagedHealthData;
         setMetrics({
           hr: hData.heart_rate || 0, hrv: hData.heart_rate_variability_ms || 0,
           resp: hData.respiratory_rate || 0, noise: hData.environmental_audio_exposure_db || 0,

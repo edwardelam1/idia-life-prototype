@@ -5506,6 +5506,36 @@ export type Database = {
           },
         ]
       }
+      security_event_logs: {
+        Row: {
+          created_at: string | null
+          description: string
+          event_type: string
+          id: string
+          protocol: string
+          severity: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description: string
+          event_type: string
+          id?: string
+          protocol: string
+          severity: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string
+          event_type?: string
+          id?: string
+          protocol?: string
+          severity?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       security_events: {
         Row: {
           action_type: string
@@ -5536,6 +5566,42 @@ export type Database = {
           result_data?: Json
           severity?: string
           timestamp?: string
+        }
+        Relationships: []
+      }
+      security_preferences: {
+        Row: {
+          aegis_protocol: boolean | null
+          ambient_isolation: boolean | null
+          coercion_detector: boolean | null
+          digital_ward: boolean | null
+          honey_pot: boolean | null
+          impact_trauma_sync: boolean | null
+          silver_sentinel: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          aegis_protocol?: boolean | null
+          ambient_isolation?: boolean | null
+          coercion_detector?: boolean | null
+          digital_ward?: boolean | null
+          honey_pot?: boolean | null
+          impact_trauma_sync?: boolean | null
+          silver_sentinel?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          aegis_protocol?: boolean | null
+          ambient_isolation?: boolean | null
+          coercion_detector?: boolean | null
+          digital_ward?: boolean | null
+          honey_pot?: boolean | null
+          impact_trauma_sync?: boolean | null
+          silver_sentinel?: boolean | null
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }

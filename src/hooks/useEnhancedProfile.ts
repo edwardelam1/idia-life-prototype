@@ -150,8 +150,8 @@ export const useEnhancedProfile = () => {
 
       const { trust_score, available_credit_line, ...rest } = updates;
 
-      const { data, error } = await supabase
-        .from("profiles")
+      const { data, error } = await (supabase
+        .from("profiles") as any)
         .update({
           ...rest,
           trust_score: trust_score,

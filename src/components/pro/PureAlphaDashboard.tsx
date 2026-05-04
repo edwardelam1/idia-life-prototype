@@ -57,7 +57,7 @@ interface FiatLedgerEntry {
   created_at: string;
 }
 
-// Live-Wired Event Logs & Settings Interfaces
+// Live-Wired Event Logs
 interface SecurityEventLog {
   id: string;
   protocol: 'ghost' | 'acoustic';
@@ -65,16 +65,6 @@ interface SecurityEventLog {
   severity: 'info' | 'warning' | 'critical';
   description: string;
   created_at: string;
-}
-
-interface SecurityPreferences {
-  honey_pot: boolean;
-  digital_ward: boolean;
-  silver_sentinel: boolean;
-  aegis_protocol: boolean;
-  ambient_isolation: boolean;
-  coercion_detector: boolean;
-  impact_trauma_sync: boolean;
 }
 
 interface PureAlphaDashboardProps {
@@ -166,7 +156,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
 
       toast({
         title: "Protocol Configuration Updated",
-        description: `${key.replace(/_/g, ' ').toUpperCase()} is now ${newValue ? 'ARMED' : 'DISARMED'}.`,
+        description: `${key.replace('_', ' ').toUpperCase()} is now ${newValue ? 'ARMED' : 'DISARMED'}.`,
         variant: newValue ? "default" : "destructive",
       });
     } catch (err) {
@@ -191,24 +181,22 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
           }
 
           // Fetch Live Settings
-          const { data: prefsRaw } = await supabase
+          const { data: prefsRawData } = await supabase
             .from("security_preferences" as any)
             .select("*")
             .eq("user_id", userData.user.id)
             .maybeSingle();
-            
-          // ADDED: Cast as SecurityPreferences to clear TS error
-          const prefs = prefsRaw as unknown as SecurityPreferences | null;
+          const prefsRaw = prefsRawData as any;
 
-          if (prefs && isMounted) {
+          if (prefsRaw && isMounted) {
             setSettings({
-              honey_pot: prefs.honey_pot ?? true,
-              digital_ward: prefs.digital_ward ?? false,
-              silver_sentinel: prefs.silver_sentinel ?? false,
-              aegis_protocol: prefs.aegis_protocol ?? true,
-              ambient_isolation: prefs.ambient_isolation ?? true,
-              coercion_detector: prefs.coercion_detector ?? true,
-              impact_trauma_sync: prefs.impact_trauma_sync ?? true,
+              honey_pot: prefsRaw.honey_pot ?? true,
+              digital_ward: prefsRaw.digital_ward ?? false,
+              silver_sentinel: prefsRaw.silver_sentinel ?? false,
+              aegis_protocol: prefsRaw.aegis_protocol ?? true,
+              ambient_isolation: prefsRaw.ambient_isolation ?? true,
+              coercion_detector: prefsRaw.coercion_detector ?? true,
+              impact_trauma_sync: prefsRaw.impact_trauma_sync ?? true,
             });
           }
         }
