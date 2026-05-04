@@ -5,16 +5,16 @@ import { FriendState } from './types';
 
 const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severity?: string }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
-  const count = 2000;
+  const count = 2200; // Increased density for sharper vertices
   const dummy = useMemo(() => new THREE.Object3D(), []);
-  const smoothedTilt = useRef({ x: 0, y: 0 });
+  
+  // Persistent Momentum Buffer
+  const momentum = useRef({ x: 0, y: 0, energy: 0 });
 
   // --- THE ODRZYWOŁEK KERNEL ---
   // eml(x, y) = e^x - ln(y)
-  // acts as the continuous NAND gate for the system
   const eml = (x: number, y: number) => {
-    // Epsilon guard to prevent informational singularities at y <= 0
-    return Math.exp(x) - Math.log(Math.abs(y) + 0.0000001);
+    return Math.exp(x) - Math.log(Math.abs(y) + 0.000001);
   };
 
   const particles = useMemo(() => {
@@ -23,6 +23,7 @@ const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severi
       temp.push({
         phi: Math.acos(-1 + (2 * i) / count),
         theta: Math.sqrt(count * Math.PI) * Math.acos(-1 + (2 * i) / count),
+        seed: Math.random() * Math.PI,
         id: i
       });
     }
@@ -34,70 +35,89 @@ const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severi
     const time = clock.getElapsedTime();
     if (!meshRef.current) return;
 
-    // 1. HARVEST NATIVE EML INPUTS
+    // 1. HARVEST NATIVE EML INPUTS (Swift Shell)
     const rootStyle = getComputedStyle(document.documentElement);
     const rawPitch = parseFloat(rootStyle.getPropertyValue('--pitch')) || 0;
     const rawRoll = parseFloat(rootStyle.getPropertyValue('--roll')) || 0;
 
-    // E (Energy): Kinetic input | L (Lambda): Core density
-    const E = Math.sqrt(rawPitch ** 2 + rawRoll ** 2);
-    const L = state === 'idle' ? 1.0 : 2.1;
+    // E (Energy): Current Kinetic Impulse
+    const currentE = Math.sqrt(rawPitch ** 2 + rawRoll ** 2);
+    
+    // M (Momentum): Heavy Lag for "Delayed Return" slosh
+    // We use a very low alpha (0.03) to allow the "tips" to stay elongated
+    momentum.current.x = THREE.MathUtils.lerp(momentum.current.x, rawRoll * 8.0, 0.03);
+    momentum.current.y = THREE.MathUtils.lerp(momentum.current.y, -rawPitch * 8.0, 0.03);
+    momentum.current.energy = THREE.MathUtils.lerp(momentum.current.energy, currentE, 0.05);
 
-    // M (Momentum): Lagged slosh vector
-    smoothedTilt.current.x = THREE.MathUtils.lerp(smoothedTilt.current.x, rawRoll * 5, 0.05);
-    smoothedTilt.current.y = THREE.MathUtils.lerp(smoothedTilt.current.y, -rawPitch * 5, 0.05);
-    const M = Math.sqrt(smoothedTilt.current.x ** 2 + smoothedTilt.current.y ** 2);
+    const { x: mX, y: mY, energy: mE } = momentum.current;
+    const totalMomentum = Math.sqrt(mX * mX + mY * mY);
+
+    // L (Lambda): Core Gravitational Floor
+    const Lambda = state === 'idle' ? 1.5 : 2.0;
 
     particles.forEach((p, i) => {
-      // 2. GENERATE PHASES VIA EML NESTING
-      // We synthesize a complex wave field using the universal operator
-      // instead of standard Math.sin/cos.
-      const signalA = eml(Math.sin(p.phi * 3 + time), L);
-      const signalB = eml(Math.cos(p.theta * 2 - time), E + 0.1);
+      // 2. RECURSIVE EML HARMONICS
+      // We nest the EML operator to generate non-linear informational peaks
+      const harmonicA = eml(Math.sin(p.phi * 4 + time), Lambda);
+      const harmonicB = eml(Math.cos(p.theta * 3 - time), mE + 0.5);
       
-      // THE NANOGRAVITY OPERATOR:
-      // We nest the signals to find the informational "tips" (vertices)
-      const potential = eml(signalA, signalB) * 0.001; 
-      
-      // 3. SPATIAL DISPLACEMENT
-      // Lambda acts as our gravitational floor
-      const dynamicR = L + (potential * (E * M + 0.5));
+      // The Phase Transition Signal
+      const signal = eml(harmonicA, harmonicB) * 0.0005;
 
+      // 3. RELAXED SPATIAL DISPLACEMENT
       const uX = Math.cos(p.theta) * Math.sin(p.phi);
       const uY = Math.sin(p.theta) * Math.sin(p.phi);
       const uZ = Math.cos(p.phi);
+
+      // 4. THE SHARP TIP (Directional Elongation)
+      // We project the particle onto the Momentum vector. 
+      // If it aligns, we multiply the EML spike exponentially.
+      const dot = (uX * mX + uY * mY) / (totalMomentum + 0.01);
+      const tipIntensity = Math.pow(Math.max(0, dot), 3) * totalMomentum;
+      
+      // The spike happens when the signal and tipIntensity reach a local maximum
+      const spike = (signal * 5.0) + (tipIntensity * 1.2);
+      
+      // Radius calculation: Gravity (Lambda) + EML spikes
+      const dynamicR = Lambda + spike;
 
       let x = uX * dynamicR;
       let y = uY * dynamicR;
       let z = uZ * dynamicR;
 
-      // 4. MOMENTUM SLOSH (The Wave)
-      // The EML-driven tips align with the physical momentum vector
-      const dot = (uX * smoothedTilt.current.x + uY * smoothedTilt.current.y) / (M + 0.01);
-      const slosh = eml(dot, L) * 0.1;
-      
-      x += (smoothedTilt.current.x * 0.5) + (uX * slosh);
-      y += (smoothedTilt.current.y * 0.5) + (uY * slosh);
+      // 5. GLOBAL SLOSH (Informational Sag)
+      // The entire mass physically displaces toward the gravity vector
+      x += (mX * 0.4);
+      y += (mY * 0.4);
 
-      // 5. PIXELATED JITTER
+      // 6. NANOGRAVITY VORTICITY (The "Twist")
+      if (totalMomentum > 1.5) {
+        const swirl = eml(Math.sin(time * 2 + p.id), 5) * 0.02;
+        x += Math.cos(time + p.phi) * swirl;
+        z += Math.sin(time + p.phi) * swirl;
+      }
+
+      // 7. PIXELATED JITTER (Speaking State)
       if (state === 'speaking') {
-        const jitter = eml(Math.sin(time * 50 + i), 10) * 0.01;
-        x += jitter; y += jitter; z += jitter;
+        const j = eml(Math.sin(time * 60 + i), 12) * 0.015;
+        x += j; y += j; z += j;
       }
 
       dummy.position.set(x, y, z);
       
-      // SCALE: EML-driven tips sharpen (get smaller)
-      const s = state === 'idle' ? 0.06 : (potential > 1.5 ? 0.08 : 0.14);
+      // 8. DYNAMIC SCALE (Sharp vs Dense)
+      // Tips (high dot) get smaller/sharper; Core mass stays chunky
+      const s = state === 'idle' ? 0.055 : (dot > 0.8 ? 0.07 : 0.14);
       dummy.scale.set(s, s, s);
       
+      dummy.rotation.set(time * 0.1, time * 0.2 + p.seed, 0);
       dummy.updateMatrix();
       meshRef.current!.setMatrixAt(i, dummy.matrix);
     });
 
-    // Camera Parallax
-    camera.position.x = THREE.MathUtils.lerp(camera.position.x, rawRoll * 6, 0.1);
-    camera.position.y = THREE.MathUtils.lerp(camera.position.y, rawPitch * 6, 0.1);
+    // 9. SPATIAL PARALLAX (Camera Sync)
+    camera.position.x = THREE.MathUtils.lerp(camera.position.x, rawRoll * 5, 0.1);
+    camera.position.y = THREE.MathUtils.lerp(camera.position.y, rawPitch * 5, 0.1);
     camera.lookAt(0, 0, 0);
 
     meshRef.current.instanceMatrix.needsUpdate = true;
@@ -111,7 +131,7 @@ const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severi
       <meshStandardMaterial 
         color={color} 
         emissive={color} 
-        emissiveIntensity={state === 'speaking' ? 2.0 : 0.7} 
+        emissiveIntensity={state === 'speaking' ? 2.2 : 0.6} 
         toneMapped={false} 
       />
     </instancedMesh>
@@ -122,7 +142,7 @@ const SovereignVisualizer = ({ state, severity }: { state: FriendState, severity
   <div className="w-full h-full absolute inset-0 bg-black overflow-hidden pointer-events-none">
     <Canvas camera={{ position: [0, 0, 10], fov: 40 }} dpr={[1, 2]}>
       <ambientLight intensity={0.2} />
-      <pointLight position={[10, 10, 10]} intensity={2} />
+      <pointLight position={[10, 10, 10]} intensity={2.5} />
       <CubeSphere state={state} severity={severity} />
     </Canvas>
   </div>
