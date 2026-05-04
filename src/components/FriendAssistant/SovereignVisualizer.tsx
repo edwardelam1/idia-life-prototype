@@ -49,7 +49,7 @@ const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severi
 
     // 3. THE SINGULARITY CORE (Lambda)
     // Idle: 1.4 (Tight nucleus) | Active: 2.2 (Expanded field)
-    const Lambda = state === 'idle' ? 1.4 : 2.2;
+    const Lambda = state === 'idle' ? .9 : 2.2;
 
     particles.forEach((p, i) => {
       // 4. THE VIOLENT SPILL (EML JERK PHYSICS)
@@ -81,7 +81,7 @@ const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severi
 
       // 6. NANOGRAVITY VORTICITY
       if (M > 1.8) {
-        const swirl = Math.sin(time * 6 + p.chaos) * (M * 0.06);
+        const swirl = Math.sin(time * 6 + p.chaos) * (M * 0.055);
         x += swirl;
         z += swirl;
       }
