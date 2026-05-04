@@ -109,7 +109,41 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
       setFriendState('idle');
     }
   }, [isVoiceMode]);
+  const startLiveMode = () => {
+  console.log("=== [HARDWARE_SYNC_START] User tapped Orb. Initializing Direct Handshake. ===");
 
+  // 1. IMMEDIATE SYNCHRONOUS UNLOCK (iOS Requirement)
+  const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+  const audioCtx = new AudioContext();
+
+  // 2. Internal Async Wrapper
+  const executeHandshake = async () => {
+    try {
+      console.log("=== [MIC_REQUEST_START] Requesting native stream... ===");
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Warm up the context immediately
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      
+      // We stop this initial stream immediately; the AudioRecorder will pick it up properly
+      stream.getTracks().forEach(t => t.stop());
+
+      console.log("=== [MIC_REQUEST_SUCCESS] Hardware handshake sealed. ===");
+
+      setIsTextMode(false);
+      setIsLiveMode(true);
+      setIsVoiceMode(true);
+      await startVoiceListening();
+
+    } catch (err) {
+      console.error("=== [HARDWARE_SYNC_CRITICAL] iOS Blocked Handshake:", err, "===");
+      alert("Sovereign requires Microphone access. Please check iOS Settings > Safari.");
+    }
+  };
+
+  executeHandshake();
+  console.log("=== [HARDWARE_SYNC_END] Handshake logic dispatched. ===");
+};
   const generateAIResponse = useCallback(async (userText: string) => {
     console.log("=== [AI_CHAT_START] Dispatching to Edge Function: ", userText.substring(0, 30), " ===");
     try {

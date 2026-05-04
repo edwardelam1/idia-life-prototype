@@ -23,69 +23,68 @@ const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severi
   }, [count]);
 
   useFrame((stateContext) => {
-    const { clock, camera } = stateContext;
-    const time = clock.getElapsedTime();
-    if (!meshRef.current) return;
+  const { clock, camera } = stateContext;
+  const time = clock.getElapsedTime();
+  if (!meshRef.current) return;
 
-    // --- NATIVE SPATIAL HARVEST ---
-    const rootStyle = getComputedStyle(document.documentElement);
-    const nativePitch = parseFloat(rootStyle.getPropertyValue('--pitch')) || 0;
-    const nativeRoll = parseFloat(rootStyle.getPropertyValue('--roll')) || 0;
+  // HARVEST NATIVE MOTION
+  const rootStyle = getComputedStyle(document.documentElement);
+  const pitch = parseFloat(rootStyle.getPropertyValue('--pitch')) || 0;
+  const roll = parseFloat(rootStyle.getPropertyValue('--roll')) || 0;
 
-    // Camera tilts to follow device orientation
-    camera.position.x = THREE.MathUtils.lerp(camera.position.x, nativeRoll * 4, 0.08);
-    camera.position.y = THREE.MathUtils.lerp(camera.position.y, nativePitch * 4, 0.08);
-    camera.lookAt(0, 0, 0);
+  // Vector of the tilt (The direction the "liquid" wants to fall)
+  const tiltX = roll * 2.2;
+  const tiltY = -pitch * 2.2;
 
-    particles.forEach((p, i) => {
-      const isIdle = state === 'idle';
-      
-      // 1. FLUID GRAVITY & LAVA LAMP PHYSICS
-      // Base Radius collapses into a solid ball (1.7) when idle
-      const baseRadius = isIdle ? 1.7 : 2.4;
-      
-      // Energy = AI activity + Physical Motion slosh
-      const motionSlosh = (Math.abs(nativePitch) + Math.abs(nativeRoll)) * 0.4;
-      const aiEnergy = isIdle ? 0.02 : (state === 'speaking' ? 0.9 : 0.4);
-      const totalEnergy = aiEnergy + motionSlosh;
+  particles.forEach((p, i) => {
+    // 1. THE GRAVITATIONAL CORE
+    const isIdle = state === 'idle';
+    const targetRadius = isIdle ? 1.7 : 2.5;
 
-      // 2. ASYMMETRIC OCEAN WAVES (Sum of Sines)
-      const wave = Math.sin(p.phi * 2.5 + time * p.speed + nativePitch) * 0.35 +
-                   Math.cos(p.theta * 2 - time * 0.5 + nativeRoll) * 0.2;
-      
-      const r = baseRadius + (wave * totalEnergy);
+    // 2. THE SLOSH PHYSICS (Fluid Displacement)
+    // We calculate how much this specific cube aligns with the tilt direction
+    const cubeDirX = Math.cos(p.theta) * Math.sin(p.phi);
+    const cubeDirY = Math.sin(p.theta) * Math.sin(p.phi);
+    
+    // Dot product: High if the cube is on the "bottom" of the tilt
+    const alignment = (cubeDirX * tiltX) + (cubeDirY * tiltY);
+    const gravitySlosh = Math.max(0, alignment * 1.2); 
 
-      // 3. POURING LOGIC: Flowing from right (x=15) to target sphere position
-      let targetX = Math.cos(p.theta) * Math.sin(p.phi) * r;
-      let targetY = Math.sin(p.theta) * Math.sin(p.phi) * r;
-      let targetZ = Math.cos(p.phi) * r;
+    // 3. LAVA LAMP ENTROPY (Noise)
+    const energy = isIdle ? 0.05 : (state === 'speaking' ? 0.8 : 0.4);
+    const noise = Math.sin(p.phi * 3 + time * p.speed + p.phase) * energy;
+    
+    // Final Radius = Core + Gravity Displacement + Fluid Noise
+    const dynamicR = targetRadius + gravitySlosh + noise;
 
-      if (state === 'listening') {
-        // Individualized staggered entry for "pouring" feel
-        const stagger = (i / count) * 2;
-        const pourTrigger = Math.max(0, Math.min(1, (time % 4) - stagger));
-        targetX = THREE.MathUtils.lerp(15, targetX, pourTrigger);
-      }
+    let x = Math.cos(p.theta) * Math.sin(p.phi) * dynamicR;
+    let y = Math.sin(p.theta) * Math.sin(p.phi) * dynamicR;
+    let z = Math.cos(p.phi) * dynamicR;
 
-      // 4. PIXELATED JITTER: Only when speaking
-      if (state === 'speaking') {
-        const jitter = Math.sin(time * 40 + i) * 0.08;
-        targetX += jitter; targetY += jitter; targetZ += jitter;
-      }
+    // 4. KINETIC INERTIA (Weighted sag)
+    // Manually shift the whole coordinate toward the tilt for "heavy" fluid look
+    x += (roll * 0.4);
+    y -= (pitch * 0.4);
 
-      dummy.position.set(targetX, targetY, targetZ);
-      
-      // 5. SCALE DYNAMICS: Small/Tight (Solid) vs Larger Chunks (Pixelated)
-      const s = isIdle && motionSlosh < 0.1 ? 0.055 : (state === 'speaking' ? 0.16 : 0.1);
-      dummy.scale.set(s, s, s);
-      
-      dummy.rotation.set(time * 0.1, time * 0.2 + p.phase, 0);
-      dummy.updateMatrix();
-      meshRef.current!.setMatrixAt(i, dummy.matrix);
-    });
+    // 5. PIXELATED JITTER
+    if (state === 'speaking') {
+      const jitter = Math.sin(time * 50 + i) * 0.1;
+      x += jitter; y += jitter; z += jitter;
+    }
 
-    meshRef.current.instanceMatrix.needsUpdate = true;
+    dummy.position.set(x, y, z);
+    
+    // Solid look (Idle) vs Loose Chunks (Active)
+    const s = isIdle && Math.abs(alignment) < 0.1 ? 0.055 : 0.12;
+    dummy.scale.set(s, s, s);
+    
+    dummy.rotation.set(time * 0.1, time * 0.2 + p.phase, 0);
+    dummy.updateMatrix();
+    meshRef.current!.setMatrixAt(i, dummy.matrix);
   });
+
+  meshRef.current.instanceMatrix.needsUpdate = true;
+});
 
   const color = severity === 'critical' ? '#ef4444' : (severity === 'important' ? '#f59e0b' : '#14b8a6');
 
