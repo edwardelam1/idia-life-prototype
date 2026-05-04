@@ -10,6 +10,7 @@ import { supabase as typedSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AppleHealthModal from "./AppleHealthModal";
 import AndroidHealthModal from "./AndroidHealthModal";
+import { useWalletBalance } from "@/hooks/useWalletBalance";
 
 // 2. THE ULTIMATE BYPASS:
 // By typing this as 'any' at the root, TypeScript will NEVER evaluate
@@ -30,8 +31,8 @@ interface DataBlocker {
 }
 
 const DataDashboard = () => {
+  const { balance, loading: balanceLoading } = useWalletBalance();
   const [connections, setConnections] = useState<DataBlocker[]>([]);
-  const [totalEarnings, setTotalEarnings] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
   const [lastSyncStatus, setLastSyncStatus] = useState<string>("unknown");
