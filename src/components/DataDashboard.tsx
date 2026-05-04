@@ -275,7 +275,6 @@ const DataDashboard = () => {
               <div>
                 <div className="flex items-center space-x-2 mb-1">
                   <p className="text-teal-100">USDC</p>
-                  {getSyncStatusBadge()}
                 </div>
                 <p className="text-3xl font-bold">
                   ${balanceLoading ? "0.00" : balance.usdc_balance.toFixed(2)}
