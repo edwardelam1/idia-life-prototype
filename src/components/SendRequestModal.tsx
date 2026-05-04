@@ -129,21 +129,27 @@ const SendRequestModal: React.FC<SendRequestModalProps> = ({ isOpen, onClose }) 
           <CardContent className="p-4">
             <div className="flex items-start space-x-3">
               <QrCode className="w-5 h-5 text-blue-600 mt-0.5" />
-              <div className="text-sm text-blue-800">
-                <p className="font-medium">Your Wallet Address:</p>
-                <div className="mt-1 flex items-center space-x-2">
-                  <code className="text-xs bg-blue-100 px-2 py-1 rounded">
-                    IDIA-wallet-***4829
-                  </code>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => copyToClipboard('IDIA-wallet-abc123def456')}
-                    className="h-6 w-6 p-0"
-                  >
-                    <Copy className="w-3 h-3" />
-                  </Button>
-                </div>
+              <div className="text-sm text-blue-800 min-w-0 flex-1">
+                <p className="font-medium">Your USDC Wallet Address:</p>
+                {userWalletAddress ? (
+                  <div className="mt-1 flex items-center space-x-2">
+                    <code className="text-xs bg-blue-100 px-2 py-1 rounded font-mono">
+                      {truncateAddress(userWalletAddress)}
+                    </code>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => copyToClipboard(userWalletAddress)}
+                      className="h-6 w-6 p-0"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="mt-1 text-xs text-blue-700/80">
+                    No wallet linked yet. Create or import one in the Wallet tab.
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>
