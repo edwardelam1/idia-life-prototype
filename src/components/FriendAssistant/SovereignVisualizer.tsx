@@ -1,11 +1,12 @@
 import React, { useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
+import { ContactShadows } from '@react-three/drei'; // Required for the soft floor shadow
 import * as THREE from 'three';
 import { FriendState } from './types';
 
 const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severity?: string }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
-  const count = 2400; 
+  const count = 6000; // Massively increased density for the "Solid Voxel" look
   const dummy = useMemo(() => new THREE.Object3D(), []);
   
   // Retraction Lock: 0.03 Alpha for that perfect honey-like return
@@ -47,8 +48,8 @@ const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severi
     const M = Math.sqrt(mX * mX + mY * mY);
 
     // 3. THE SINGULARITY CORE (Lambda)
-    // Idle: 0.6 (Ultra-compressed nucleus) | Active: 2.2 (Expanded field)
-    const Lambda = state === 'idle' ? 0.6 : 2.2;
+    // Idle: 1.4 (Tight nucleus) | Active: 2.2 (Expanded field)
+    const Lambda = state === 'idle' ? 1.4 : 2.2;
 
     particles.forEach((p, i) => {
       // 4. THE VIOLENT SPILL (EML JERK PHYSICS)
@@ -94,17 +95,16 @@ const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severi
       dummy.position.set(x, y, z);
       
       // 8. DYNAMIC SCALE (SINGULARITY COMPRESSION)
-      // When at the nucleus (idle), cubes are larger (0.1) and radius is small (0.6)
-      // This causes them to overlap and form a "Perfect Solid Ball"
+      // Scaled down massively for high-density count.
       const distFromCenter = Math.sqrt(x*x + y*y + z*z);
-      let s = 0.1; // Default
+      let s = 0.055; // Default chunk size
       
       if (state === 'idle') {
-        s = 0.11; // Overlap for solid effect
+        s = 0.06; // Highly overlapping for solid perfect ball
       } else if (distFromCenter > 4.5) {
-        s = 0.065; // Needle-sharp tips
+        s = 0.035; // Razor-sharp filament tips
       } else {
-        s = 0.14; // Standard data chunks
+        s = 0.07; // Inflated data chunks during spill
       }
       
       dummy.scale.set(s, s, s);
@@ -122,27 +122,51 @@ const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severi
     meshRef.current.instanceMatrix.needsUpdate = true;
   });
 
-  const color = severity === 'critical' ? '#ef4444' : (severity === 'important' ? '#f59e0b' : '#14b8a6');
+  // Color Mapping: Royal Blue default, supporting critical/important states
+  const getOrbColor = () => {
+    if (severity === 'critical') return '#ef4444'; // Red
+    if (severity === 'important') return '#f59e0b'; // Amber
+    return '#2563EB'; // Royal Blue
+  };
+
+  const orbColor = getOrbColor();
 
   return (
     <instancedMesh ref={meshRef} args={[null as any, null as any, count]}>
       <boxGeometry args={[1, 1, 1]} />
       <meshStandardMaterial 
-        color={color} 
-        emissive={color} 
-        emissiveIntensity={state === 'speaking' ? 2.5 : 0.6} 
-        toneMapped={false} 
+        color={orbColor} 
+        emissive={orbColor} 
+        // Emissive intensity lowered to prevent "blowing out" against the white background
+        emissiveIntensity={state === 'speaking' ? 0.8 : 0.2} 
+        roughness={0.4}
+        metalness={0.1}
+        toneMapped={true} 
       />
     </instancedMesh>
   );
 };
 
 const SovereignVisualizer = ({ state, severity }: { state: FriendState, severity?: string }) => (
-  <div className="w-full h-full absolute inset-0 bg-black overflow-hidden pointer-events-none">
+  // Tailwind handles light/dark mode natively here: bg-white for light, dark:bg-black for dark mode
+  <div className="w-full h-full absolute inset-0 bg-white dark:bg-black overflow-hidden pointer-events-none transition-colors duration-500">
     <Canvas camera={{ position: [0, 0, 10], fov: 38 }} dpr={[1, 2]}>
-      <ambientLight intensity={0.2} />
-      <pointLight position={[10, 10, 10]} intensity={2.5} />
+      {/* Lighting adjusted to support a bright background */}
+      <ambientLight intensity={0.6} />
+      <directionalLight position={[10, 10, 10]} intensity={1.5} color="#ffffff" />
+      <pointLight position={[-10, -10, -10]} intensity={0.5} />
+      
       <CubeSphere state={state} severity={severity} />
+      
+      {/* SOFT DROP SHADOW: perfectly anchors the sphere to the "floor" */}
+      <ContactShadows 
+        position={[0, -2.8, 0]} 
+        opacity={0.4} 
+        scale={10} 
+        blur={2.5} 
+        far={4} 
+        color="#000000" 
+      />
     </Canvas>
   </div>
 );
