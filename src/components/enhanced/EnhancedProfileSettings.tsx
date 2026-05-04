@@ -194,22 +194,12 @@ const EnhancedProfileSettings: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className={cardBody}>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">KYC Status</p>
-              <div>{getKycStatusBadge(profile.kyc_status)}</div>
-              {profile.kyc_status === "pending" && (
-                <p className="text-xs text-muted-foreground">Complete verification to unlock all features.</p>
-              )}
-            </div>
-            <div className="space-y-1 text-right">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground flex items-center justify-end gap-1">
-                <CreditCard className="w-3 h-3" /> Trust Score
-              </p>
-              <p className="text-3xl font-semibold tracking-tight">
-                {profile?.trust_score !== null && profile?.trust_score !== undefined ? profile.trust_score : "—"}
-              </p>
-            </div>
+          <div className="space-y-1">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">KYC Status</p>
+            <div>{getKycStatusBadge(profile.kyc_status)}</div>
+            {profile.kyc_status === "pending" && (
+              <p className="text-xs text-muted-foreground">Complete verification to unlock all features.</p>
+            )}
           </div>
         </CardContent>
       </Card>
