@@ -4,10 +4,8 @@ import CollapsedAvatar from './CollapsedAvatar';
 import ExpandedChat from './ExpandedChat';
 import SovereignVisualizer from './SovereignVisualizer'; 
 import { FriendState, Message } from './types';
-import { AudioRecorder } from '@/utils/AudioRecorder';
 import { getContextualGreeting } from './orbUtils';
 import { useSyllableBlinking } from './useSyllableBlinking';
-import { eventTracker } from '@/utils/EventTracker';
 import { X, Keyboard, Mic, MicOff } from 'lucide-react'; 
 import { Badge } from "@/components/ui/badge";
 import { useProfile } from "@/hooks/useProfile";
@@ -49,9 +47,10 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
   const [isListening, setIsListening] = useState(false);
   const [isVoiceMode, setIsVoiceMode] = useState(false);
   
-  const audioRecorderRef = useRef<AudioRecorder | null>(null);
-  
-  // GLOBAL AUDIO CONTEXT REF (Critical for iOS Safari)
+  // NATIVE MEDIA RECORDER REFS (Replacing AudioRecorder.ts)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const activeStreamRef = useRef<MediaStream | null>(null);
   const globalAudioCtxRef = useRef<AudioContext | any>(null);
 
   const assistantName = (profile as any)?.ai_assistant_name || "Friend";
@@ -134,12 +133,15 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
     }
   }, [isVoiceMode, messages.length, trigger, speakText, profile?.id]);
 
-  const processVoiceInput = useCallback(async (audioData: string) => {
+  const processVoiceInput = useCallback(async (base64Audio: string) => {
     console.log("=== [VOICE_IN_START] Processing transcription ===");
     try {
       setFriendState('thinking');
       setIsListening(false);
-      const { data, error } = await supabase.functions.invoke('voice-to-text', { body: { audio: audioData } });
+      
+      const { data, error } = await supabase.functions.invoke('voice-to-text', { 
+        body: { audio: base64Audio } 
+      });
       
       if (error) throw error;
       
@@ -159,13 +161,45 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
     }
   }, [isVoiceMode, generateAIResponse]);
 
+  // --- NATIVE MEDIA RECORDER IMPLEMENTATION ---
   const startVoiceListening = async () => {
     console.log("=== [LISTENER_START] Activating local hardware mic ===");
     try {
+      // Re-use active stream if it exists, otherwise request a new one
+      let stream = activeStreamRef.current;
+      if (!stream) {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        activeStreamRef.current = stream;
+      }
+
+      // Initialize MediaRecorder
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        console.log("=== [LISTENER_STOP] Compiling audio buffer ===");
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' }); // webm is standard for STT
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = () => {
+          const base64data = (reader.result as string).split(',')[1];
+          if (base64data) {
+             processVoiceInput(base64data);
+          }
+        };
+      };
+
+      mediaRecorder.start();
       setIsListening(true);
       setFriendState('listening');
-      audioRecorderRef.current = new AudioRecorder(processVoiceInput, () => {});
-      await audioRecorderRef.current.start();
+
     } catch (e) {
       console.error("=== [LISTENER_ERROR] Hardware access denied ===", e);
       setIsListening(false);
@@ -175,13 +209,21 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
   };
 
   const stopVoiceListening = () => {
-    console.log("=== [LISTENER_STOP] Deactivating hardware mic ===");
-    if (audioRecorderRef.current) {
-      audioRecorderRef.current.stop();
-      audioRecorderRef.current = null;
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
     }
+    // We intentionally keep the stream "hot" in activeStreamRef.current 
+    // to prevent iOS from requiring permission again during the same session.
     setIsListening(false);
     setFriendState('idle');
+  };
+
+  const fullyShutdownMic = () => {
+    stopVoiceListening();
+    if (activeStreamRef.current) {
+      activeStreamRef.current.getTracks().forEach(track => track.stop());
+      activeStreamRef.current = null;
+    }
   };
 
   // --- THE SYNCHRONOUS TRAPDOOR ---
@@ -198,8 +240,7 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
   };
 
   const startLiveMode = () => {
-    // 1. OPEN THE VISUALIZER UI IMMEDIATELY 
-    // This bypasses the iOS iframe failure, ensuring the black screen and sphere load regardless of mic permissions.
+    // 1. OPEN THE VISUALIZER UI IMMEDIATELY
     setIsTextMode(false);
     setIsLiveMode(true);
     setIsVisible(true);
@@ -207,7 +248,7 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
     // 2. WAKE UP AUDIO ENGINE SYNCHRONOUSLY
     initHardwareSync();
 
-    // 3. ATTEMPT TO CONNECT MIC IN BACKGROUND
+    // 3. ATTEMPT TO CONNECT MIC
     const bootSequence = async () => {
       try {
         setIsVoiceMode(true);
@@ -216,7 +257,6 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
         console.error("=== [MIC_CRITICAL_FAIL] iOS rejected the stream:", err);
         setIsVoiceMode(false);
         setIsListening(false);
-        alert("Sovereign Live requires Microphone access. Note: iOS Safari blocks microphones inside embedded previews. Open the standalone app URL to test voice.");
       }
     };
 
@@ -226,23 +266,14 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
   const handleVoiceToggle = () => {
     initHardwareSync();
 
-    const toggleSequence = async () => {
-      if (isVoiceMode) {
-        setIsVoiceMode(false);
-        stopVoiceListening();
-      } else {
-        try {
-          setIsVoiceMode(true);
-          await startVoiceListening();
-        } catch (err) {
-          console.error("=== [MIC_CRITICAL_FAIL] Cannot re-engage stream:", err);
-          setIsVoiceMode(false);
-          setIsListening(false);
-        }
-      }
-    };
-
-    toggleSequence();
+    if (isVoiceMode) {
+      setIsVoiceMode(false);
+      // When the user manually mutes, we fully release the hardware
+      fullyShutdownMic();
+    } else {
+      setIsVoiceMode(true);
+      startVoiceListening();
+    }
   };
 
   const handleSendMessage = async () => {
@@ -264,13 +295,13 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
       setIsLiveMode(false);
       setIsTextMode(true);
       setIsVoiceMode(false);
-      stopVoiceListening();
+      fullyShutdownMic();
     },
     close: () => {
       setIsLiveMode(false);
       setIsTextMode(false);
       setIsVoiceMode(false);
-      stopVoiceListening();
+      fullyShutdownMic();
       setFriendState('idle');
     },
     isVisible,
