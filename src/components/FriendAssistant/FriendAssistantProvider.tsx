@@ -80,18 +80,39 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
         body: { text, voice: '9BWtsMINqrJLrRacOk9x' },
       });
       if (error) throw error;
+      
       if (data?.audioContent) {
-        const audio = new Audio(`data:audio/mpeg;base64,${data.audioContent}`);
-        audio.onended = () => {
+        // 1. Grab the hardware-unlocked Audio Context
+        const audioCtx = globalAudioCtxRef.current || new (window.AudioContext || (window as any).webkitAudioContext)();
+        if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+        // 2. Convert Base64 to Raw Binary Buffer
+        const binaryString = window.atob(data.audioContent);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        // 3. Decode and Route to Hardware Speakers
+        const audioBuffer = await audioCtx.decodeAudioData(bytes.buffer);
+        const source = audioCtx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioCtx.destination);
+
+        // 4. Handle Lifecycle
+        source.onended = () => {
           console.log("=== [VOICE_OUT_END] Playback completed ===");
           if (isVoiceMode) {
+            console.log("=== [VOICE_LOOP] Recycling listener context ===");
             setTimeout(() => startVoiceListening(), 400);
           } else {
             setFriendState('idle');
           }
         };
-        audio.volume = 0.8;
-        await audio.play();
+
+        // Fire the audio
+        source.start(0);
       } else {
         setFriendState('idle');
       }
