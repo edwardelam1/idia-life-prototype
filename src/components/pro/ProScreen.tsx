@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { useSubscription } from "@/hooks/useSubscription";
 import ProPaywall from "./ProPaywall";
 import HRIDashboard from "./HRIDashboard";
 import CPMDashboard from "./CPMDashboard";
 import PureAlphaDashboard from "./PureAlphaDashboard";
+import SovereignAuth from "./SovereignAuth";
 
 const ProScreen = () => {
   const { tier, loading, subscribe } = useSubscription();
+  const [authVerified, setAuthVerified] = useState(false);
 
   if (loading) {
     return (
@@ -15,12 +18,14 @@ const ProScreen = () => {
     );
   }
 
-  // Mask data if no active subscription exists in storage/DB
-  // Note: We are currently defaulting tier to 'pro' in the hook to bypass this
+  // Sovereign Auth gates the entire Pro tab — runs before paywall and any dashboard.
+  if (!authVerified) {
+    return <SovereignAuth onVerified={() => setAuthVerified(true)} />;
+  }
+
   const isPaid = !!tier;
   const activeTier = tier || "pro";
 
-  // Passing currentTier fixes TS2741
   if (!tier) {
     return <ProPaywall currentTier={tier} onSubscribe={subscribe} />;
   }
