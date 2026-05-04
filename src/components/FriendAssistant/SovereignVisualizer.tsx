@@ -7,6 +7,9 @@ const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severi
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const count = 2000;
   const dummy = useMemo(() => new THREE.Object3D(), []);
+  
+  // Persistence ref to track "Momentum" and "Delayed Return"
+  const smoothedTilt = useRef({ x: 0, y: 0 });
 
   const particles = useMemo(() => {
     const temp = [];
@@ -15,76 +18,88 @@ const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severi
         phi: Math.acos(-1 + (2 * i) / count),
         theta: Math.sqrt(count * Math.PI) * Math.acos(-1 + (2 * i) / count),
         phase: Math.random() * Math.PI * 2,
-        speed: 0.15 + Math.random() * 0.4,
-        id: i
+        speed: 0.1 + Math.random() * 0.3, // Slowed down for fluid feel
+        driftOffset: Math.random() * 2.0
       });
     }
     return temp;
   }, [count]);
 
   useFrame((stateContext) => {
-  const { clock, camera } = stateContext;
-  const time = clock.getElapsedTime();
-  if (!meshRef.current) return;
+    const { clock, camera } = stateContext;
+    const time = clock.getElapsedTime();
+    if (!meshRef.current) return;
 
-  // HARVEST NATIVE MOTION
-  const rootStyle = getComputedStyle(document.documentElement);
-  const pitch = parseFloat(rootStyle.getPropertyValue('--pitch')) || 0;
-  const roll = parseFloat(rootStyle.getPropertyValue('--roll')) || 0;
+    // 1. HARVEST & LAG NATIVE MOTION
+    const rootStyle = getComputedStyle(document.documentElement);
+    const rawPitch = parseFloat(rootStyle.getPropertyValue('--pitch')) || 0;
+    const rawRoll = parseFloat(rootStyle.getPropertyValue('--roll')) || 0;
 
-  // Vector of the tilt (The direction the "liquid" wants to fall)
-  const tiltX = roll * 2.2;
-  const tiltY = -pitch * 2.2;
+    // DEIA PROTOCOL: We apply a heavy lerp (0.04) to create "Delayed Return"
+    // This makes the cubes slosh and STAY there for a moment before coming home.
+    smoothedTilt.current.x = THREE.MathUtils.lerp(smoothedTilt.current.x, rawRoll * 6.0, 0.04);
+    smoothedTilt.current.y = THREE.MathUtils.lerp(smoothedTilt.current.y, -rawPitch * 6.0, 0.04);
 
-  particles.forEach((p, i) => {
-    // 1. THE GRAVITATIONAL CORE
-    const isIdle = state === 'idle';
-    const targetRadius = isIdle ? 1.7 : 2.5;
+    const tiltX = smoothedTilt.current.x;
+    const tiltY = smoothedTilt.current.y;
 
-    // 2. THE SLOSH PHYSICS (Fluid Displacement)
-    // We calculate how much this specific cube aligns with the tilt direction
-    const cubeDirX = Math.cos(p.theta) * Math.sin(p.phi);
-    const cubeDirY = Math.sin(p.theta) * Math.sin(p.phi);
-    
-    // Dot product: High if the cube is on the "bottom" of the tilt
-    const alignment = (cubeDirX * tiltX) + (cubeDirY * tiltY);
-    const gravitySlosh = Math.max(0, alignment * 1.2); 
+    particles.forEach((p, i) => {
+      const isIdle = state === 'idle';
+      
+      // 2. RELAXED GRAVITATIONAL CORE
+      // targetRadius is our "Return to Center" point.
+      const targetRadius = isIdle ? 1.6 : 2.4;
 
-    // 3. LAVA LAMP ENTROPY (Noise)
-    const energy = isIdle ? 0.05 : (state === 'speaking' ? 0.8 : 0.4);
-    const noise = Math.sin(p.phi * 3 + time * p.speed + p.phase) * energy;
-    
-    // Final Radius = Core + Gravity Displacement + Fluid Noise
-    const dynamicR = targetRadius + gravitySlosh + noise;
+      // 3. EXPANDED SLOSH PHYSICS (High-Give Fluid)
+      const cubeDirX = Math.cos(p.theta) * Math.sin(p.phi);
+      const cubeDirY = Math.sin(p.theta) * Math.sin(p.phi);
+      
+      // Dot product for direction-based expansion
+      const alignment = (cubeDirX * tiltX) + (cubeDirY * tiltY);
+      
+      // RELAXED CONSTRAINT: Increased multiplier (from 1.2 to 4.5) 
+      // This allows the cubes to escape the "ball" look and become organic blobs.
+      const gravitySlosh = Math.max(-0.5, alignment * 4.5); 
 
-    let x = Math.cos(p.theta) * Math.sin(p.phi) * dynamicR;
-    let y = Math.sin(p.theta) * Math.sin(p.phi) * dynamicR;
-    let z = Math.cos(p.phi) * dynamicR;
+      // 4. LAVA LAMP TURBULENCE (Delayed Return Noise)
+      const energy = isIdle ? 0.08 : (state === 'speaking' ? 1.2 : 0.6);
+      const noise = Math.sin(p.phi * 2 + time * p.speed + p.phase) * energy;
+      
+      // 5. THE "DRIFT" (Delayed recovery)
+      // Adds a rhythmic pulse that keeps them from settling too quickly.
+      const drift = Math.sin(time * 0.3 + p.driftOffset) * (alignment * 0.5);
 
-    // 4. KINETIC INERTIA (Weighted sag)
-    // Manually shift the whole coordinate toward the tilt for "heavy" fluid look
-    x += (roll * 0.4);
-    y -= (pitch * 0.4);
+      const dynamicR = targetRadius + gravitySlosh + noise + drift;
 
-    // 5. PIXELATED JITTER
-    if (state === 'speaking') {
-      const jitter = Math.sin(time * 50 + i) * 0.1;
-      x += jitter; y += jitter; z += jitter;
-    }
+      let x = Math.cos(p.theta) * Math.sin(p.phi) * dynamicR;
+      let y = Math.sin(p.theta) * Math.sin(p.phi) * dynamicR;
+      let z = Math.cos(p.phi) * dynamicR;
 
-    dummy.position.set(x, y, z);
-    
-    // Solid look (Idle) vs Loose Chunks (Active)
-    const s = isIdle && Math.abs(alignment) < 0.1 ? 0.055 : 0.12;
-    dummy.scale.set(s, s, s);
-    
-    dummy.rotation.set(time * 0.1, time * 0.2 + p.phase, 0);
-    dummy.updateMatrix();
-    meshRef.current!.setMatrixAt(i, dummy.matrix);
+      // 6. MASSIVE SAG (Spatial Weight)
+      // This physically pulls the entire cloud in the direction of the tilt.
+      x += (tiltX * 0.3);
+      y += (tiltY * 0.3);
+
+      // 7. PIXELATED JITTER (Active State only)
+      if (state === 'speaking') {
+        const jitter = Math.sin(time * 60 + i) * 0.12;
+        x += jitter; y += jitter; z += jitter;
+      }
+
+      dummy.position.set(x, y, z);
+      
+      // Dynamic Scaling based on distance from core (Oil drops merging)
+      const distFromCenter = Math.sqrt(x*x + y*y + z*z);
+      const s = isIdle ? 0.05 : (distFromCenter > 3.0 ? 0.16 : 0.1);
+      dummy.scale.set(s, s, s);
+      
+      dummy.rotation.set(time * 0.05, time * 0.1 + p.phase, 0);
+      dummy.updateMatrix();
+      meshRef.current!.setMatrixAt(i, dummy.matrix);
+    });
+
+    meshRef.current.instanceMatrix.needsUpdate = true;
   });
-
-  meshRef.current.instanceMatrix.needsUpdate = true;
-});
 
   const color = severity === 'critical' ? '#ef4444' : (severity === 'important' ? '#f59e0b' : '#14b8a6');
 
@@ -94,7 +109,7 @@ const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severi
       <meshStandardMaterial 
         color={color} 
         emissive={color} 
-        emissiveIntensity={state === 'speaking' ? 1.8 : 0.7} 
+        emissiveIntensity={state === 'speaking' ? 2.0 : 0.8} 
         toneMapped={false} 
       />
     </instancedMesh>
@@ -103,9 +118,9 @@ const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severi
 
 const SovereignVisualizer = ({ state, severity }: { state: FriendState, severity?: string }) => (
   <div className="w-full h-full absolute inset-0 bg-black overflow-hidden pointer-events-none">
-    <Canvas camera={{ position: [0, 0, 10], fov: 38 }} dpr={[1, 2]}>
+    <Canvas camera={{ position: [0, 0, 10], fov: 42 }} dpr={[1, 2]}>
       <ambientLight intensity={0.2} />
-      <pointLight position={[10, 10, 10]} intensity={1.5} />
+      <pointLight position={[10, 10, 10]} intensity={2} />
       <CubeSphere state={state} severity={severity} />
     </Canvas>
   </div>
