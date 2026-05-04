@@ -115,9 +115,13 @@ export const useWalletBalance = () => {
         console.error("🚨 [FETCH_BALANCE_LOG] ERROR_START: Supabase 'wallets' query failed.");
         console.error("🚨 [FETCH_BALANCE_LOG] ERROR_DETAILS: Check Database connection.", walletError.message);
         console.error("🚨 [FETCH_BALANCE_LOG] ERROR_END: Supabase query terminated.");
+        setFiatProvisioned(false);
       } else if (walletData) {
         fiatBalance = Number(walletData.cash_balance) || 0;
         tokenBalance = Number(walletData.idia_token_balance) || 0;
+        setFiatProvisioned(true);
+      } else {
+        setFiatProvisioned(false);
       }
 
       // 2. Fetch Global Vault Identity from Profiles
