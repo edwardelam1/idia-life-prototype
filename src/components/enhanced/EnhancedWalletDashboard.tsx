@@ -562,7 +562,13 @@ const EnhancedWalletDashboard: React.FC = () => {
 
       <NFCPayrollModal isOpen={showNFCModal} onClose={() => setShowNFCModal(false)} />
       <SendRequestModal isOpen={showSendRequestModal} onClose={() => setShowSendRequestModal(false)} />
-      <AddFundsModal isOpen={showAddFundsModal} onClose={() => setShowAddFundsModal(false)} />
+      <AddFundsModal
+        isOpen={showAddFundsModal}
+        onClose={() => setShowAddFundsModal(false)}
+        fiatEnabled={fiatProvisioned}
+        usdcEnabled={usdcProvisioned}
+        usdcAddress={usdcAddress || globalWalletAddress || nativeWallet?.address || null}
+      />
       
       {/* Type error bypassed cleanly by letting useWallet react natively */}
       <WalletSetupModal 
