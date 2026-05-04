@@ -1,45 +1,51 @@
-# Fix Avatar Upload — Persist & Reflect in Header
+## Goals
 
-## Root cause
+1. **Request Money screen** — replace the hard-coded `IDIA-wallet-***4829` mock with the user's real USDC wallet address.
+2. **Wallet → Security tab** — remove the disconnected "Authenticate Identity" button and replace it with a "Recovery Phrase" (pass phrase) reveal section, alongside the existing wallet address.
 
-Three bugs prevent the uploaded photo from replacing the EE initials:
+No database changes. No new dependencies. Pure UI/wiring work.
 
-1. **No `avatars` storage bucket exists.** The migrations only create `deed-evidence`, `business-kyb-docs`, and `business-logos`. `supabase.storage.from("avatars").upload(...)` therefore fails — but the error is caught and only logged, so the UI shows no failure.
-2. **No RLS policies on `storage.objects` for avatars.** Even after the bucket is created, authenticated users need INSERT/UPDATE/SELECT policies scoped to their own folder.
-3. **`updateProfile` uses `.update().single()` on a row that may not exist** for the current user. With no profile row, the update affects 0 rows and `.single()` throws — `avatar_url` is never persisted, so `Header` keeps rendering the initials fallback.
+---
 
-A secondary issue: the upload writes to `avatars/${userId}.${ext}` inside the `avatars` bucket, producing the path `avatars/avatars/<file>`. The leading `avatars/` folder must be removed so the public URL resolves and so RLS folder-ownership checks (`(storage.foldername(name))[1] = auth.uid()::text`) work.
+## 1. SendRequestModal — real wallet address
 
-## Changes
+**File:** `src/components/SendRequestModal.tsx`
 
-### 1. Migration — create `avatars` bucket + RLS
+- Pull the live wallet address using the same source as the Wallet dashboard:
+  - `useSovereignWallet(profile?.id)` → `globalWalletAddress`
+  - Fallback to `useWallet()` → `wallet?.address` (native local address)
+  - Use `useEnhancedProfile()` to get the stable user id
+- Replace the hard-coded `IDIA-wallet-***4829` label and the `IDIA-wallet-abc123def456` clipboard payload with the resolved address.
+- Truncate for display (e.g. `0x1234…ABCD`) but copy the full address.
+- If no address yet (wallet not provisioned), show a small "No wallet linked yet" hint instead of the QR/copy block.
+- Keep existing copy-to-clipboard toast behavior.
 
-New SQL migration:
+## 2. EnhancedWalletDashboard — Security tab cleanup
 
-- `INSERT INTO storage.buckets (id, name, public) VALUES ('avatars','avatars',true) ON CONFLICT DO NOTHING;`
-- Policies on `storage.objects` for bucket `avatars`:
-  - Public SELECT (anyone can read; bucket is public so the Header `<img>` resolves).
-  - Authenticated INSERT/UPDATE/DELETE restricted to `bucket_id='avatars' AND (storage.foldername(name))[1] = auth.uid()::text`.
+**File:** `src/components/enhanced/EnhancedWalletDashboard.tsx` (lines ~500–531)
 
-Avatar URL on `profiles` is already permitted by the Sovereign PII memory ("avatar" is non-sensitive metadata), so no new PII concerns.
+In the `isProvisioned` branch of the Security tab:
 
-### 2. `src/hooks/useEnhancedProfile.ts` — `uploadAvatar`
+- **Remove** the `Authenticate Identity` button (the simulated `AUTH_HANDSHAKE` block).
+- **Keep** the wallet address card ("Global Vault Attached" + `displayAddress`).
+- **Add** a new "Recovery Phrase" subsection beneath it with:
+  - A short description: "Your 12-word phrase is the only way to restore this wallet. Never share it."
+  - A primary button **"Reveal Recovery Phrase"** that opens the existing `WalletSetupModal` in `view-seed` mode (the modal already supports this — `setSetupMode('view-seed'); setIsSetupModalOpen(true);`).
+  - This reuses the existing seed-reveal flow used elsewhere in the app, so no new reveal UI is built.
+- Remove the now-unused `Fingerprint` import if no other reference remains.
 
-- Store under `${user.id}/avatar.${ext}` (user-id folder, single file per user, `upsert: true`). Drop the `avatars/` prefix from the path.
-- Append a cache-busting query param (`?t=${Date.now()}`) to the public URL so browsers immediately swap the image instead of serving the cached old one.
-- Surface a toast on success/failure (currently silent on failure — the user sees nothing happen).
+## Technical notes
 
-### 3. `src/hooks/useEnhancedProfile.ts` — `updateProfile`
+- `WalletSetupModal` already accepts `mode: 'create' | 'import' | 'view-seed'` and handles loading + display of the seed phrase via `getSeedPhrase()` — already wired in `EnhancedWalletDashboard`.
+- `useSovereignWallet` returns the canonical EVM/USDC address persisted to Supabase; `useWallet` provides the native (Secure Enclave) fallback. Same precedence as the Security tab uses today.
+- No PII or schema changes. No RLS impact. No edge functions touched.
 
-- Replace `.update(...).eq("user_id", user.id).select().single()` with `.upsert({ user_id: user.id, ... }, { onConflict: "user_id" }).select().single()` so the avatar (and other edits) persist even when the profile row hasn't been created yet.
-- After a successful upsert, merge returned row into local `profile` state (already done) — guarantees Header re-renders with the new `avatar_url` because `useEnhancedProfile` is shared by `EnhancedProfileSettings` and `Header`.
+## Files to edit
 
-### 4. (No changes needed) Header & Settings render
-
-`Header.tsx` already reads `profile.avatar_url` via `useEnhancedProfile` and falls back to initials only when null. Once the URL persists, both the header avatar and the settings avatar update automatically.
+- `src/components/SendRequestModal.tsx`
+- `src/components/enhanced/EnhancedWalletDashboard.tsx`
 
 ## Out of scope
 
-- No changes to nav, other tabs, FriendOrb, NotificationBell, or any unrelated profile fields.
-- No PII columns added — `avatar_url` is already on `profiles`.
-- No image cropping/resizing pipeline; the uploaded image is used as-is in a circular `<Avatar>`.
+- Generating QR codes for the address (current screen only shows a QR icon, not a real QR).
+- Any change to wallet creation, import, or seed storage logic.

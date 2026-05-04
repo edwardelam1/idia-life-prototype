@@ -6,17 +6,23 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { 
-  ArrowUpRight, 
-  ArrowDownLeft, 
-  User, 
+import {
+  ArrowUpRight,
+  ArrowDownLeft,
+  User,
   DollarSign,
   QrCode,
   Copy,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useEnhancedProfile } from '@/hooks/useEnhancedProfile';
+import { useSovereignWallet } from '@/hooks/useSovereignWallet';
+import { useWallet } from '@/hooks/useWallet';
+
+const truncateAddress = (addr: string) =>
+  addr.length > 14 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr;
 
 interface SendRequestModalProps {
   isOpen: boolean;
