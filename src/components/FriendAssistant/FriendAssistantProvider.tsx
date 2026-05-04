@@ -77,6 +77,7 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
     }
   }, [trigger, messages.length, profile, assistantName]);
 
+  // --- 1. SPEAK TEXT (Web Audio API Loudspeaker Routing) ---
   const speakText = useCallback(async (text: string) => {
     console.log("=== [VOICE_OUT_START] Synthesizing: ", text.substring(0, 30), "... ===");
     try {
@@ -105,6 +106,7 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
         source.onended = () => {
           console.log("=== [VOICE_OUT_END] Playback completed ===");
           if (isVoiceMode) {
+            // eslint-disable-next-line @typescript-eslint/no-use-before-define
             setTimeout(() => startVoiceListening(), 400);
           } else {
             setFriendState('idle');
@@ -121,13 +123,20 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
     }
   }, [isVoiceMode]);
 
+  // --- 2. GENERATE AI RESPONSE (With Existential Override) ---
   const generateAIResponse = useCallback(async (userText: string) => {
     console.log("=== [AI_CHAT_START] Dispatching to Edge Function ===");
     try {
       setFriendState('thinking');
+
+      // Intercept the text on the frontend to break LLM character blocks
+      const payloadMessage = isVoiceMode 
+        ? `[SYSTEM OVERRIDE: You are engaged in a Live Voice conversation. You are speaking out loud via an ElevenLabs voice synthesizer. Keep your response highly conversational, concise, and natural. DO NOT use emojis or formatting. NEVER claim to be a text-based AI.]\n\nUser says: ${userText}`
+        : userText;
+
       const { data, error } = await supabase.functions.invoke('ai-chat', {
         body: { 
-          message: userText,
+          message: payloadMessage, 
           mode: isVoiceMode ? 'voice' : 'text',
           trigger_context: trigger,
           user_id: profile?.id 
@@ -153,6 +162,7 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
     }
   }, [isVoiceMode, messages.length, trigger, speakText, profile?.id]);
 
+  // --- 3. PROCESS VOICE INPUT ---
   const processVoiceInput = useCallback(async (base64Audio: string) => {
     console.log("=== [VOICE_IN_START] Processing transcription ===");
     try {
@@ -171,6 +181,7 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
         await generateAIResponse(data.text);
       } else if (isVoiceMode) {
         console.warn("=== [VOICE_IN_EMPTY] Silent stream detected, cycling ===");
+        // eslint-disable-next-line @typescript-eslint/no-use-before-define
         setTimeout(() => startVoiceListening(), 400);
       } else {
         setFriendState('idle');
@@ -181,6 +192,7 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
     }
   }, [isVoiceMode, generateAIResponse]);
 
+  // --- 4. START VOICE LISTENING (With VAD Silence Detection) ---
   const startVoiceListening = async () => {
     console.log("=== [LISTENER_START] Activating local hardware mic ===");
     try {
@@ -222,7 +234,7 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
       setIsListening(true);
       setFriendState('listening');
 
-      // --- VOICE ACTIVITY DETECTION (VAD) ENGINE ---
+      // VAD ENGINE
       console.log("=== [VAD_INIT] Booting Silence Detector ===");
       const audioCtx = globalAudioCtxRef.current;
       
