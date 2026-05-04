@@ -5,10 +5,10 @@ import { FriendState } from './types';
 
 const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severity?: string }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
-  const count = 2400; // Increased density for high-velocity "spray"
+  const count = 2400; 
   const dummy = useMemo(() => new THREE.Object3D(), []);
   
-  // Persistence for momentum and the "Burst" trigger
+  // Retraction Lock: 0.03 Alpha for that perfect honey-like return
   const momentum = useRef({ x: 0, y: 0, lastE: 0 });
 
   // --- THE ODRZYWOŁEK KERNEL ---
@@ -22,7 +22,7 @@ const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severi
       temp.push({
         phi: Math.acos(-1 + (2 * i) / count),
         theta: Math.sqrt(count * Math.PI) * Math.acos(-1 + (2 * i) / count),
-        chaos: Math.random() * 10.0, // Unique particle "weight"
+        chaos: Math.random() * 12.0, 
         id: i
       });
     }
@@ -39,79 +39,84 @@ const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severi
     const rawPitch = parseFloat(rootStyle.getPropertyValue('--pitch')) || 0;
     const rawRoll = parseFloat(rootStyle.getPropertyValue('--roll')) || 0;
 
-    const E = Math.sqrt(rawPitch ** 2 + rawRoll ** 2);
-    
-    // RETRACTION LOCK: Keeping the 0.03 lerp you requested for the "come home" phase
-    momentum.current.x = THREE.MathUtils.lerp(momentum.current.x, rawRoll * 9.0, 0.03);
-    momentum.current.y = THREE.MathUtils.lerp(momentum.current.y, -rawPitch * 9.0, 0.03);
+    // 2. MOMENTUM & RETRACTION (Locked at 0.03)
+    momentum.current.x = THREE.MathUtils.lerp(momentum.current.x, rawRoll * 9.5, 0.03);
+    momentum.current.y = THREE.MathUtils.lerp(momentum.current.y, -rawPitch * 9.5, 0.03);
 
     const { x: mX, y: mY } = momentum.current;
     const M = Math.sqrt(mX * mX + mY * mY);
 
-    // Lambda: Gravity floor
-    const Lambda = state === 'idle' ? 1.5 : 2.1;
+    // 3. THE SINGULARITY CORE (Lambda)
+    // Idle: 0.6 (Ultra-compressed nucleus) | Active: 2.2 (Expanded field)
+    const Lambda = state === 'idle' ? 0.6 : 2.2;
 
     particles.forEach((p, i) => {
-      // 2. THE VIOLENT EXPANSION (EML JERK)
-      // We nest the EML to find high-frequency Informational Peaks
+      // 4. THE VIOLENT SPILL (EML JERK PHYSICS)
       const signal = eml(Math.sin(p.phi * 6 + time), Lambda);
       
-      // 3. NANOGRAVITY VERTEX SHARPENING
       const uX = Math.cos(p.theta) * Math.sin(p.phi);
       const uY = Math.sin(p.theta) * Math.sin(p.phi);
       const uZ = Math.cos(p.phi);
 
       const dot = (uX * mX + uY * mY) / (M + 0.01);
       
-      // SPILL PHYSICS: Non-linear expansion. 
-      // If dot > 0, we are at the leading edge. We use Math.pow(8) for a "Violent" break.
+      // SPILL OPERATOR: Detonates the nucleus based on velocity
       const leadingEdge = Math.max(0, dot);
-      const spillForce = Math.pow(leadingEdge * M, 2.5) * 0.8;
+      const spillForce = Math.pow(leadingEdge * M, 2.7) * 0.9;
       
-      // VERTEX TIP: Sharp, needle-like spikes based on EML noise
-      const spike = eml(signal, 10) * 0.002 * (M + 1);
+      // VERTEX SHARPENING (EML-NAND)
+      const spike = eml(signal, 8) * 0.0025 * (M + 1);
 
-      // 4. DYNAMIC RADIUS (EML Phase Transition)
+      // Final Radius calculation
       const dynamicR = Lambda + spike + spillForce;
 
       let x = uX * dynamicR;
       let y = uY * dynamicR;
       let z = uZ * dynamicR;
 
-      // 5. THE "SLOSH" SAG
-      // Physical displacement toward the gravity vector
+      // 5. WEIGHTED SLOSH
       x += (mX * 0.5);
       y += (mY * 0.5);
 
-      // 6. INFORMATIONAL TURBULENCE
-      // If moving violently, introduce high-freq swirling
-      if (M > 2.0) {
-        const swirl = Math.sin(time * 5 + p.chaos) * (M * 0.05);
+      // 6. NANOGRAVITY VORTICITY
+      if (M > 1.8) {
+        const swirl = Math.sin(time * 6 + p.chaos) * (M * 0.06);
         x += swirl;
         z += swirl;
       }
 
-      // 7. PIXELATED JITTER (Speaking)
+      // 7. PIXELATED JITTER
       if (state === 'speaking') {
-        const j = eml(Math.sin(time * 65 + i), 15) * 0.012;
+        const j = eml(Math.sin(time * 70 + i), 14) * 0.013;
         x += j; y += j; z += j;
       }
 
       dummy.position.set(x, y, z);
       
-      // 8. VERTEX SCALING
-      // Tips are needle-sharp (small); Core is chunky
+      // 8. DYNAMIC SCALE (SINGULARITY COMPRESSION)
+      // When at the nucleus (idle), cubes are larger (0.1) and radius is small (0.6)
+      // This causes them to overlap and form a "Perfect Solid Ball"
       const distFromCenter = Math.sqrt(x*x + y*y + z*z);
-      const s = state === 'idle' ? 0.05 : (distFromCenter > 4.5 ? 0.06 : 0.15);
+      let s = 0.1; // Default
+      
+      if (state === 'idle') {
+        s = 0.11; // Overlap for solid effect
+      } else if (distFromCenter > 4.5) {
+        s = 0.065; // Needle-sharp tips
+      } else {
+        s = 0.14; // Standard data chunks
+      }
+      
       dummy.scale.set(s, s, s);
+      dummy.rotation.set(time * 0.1, time * 0.2 + p.chaos, 0);
       
       dummy.updateMatrix();
       meshRef.current!.setMatrixAt(i, dummy.matrix);
     });
 
-    // Camera Parallax
-    camera.position.x = THREE.MathUtils.lerp(camera.position.x, rawRoll * 6, 0.1);
-    camera.position.y = THREE.MathUtils.lerp(camera.position.y, rawPitch * 6, 0.1);
+    // 9. CAMERA PARALLAX
+    camera.position.x = THREE.MathUtils.lerp(camera.position.x, rawRoll * 5, 0.1);
+    camera.position.y = THREE.MathUtils.lerp(camera.position.y, rawPitch * 5, 0.1);
     camera.lookAt(0, 0, 0);
 
     meshRef.current.instanceMatrix.needsUpdate = true;
