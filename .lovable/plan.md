@@ -1,51 +1,50 @@
-## Goals
+## Goal
 
-1. **Request Money screen** — replace the hard-coded `IDIA-wallet-***4829` mock with the user's real USDC wallet address.
-2. **Wallet → Security tab** — remove the disconnected "Authenticate Identity" button and replace it with a "Recovery Phrase" (pass phrase) reveal section, alongside the existing wallet address.
+Make the wallet's "Add Funds" flow adapt to which rails the user has actually provisioned:
 
-No database changes. No new dependencies. Pure UI/wiring work.
+- **Fiat rail provisioned** = a `wallets` row exists for the user (FBO is set up).
+- **USDC rail provisioned** = `profiles.wallet_address` exists and starts with `0x` (sovereign wallet is set up).
 
----
+Behavior:
+- Both provisioned → modal shows both Debit Card / Credit Card (fiat) **and** USDC deposit options.
+- Only fiat provisioned → modal shows only the fiat card options.
+- Only USDC provisioned → modal opens directly into the USDC deposit view (no fiat options).
+- Neither provisioned → "Add Funds" button is disabled with a tooltip / inline hint prompting setup.
 
-## 1. SendRequestModal — real wallet address
+## Changes
 
-**File:** `src/components/SendRequestModal.tsx`
+### 1. `src/components/AddFundsModal.tsx`
+- Accept new props: `fiatEnabled: boolean`, `usdcEnabled: boolean`, `usdcAddress?: string | null`.
+- Refactor the `select` step to conditionally render:
+  - Fiat section (Debit / Credit cards) only when `fiatEnabled`.
+  - New USDC deposit section only when `usdcEnabled`, showing:
+    - Truncated wallet address with full-address copy-to-clipboard.
+    - "Network: Base" label.
+    - Note: "Send only USDC on Base. Other tokens/networks will be lost."
+- Add a new step `'usdc-deposit'` (rendered as the QR/address view).
+- If only one rail is enabled, skip the chooser and open directly into that rail's view.
+- Keep all existing fiat card-add logic intact.
 
-- Pull the live wallet address using the same source as the Wallet dashboard:
-  - `useSovereignWallet(profile?.id)` → `globalWalletAddress`
-  - Fallback to `useWallet()` → `wallet?.address` (native local address)
-  - Use `useEnhancedProfile()` to get the stable user id
-- Replace the hard-coded `IDIA-wallet-***4829` label and the `IDIA-wallet-abc123def456` clipboard payload with the resolved address.
-- Truncate for display (e.g. `0x1234…ABCD`) but copy the full address.
-- If no address yet (wallet not provisioned), show a small "No wallet linked yet" hint instead of the QR/copy block.
-- Keep existing copy-to-clipboard toast behavior.
+### 2. `src/components/enhanced/EnhancedWalletDashboard.tsx`
+- Determine rail availability from existing hooks:
+  - `fiatEnabled = !!walletBalance` (a `wallets` row was successfully fetched), or pass through a fiat-provisioned flag from `useWalletBalance`.
+  - `usdcEnabled = !!globalWalletAddress && globalWalletAddress.startsWith('0x')` via `useSovereignWallet`.
+- Pass `fiatEnabled`, `usdcEnabled`, and `usdcAddress` to `<AddFundsModal />`.
+- If both are false, disable the "Add Funds" button and show "Set up wallet to add funds".
 
-## 2. EnhancedWalletDashboard — Security tab cleanup
-
-**File:** `src/components/enhanced/EnhancedWalletDashboard.tsx` (lines ~500–531)
-
-In the `isProvisioned` branch of the Security tab:
-
-- **Remove** the `Authenticate Identity` button (the simulated `AUTH_HANDSHAKE` block).
-- **Keep** the wallet address card ("Global Vault Attached" + `displayAddress`).
-- **Add** a new "Recovery Phrase" subsection beneath it with:
-  - A short description: "Your 12-word phrase is the only way to restore this wallet. Never share it."
-  - A primary button **"Reveal Recovery Phrase"** that opens the existing `WalletSetupModal` in `view-seed` mode (the modal already supports this — `setSetupMode('view-seed'); setIsSetupModalOpen(true);`).
-  - This reuses the existing seed-reveal flow used elsewhere in the app, so no new reveal UI is built.
-- Remove the now-unused `Fingerprint` import if no other reference remains.
+### 3. `src/components/WalletDashboard.tsx` (legacy)
+- Same prop pass-through so the legacy dashboard stays consistent.
 
 ## Technical notes
 
-- `WalletSetupModal` already accepts `mode: 'create' | 'import' | 'view-seed'` and handles loading + display of the seed phrase via `getSeedPhrase()` — already wired in `EnhancedWalletDashboard`.
-- `useSovereignWallet` returns the canonical EVM/USDC address persisted to Supabase; `useWallet` provides the native (Secure Enclave) fallback. Same precedence as the Security tab uses today.
-- No PII or schema changes. No RLS impact. No edge functions touched.
+- `useWalletBalance` already queries the `wallets` row; expose a derived `fiatProvisioned` boolean (true when the row was found) to avoid a second query.
+- USDC address resolution reuses the same pattern as `SendRequestModal`: prefer `useSovereignWallet().globalWalletAddress`, fall back to `useWallet().wallet?.address`.
+- No DB schema changes; no new edge functions.
+- Respects no-mock-data rule — all rail signals come from real provisioning state.
 
-## Files to edit
+## Files touched
 
-- `src/components/SendRequestModal.tsx`
+- `src/components/AddFundsModal.tsx`
 - `src/components/enhanced/EnhancedWalletDashboard.tsx`
-
-## Out of scope
-
-- Generating QR codes for the address (current screen only shows a QR icon, not a real QR).
-- Any change to wallet creation, import, or seed storage logic.
+- `src/components/WalletDashboard.tsx`
+- `src/hooks/useWalletBalance.ts` (add `fiatProvisioned` flag)

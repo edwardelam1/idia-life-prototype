@@ -44,6 +44,9 @@ const purgeLegacyWalletCache = () => {
 export const useWalletBalance = () => {
   const [balance, setBalance] = useState<WalletBalance>(ZERO_FLOOR);
   const [loading, setLoading] = useState(true);
+  const [fiatProvisioned, setFiatProvisioned] = useState(false);
+  const [usdcProvisioned, setUsdcProvisioned] = useState(false);
+  const [usdcAddress, setUsdcAddress] = useState<string | null>(null);
 
   const applyRow = useCallback((row: any | null, userId: string) => {
     console.log("⚙️ [DATA_APPLY_LOG] START: Executing applyRow for user:", userId);
@@ -112,9 +115,13 @@ export const useWalletBalance = () => {
         console.error("🚨 [FETCH_BALANCE_LOG] ERROR_START: Supabase 'wallets' query failed.");
         console.error("🚨 [FETCH_BALANCE_LOG] ERROR_DETAILS: Check Database connection.", walletError.message);
         console.error("🚨 [FETCH_BALANCE_LOG] ERROR_END: Supabase query terminated.");
+        setFiatProvisioned(false);
       } else if (walletData) {
         fiatBalance = Number(walletData.cash_balance) || 0;
         tokenBalance = Number(walletData.idia_token_balance) || 0;
+        setFiatProvisioned(true);
+      } else {
+        setFiatProvisioned(false);
       }
 
       // 2. Fetch Global Vault Identity from Profiles
@@ -137,16 +144,18 @@ export const useWalletBalance = () => {
 
       if (walletAddress && walletAddress.startsWith("0x")) {
         console.log(`🌐 [FETCH_BALANCE_LOG] SUCCESS: Wallet identified: ${walletAddress}`);
+        setUsdcProvisioned(true);
+        setUsdcAddress(walletAddress);
         console.log("🌐 [FETCH_BALANCE_LOG] ACTION: Initializing ethers JSON RPC provider for USDC hydration.");
 
         try {
           // Replaced Viem with Ethers natively
           const provider = new ethers.JsonRpcProvider("https://mainnet.base.org");
           const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, provider);
-          
+
           const rawBalance = await usdcContract.balanceOf(walletAddress);
           usdcBalance = Number(ethers.formatUnits(rawBalance, 6));
-          
+
           console.log(`🌐 [FETCH_BALANCE_LOG] SUCCESS: Verified absolute on-chain USDC truth: $${usdcBalance}`);
         } catch (chainErr: any) {
           console.error("🚨 [FETCH_BALANCE_LOG] ERROR_START: Ethers smart contract read failed.");
@@ -155,6 +164,8 @@ export const useWalletBalance = () => {
         }
       } else {
         console.log("🌐 [FETCH_BALANCE_LOG] INFO: No valid sovereign wallet mapped in profiles. Bypassing ethers fetch.");
+        setUsdcProvisioned(false);
+        setUsdcAddress(null);
       }
 
       setBalance({
@@ -276,5 +287,5 @@ export const useWalletBalance = () => {
     };
   }, [fetchBalance, applyRow]);
 
-  return { balance, loading, refreshBalance: fetchBalance };
+  return { balance, loading, refreshBalance: fetchBalance, fiatProvisioned, usdcProvisioned, usdcAddress };
 };

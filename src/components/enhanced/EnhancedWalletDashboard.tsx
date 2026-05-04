@@ -55,7 +55,7 @@ interface CreditSimulation {
 
 const EnhancedWalletDashboard: React.FC = () => {
   const { profile, loading, updateProfile } = useEnhancedProfile();
-  const { balance: walletBalance, loading: balanceLoading } = useWalletBalance();
+  const { balance: walletBalance, loading: balanceLoading, fiatProvisioned, usdcProvisioned, usdcAddress } = useWalletBalance();
 
   // 1. Force a dedicated, stable ID state to prevent render-looping
   const [stableUserId, setStableUserId] = useState<string | null>(null);
@@ -397,7 +397,13 @@ const EnhancedWalletDashboard: React.FC = () => {
             <Button variant="outline" className="h-14 flex-col text-xs" onClick={() => setShowNFCModal(true)}>
               <Smartphone className="w-5 h-5 mb-1" /> Tap Pay
             </Button>
-            <Button variant="outline" className="h-14 flex-col text-xs" onClick={() => setShowAddFundsModal(true)}>
+            <Button
+              variant="outline"
+              className="h-14 flex-col text-xs"
+              onClick={() => setShowAddFundsModal(true)}
+              disabled={!fiatProvisioned && !usdcProvisioned}
+              title={!fiatProvisioned && !usdcProvisioned ? "Set up a wallet rail to add funds" : undefined}
+            >
               <Plus className="w-5 h-5 mb-1" /> Add Funds
             </Button>
           </div>
@@ -556,7 +562,13 @@ const EnhancedWalletDashboard: React.FC = () => {
 
       <NFCPayrollModal isOpen={showNFCModal} onClose={() => setShowNFCModal(false)} />
       <SendRequestModal isOpen={showSendRequestModal} onClose={() => setShowSendRequestModal(false)} />
-      <AddFundsModal isOpen={showAddFundsModal} onClose={() => setShowAddFundsModal(false)} />
+      <AddFundsModal
+        isOpen={showAddFundsModal}
+        onClose={() => setShowAddFundsModal(false)}
+        fiatEnabled={fiatProvisioned}
+        usdcEnabled={usdcProvisioned}
+        usdcAddress={usdcAddress || globalWalletAddress || nativeWallet?.address || null}
+      />
       
       {/* Type error bypassed cleanly by letting useWallet react natively */}
       <WalletSetupModal 
