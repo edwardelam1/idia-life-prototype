@@ -36,6 +36,10 @@ const SendRequestModal: React.FC<SendRequestModalProps> = ({ isOpen, onClose }) 
   const [note, setNote] = useState('');
   const [step, setStep] = useState<'form' | 'confirm' | 'success'>('form');
   const { toast } = useToast();
+  const { profile } = useEnhancedProfile();
+  const { globalWalletAddress } = useSovereignWallet(profile?.id || profile?.user_id || null);
+  const { wallet: nativeWallet } = useWallet();
+  const userWalletAddress = globalWalletAddress || nativeWallet?.address || null;
 
   const handleSend = () => {
     if (!recipient || !amount) {
