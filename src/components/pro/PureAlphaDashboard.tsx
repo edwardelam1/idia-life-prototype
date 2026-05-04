@@ -23,7 +23,6 @@ import { toast } from "@/hooks/use-toast";
 
 // IDIA Protocol Components
 import GhostProtocolWrapper from "./GhostProtocol";
-import SovereignAuth from "./SovereignAuth";
 
 // --- EXPANDED SOVEREIGN SCHEMA ---
 interface StagedHealthData {
@@ -89,7 +88,6 @@ const InfoIcon = ({ text }: { text: string }) => (
 
 const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
   // --- CORE STATE ---
-  const [authVerified, setAuthVerified] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [fusionData, setFusionData] = useState<any[]>([]);
   const [hasIdiaPayOrgAdmin, setHasIdiaPayOrgAdmin] = useState(false);
@@ -168,7 +166,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
 
   // --- DATA FETCHING (Zero Mock Data) ---
   useEffect(() => {
-    if (isMasked || !authVerified) return;
+    if (isMasked) return;
     let isMounted = true;
 
     const fetchExecutiveData = async () => {
@@ -303,7 +301,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
       supabase.removeChannel(healthChannel);
       supabase.removeChannel(logsChannel);
     };
-  }, [isMasked, authVerified]);
+  }, [isMasked]);
 
   // --- GAMMA & RSVP LOGIC ---
   const getDynamicFontSize = (word: string) => {
@@ -397,10 +395,6 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
   };
 
   // --- RENDER ---
-  if (!authVerified && !isMasked) {
-    return <SovereignAuth onVerified={() => setAuthVerified(true)} />;
-  }
-
   return (
     <GhostProtocolWrapper>
       {isFlashing && createPortal(
