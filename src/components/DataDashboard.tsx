@@ -56,27 +56,6 @@ const DataDashboard = () => {
     if (currentUserId) {
       fetchConnections();
       fetchAcaRecords();
-
-      const dataWalletChannel = supabase
-        .channel("data-dashboard-wallet")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "wallets",
-            filter: `user_id=eq.${currentUserId}`,
-          },
-          (payload: any) => {
-            console.log("Data Dashboard Vault Update:", payload);
-            setTotalEarnings(Number(payload.new?.cash_balance) || 0);
-          },
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(dataWalletChannel);
-      };
     }
   }, [currentUserId]);
 
