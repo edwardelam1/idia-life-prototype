@@ -35,7 +35,6 @@ import {
   Plus,
   BrainCircuit,
   ArrowRight,
-  Fingerprint,
 } from "lucide-react";
 
 interface Transaction {
