@@ -166,14 +166,27 @@ All colors MUST be HSL.
 
   /* High contrast mode */
   .high-contrast {
-    --border: 0 0% 50%;
-    --input: 0 0% 90%;
-    filter: contrast(1.5);
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+    --muted: 0 0% 90%;
+    --muted-foreground: 0 0% 15%;
+    --border: 0 0% 0%;
+    --primary: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 0%;
   }
 
   .high-contrast.dark {
-    --border: 0 0% 70%;
-    --input: 0 0% 20%;
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 85%;
+    --border: 0 0% 100%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 0 0% 0%;
+    --card: 0 0% 0%;
+    --card-foreground: 0 0% 100%;
   }
 }
 
