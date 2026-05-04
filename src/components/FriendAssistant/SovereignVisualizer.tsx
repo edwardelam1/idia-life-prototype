@@ -3,73 +3,83 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { FriendState } from './types';
 
-interface OrbProps {
-  state: FriendState;
-  severity?: 'normal' | 'important' | 'critical';
-}
-
-const CubeSphere = ({ state, severity = 'normal' }: OrbProps) => {
+const CubeSphere = ({ state, severity = 'normal' }: { state: FriendState, severity?: string }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
-  const count = 1500;
+  const count = 2000;
   const dummy = useMemo(() => new THREE.Object3D(), []);
-
-  const getOrbColor = () => {
-    if (severity === 'critical') return '#ef4444';
-    if (severity === 'important') return '#f59e0b';
-    return '#14b8a6'; 
-  };
 
   const particles = useMemo(() => {
     const temp = [];
     for (let i = 0; i < count; i++) {
       temp.push({
-        t: Math.random() * 100,
-        speed: 0.01 + Math.random() / 100,
-        radiusOffset: Math.random() * 0.2,
+        phi: Math.acos(-1 + (2 * i) / count),
+        theta: Math.sqrt(count * Math.PI) * Math.acos(-1 + (2 * i) / count),
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.15 + Math.random() * 0.4,
+        id: i
       });
     }
     return temp;
   }, [count]);
 
   useFrame((stateContext) => {
-    const { clock, mouse, camera } = stateContext;
+    const { clock, camera } = stateContext;
     const time = clock.getElapsedTime();
     if (!meshRef.current) return;
 
-    // === LEVEL 3 PARALLAX: CAMERA TILT ===
-    // This moves the camera slightly based on mouse position (-1 to 1)
-    camera.position.x = THREE.MathUtils.lerp(camera.position.x, mouse.x * 1.5, 0.05);
-    camera.position.y = THREE.MathUtils.lerp(camera.position.y, mouse.y * 1.5, 0.05);
+    // --- NATIVE SPATIAL HARVEST ---
+    const rootStyle = getComputedStyle(document.documentElement);
+    const nativePitch = parseFloat(rootStyle.getPropertyValue('--pitch')) || 0;
+    const nativeRoll = parseFloat(rootStyle.getPropertyValue('--roll')) || 0;
+
+    // Camera tilts to follow device orientation
+    camera.position.x = THREE.MathUtils.lerp(camera.position.x, nativeRoll * 4, 0.08);
+    camera.position.y = THREE.MathUtils.lerp(camera.position.y, nativePitch * 4, 0.08);
     camera.lookAt(0, 0, 0);
 
-    particles.forEach((particle, i) => {
-      let { t, speed, radiusOffset } = particle;
-      particle.t += speed;
+    particles.forEach((p, i) => {
+      const isIdle = state === 'idle';
+      
+      // 1. FLUID GRAVITY & LAVA LAMP PHYSICS
+      // Base Radius collapses into a solid ball (1.7) when idle
+      const baseRadius = isIdle ? 1.7 : 2.4;
+      
+      // Energy = AI activity + Physical Motion slosh
+      const motionSlosh = (Math.abs(nativePitch) + Math.abs(nativeRoll)) * 0.4;
+      const aiEnergy = isIdle ? 0.02 : (state === 'speaking' ? 0.9 : 0.4);
+      const totalEnergy = aiEnergy + motionSlosh;
 
-      const phi = Math.acos(-1 + (2 * i) / count);
-      const theta = Math.sqrt(count * Math.PI) * phi;
-      const radius = 2 + radiusOffset;
+      // 2. ASYMMETRIC OCEAN WAVES (Sum of Sines)
+      const wave = Math.sin(p.phi * 2.5 + time * p.speed + nativePitch) * 0.35 +
+                   Math.cos(p.theta * 2 - time * 0.5 + nativeRoll) * 0.2;
+      
+      const r = baseRadius + (wave * totalEnergy);
 
-      let tx = Math.cos(theta) * Math.sin(phi) * radius;
-      let ty = Math.sin(theta) * Math.sin(phi) * radius;
-      let tz = Math.cos(phi) * radius;
+      // 3. POURING LOGIC: Flowing from right (x=15) to target sphere position
+      let targetX = Math.cos(p.theta) * Math.sin(p.phi) * r;
+      let targetY = Math.sin(p.theta) * Math.sin(p.phi) * r;
+      let targetZ = Math.cos(p.phi) * r;
 
-      // FLOWING LOGIC (Only triggers if state is 'listening')
       if (state === 'listening') {
-        const flowTrigger = (Math.sin(particle.t * 0.5) + 1) / 2; 
-        tx = THREE.MathUtils.lerp(15, tx, flowTrigger);
+        // Individualized staggered entry for "pouring" feel
+        const stagger = (i / count) * 2;
+        const pourTrigger = Math.max(0, Math.min(1, (time % 4) - stagger));
+        targetX = THREE.MathUtils.lerp(15, targetX, pourTrigger);
       }
 
-      // JITTER LOGIC (Only triggers if state is 'speaking')
+      // 4. PIXELATED JITTER: Only when speaking
       if (state === 'speaking') {
-        const jitter = Math.sin(time * 20 + i) * 0.3;
-        tx += jitter; ty += jitter; tz += jitter;
+        const jitter = Math.sin(time * 40 + i) * 0.08;
+        targetX += jitter; targetY += jitter; targetZ += jitter;
       }
 
-      dummy.position.set(tx, ty, tz);
-      const s = state === 'speaking' ? 0.18 : 0.08;
+      dummy.position.set(targetX, targetY, targetZ);
+      
+      // 5. SCALE DYNAMICS: Small/Tight (Solid) vs Larger Chunks (Pixelated)
+      const s = isIdle && motionSlosh < 0.1 ? 0.055 : (state === 'speaking' ? 0.16 : 0.1);
       dummy.scale.set(s, s, s);
-      dummy.rotation.set(particle.t * 0.5, particle.t * 0.5, particle.t * 0.5);
+      
+      dummy.rotation.set(time * 0.1, time * 0.2 + p.phase, 0);
       dummy.updateMatrix();
       meshRef.current!.setMatrixAt(i, dummy.matrix);
     });
@@ -77,29 +87,29 @@ const CubeSphere = ({ state, severity = 'normal' }: OrbProps) => {
     meshRef.current.instanceMatrix.needsUpdate = true;
   });
 
+  const color = severity === 'critical' ? '#ef4444' : (severity === 'important' ? '#f59e0b' : '#14b8a6');
+
   return (
     <instancedMesh ref={meshRef} args={[null as any, null as any, count]}>
       <boxGeometry args={[1, 1, 1]} />
       <meshStandardMaterial 
-        color={getOrbColor()} 
-        emissive={getOrbColor()} 
-        emissiveIntensity={0.8}
-        toneMapped={false}
+        color={color} 
+        emissive={color} 
+        emissiveIntensity={state === 'speaking' ? 1.8 : 0.7} 
+        toneMapped={false} 
       />
     </instancedMesh>
   );
 };
 
-const SovereignVisualizer = ({ state, severity }: OrbProps) => {
-  return (
-    <div className="w-full h-full absolute inset-0 bg-black cursor-none">
-      <Canvas camera={{ position: [0, 0, 10], fov: 40 }} dpr={[1, 2]}>
-        <ambientLight intensity={0.2} />
-        <pointLight position={[10, 10, 10]} intensity={1.5} color="#ffffff" />
-        <CubeSphere state={state} severity={severity} />
-      </Canvas>
-    </div>
-  );
-};
+const SovereignVisualizer = ({ state, severity }: { state: FriendState, severity?: string }) => (
+  <div className="w-full h-full absolute inset-0 bg-black overflow-hidden pointer-events-none">
+    <Canvas camera={{ position: [0, 0, 10], fov: 38 }} dpr={[1, 2]}>
+      <ambientLight intensity={0.2} />
+      <pointLight position={[10, 10, 10]} intensity={1.5} />
+      <CubeSphere state={state} severity={severity} />
+    </Canvas>
+  </div>
+);
 
 export default SovereignVisualizer;
