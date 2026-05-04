@@ -497,37 +497,32 @@ const EnhancedWalletDashboard: React.FC = () => {
                 <Badge variant={hasFBO ? "default" : "secondary"}>{hasFBO ? "Connected" : "Not Linked"}</Badge>
               </div>
 
-              {/* The Read-Only / Require Tap Handshake Flow */}
+              {/* Wallet address + Recovery Phrase reveal */}
               <div className="mt-6 pt-4 border-t">
                 {isProvisioned ? (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <div className="p-3 bg-secondary/50 rounded-lg border">
                       <p className="text-xs text-muted-foreground mb-1">Global Vault Attached</p>
                       <p className="font-mono text-xs break-all">{displayAddress}</p>
                     </div>
 
-                    <Button
-                      className="w-full bg-primary hover:bg-primary/90"
-                      onClick={async () => {
-                        try {
-                          if (!localAddress) {
-                            console.error("🚨 [AUTH_HANDSHAKE] ERROR_START: No native wallet context found.");
-                            return;
-                          }
-
-                          console.log("⚡️ [AUTH_HANDSHAKE] START: Prompting native wallet for cryptographic signature.");
-                          // Simulate native signature routing via IDIA shell
-                          await new Promise(resolve => setTimeout(resolve, 800));
-                          console.log("⚡️ [AUTH_HANDSHAKE] END: Sovereign identity verified.");
-                        } catch (err) {
-                          console.error("🚨 [AUTH_HANDSHAKE] ERROR_START: Signature rejected or failed.");
-                          console.error("🚨 [AUTH_HANDSHAKE] ERROR_DETAILS:", err);
-                        }
-                      }}
-                    >
-                      <Fingerprint className="w-4 h-4 mr-2" />
-                      Authenticate Identity
-                    </Button>
+                    <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
+                      <p className="text-sm font-medium">Recovery Phrase</p>
+                      <p className="text-xs text-muted-foreground">
+                        Your 12-word phrase is the only way to restore this wallet. Never share it with anyone.
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => {
+                          setSetupMode('view-seed');
+                          setIsSetupModalOpen(true);
+                        }}
+                      >
+                        <Shield className="w-4 h-4 mr-2" />
+                        Reveal Recovery Phrase
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                     <div className="grid grid-cols-2 gap-3 mt-3">
