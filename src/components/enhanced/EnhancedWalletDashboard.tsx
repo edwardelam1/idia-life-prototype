@@ -55,7 +55,7 @@ interface CreditSimulation {
 
 const EnhancedWalletDashboard: React.FC = () => {
   const { profile, loading, updateProfile } = useEnhancedProfile();
-  const { balance: walletBalance, loading: balanceLoading } = useWalletBalance();
+  const { balance: walletBalance, loading: balanceLoading, fiatProvisioned, usdcProvisioned, usdcAddress } = useWalletBalance();
 
   // 1. Force a dedicated, stable ID state to prevent render-looping
   const [stableUserId, setStableUserId] = useState<string | null>(null);
