@@ -263,36 +263,35 @@ const DataDashboard = () => {
 
   return (
     <div className="space-y-4">
-      <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center space-x-2 mb-1">
-                <p className="text-teal-100">Cash Account</p>
-                {getSyncStatusBadge()}
-              </div>
-              <p className="text-3xl font-bold">${totalEarnings.toFixed(2)} USD</p>
-              <p className="text-sm text-teal-100 mt-1">
-                {connections.length > 0
-                  ? "Available cash from connected data sources"
-                  : "Start earning by connecting data sources"}
-              </p>
-            </div>
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-              <DollarSign className="w-8 h-8" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       <Tabs defaultValue="connections" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="connections">Connections</TabsTrigger>
-          <TabsTrigger value="audit" className="flex items-center gap-1">
-            <FileKey className="w-3 h-3" />
-            Transactions
-          </TabsTrigger>
+        <TabsList className="grid grid-cols-2 w-full bg-muted/20 shrink-0">
+          <TabsTrigger value="connections" className="text-[11px] px-1">Connections</TabsTrigger>
+          <TabsTrigger value="audit" className="text-[11px] px-1">Transactions</TabsTrigger>
         </TabsList>
+
+        <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white mt-4">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center space-x-2 mb-1">
+                  <p className="text-teal-100">USDC</p>
+                  {getSyncStatusBadge()}
+                </div>
+                <p className="text-3xl font-bold">
+                  ${balanceLoading ? "0.00" : balance.usdc_balance.toFixed(2)}
+                </p>
+                <p className="text-sm text-teal-100 mt-1">
+                  {connections.length > 0
+                    ? "USDC balance from connected sources"
+                    : "Connect data sources to start earning USDC"}
+                </p>
+              </div>
+              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+                <DollarSign className="w-8 h-8" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <TabsContent value="connections" className="space-y-4">
           <div className="space-y-4">
