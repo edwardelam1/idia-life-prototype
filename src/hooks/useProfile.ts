@@ -21,6 +21,12 @@ export interface Profile {
   activity_preferences: string[];
   created_at: string;
   updated_at: string;
+  display_name?: string | null;
+  ai_assistant_name?: string | null;
+  avatar_url?: string | null;
+  kyc_status?: string | null;
+  account_type?: string | null;
+  ai_context?: any;
 }
 
 export interface UserPreferences {
@@ -35,6 +41,20 @@ export interface UserPreferences {
   push_notifications: boolean;
   created_at: string;
   updated_at: string;
+  in_app_alerts?: boolean;
+  in_app_sounds?: boolean;
+  push_activity?: boolean;
+  push_insights?: boolean;
+  quiet_hours_enabled?: boolean;
+  quiet_hours_start?: string;
+  quiet_hours_end?: string;
+  email_reports?: boolean;
+  privacy_motion?: boolean;
+  privacy_camera?: boolean;
+  privacy_health?: boolean;
+  privacy_bluetooth?: boolean;
+  privacy_microphone?: boolean;
+  privacy_nfc?: boolean;
 }
 
 export const useProfile = () => {
@@ -128,8 +148,8 @@ export const useProfile = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user found');
 
-      const { data, error } = await supabase
-        .from('user_preferences')
+      const { data, error } = await (supabase
+        .from('user_preferences') as any)
         .update(updates)
         .eq('user_id', user.id)
         .select()

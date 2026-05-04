@@ -18,18 +18,20 @@ export function PrivacySettings() {
 
       toast({ title: 'Compiling Data...', description: 'Generating your Sovereign CSV export.' });
 
-      // Fetch Profile & ACAs
+      // Fetch Profile & ACAs (Bypassing strict types for un-migrated tables/columns)
       const [{ data: profile }, { data: acas }] = await Promise.all([
-        supabase.from('profiles').select('*').eq('user_id', user.id).single(),
-        supabase.from('acas').select('*').eq('user_id', user.id)
+        (supabase as any).from('profiles').select('*').eq('user_id', user.id).single(),
+        (supabase as any).from('acas').select('*').eq('user_id', user.id)
       ]);
 
       const csvRows = [];
       
       // Profile Data
+      const fullName = profile?.display_name || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'N/A';
+      
       csvRows.push(['--- SOVEREIGN IDENTITY PROFILE ---']);
       csvRows.push(['ID', 'Name', 'Email', 'Created At']);
-      csvRows.push([profile?.id || 'N/A', profile?.full_name || 'N/A', profile?.email || user.email, profile?.created_at || 'N/A']);
+      csvRows.push([profile?.id || 'N/A', fullName, user.email || 'N/A', profile?.created_at || 'N/A']);
       csvRows.push([]); 
       
       // ACA Data
@@ -37,7 +39,7 @@ export function PrivacySettings() {
       csvRows.push(['ACA ID', 'Timestamp', 'Consent Type', 'Status', 'Platform']);
       
       if (acas && acas.length > 0) {
-        acas.forEach(aca => {
+        acas.forEach((aca: any) => {
           csvRows.push([aca.id, aca.created_at, aca.consent_type, aca.status, aca.platform || 'IDIA Base']);
         });
       } else {
