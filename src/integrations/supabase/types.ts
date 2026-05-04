@@ -3025,6 +3025,7 @@ export type Database = {
       }
       hri_scores: {
         Row: {
+          alpha_score: string | null
           created_at: string | null
           hrv_score: number | null
           id: string
@@ -3036,6 +3037,7 @@ export type Database = {
           vitals_snapshot: Json | null
         }
         Insert: {
+          alpha_score?: string | null
           created_at?: string | null
           hrv_score?: number | null
           id?: string
@@ -3047,6 +3049,7 @@ export type Database = {
           vitals_snapshot?: Json | null
         }
         Update: {
+          alpha_score?: string | null
           created_at?: string | null
           hrv_score?: number | null
           id?: string
