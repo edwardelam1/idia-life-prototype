@@ -18,7 +18,7 @@ interface Transaction {
 
 const WalletDashboard = () => {
   // Integrated real-time hook and removed static balances state
-  const { balance, loading: balanceLoading } = useWalletBalance();
+  const { balance, loading: balanceLoading, fiatProvisioned, usdcProvisioned, usdcAddress } = useWalletBalance();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isAddFundsOpen, setIsAddFundsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
