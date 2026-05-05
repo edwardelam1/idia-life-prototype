@@ -2,7 +2,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Shield, Database, Trash2, Download, Smartphone, Activity, Camera, HeartPulse, Bluetooth, Mic, ScanLine } from 'lucide-react';
+import { Shield, Database, Trash2, Download, Smartphone, Activity, Camera, HeartPulse, Bluetooth, Mic, ScanLine, Info } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,41 +11,60 @@ export function PrivacySettings() {
   const { preferences, updatePreferences } = useProfile();
   const { toast } = useToast();
 
-  const exportData = async () => {
+  const handlePreferenceUpdate = async (key: string, value: boolean) => {
+    console.log(`[PrivacySettings] handlePreferenceUpdate START: Attempting to set '${key}' to ${value}`);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      await updatePreferences({ [key]: value });
+      console.log(`[PrivacySettings] handlePreferenceUpdate SUCCESS: Successfully updated '${key}' in database`);
+    } catch (error) {
+      console.error(`[PrivacySettings] handlePreferenceUpdate ERROR: Failed to update database for '${key}'`, error);
+      toast({ title: 'Update Failed', description: `Could not save preference: ${key}`, variant: 'destructive' });
+    } finally {
+      console.log(`[PrivacySettings] handlePreferenceUpdate END: Completed execution for '${key}'`);
+    }
+  };
+
+  const exportData = async () => {
+    console.log('[PrivacySettings] exportData START: Initiating data compilation process');
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) {
+        console.log('[PrivacySettings] exportData ABORT: No authenticated user session found');
+        return;
+      }
 
       toast({ title: 'Compiling Data...', description: 'Generating your Sovereign CSV export.' });
 
-      // Fetch Profile & ACAs (Bypassing strict types for un-migrated tables/columns)
-      const [{ data: profile }, { data: acas }] = await Promise.all([
+      console.log('[PrivacySettings] exportData: Fetching relational profile data and consent records');
+      // Fetch Profile & Consent Records (Bypassing strict types for un-migrated tables/columns)
+      const [{ data: profile }, { data: consentRecords }] = await Promise.all([
         (supabase as any).from('profiles').select('*').eq('user_id', user.id).single(),
         (supabase as any).from('acas').select('*').eq('user_id', user.id)
       ]);
 
+      console.log('[PrivacySettings] exportData: Formatting CSV structure');
       const csvRows = [];
       
-      // Profile Data
-      const fullName = profile?.display_name || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'N/A';
-      
+      // Profile Data - PII Stripped
       csvRows.push(['--- SOVEREIGN IDENTITY PROFILE ---']);
-      csvRows.push(['ID', 'Name', 'Email', 'Created At']);
-      csvRows.push([profile?.id || 'N/A', fullName, user.email || 'N/A', profile?.created_at || 'N/A']);
+      csvRows.push(['ID', 'Created At']);
+      csvRows.push([profile?.id || 'N/A', profile?.created_at || 'N/A']);
       csvRows.push([]); 
       
-      // ACA Data
-      csvRows.push(['--- AUDITABLE CONSENT ARTIFACTS (ACAs) ---']);
-      csvRows.push(['ACA ID', 'Timestamp', 'Consent Type', 'Status', 'Platform']);
+      // Consent Data
+      csvRows.push(['--- CONSENT RECORDS ---']);
+      csvRows.push(['Record ID', 'Timestamp', 'Consent Type', 'Status', 'Platform']);
       
-      if (acas && acas.length > 0) {
-        acas.forEach((aca: any) => {
-          csvRows.push([aca.id, aca.created_at, aca.consent_type, aca.status, aca.platform || 'IDIA Base']);
+      if (consentRecords && consentRecords.length > 0) {
+        consentRecords.forEach((record: any) => {
+          csvRows.push([record.id, record.created_at, record.consent_type, record.status, record.platform || 'IDIA Base']);
         });
       } else {
-        csvRows.push(['No Auditable Consent Artifacts found.']);
+        csvRows.push(['No Consent Records found.']);
       }
 
+      console.log('[PrivacySettings] exportData: Generating Blob and triggering download');
       // Compile CSV
       const csvContent = csvRows.map(row => row.join(",")).join("\n");
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -60,31 +79,43 @@ export function PrivacySettings() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
+      console.log('[PrivacySettings] exportData SUCCESS: Payload delivered to user');
       toast({ title: 'Data Exported', description: 'Your CSV data has been downloaded successfully.' });
     } catch (error) {
-      console.error('Error exporting data:', error);
+      console.error('[PrivacySettings] exportData ERROR: Exception caught during compilation', error);
       toast({ title: 'Export Failed', description: 'Failed to export your data.', variant: 'destructive' });
+    } finally {
+      console.log('[PrivacySettings] exportData END');
     }
   };
 
   const deleteAccount = async () => {
+    console.log("[PrivacySettings] deleteAccount START: Initiating permanent identity purge");
     try {
-      console.log("=== [ACCOUNT_PURGE] Initiating permanent deletion ===");
-      
-      // Sign out to purge local session (RPC delete trigger handles DB teardown)
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
 
+      console.log("[PrivacySettings] deleteAccount SUCCESS: Session purged, database teardown active");
       toast({ title: 'Account Purged', description: 'Your Sovereign Identity has been permanently deleted.' });
       window.location.href = '/';
     } catch (error) {
-      console.error('Error deleting account:', error);
+      console.error('[PrivacySettings] deleteAccount ERROR: Failed to execute deletion protocol', error);
       toast({ title: 'Deletion Failed', description: 'Failed to delete your account', variant: 'destructive' });
+    } finally {
+      console.log("[PrivacySettings] deleteAccount END");
     }
   };
 
   return (
     <div className="space-y-6">
+      
+      <div className="flex items-start gap-3 p-4 bg-primary/10 border border-primary/20 rounded-lg text-primary">
+        <Info className="w-5 h-5 shrink-0 mt-0.5" />
+        <p className="text-xs leading-relaxed font-medium">
+          Our database is PII-Free, no personally identifiable information is in our database and your pattern of life is protected and never sold.
+        </p>
+      </div>
+
       {/* 1. Global Data Sharing */}
       <section className="space-y-3">
         <div className="flex items-center gap-2">
@@ -100,7 +131,7 @@ export function PrivacySettings() {
           <Switch
             id="data-sharing"
             checked={preferences?.data_sharing_consent || false}
-            onCheckedChange={(v) => updatePreferences({ data_sharing_consent: v })}
+            onCheckedChange={(v) => handlePreferenceUpdate('data_sharing_consent', v)}
           />
         </div>
 
@@ -131,8 +162,8 @@ export function PrivacySettings() {
             </div>
             <Switch
               id="privacy-motion"
-              checked={preferences?.privacy_motion !== false} // Defaulting to true if undefined
-              onCheckedChange={(v) => updatePreferences({ privacy_motion: v })}
+              checked={preferences?.privacy_motion !== false}
+              onCheckedChange={(v) => handlePreferenceUpdate('privacy_motion', v)}
             />
           </div>
 
@@ -148,7 +179,7 @@ export function PrivacySettings() {
             <Switch
               id="privacy-camera"
               checked={preferences?.privacy_camera !== false}
-              onCheckedChange={(v) => updatePreferences({ privacy_camera: v })}
+              onCheckedChange={(v) => handlePreferenceUpdate('privacy_camera', v)}
             />
           </div>
 
@@ -164,7 +195,7 @@ export function PrivacySettings() {
             <Switch
               id="privacy-health"
               checked={preferences?.privacy_health !== false}
-              onCheckedChange={(v) => updatePreferences({ privacy_health: v })}
+              onCheckedChange={(v) => handlePreferenceUpdate('privacy_health', v)}
             />
           </div>
 
@@ -180,7 +211,7 @@ export function PrivacySettings() {
             <Switch
               id="privacy-bluetooth"
               checked={preferences?.privacy_bluetooth !== false}
-              onCheckedChange={(v) => updatePreferences({ privacy_bluetooth: v })}
+              onCheckedChange={(v) => handlePreferenceUpdate('privacy_bluetooth', v)}
             />
           </div>
 
@@ -196,7 +227,7 @@ export function PrivacySettings() {
             <Switch
               id="privacy-mic"
               checked={preferences?.privacy_microphone !== false}
-              onCheckedChange={(v) => updatePreferences({ privacy_microphone: v })}
+              onCheckedChange={(v) => handlePreferenceUpdate('privacy_microphone', v)}
             />
           </div>
 
@@ -212,7 +243,7 @@ export function PrivacySettings() {
             <Switch
               id="privacy-nfc"
               checked={preferences?.privacy_nfc !== false}
-              onCheckedChange={(v) => updatePreferences({ privacy_nfc: v })}
+              onCheckedChange={(v) => handlePreferenceUpdate('privacy_nfc', v)}
             />
           </div>
         </div>
@@ -225,7 +256,7 @@ export function PrivacySettings() {
         <div className="flex items-center justify-between gap-3 bg-muted/20 p-3 rounded-lg border border-border/50">
           <div className="space-y-0.5 min-w-0">
             <div className="text-sm font-medium">Export Identity Ledger</div>
-            <p className="text-xs text-muted-foreground">Download a CSV of your data & ACAs</p>
+            <p className="text-xs text-muted-foreground">Download a CSV of your data & Consent Records</p>
           </div>
           <Button variant="outline" size="sm" onClick={exportData}>
             <Download className="w-3.5 h-3.5 mr-1.5" />
@@ -250,7 +281,7 @@ export function PrivacySettings() {
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
                   This action cannot be undone. This will permanently delete your account,
-                  purge all Auditable Consent Artifacts (ACAs), and destroy your Sovereign Wallet keys.
+                  purge all Consent Records, and destroy your Sovereign Wallet keys.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
