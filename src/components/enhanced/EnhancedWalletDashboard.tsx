@@ -201,9 +201,19 @@ const EnhancedWalletDashboard: React.FC = () => {
         console.log(`💳 [SUCCESS] Ingested ${data?.length || 0} cross-ledger records.`);
         
         const mappedTransactions = (data || []).map((tx) => {
-          // Cast metadata to access currency safely and bypass missing 'currency' property on base type
           const typedMetadata = tx.metadata as Record<string, any> | null;
-          const currencyType = (tx as any).currency || typedMetadata?.currency || "USD";
+          let currencyType = (tx as any).currency || typedMetadata?.currency;
+          
+          // HARD-LOCK: Enforce USDC on data-related payouts regardless of missing metadata
+          if (
+            tx.transaction_type === "DATA_SALE_PAYOUT" || 
+            tx.transaction_type === "data_reward" || 
+            tx.transaction_type === "data_earnings"
+          ) {
+            currencyType = "USDC";
+          } else if (!currencyType) {
+            currencyType = "USD"; // Default fallback for unrelated historical records
+          }
           
           return {
             id: tx.id,
