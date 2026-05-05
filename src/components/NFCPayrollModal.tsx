@@ -69,7 +69,7 @@ const NFCPayrollModal: React.FC<NFCPayrollModalProps> = ({ isOpen, onClose }) =>
 
     (window as any).onNfcHandshakeComplete = (token: string) => {
       console.log(`📱 [NFC_MODAL_LOG] SUCCESS: Hardware returned peer token: ${token}`);
-      setPeerToken(token); // In live env, hardware should return the recipient's wallet address or FBO routing ID
+      setPeerToken(token); // In live env, hardware returns the recipient's wallet address or FBO routing ID
       setConnectionStep('connected');
     };
 
@@ -112,81 +112,63 @@ const NFCPayrollModal: React.FC<NFCPayrollModalProps> = ({ isOpen, onClose }) =>
       const numericAmount = parseFloat(amount);
       if (isNaN(numericAmount) || numericAmount <= 0) throw new Error("Invalid transaction amount.");
 
-      let txHash = "FBO_INTERNAL_LEDGER";
-
-      // --- USDC RAIL EXECUTION ---
-      if (rail === 'usdc' && mode === 'send') {
-        console.log(`💸 [TRANSACTION_EXECUTE] Constructing USDC ERC-20 payload for network: ${activeNetwork}`);
-        
-        const usdcAddress = USDC_CONTRACTS[activeNetwork.toLowerCase()] || USDC_CONTRACTS['polygon'];
-        const erc20Interface = new ethers.Interface(["function transfer(address to, uint256 amount)"]);
-        const parsedAmount = ethers.parseUnits(amount, 6); 
-        const dataPayload = erc20Interface.encodeFunctionData("transfer", [peerToken, parsedAmount]);
-
-        console.log(`💸 [TRANSACTION_EXECUTE] Awaiting Web3 EVM Settlement...`);
-        const result = await sendTransaction({
-          to: usdcAddress,
-          amount: "0",     
-          data: dataPayload
-        });
-
-        if (!result) throw new Error("Web3 EVM Settlement failed or was rejected by user.");
-        txHash = result.hash;
-        console.log(`✅ [TRANSACTION_EXECUTE] Web3 Settlement Confirmed. Hash: ${txHash}`);
+      // HARD LOCK: Prevent live fiat processing until Worldpay BaaS integration is fully active
+      if (rail !== 'usdc') {
+         throw new Error("Fiat rails are currently locked. Worldpay integration pending.");
       }
 
-      // --- FIAT RAIL EXECUTION ---
-      if (rail === 'fiat') {
-        console.log(`💸 [TRANSACTION_EXECUTE] Executing internal FBO Fiat routing to Peer: ${peerToken}`);
-        await new Promise(resolve => setTimeout(resolve, 1200)); 
-      }
+      console.log(`💸 [TRANSACTION_EXECUTE] Constructing USDC ERC-20 payload for network: ${activeNetwork}`);
+      
+      const usdcAddress = USDC_CONTRACTS[activeNetwork.toLowerCase()] || USDC_CONTRACTS['polygon'];
+      const erc20Interface = new ethers.Interface(["function transfer(address to, uint256 amount)"]);
+      
+      // USDC uses 6 decimals standard
+      const parsedAmount = ethers.parseUnits(amount, 6); 
+      const dataPayload = erc20Interface.encodeFunctionData("transfer", [peerToken, parsedAmount]);
 
-      // --- PROVENANCE & ACA GENERATION ---
-      const timestamp = new Date().toISOString();
-      const acaHash = crypto.randomUUID().replace(/-/g, '');
-      const digirampAnchor = `0x${crypto.randomUUID().replace(/-/g, '')}a1b2c3d4e5f6`;
+      console.log(`💸 [TRANSACTION_EXECUTE] Awaiting Web3 EVM Settlement...`);
+      const result = await sendTransaction({
+        to: usdcAddress,
+        amount: "0",     
+        data: dataPayload
+      });
+
+      if (!result) throw new Error("Web3 EVM Settlement failed or was rejected by user.");
+      const txHash = result.hash;
+      console.log(`✅ [TRANSACTION_EXECUTE] Web3 Settlement Broadcasted. Hash: ${txHash}`);
+
+      console.log(`🔐 [VERIFIER] Passing hash to IDIA Edge Function (life-usdc-nfc-settlement) for ACA generation & Ledgering...`);
+      
+      const { data: verifierData, error: verifierError } = await supabase.functions.invoke('life-usdc-nfc-settlement', {
+        body: {
+          txHash: txHash,
+          network: activeNetwork,
+          mode: mode,
+          peerToken: peerToken,
+          amount: numericAmount.toString()
+        }
+      });
+
+      if (verifierError || verifierData?.error) {
+        throw new Error(verifierError?.message || verifierData?.error || "Edge Function rejected the settlement log.");
+      }
 
       console.log(`
       ==================================================
-      [ACA EGRESS LOG] FINANCIAL TRANSACTION SECURED
+      [ACA EGRESS LOG] CLIENT-SIDE SETTLEMENT CONFIRMED
       ==================================================
-      Time:            ${timestamp}
-      Amount:          ${numericAmount} ${rail.toUpperCase()}
-      Direction:       ${mode.toUpperCase()}
-      Peer Token:      ${peerToken}
+      Status:          Verified & Ledgered
+      Amount:          ${amount} USDC
       Token Hash:      ${txHash}
-      ACA Hash:        ${acaHash}
-      DigiRAMP Anchor: ${digirampAnchor}
+      ACA Hash:        ${verifierData.aca_hash}
+      DigiRAMP Anchor: ${verifierData.digiramp_anchor}
       Method:          NFC_HANDSHAKE_V1
       ==================================================
       `);
 
-      // --- SUPABASE LEDGER RECORD ---
-      console.log(`💸 [TRANSACTION_LEDGER] Writing dual-entry state to Supabase transactions table.`);
-      const { error: dbError } = await supabase.from('transactions').insert({
-        user_id: user.id,
-        transaction_type: mode === 'send' ? 'payment_sent' : 'payment_received',
-        amount: mode === 'send' ? -numericAmount : numericAmount,
-        description: `NFC Tap Payment (${rail.toUpperCase()})`,
-        metadata: {
-          currency: rail === 'usdc' ? 'USDC' : 'USD',
-          peer_token: peerToken,
-          tx_hash: txHash,
-          aca_hash: acaHash,
-          token_hash: txHash,
-          digiramp_anchor: digirampAnchor,
-          method: 'NFC_HANDSHAKE',
-          timestamp: timestamp,
-          raw_amount: numericAmount
-        }
-      });
-
-      if (dbError) throw dbError;
-
-      console.log(`✅ [TRANSACTION_DISPATCH_END] Completely Settled and Ledgered.`);
       toast({
         title: "Settlement Complete",
-        description: `Successfully processed ${amount} ${rail.toUpperCase()}.`,
+        description: `Successfully processed ${amount} USDC.`,
       });
       onClose();
 

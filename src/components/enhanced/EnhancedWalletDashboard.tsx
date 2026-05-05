@@ -405,7 +405,7 @@ const EnhancedWalletDashboard: React.FC = () => {
               Send/Req
             </Button>
             <Button variant="outline" className="h-14 flex-col text-xs" onClick={() => setShowNFCModal(true)}>
-              <Smartphone className="w-5 h-5 mb-1" /> Tap Pay
+              <Smartphone className="w-5 h-5 mb-1" /> Direct NFC Pay
             </Button>
             <Button
               variant="outline"
