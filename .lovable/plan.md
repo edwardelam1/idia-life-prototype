@@ -1,50 +1,61 @@
-## Goal
+## Problem
 
-Make the wallet's "Add Funds" flow adapt to which rails the user has actually provisioned:
+The "Purge Identity" button in Settings → Privacy currently only calls `supabase.auth.signOut()` and redirects home. It does NOT delete the user from `auth.users`, does NOT remove their public-schema rows, and does NOT clear on-device PII from the Secure Enclave. This is a regulatory (GDPR/CCPA right-to-erasure) violation.
 
-- **Fiat rail provisioned** = a `wallets` row exists for the user (FBO is set up).
-- **USDC rail provisioned** = `profiles.wallet_address` exists and starts with `0x` (sovereign wallet is set up).
+## Fix
 
-Behavior:
-- Both provisioned → modal shows both Debit Card / Credit Card (fiat) **and** USDC deposit options.
-- Only fiat provisioned → modal shows only the fiat card options.
-- Only USDC provisioned → modal opens directly into the USDC deposit view (no fiat options).
-- Neither provisioned → "Add Funds" button is disabled with a tooltip / inline hint prompting setup.
+Implement a true, irreversible purge in three coordinated layers: edge function (server-side deletion), client (Secure Enclave + local storage wipe), and UI (re-confirm + progress states).
 
-## Changes
+### 1. New edge function: `purge-identity`
 
-### 1. `src/components/AddFundsModal.tsx`
-- Accept new props: `fiatEnabled: boolean`, `usdcEnabled: boolean`, `usdcAddress?: string | null`.
-- Refactor the `select` step to conditionally render:
-  - Fiat section (Debit / Credit cards) only when `fiatEnabled`.
-  - New USDC deposit section only when `usdcEnabled`, showing:
-    - Truncated wallet address with full-address copy-to-clipboard.
-    - "Network: Base" label.
-    - Note: "Send only USDC on Base. Other tokens/networks will be lost."
-- Add a new step `'usdc-deposit'` (rendered as the QR/address view).
-- If only one rail is enabled, skip the chooser and open directly into that rail's view.
-- Keep all existing fiat card-add logic intact.
+`supabase/functions/purge-identity/index.ts`
 
-### 2. `src/components/enhanced/EnhancedWalletDashboard.tsx`
-- Determine rail availability from existing hooks:
-  - `fiatEnabled = !!walletBalance` (a `wallets` row was successfully fetched), or pass through a fiat-provisioned flag from `useWalletBalance`.
-  - `usdcEnabled = !!globalWalletAddress && globalWalletAddress.startsWith('0x')` via `useSovereignWallet`.
-- Pass `fiatEnabled`, `usdcEnabled`, and `usdcAddress` to `<AddFundsModal />`.
-- If both are false, disable the "Add Funds" button and show "Set up wallet to add funds".
+- `verify_jwt = false`; validate JWT in code using a user-context client (`SUPABASE_ANON_KEY` + caller `Authorization` header) → `getUser()`. If invalid, return 401.
+- Spin up an admin client with `SUPABASE_SERVICE_ROLE_KEY`.
+- Delete all rows owned by `userId` across every public-schema table that has a `user_id` column. Discover tables dynamically via `information_schema.columns` (RPC) OR enumerate the known tables: `profiles`, `wallets`, `user_interests`, `user_preferences`, `user_roles`, `notifications`, `consent_records`, `connections`, `endorsements`, `praises`, `proposals`, `votes`, `health_data_bundles`, `ford_tokens`, `strava_tokens`, `business_memberships`, `employees`, plus any reward/ledger tables. We will run a discovery query first to build the exhaustive list and codify it.
+- Delete the auth user last: `adminClient.auth.admin.deleteUser(userId)`.
+- Return `{ ok: true, purged_tables: [...] }` with CORS headers. Wrap each delete in try/catch so a missing table doesn't abort the run; collect errors and return them.
 
-### 3. `src/components/WalletDashboard.tsx` (legacy)
-- Same prop pass-through so the legacy dashboard stays consistent.
+### 2. Client purge handler (`PrivacySettings.tsx`)
 
-## Technical notes
+Replace `deleteAccount` with a sequenced flow:
 
-- `useWalletBalance` already queries the `wallets` row; expose a derived `fiatProvisioned` boolean (true when the row was found) to avoid a second query.
-- USDC address resolution reuses the same pattern as `SendRequestModal`: prefer `useSovereignWallet().globalWalletAddress`, fall back to `useWallet().wallet?.address`.
-- No DB schema changes; no new edge functions.
-- Respects no-mock-data rule — all rail signals come from real provisioning state.
+```text
+1. Show "Purging…" loading state (disable button)
+2. Invoke edge function: supabase.functions.invoke('purge-identity')
+3. On success, wipe device PII:
+   - SecureStoragePlugin.remove({ key: 'user_pii_profile' })
+   - SecureStoragePlugin.clear() for any other known keys (recovery phrase, vault, etc.)
+   - localStorage.clear() and sessionStorage.clear()
+4. supabase.auth.signOut({ scope: 'global' })
+5. Toast confirmation, hard redirect to '/'
+6. On failure → destructive toast, do NOT sign out, log error
+```
 
-## Files touched
+### 3. UI confirmation hardening
 
-- `src/components/AddFundsModal.tsx`
-- `src/components/enhanced/EnhancedWalletDashboard.tsx`
-- `src/components/WalletDashboard.tsx`
-- `src/hooks/useWalletBalance.ts` (add `fiatProvisioned` flag)
+In the existing AlertDialog: add a typed-confirmation input ("Type PURGE to confirm") so the destructive action requires intentional acknowledgment. Keep current copy about irreversibility.
+
+## Technical details
+
+**Files to create**
+- `supabase/functions/purge-identity/index.ts`
+
+**Files to edit**
+- `src/components/settings/PrivacySettings.tsx` — replace `deleteAccount`, add typed confirmation, loading state.
+
+**Discovery step before writing the function**
+Run a `read_query` against `information_schema.columns` to enumerate every public table containing a `user_id` (uuid) column. Use that result to build the deletion list inside the edge function. This guarantees no orphan rows remain.
+
+**Secure Enclave keys to clear** (from existing code: `useSecureProfile`, `localPIIVault`, `vaultGuard`, `RecoveryPhrase`, `SecureVault`)
+- `user_pii_profile`
+- Any recovery-phrase / seed / vault keys present in `src/lib/localPIIVault.ts` and `src/pages/SecureVault.tsx` — will enumerate during implementation and clear each.
+
+**Security**
+- Service role key stays server-side only.
+- JWT validated before any deletion.
+- No client-side admin SDK usage.
+
+**Out of scope** (won't touch unless asked)
+- On-chain wallet key destruction (Sovereign Wallet keys live in Secure Enclave; clearing the enclave entries effectively orphans them. True on-chain "burn" is not possible.)
+- Backups / point-in-time recovery (Supabase platform-level; user can be informed via copy update if desired).
