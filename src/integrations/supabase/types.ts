@@ -3092,6 +3092,41 @@ export type Database = {
         }
         Relationships: []
       }
+      idia_schema_manifest_vault: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          pairing_code: string
+          schema_payload: Json
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          pairing_code: string
+          schema_payload: Json
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          pairing_code?: string
+          schema_payload?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "idia_schema_manifest_vault_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interests: {
         Row: {
           category: string | null
@@ -4134,6 +4169,54 @@ export type Database = {
           },
         ]
       }
+      merchant_terminals: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          last_seen_at: string | null
+          location_id: string | null
+          name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          last_seen_at?: string | null
+          location_id?: string | null
+          name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          last_seen_at?: string | null
+          location_id?: string | null
+          name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_terminals_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "merchant_terminals_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "business_locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       nfc_transactions: {
         Row: {
           blockchain_hash: string | null
@@ -4472,6 +4555,7 @@ export type Database = {
       pos_transactions: {
         Row: {
           ar_experience_id: string | null
+          business_id: string | null
           cashier_id: string | null
           created_at: string | null
           customer_id: string | null
@@ -4479,6 +4563,7 @@ export type Database = {
           id: string
           idia_usd_amount: number | null
           initiated_via_ar: boolean | null
+          items: Json | null
           location_id: string
           loyalty_points_earned: number | null
           nfc_payload: Json | null
@@ -4496,6 +4581,7 @@ export type Database = {
         }
         Insert: {
           ar_experience_id?: string | null
+          business_id?: string | null
           cashier_id?: string | null
           created_at?: string | null
           customer_id?: string | null
@@ -4503,6 +4589,7 @@ export type Database = {
           id?: string
           idia_usd_amount?: number | null
           initiated_via_ar?: boolean | null
+          items?: Json | null
           location_id: string
           loyalty_points_earned?: number | null
           nfc_payload?: Json | null
@@ -4520,6 +4607,7 @@ export type Database = {
         }
         Update: {
           ar_experience_id?: string | null
+          business_id?: string | null
           cashier_id?: string | null
           created_at?: string | null
           customer_id?: string | null
@@ -4527,6 +4615,7 @@ export type Database = {
           id?: string
           idia_usd_amount?: number | null
           initiated_via_ar?: boolean | null
+          items?: Json | null
           location_id?: string
           loyalty_points_earned?: number | null
           nfc_payload?: Json | null
@@ -4994,6 +5083,8 @@ export type Database = {
           created_by: string | null
           expected_delivery_date: string | null
           id: string
+          invoice_amount: number | null
+          invoice_status: string | null
           location_id: string
           notes: string | null
           order_date: string
@@ -5011,6 +5102,8 @@ export type Database = {
           created_by?: string | null
           expected_delivery_date?: string | null
           id?: string
+          invoice_amount?: number | null
+          invoice_status?: string | null
           location_id: string
           notes?: string | null
           order_date?: string
@@ -5028,6 +5121,8 @@ export type Database = {
           created_by?: string | null
           expected_delivery_date?: string | null
           id?: string
+          invoice_amount?: number | null
+          invoice_status?: string | null
           location_id?: string
           notes?: string | null
           order_date?: string
@@ -6943,11 +7038,25 @@ export type Database = {
           colorblind_mode: boolean | null
           created_at: string | null
           data_sharing_consent: boolean | null
+          email_reports: boolean | null
           font_size: string | null
           high_contrast: boolean | null
           id: string
+          in_app_alerts: boolean | null
+          in_app_sounds: boolean | null
           marketing_emails: boolean | null
+          privacy_bluetooth: boolean | null
+          privacy_camera: boolean | null
+          privacy_health: boolean | null
+          privacy_microphone: boolean | null
+          privacy_motion: boolean | null
+          privacy_nfc: boolean | null
+          push_activity: boolean | null
+          push_insights: boolean | null
           push_notifications: boolean | null
+          quiet_hours_enabled: boolean | null
+          quiet_hours_end: string | null
+          quiet_hours_start: string | null
           theme_preference: string | null
           updated_at: string | null
           user_id: string
@@ -6956,11 +7065,25 @@ export type Database = {
           colorblind_mode?: boolean | null
           created_at?: string | null
           data_sharing_consent?: boolean | null
+          email_reports?: boolean | null
           font_size?: string | null
           high_contrast?: boolean | null
           id?: string
+          in_app_alerts?: boolean | null
+          in_app_sounds?: boolean | null
           marketing_emails?: boolean | null
+          privacy_bluetooth?: boolean | null
+          privacy_camera?: boolean | null
+          privacy_health?: boolean | null
+          privacy_microphone?: boolean | null
+          privacy_motion?: boolean | null
+          privacy_nfc?: boolean | null
+          push_activity?: boolean | null
+          push_insights?: boolean | null
           push_notifications?: boolean | null
+          quiet_hours_enabled?: boolean | null
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
           theme_preference?: string | null
           updated_at?: string | null
           user_id: string
@@ -6969,11 +7092,25 @@ export type Database = {
           colorblind_mode?: boolean | null
           created_at?: string | null
           data_sharing_consent?: boolean | null
+          email_reports?: boolean | null
           font_size?: string | null
           high_contrast?: boolean | null
           id?: string
+          in_app_alerts?: boolean | null
+          in_app_sounds?: boolean | null
           marketing_emails?: boolean | null
+          privacy_bluetooth?: boolean | null
+          privacy_camera?: boolean | null
+          privacy_health?: boolean | null
+          privacy_microphone?: boolean | null
+          privacy_motion?: boolean | null
+          privacy_nfc?: boolean | null
+          push_activity?: boolean | null
+          push_insights?: boolean | null
           push_notifications?: boolean | null
+          quiet_hours_enabled?: boolean | null
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
           theme_preference?: string | null
           updated_at?: string | null
           user_id?: string
@@ -7094,6 +7231,7 @@ export type Database = {
           stablecoin_balance: number | null
           total_earned: number | null
           updated_at: string | null
+          usdc_balance: number | null
           usdc_last_block: number | null
           usdc_last_synced_at: string | null
           user_id: string
@@ -7113,6 +7251,7 @@ export type Database = {
           stablecoin_balance?: number | null
           total_earned?: number | null
           updated_at?: string | null
+          usdc_balance?: number | null
           usdc_last_block?: number | null
           usdc_last_synced_at?: string | null
           user_id: string
@@ -7132,6 +7271,7 @@ export type Database = {
           stablecoin_balance?: number | null
           total_earned?: number | null
           updated_at?: string | null
+          usdc_balance?: number | null
           usdc_last_block?: number | null
           usdc_last_synced_at?: string | null
           user_id?: string
@@ -7304,6 +7444,33 @@ export type Database = {
         }
         Relationships: []
       }
+      gl_journal_entries: {
+        Row: {
+          account: string | null
+          amount: number | null
+          business_id: string | null
+          created_at: string | null
+          id: string | null
+          metadata: Json | null
+        }
+        Insert: {
+          account?: string | null
+          amount?: never
+          business_id?: never
+          created_at?: string | null
+          id?: string | null
+          metadata?: Json | null
+        }
+        Update: {
+          account?: string | null
+          amount?: never
+          business_id?: never
+          created_at?: string | null
+          id?: string | null
+          metadata?: Json | null
+        }
+        Relationships: []
+      }
       global_reality_manifest: {
         Row: {
           actual_row_count: number | null
@@ -7328,6 +7495,195 @@ export type Database = {
         Row: {
           data_category: string | null
           total_records: number | null
+        }
+        Relationships: []
+      }
+      team_members: {
+        Row: {
+          aca_secured: boolean | null
+          address: string | null
+          assigned_locations: string[] | null
+          business_id: string | null
+          city: string | null
+          created_at: string | null
+          direct_deposit_enabled: boolean | null
+          email: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          hire_date: string | null
+          hourly_rate: number | null
+          id: string | null
+          is_ephemeral: boolean | null
+          last_login: string | null
+          name: string | null
+          notes: string | null
+          overtime_rate: number | null
+          pay_frequency: string | null
+          permission_template_id: string | null
+          permissions: Json | null
+          phone: string | null
+          platform_role: string | null
+          role: string | null
+          salary_type: string | null
+          state: string | null
+          status: string | null
+          tax_filing_status: string | null
+          updated_at: string | null
+          user_id: string | null
+          zip: string | null
+        }
+        Insert: {
+          aca_secured?: boolean | null
+          address?: string | null
+          assigned_locations?: string[] | null
+          business_id?: string | null
+          city?: string | null
+          created_at?: string | null
+          direct_deposit_enabled?: boolean | null
+          email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          hire_date?: string | null
+          hourly_rate?: number | null
+          id?: string | null
+          is_ephemeral?: boolean | null
+          last_login?: string | null
+          name?: string | null
+          notes?: string | null
+          overtime_rate?: number | null
+          pay_frequency?: string | null
+          permission_template_id?: string | null
+          permissions?: Json | null
+          phone?: string | null
+          platform_role?: string | null
+          role?: string | null
+          salary_type?: string | null
+          state?: string | null
+          status?: string | null
+          tax_filing_status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          zip?: string | null
+        }
+        Update: {
+          aca_secured?: boolean | null
+          address?: string | null
+          assigned_locations?: string[] | null
+          business_id?: string | null
+          city?: string | null
+          created_at?: string | null
+          direct_deposit_enabled?: boolean | null
+          email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          hire_date?: string | null
+          hourly_rate?: number | null
+          id?: string | null
+          is_ephemeral?: boolean | null
+          last_login?: string | null
+          name?: string | null
+          notes?: string | null
+          overtime_rate?: number | null
+          pay_frequency?: string | null
+          permission_template_id?: string | null
+          permissions?: Json | null
+          phone?: string | null
+          platform_role?: string | null
+          role?: string | null
+          salary_type?: string | null
+          state?: string | null
+          status?: string | null
+          tax_filing_status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          zip?: string | null
+        }
+        Relationships: []
+      }
+      team_schedules: {
+        Row: {
+          break_minutes: number | null
+          business_id: string | null
+          created_at: string | null
+          end_time: string | null
+          id: string | null
+          location: string | null
+          notes: string | null
+          schedule_date: string | null
+          start_time: string | null
+          status: string | null
+          team_member_id: string | null
+        }
+        Insert: {
+          break_minutes?: number | null
+          business_id?: string | null
+          created_at?: string | null
+          end_time?: string | null
+          id?: string | null
+          location?: string | null
+          notes?: string | null
+          schedule_date?: string | null
+          start_time?: string | null
+          status?: string | null
+          team_member_id?: string | null
+        }
+        Update: {
+          break_minutes?: number | null
+          business_id?: string | null
+          created_at?: string | null
+          end_time?: string | null
+          id?: string | null
+          location?: string | null
+          notes?: string | null
+          schedule_date?: string | null
+          start_time?: string | null
+          status?: string | null
+          team_member_id?: string | null
+        }
+        Relationships: []
+      }
+      time_entries: {
+        Row: {
+          break_minutes: number | null
+          business_id: string | null
+          clock_in: string | null
+          clock_out: string | null
+          created_at: string | null
+          id: string | null
+          location: string | null
+          notes: string | null
+          overtime_hours: number | null
+          status: string | null
+          team_member_id: string | null
+          total_hours: number | null
+        }
+        Insert: {
+          break_minutes?: number | null
+          business_id?: string | null
+          clock_in?: string | null
+          clock_out?: string | null
+          created_at?: string | null
+          id?: string | null
+          location?: string | null
+          notes?: string | null
+          overtime_hours?: number | null
+          status?: string | null
+          team_member_id?: string | null
+          total_hours?: number | null
+        }
+        Update: {
+          break_minutes?: number | null
+          business_id?: string | null
+          clock_in?: string | null
+          clock_out?: string | null
+          created_at?: string | null
+          id?: string | null
+          location?: string | null
+          notes?: string | null
+          overtime_hours?: number | null
+          status?: string | null
+          team_member_id?: string | null
+          total_hours?: number | null
         }
         Relationships: []
       }
