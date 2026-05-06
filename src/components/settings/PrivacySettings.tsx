@@ -309,11 +309,11 @@ export function PrivacySettings() {
             <div className="text-sm font-medium text-destructive">Purge Identity</div>
             <p className="text-[10px] text-muted-foreground">Permanently destroy account and keys</p>
           </div>
-          <AlertDialog>
+          <AlertDialog onOpenChange={(open) => { if (!open) setConfirmText(''); }}>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm">
-                <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                Purge
+              <Button variant="destructive" size="sm" disabled={purging}>
+                {purging ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 mr-1.5" />}
+                {purging ? 'Purging…' : 'Purge'}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -321,16 +321,28 @@ export function PrivacySettings() {
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
                   This action cannot be undone. This will permanently delete your account,
-                  purge all Consent Records, and destroy your Sovereign Wallet keys.
+                  purge all Consent Records, erase every database row tied to you, and destroy
+                  your Sovereign Wallet keys on this device. Type <strong>PURGE</strong> below to confirm.
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              <Input
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder="Type PURGE to confirm"
+                autoComplete="off"
+                disabled={purging}
+              />
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel disabled={purging}>Cancel</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={deleteAccount}
+                  onClick={(e) => {
+                    if (confirmText !== 'PURGE') { e.preventDefault(); return; }
+                    deleteAccount();
+                  }}
+                  disabled={confirmText !== 'PURGE' || purging}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
-                  Yes, Purge Identity
+                  {purging ? 'Purging…' : 'Yes, Purge Identity'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
