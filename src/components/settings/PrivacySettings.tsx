@@ -102,18 +102,45 @@ export function PrivacySettings() {
     }
   };
 
+  const wipeDevicePII = async () => {
+    // Clear known Secure Enclave keys (best effort — missing keys throw)
+    await Promise.all(
+      SECURE_KEYS_TO_WIPE.map(async (key) => {
+        try { await SecureStoragePlugin.remove({ key }); } catch { /* not present */ }
+      })
+    );
+    try { await SecureStoragePlugin.clear(); } catch { /* web fallback or empty */ }
+    try { localStorage.clear(); } catch { /* sandboxed */ }
+    try { sessionStorage.clear(); } catch { /* sandboxed */ }
+  };
+
   const deleteAccount = async () => {
     console.log("[PrivacySettings] deleteAccount START: Initiating permanent identity purge");
+    setPurging(true);
     try {
-      const { error } = await supabase.auth.signOut();
+      // 1. Server-side purge: every public-schema row + auth.users entry
+      const { data, error } = await supabase.functions.invoke('purge-identity');
       if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || 'Purge failed');
 
-      console.log("[PrivacySettings] deleteAccount SUCCESS: Session purged, database teardown active");
+      console.log("[PrivacySettings] deleteAccount: Server purge complete", data);
+
+      // 2. Wipe on-device PII (Secure Enclave + web storage)
+      await wipeDevicePII();
+
+      // 3. Sign out everywhere
+      await supabase.auth.signOut({ scope: 'global' });
+
       toast({ title: 'Account Purged', description: 'Your Sovereign Identity has been permanently deleted.' });
       window.location.href = '/';
     } catch (error) {
       console.error('[PrivacySettings] deleteAccount ERROR: Failed to execute deletion protocol', error);
-      toast({ title: 'Deletion Failed', description: 'Failed to delete your account', variant: 'destructive' });
+      toast({
+        title: 'Deletion Failed',
+        description: error instanceof Error ? error.message : 'Failed to delete your account',
+        variant: 'destructive',
+      });
+      setPurging(false);
     } finally {
       console.log("[PrivacySettings] deleteAccount END");
     }
