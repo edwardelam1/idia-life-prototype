@@ -1,15 +1,28 @@
+import { useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Shield, Database, Trash2, Download, Smartphone, Activity, Camera, HeartPulse, Bluetooth, Mic, ScanLine, Info } from 'lucide-react';
+import { Shield, Database, Trash2, Download, Smartphone, Activity, Camera, HeartPulse, Bluetooth, Mic, ScanLine, Info, Loader2 } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { SecureStoragePlugin } from 'capacitor-secure-storage-plugin';
+
+const SECURE_KEYS_TO_WIPE = [
+  'user_pii_profile',
+  'recovery_phrase',
+  'sovereign_seed',
+  'vault_master_key',
+  'wallet_private_key',
+];
 
 export function PrivacySettings() {
   const { preferences, updatePreferences } = useProfile();
   const { toast } = useToast();
+  const [purging, setPurging] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
 
   const handlePreferenceUpdate = async (key: string, value: boolean) => {
     console.log(`[PrivacySettings] handlePreferenceUpdate START: Attempting to set '${key}' to ${value}`);
