@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      aca_consent_artifacts: {
+        Row: {
+          created_at: string | null
+          expires_at: string | null
+          hash: string
+          id: string
+          metadata: Json | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at?: string | null
+          hash: string
+          id?: string
+          metadata?: Json | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string | null
+          hash?: string
+          id?: string
+          metadata?: Json | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       account_conversion_requests: {
         Row: {
           address_city: string | null
@@ -6551,6 +6581,33 @@ export type Database = {
         }
         Relationships: []
       }
+      system_configs: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          key: string
+          updated_at: string | null
+          value: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          key: string
+          updated_at?: string | null
+          value: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          key?: string
+          updated_at?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
       system_health: {
         Row: {
           component: string
@@ -7009,6 +7066,7 @@ export type Database = {
       }
       usdc_payments: {
         Row: {
+          aca_hash: string | null
           amount_raw: string
           amount_usdc: number
           block_number: number | null
@@ -7030,6 +7088,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          aca_hash?: string | null
           amount_raw: string
           amount_usdc: number
           block_number?: number | null
@@ -7051,6 +7110,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          aca_hash?: string | null
           amount_raw?: string
           amount_usdc?: number
           block_number?: number | null
