@@ -55,27 +55,39 @@ interface CreditSimulation {
 
 const EnhancedWalletDashboard: React.FC = () => {
   const { profile, loading, updateProfile } = useEnhancedProfile();
-  const { balance: walletBalance, loading: balanceLoading, fiatProvisioned, usdcProvisioned, usdcAddress } = useWalletBalance();
+  const {
+    balance: walletBalance,
+    loading: balanceLoading,
+    fiatProvisioned,
+    usdcProvisioned,
+    usdcAddress,
+  } = useWalletBalance();
 
   // 1. Force a dedicated, stable ID state to prevent render-looping
   const [stableUserId, setStableUserId] = useState<string | null>(null);
 
-  // 2. Add mode state for Shawn's modal (Moved inside component to prevent React crash)
-  const [setupMode, setSetupMode] = useState<'create' | 'import' | 'view-seed'>('create');
-  
+  // 2. Add mode state for Shawn's modal
+  const [setupMode, setSetupMode] = useState<"create" | "import" | "view-seed">("create");
+
   // 3. Deterministic ID Capture: Listen only for the moment the profile hydrates
   useEffect(() => {
-    const resolvedId = profile?.id || profile?.user_id;
-    if (resolvedId && resolvedId !== stableUserId) {
-      console.log(`✅ [ID_LOCK] Identity Verified: ${resolvedId}`);
-      setStableUserId(resolvedId);
+    console.log("[IDENTITY_SYNC_START] Evaluating profile hydration state...");
+    try {
+      const resolvedId = profile?.id || profile?.user_id;
+      if (resolvedId && resolvedId !== stableUserId) {
+        console.log(`✅ [ID_LOCK] Identity Verified: ${resolvedId}`);
+        setStableUserId(resolvedId);
+      }
+      console.log("[IDENTITY_SYNC_END] Hydration evaluation complete.");
+    } catch (err) {
+      console.error("[IDENTITY_SYNC_ERROR] Silent failure during ID lock evaluation:", err);
     }
   }, [profile, stableUserId]);
 
   // 4. Updated useSovereignWallet with the stable ID
   const { globalWalletAddress, isHydrating, syncWalletToSupabase } = useSovereignWallet(stableUserId);
 
-  // 5. Pull local Web3 state exclusively from Native Wallet Infrastructure (Wagmi removed)
+  // 5. Pull local Web3 state exclusively from Native Wallet Infrastructure
   const { wallet: nativeWallet, hasWallet, createWallet, importWallet, getSeedPhrase } = useWallet();
   const localAddress = nativeWallet?.address;
 
@@ -145,26 +157,36 @@ const EnhancedWalletDashboard: React.FC = () => {
   // --- Identity-gated, one-shot wallet link (loop-proof) ---
   const linkedPairsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (!stableUserId || !hasWallet || !localAddress) return;
-    if (localAddress === globalWalletAddress) return;
+    console.log("[WEB3_WATCHER_INIT] Evaluating local vs global wallet parity.");
+    try {
+      if (!stableUserId || !hasWallet || !localAddress) return;
+      if (localAddress === globalWalletAddress) return;
 
-    const pairKey = `${stableUserId}:${localAddress.toLowerCase()}`;
-    if (linkedPairsRef.current.has(pairKey)) return;
-    linkedPairsRef.current.add(pairKey);
+      const pairKey = `${stableUserId}:${localAddress.toLowerCase()}`;
+      if (linkedPairsRef.current.has(pairKey)) return;
+      linkedPairsRef.current.add(pairKey);
 
-    console.log(`🔗 [WEB3_WATCHER] START: One-shot link Vault ${localAddress} to User ${stableUserId}.`);
-    syncWalletToSupabase(localAddress);
-    window.dispatchEvent(new CustomEvent("vault-linked", { detail: { address: localAddress } }));
-    console.log(`🔗 [WEB3_WATCHER] END: Link process dispatched.`);
+      console.log(`🔗 [WEB3_WATCHER_EXEC] START: One-shot link Vault ${localAddress} to User ${stableUserId}.`);
+      syncWalletToSupabase(localAddress);
+      window.dispatchEvent(new CustomEvent("vault-linked", { detail: { address: localAddress } }));
+      console.log(`🔗 [WEB3_WATCHER_EXEC] END: Link process dispatched.`);
+    } catch (err) {
+      console.error("[WEB3_WATCHER_ERROR] Vault link parity sequence stalled:", err);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasWallet, localAddress, stableUserId, globalWalletAddress]);
 
   // --- Native App Handshake ---
   useEffect(() => {
     const handleNativeAuthMessage = (event: MessageEvent) => {
-      if (event.data?.type === "IDIA_AUTH_COMPLETE") {
-        console.log("📱 [NATIVE_BRIDGE] Handshake Confirmed. Transitioning to Active Dashboard.");
-        window.location.href = "/dashboard";
+      console.log("[NATIVE_BRIDGE_MESSAGE] Incoming message evaluated.");
+      try {
+        if (event.data?.type === "IDIA_AUTH_COMPLETE") {
+          console.log("📱 [NATIVE_BRIDGE_EXEC] Handshake Confirmed. Transitioning to Active Dashboard.");
+          window.location.href = "/dashboard";
+        }
+      } catch (err) {
+        console.error("[NATIVE_BRIDGE_ERROR] Bridge message evaluation stalled:", err);
       }
     };
 
@@ -172,76 +194,136 @@ const EnhancedWalletDashboard: React.FC = () => {
     return () => window.removeEventListener("message", handleNativeAuthMessage);
   }, []);
 
-  // --- Transaction Fetching ---
+  // --- Parallel Ledger Transaction Fetching ---
   useEffect(() => {
-    fetchTransactions();
-  }, []);
+    if (stableUserId) {
+      console.log(`[EFFECT_TRIGGER] Identity lock confirmed (${stableUserId}). Initiating parallel ledger fetch.`);
+      fetchTransactions(stableUserId);
+    }
+  }, [stableUserId]);
 
-  const fetchTransactions = async () => {
-    console.log("💳 [START] Fetching multi-currency transactions from 'transactions' table...");
+  const fetchTransactions = async (userId: string) => {
+    console.log("💳 [FETCH_TRANSACTIONS_START] Fetching multi-ledger transactions (Standard + Synapse)...");
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        console.warn("💳 [FETCH_ABORTED] No authenticated user found.");
-        return;
-      }
-
-      const { data, error } = await supabase
+      // Branch 1: Standard Transactions & Data Royalties
+      console.log("💳 [FETCH_TRANSACTIONS_DB_CALL] Initiating core transaction query.");
+      const { data: txData, error: txError } = await supabase
         .from("transactions")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(30);
 
-      if (error) {
-        console.error("🚨 [FETCH_ERROR] Multi-currency query failed:", error);
-      } else {
-        console.log(`💳 [SUCCESS] Ingested ${data?.length || 0} cross-ledger records.`);
-        
-        const mappedTransactions = (data || []).map((tx) => {
-          const typedMetadata = tx.metadata as Record<string, any> | null;
-          let currencyType = (tx as any).currency || typedMetadata?.currency;
-          
-          // HARD-LOCK: Enforce USDC on data-related payouts regardless of missing metadata
-          if (
-            tx.transaction_type === "DATA_SALE_PAYOUT" || 
-            tx.transaction_type === "data_reward" || 
-            tx.transaction_type === "data_earnings"
-          ) {
-            currencyType = "USDC";
-          } else if (!currencyType) {
-            currencyType = "USD"; // Default fallback for unrelated historical records
-          }
-          
-          return {
-            id: tx.id,
-            transaction_type: tx.transaction_type,
-            amount: tx.amount, // Aligned with database DECIMAL column
-            description: tx.description,
-            source: currencyType, 
-            created_at: tx.created_at,
-            metadata: tx.metadata,
-          };
-        });
-        
-        setTransactions(mappedTransactions);
+      if (txError) {
+        console.error("🚨 [FETCH_TRANSACTIONS_DB_ERROR] Core transaction query rejected by Supabase:", txError);
+        throw txError;
       }
+
+      // Branch 2: Synapse Engine Credit Ledger
+      console.log("💳 [FETCH_TRANSACTIONS_DB_CALL] Initiating Synapse credit ledger query.");
+      const { data: synapseData, error: synapseError } = await supabase
+        .from("synapse_credit_ledger")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(30);
+
+      if (synapseError) {
+        console.error(
+          "🚨 [FETCH_TRANSACTIONS_DB_WARNING] Synapse ledger query failed (table may be uninitialized or empty):",
+          synapseError,
+        );
+        // We do not throw here to protect the core data rendering
+      }
+
+      console.log(
+        `💳 [FETCH_TRANSACTIONS_DATA_RECV] Ingested ${txData?.length || 0} core records and ${synapseData?.length || 0} Synapse compute records.`,
+      );
+
+      // Mapping 1: Core Standard Ledgers
+      const mappedTx = (txData || [])
+        .map((tx) => {
+          try {
+            const typedMetadata = tx.metadata as Record<string, any> | null;
+            let currencyType = tx.currency || typedMetadata?.currency;
+
+            // HARD-LOCK: Enforce USDC on data-related payouts regardless of missing metadata
+            if (
+              tx.transaction_type === "DATA_SALE_PAYOUT" ||
+              tx.transaction_type === "data_reward" ||
+              tx.transaction_type === "data_earnings" ||
+              tx.transaction_type === "royalty_payout"
+            ) {
+              currencyType = "USDC";
+            } else if (!currencyType) {
+              currencyType = "USD";
+            }
+
+            return {
+              id: tx.id,
+              transaction_type: tx.transaction_type,
+              amount: Number(tx.amount) || 0,
+              description: tx.description || "Data Royalty Payout",
+              source: currencyType,
+              created_at: tx.created_at,
+              metadata: tx.metadata,
+            };
+          } catch (mapErr) {
+            console.error(`🚨 [FETCH_TRANSACTIONS_MAPPING_ERROR] Failed mapping standard TX ${tx.id}:`, mapErr);
+            return null;
+          }
+        })
+        .filter(Boolean) as Transaction[];
+
+      // Mapping 2: Synapse Compute Ledgers
+      const mappedSynapse = (synapseData || [])
+        .map((syn) => {
+          try {
+            // Normalize the variable column structures into standard ledger formatting
+            const amountVal = Number(syn.cost_usd || syn.amount_paid || syn.amount) || 0;
+            return {
+              id: syn.id || `syn-${Date.now()}-${Math.random()}`,
+              transaction_type: "synapse_credit_purchase",
+              amount: amountVal > 0 ? -Math.abs(amountVal) : amountVal, // Ensure purchases reflect as deductions
+              description: syn.description || "Synapse Engine Compute Credits",
+              source: "USD",
+              created_at: syn.created_at,
+              metadata: { type: "synapse_compute_allocation" },
+            };
+          } catch (mapErr) {
+            console.error(`🚨 [FETCH_TRANSACTIONS_MAPPING_ERROR] Failed mapping Synapse TX ${syn.id}:`, mapErr);
+            return null;
+          }
+        })
+        .filter(Boolean) as Transaction[];
+
+      // Synthesis & Chronological Sorting
+      console.log("💳 [FETCH_TRANSACTIONS_SYNTHESIS_START] Merging branch arrays into unified historical timeline.");
+      const combinedHistory = [...mappedTx, ...mappedSynapse].sort((a, b) => {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+      setTransactions(combinedHistory);
+      console.log("💳 [FETCH_TRANSACTIONS_STATE_UPDATED] Parallel ledger state array hydrated successfully.");
     } catch (error) {
-      console.error("🚨 [CRITICAL_FAILURE] Silent stalling in multi-currency fetch:", error);
+      console.error(
+        "🚨 [FETCH_TRANSACTIONS_CRITICAL_FAILURE] Execution stalled during multi-ledger aggregation:",
+        error,
+      );
     } finally {
-      console.log("💳 [END] fetchTransactions routine complete.");
+      console.log("💳 [FETCH_TRANSACTIONS_END] fetchTransactions routine complete and network lock released.");
     }
   };
 
   const exportTaxableEvents = async () => {
+    console.log("[EXPORT_TAX_EVENTS_START] Aggregating taxable ledger history...");
     try {
       const taxableEvents = transactions.filter(
         (t) =>
           t.transaction_type === "DATA_SALE_PAYOUT" ||
           t.transaction_type === "crypto_sale" ||
-          t.transaction_type === "income",
+          t.transaction_type === "income" ||
+          t.transaction_type === "royalty_payout",
       );
 
       const csvContent = [
@@ -258,12 +340,14 @@ const EnhancedWalletDashboard: React.FC = () => {
       a.download = `taxable-events-${new Date().getFullYear()}.csv`;
       a.click();
       window.URL.revokeObjectURL(url);
+      console.log("[EXPORT_TAX_EVENTS_END] Tax payload successfully formatted and downloaded.");
     } catch (error) {
-      console.error("Error exporting taxable events:", error);
+      console.error("[EXPORT_TAX_EVENTS_ERROR] Silent failure during CSV blob generation:", error);
     }
   };
 
   const handleCalculateScore = async (moduleScores: Record<string, number>) => {
+    console.log("[SCORE_CALC_START] Firing telemetry array to remote algorithm.");
     setIsCalculating(true);
     try {
       const { tut, ...actualTelemetry } = moduleScores;
@@ -271,8 +355,13 @@ const EnhancedWalletDashboard: React.FC = () => {
         body: { user_id: stableUserId, telemetry: actualTelemetry },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("[SCORE_CALC_RPC_ERROR] Edge function invocation rejected:", error);
+        throw error;
+      }
+
       if (updateProfile) {
+        console.log("[SCORE_CALC_UPDATE] Persisting computed matrix to user profile.");
         await updateProfile({
           trust_score: data.trust_score,
           available_credit_line: data.credit_line,
@@ -284,25 +373,31 @@ const EnhancedWalletDashboard: React.FC = () => {
         simulated_score: data.trust_score,
         actions: ["Psychometric telemetry verified via IDIA Protocol", "Deterministic capital limit recalculated"],
       });
+      console.log("[SCORE_CALC_SUCCESS] Financial payload accepted.");
     } catch (err) {
-      console.error("IDIA Algorithm Execution Failed:", err);
+      console.error("[SCORE_CALC_CRITICAL_ERROR] Algorithm Execution Failed entirely:", err);
     } finally {
       setIsCalculating(false);
       setShowTestModal(false);
       setTimeout(() => fireFinaleConfetti(), 400);
+      console.log("[SCORE_CALC_END] Calculation sequence terminated.");
     }
   };
 
   const getTransactionIcon = (type: string, currency: string) => {
-    // Priority 1: Tokens get specific branding
+    // Priority 1: High Compute / Platform specific actions
+    if (type === "synapse_credit_purchase") return BrainCircuit;
+
+    // Priority 2: Tokens get specific branding
     if (currency === "USDC") return Shield;
     if (currency === "IDIA Token") return BrainCircuit;
 
-    // Priority 2: Standard transaction types
+    // Priority 3: Standard transaction types
     switch (type) {
       case "DATA_SALE_PAYOUT":
       case "data_reward":
       case "data_earnings":
+      case "royalty_payout":
         return TrendingUp;
       case "payment_sent":
         return ArrowUpRight;
@@ -317,11 +412,11 @@ const EnhancedWalletDashboard: React.FC = () => {
   };
 
   const getTransactionColor = (amount: number) => (amount > 0 ? "text-green-600" : "text-red-600");
-  
+
   const formatAmount = (amount: number, currency: string) => {
     const prefix = amount > 0 ? "+" : "";
     const value = Math.abs(amount).toFixed(2);
-    
+
     if (currency === "USDC") return `${prefix}${value} USDC`;
     if (currency === "IDIA Token") return `${prefix}${value} IDIA`;
     return `${prefix}$${value}`; // Default USD
@@ -358,10 +453,18 @@ const EnhancedWalletDashboard: React.FC = () => {
     <div className="h-full flex flex-col gap-4 overflow-hidden">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
         <TabsList className="grid grid-cols-4 w-full bg-muted/20 shrink-0">
-          <TabsTrigger value="overview" className="text-[11px] px-1">Overview</TabsTrigger>
-          <TabsTrigger value="transactions" className="text-[11px] px-1">History</TabsTrigger>
-          <TabsTrigger value="credit" className="text-[11px] px-1">Credit</TabsTrigger>
-          <TabsTrigger value="security" className="text-[11px] px-1">Security</TabsTrigger>
+          <TabsTrigger value="overview" className="text-[11px] px-1">
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="transactions" className="text-[11px] px-1">
+            History
+          </TabsTrigger>
+          <TabsTrigger value="credit" className="text-[11px] px-1">
+            Credit
+          </TabsTrigger>
+          <TabsTrigger value="security" className="text-[11px] px-1">
+            Security
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -417,11 +520,13 @@ const EnhancedWalletDashboard: React.FC = () => {
               <Plus className="w-5 h-5 mb-1" /> Add Funds
             </Button>
           </div>
-
         </TabsContent>
 
         <TabsContent value="transactions" className="flex-1 min-h-0 overflow-hidden mt-2">
-          <div className="h-full overflow-y-auto touch-pan-y no-scrollbar pr-1" style={{ WebkitOverflowScrolling: "touch" }}>
+          <div
+            className="h-full overflow-y-auto touch-pan-y no-scrollbar pr-1"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
             {transactions.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground italic">
                 No multi-currency records found in IDIA Protocol
@@ -530,7 +635,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                         variant="outline"
                         className="w-full"
                         onClick={() => {
-                          setSetupMode('view-seed');
+                          setSetupMode("view-seed");
                           setIsSetupModalOpen(true);
                         }}
                       >
@@ -540,31 +645,31 @@ const EnhancedWalletDashboard: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                    <div className="grid grid-cols-2 gap-3 mt-3">
-                      <Button 
-                        className="w-full bg-primary hover:bg-primary/90" 
-                        onClick={() => {
-                          setSetupMode('create');
-                          setIsSetupModalOpen(true);
-                        }}
-                      >
-                        <Shield className="w-4 h-4 mr-2" />
-                        Create Account
-                      </Button>
-                      <Button 
-                        variant="outline"
-                        className="w-full" 
-                        onClick={() => {
-                          setSetupMode('import');
-                          setIsSetupModalOpen(true);
-                        }}
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        Import
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <Button
+                      className="w-full bg-primary hover:bg-primary/90"
+                      onClick={() => {
+                        setSetupMode("create");
+                        setIsSetupModalOpen(true);
+                      }}
+                    >
+                      <Shield className="w-4 h-4 mr-2" />
+                      Create Account
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        setSetupMode("import");
+                        setIsSetupModalOpen(true);
+                      }}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Import
+                    </Button>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -579,11 +684,11 @@ const EnhancedWalletDashboard: React.FC = () => {
         usdcEnabled={usdcProvisioned}
         usdcAddress={usdcAddress || globalWalletAddress || nativeWallet?.address || null}
       />
-      
+
       {/* Type error bypassed cleanly by letting useWallet react natively */}
-      <WalletSetupModal 
-        isOpen={isSetupModalOpen} 
-        onClose={() => setIsSetupModalOpen(false)} 
+      <WalletSetupModal
+        isOpen={isSetupModalOpen}
+        onClose={() => setIsSetupModalOpen(false)}
         mode={setupMode}
         onCreateWallet={handleCreateWallet}
         onImportWallet={handleImportWallet}
