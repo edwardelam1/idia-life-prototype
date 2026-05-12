@@ -136,7 +136,6 @@ const EnhancedWalletDashboard: React.FC = () => {
     }
   };
 
-  // 7. Ref for the Sync Lock to prevent concurrent database writes
   const syncLock = useRef(false);
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -149,7 +148,6 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [showTestModal, setShowTestModal] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
 
-  // IDIA Infrastructure State
   const displayAddress = globalWalletAddress || localAddress;
   const isProvisioned = !!displayAddress;
   const hasFBO = !!profile?.fbo_account_id;
@@ -233,7 +231,6 @@ const EnhancedWalletDashboard: React.FC = () => {
           "🚨 [FETCH_TRANSACTIONS_DB_WARNING] Synapse ledger query failed (table may be uninitialized or empty):",
           synapseError,
         );
-        // We do not throw here to protect the core data rendering
       }
 
       console.log(
@@ -241,20 +238,24 @@ const EnhancedWalletDashboard: React.FC = () => {
       );
 
       // Mapping 1: Core Standard Ledgers
+      // FIX: Cast tx to 'any' to bypass strict TS enforcement of the Supabase generated schema
       const mappedTx = (txData || [])
-        .map((tx) => {
+        .map((tx: any) => {
           try {
             const typedMetadata = tx.metadata as Record<string, any> | null;
             let currencyType = tx.currency || typedMetadata?.currency;
 
-            // HARD-LOCK: Enforce USDC on data-related payouts regardless of missing metadata
+            // HARD-LOCK: Enforce USDC on data-related payouts
             if (
               tx.transaction_type === "DATA_SALE_PAYOUT" ||
               tx.transaction_type === "data_reward" ||
               tx.transaction_type === "data_earnings" ||
-              tx.transaction_type === "royalty_payout"
+              tx.transaction_type === "royalty_payout" ||
+              tx.transaction_type === "data_sale" // Added from new schema enums
             ) {
               currencyType = "USDC";
+            } else if (tx.transaction_type === "synapse_purchase") {
+              currencyType = "USD";
             } else if (!currencyType) {
               currencyType = "USD";
             }
@@ -263,35 +264,36 @@ const EnhancedWalletDashboard: React.FC = () => {
               id: tx.id,
               transaction_type: tx.transaction_type,
               amount: Number(tx.amount) || 0,
-              description: tx.description || "Data Royalty Payout",
+              description: tx.description || "Ledger Transaction",
               source: currencyType,
               created_at: tx.created_at,
               metadata: tx.metadata,
             };
           } catch (mapErr) {
-            console.error(`🚨 [FETCH_TRANSACTIONS_MAPPING_ERROR] Failed mapping standard TX ${tx.id}:`, mapErr);
+            console.error(`🚨 [FETCH_TRANSACTIONS_MAPPING_ERROR] Failed mapping standard TX ${tx?.id}:`, mapErr);
             return null;
           }
         })
         .filter(Boolean) as Transaction[];
 
       // Mapping 2: Synapse Compute Ledgers
+      // FIX: Cast syn to 'any' and use the exact schema columns for amount derivation
       const mappedSynapse = (synapseData || [])
-        .map((syn) => {
+        .map((syn: any) => {
           try {
-            // Normalize the variable column structures into standard ledger formatting
-            const amountVal = Number(syn.cost_usd || syn.amount_paid || syn.amount) || 0;
+            // Fallback through the active schema columns directly to derive the cost
+            const amountVal = Number(syn.amount_usdc || syn.amount_idia_usd || syn.amount) || 0;
             return {
               id: syn.id || `syn-${Date.now()}-${Math.random()}`,
-              transaction_type: "synapse_credit_purchase",
+              transaction_type: "synapse_purchase",
               amount: amountVal > 0 ? -Math.abs(amountVal) : amountVal, // Ensure purchases reflect as deductions
               description: syn.description || "Synapse Engine Compute Credits",
-              source: "USD",
+              source: syn.amount_usdc ? "USDC" : "USD",
               created_at: syn.created_at,
               metadata: { type: "synapse_compute_allocation" },
             };
           } catch (mapErr) {
-            console.error(`🚨 [FETCH_TRANSACTIONS_MAPPING_ERROR] Failed mapping Synapse TX ${syn.id}:`, mapErr);
+            console.error(`🚨 [FETCH_TRANSACTIONS_MAPPING_ERROR] Failed mapping Synapse TX ${syn?.id}:`, mapErr);
             return null;
           }
         })
@@ -323,7 +325,8 @@ const EnhancedWalletDashboard: React.FC = () => {
           t.transaction_type === "DATA_SALE_PAYOUT" ||
           t.transaction_type === "crypto_sale" ||
           t.transaction_type === "income" ||
-          t.transaction_type === "royalty_payout",
+          t.transaction_type === "royalty_payout" ||
+          t.transaction_type === "data_sale",
       );
 
       const csvContent = [
@@ -385,24 +388,24 @@ const EnhancedWalletDashboard: React.FC = () => {
   };
 
   const getTransactionIcon = (type: string, currency: string) => {
-    // Priority 1: High Compute / Platform specific actions
-    if (type === "synapse_credit_purchase") return BrainCircuit;
+    if (type === "synapse_purchase" || type === "synapse_credit_purchase") return BrainCircuit;
 
-    // Priority 2: Tokens get specific branding
     if (currency === "USDC") return Shield;
     if (currency === "IDIA Token") return BrainCircuit;
 
-    // Priority 3: Standard transaction types
     switch (type) {
       case "DATA_SALE_PAYOUT":
       case "data_reward":
       case "data_earnings":
       case "royalty_payout":
+      case "data_sale":
         return TrendingUp;
       case "payment_sent":
+      case "withdrawal":
         return ArrowUpRight;
       case "payment_received":
       case "payroll":
+      case "deposit":
         return ArrowDownLeft;
       case "nfc_payroll":
         return Smartphone;
@@ -419,7 +422,7 @@ const EnhancedWalletDashboard: React.FC = () => {
 
     if (currency === "USDC") return `${prefix}${value} USDC`;
     if (currency === "IDIA Token") return `${prefix}${value} IDIA`;
-    return `${prefix}$${value}`; // Default USD
+    return `${prefix}$${value}`;
   };
 
   if (loading || balanceLoading || isHydrating) {
@@ -617,7 +620,6 @@ const EnhancedWalletDashboard: React.FC = () => {
                 <Badge variant={hasFBO ? "default" : "secondary"}>{hasFBO ? "Connected" : "Not Linked"}</Badge>
               </div>
 
-              {/* Wallet address + Recovery Phrase reveal */}
               <div className="mt-6 pt-4 border-t">
                 {isProvisioned ? (
                   <div className="space-y-4">
@@ -685,7 +687,6 @@ const EnhancedWalletDashboard: React.FC = () => {
         usdcAddress={usdcAddress || globalWalletAddress || nativeWallet?.address || null}
       />
 
-      {/* Type error bypassed cleanly by letting useWallet react natively */}
       <WalletSetupModal
         isOpen={isSetupModalOpen}
         onClose={() => setIsSetupModalOpen(false)}
