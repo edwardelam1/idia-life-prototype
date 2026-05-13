@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react"; // Added useMemo
 import { Wallet, Database, Users, ShoppingBag, Vote, Crown } from "lucide-react";
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
 import EnhancedWalletDashboard from "./enhanced/EnhancedWalletDashboard";
@@ -10,6 +10,9 @@ import ProScreen from "./pro/ProScreen";
 import Header from "./Header";
 import { FriendAssistantProvider } from "./FriendAssistant";
 import WelcomeSequence from "./life/WelcomeSequence";
+
+// Protocol Release Constant
+const IDIA_PAY_RELEASE_DATE = new Date("2026-07-11T00:00:00Z");
 
 const MainApp = () => {
   const [activeTab, setActiveTab] = useState("life");
@@ -28,16 +31,33 @@ const MainApp = () => {
   const { profile, loading: profileLoading } = useEnhancedProfile();
   const [isProvisioned, setIsProvisioned] = useState({ wallet: false, fbo: false });
 
-  // Sovereign Audit — informational only (no gate)
+  // 1. Calculate release status
+  const isPayReady = useMemo(() => new Date() >= IDIA_PAY_RELEASE_DATE, []);
+
+  // 2. Define dynamic tabs based on release truth
+  const tabs = useMemo(
+    () => [
+      { id: "wallet", label: "Wallet", icon: Wallet, component: EnhancedWalletDashboard },
+      { id: "data", label: "Data", icon: Database, component: DataDashboard },
+      { id: "life", label: "Life", icon: Users, component: LifeScreen },
+      // Shop is conditionally injected based on the July 11th gate
+      ...(isPayReady ? [{ id: "shop", label: "Shop", icon: ShoppingBag, component: ShopScreen }] : []),
+      { id: "vote", label: "Gov", icon: Vote, component: GovernanceScreen },
+      { id: "pro", label: "Pro", icon: Crown, component: ProScreen },
+    ],
+    [isPayReady],
+  );
+
+  // Sovereign Audit — informational only
   useEffect(() => {
     if (!profileLoading) {
       console.log("[START] MainApp: Executing infrastructure audit...");
       const hasWallet = !!profile?.wallet_address;
       const hasFBO = !!profile?.fbo_account_id;
       setIsProvisioned({ wallet: hasWallet, fbo: hasFBO });
-      console.log(`[END] MainApp Audit Complete - Vault: ${hasWallet}, FBO: ${hasFBO}`);
+      console.log(`[END] MainApp Audit Complete - Pay Ready: ${isPayReady}, Vault: ${hasWallet}, FBO: ${hasFBO}`);
     }
-  }, [profile, profileLoading]);
+  }, [profile, profileLoading, isPayReady]);
 
   useEffect(() => {
     const handleVaultLinked = (event: any) => {
@@ -48,7 +68,7 @@ const MainApp = () => {
     return () => window.removeEventListener("vault-linked", handleVaultLinked);
   }, []);
 
-  // AI Assistant Triggers (suppressed during first-run welcome)
+  // AI Assistant Triggers
   useEffect(() => {
     if (showWelcome) return;
     if (activeTab === "life") {
@@ -68,15 +88,6 @@ const MainApp = () => {
     window.addEventListener("showFriend", handleShowFriend as EventListener);
     return () => window.removeEventListener("showFriend", handleShowFriend as EventListener);
   }, []);
-
-  const tabs = [
-    { id: "wallet", label: "Wallet", icon: Wallet, component: EnhancedWalletDashboard },
-    { id: "data", label: "Data", icon: Database, component: DataDashboard },
-    { id: "life", label: "Life", icon: Users, component: LifeScreen },
-    { id: "shop", label: "Shop", icon: ShoppingBag, component: ShopScreen },
-    { id: "vote", label: "Gov", icon: Vote, component: GovernanceScreen },
-    { id: "pro", label: "Pro", icon: Crown, component: ProScreen },
-  ];
 
   const ActiveComponent = tabs.find((tab) => tab.id === activeTab)?.component || EnhancedWalletDashboard;
 
