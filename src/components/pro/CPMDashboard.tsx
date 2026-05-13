@@ -196,6 +196,12 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
 
   return (
     <>
+      <GammaPhotosensitivityWarning
+        open={gammaWarningOpen}
+        surface="CPMDashboard"
+        onCancel={() => setGammaWarningOpen(false)}
+        onAcknowledge={() => { setGammaWarningOpen(false); triggerGammaSequence(true); }}
+      />
       {isFlashing && createPortal(
         <div 
           className="fixed inset-0 z-[99999] pointer-events-none animate-[seizure-rgb_25ms_linear_infinite]" 
