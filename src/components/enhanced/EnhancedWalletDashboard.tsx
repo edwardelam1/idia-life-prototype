@@ -201,101 +201,89 @@ const EnhancedWalletDashboard: React.FC = () => {
   }, [stableUserId]);
 
   const fetchTransactions = async (userId: string) => {
-    console.log("💳 [FETCH_TRANSACTIONS_START] Fetching multi-ledger transactions (Standard + Synapse)...");
+    console.log("💳 [FETCH_TRANSACTIONS_START] Querying verified ledgers...");
     try {
-      // Branch 1: Standard Transactions & Data Royalties
-      console.log("💳 [FETCH_TRANSACTIONS_DB_CALL] Initiating core transaction query.");
-      const { data: txData, error: txError } = await supabase
-        .from("transactions")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(30);
+      // Parallel fetch for speed and data parity
+      const [txResult, synapseResult] = await Promise.all([
+        supabase
+          .from("transactions")
+          .select("*")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(30),
+        supabase
+          .from("synapse_credit_ledger")
+          .select("*")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(30)
+      ]);
 
-      if (txError) {
-        console.error("🚨 [FETCH_TRANSACTIONS_DB_ERROR] Core transaction query rejected by Supabase:", txError);
-        throw txError;
-      }
+      if (txResult.error) throw txResult.error;
 
-      // Branch 2: Synapse Engine Credit Ledger
-      console.log("💳 [FETCH_TRANSACTIONS_DB_CALL] Initiating Synapse credit ledger query.");
-      const { data: synapseData, error: synapseError } = await supabase
-        .from("synapse_credit_ledger")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(30);
+      // --- BRANCH 1: Standard Transactions (Truth-Only) ---
+      const mappedTx = (txResult.data || []).map((tx: any) => {
+        try {
+          // STRICT CURRENCY CHECK: Do not guess. Pull from column or metadata.
+          const rawCurrency = tx.currency || tx.metadata?.currency;
+          
+          // Data Royalties are strictly USDC by Protocol definition
+          const isDataPayout = [
+            "DATA_SALE_PAYOUT", "data_reward", "data_earnings", 
+            "royalty_payout", "data_sale"
+          ].includes(tx.transaction_type);
 
-      if (synapseError) {
-        console.error(
-          "🚨 [FETCH_TRANSACTIONS_DB_WARNING] Synapse ledger query failed (table may be uninitialized or empty):",
-          synapseError,
-        );
-      }
+          const finalCurrency = isDataPayout ? "USDC" : (rawCurrency || "UNKNOWN");
 
-      console.log(
-        `💳 [FETCH_TRANSACTIONS_DATA_RECV] Ingested ${txData?.length || 0} core records and ${synapseData?.length || 0} Synapse compute records.`,
+          return {
+            id: tx.id,
+            transaction_type: tx.transaction_type,
+            amount: tx.amount ? Number(tx.amount) : 0,
+            description: tx.description || "Unlabeled Transaction",
+            source: finalCurrency,
+            created_at: tx.created_at,
+            metadata: tx.metadata,
+          };
+        } catch (err) {
+          console.error(`🚨 [MAPPING_ERROR] Standard TX ${tx.id} stalled:`, err);
+          return null;
+        }
+      }).filter(Boolean);
+
+      // --- BRANCH 2: Synapse Compute Ledger (Truth-Only) ---
+      const mappedSynapse = (synapseResult.data || []).map((syn: any) => {
+        try {
+          // Identify the exact balance affected (USDC or IDIA)
+          const source = syn.amount_usdc ? "USDC" : syn.amount_idia_usd ? "IDIA" : "IDIA_COMPUTE";
+          const rawAmount = syn.amount_usdc || syn.amount_idia_usd || syn.amount;
+
+          return {
+            id: syn.id,
+            transaction_type: "synapse_compute",
+            amount: rawAmount ? -Math.abs(Number(rawAmount)) : 0, // Purchases are always deductions
+            description: syn.description || "Synapse Engine Allocation",
+            source: source,
+            created_at: syn.created_at,
+            metadata: { type: "compute_usage" },
+          };
+        } catch (err) {
+          console.error(`🚨 [MAPPING_ERROR] Synapse TX ${syn.id} stalled:`, err);
+          return null;
+        }
+      }).filter(Boolean);
+
+      // --- SYNTHESIS ---
+      const combinedHistory = [...mappedTx, ...mappedSynapse].sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
 
-      // Mapping 1: Core Standard Ledgers
-      // FIX: Cast tx to 'any' to bypass strict TS enforcement of the Supabase generated schema
-      const mappedTx = (txData || [])
-        .map((tx: any) => {
-          try {
-            const typedMetadata = tx.metadata as Record<string, any> | null;
-            let currencyType = tx.currency || typedMetadata?.currency;
-
-            // HARD-LOCK: Enforce USDC on data-related payouts
-            if (
-              tx.transaction_type === "DATA_SALE_PAYOUT" ||
-              tx.transaction_type === "data_reward" ||
-              tx.transaction_type === "data_earnings" ||
-              tx.transaction_type === "royalty_payout" ||
-              tx.transaction_type === "data_sale" // Added from new schema enums
-            ) {
-              currencyType = "USDC";
-            } else if (tx.transaction_type === "synapse_purchase") {
-              currencyType = "USD";
-            } else if (!currencyType) {
-              currencyType = "USD";
-            }
-
-            return {
-              id: tx.id,
-              transaction_type: tx.transaction_type,
-              amount: Number(tx.amount) || 0,
-              description: tx.description || "Ledger Transaction",
-              source: currencyType,
-              created_at: tx.created_at,
-              metadata: tx.metadata,
-            };
-          } catch (mapErr) {
-            console.error(`🚨 [FETCH_TRANSACTIONS_MAPPING_ERROR] Failed mapping standard TX ${tx?.id}:`, mapErr);
-            return null;
-          }
-        })
-        .filter(Boolean) as Transaction[];
-
-      // Mapping 2: Synapse Compute Ledgers
-      // FIX: Cast syn to 'any' and use the exact schema columns for amount derivation
-      const mappedSynapse = (synapseData || [])
-        .map((syn: any) => {
-          try {
-            // Fallback through the active schema columns directly to derive the cost
-            const amountVal = Number(syn.amount_usdc || syn.amount_idia_usd || syn.amount) || 0;
-            return {
-              id: syn.id || `syn-${Date.now()}-${Math.random()}`,
-              transaction_type: "synapse_purchase",
-              amount: amountVal > 0 ? -Math.abs(amountVal) : amountVal, // Ensure purchases reflect as deductions
-              description: syn.description || "Synapse Engine Compute Credits",
-              source: syn.amount_usdc ? "USDC" : "USD",
-              created_at: syn.created_at,
-              metadata: { type: "synapse_compute_allocation" },
-            };
-          } catch (mapErr) {
-            console.error(`🚨 [FETCH_TRANSACTIONS_MAPPING_ERROR] Failed mapping Synapse TX ${syn?.id}:`, mapErr);
-            return null;
-          }
+      setTransactions(combinedHistory as Transaction[]);
+      console.log(`✅ [FETCH_TRANSACTIONS_END] ${combinedHistory.length} verified records loaded.`);
+      
+    } catch (error: any) {
+      console.error("🚨 [FETCH_TRANSACTIONS_CRITICAL_FAILURE] Ledger sync stalled:", error.message);
+    }
+  };
         })
         .filter(Boolean) as Transaction[];
 
