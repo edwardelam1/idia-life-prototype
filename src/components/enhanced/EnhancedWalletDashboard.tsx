@@ -10,7 +10,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
@@ -20,6 +19,7 @@ import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { useSovereignWallet } from "@/hooks/useSovereignWallet";
 import { useWallet } from "@/hooks/useWallet";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 import NFCPayrollModal from "../NFCPayrollModal";
 import SendRequestModal from "../SendRequestModal";
 import { fireFinaleConfetti } from "../psychometric/confetti";
@@ -41,6 +41,8 @@ import {
   Clock,
   Fingerprint,
   Info,
+  Copy,
+  Check,
 } from "lucide-react";
 
 interface Transaction {
@@ -72,6 +74,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [stableUserId, setStableUserId] = useState<string | null>(null);
   const [setupMode, setSetupMode] = useState<"create" | "import" | "view-seed">("create");
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [isCopying, setIsCopying] = useState(false);
 
   useEffect(() => {
     console.log("[IDENTITY_SYNC:START] Evaluating profile hydration state...");
@@ -81,9 +84,8 @@ const EnhancedWalletDashboard: React.FC = () => {
         console.log(`[IDENTITY_SYNC:LOCK] Identity Verified: ${resolvedId}`);
         setStableUserId(resolvedId);
       }
-      console.log("[IDENTITY_SYNC:END] Hydration evaluation complete.");
     } catch (err: any) {
-      console.error(`[IDENTITY_SYNC:ERROR] Silent failure during ID lock evaluation: ${err.message}`);
+      console.error(`[IDENTITY_SYNC:ERROR] ${err.message}`);
     }
   }, [profile, stableUserId]);
 
@@ -92,7 +94,6 @@ const EnhancedWalletDashboard: React.FC = () => {
   const localAddress = nativeWallet?.address;
 
   const handleCreateWallet = async () => {
-    console.log("[WALLET_CREATE:START] handleCreateWallet invoked");
     try {
       const newWallet = await createWallet();
       if (newWallet?.address) {
@@ -100,35 +101,24 @@ const EnhancedWalletDashboard: React.FC = () => {
         return { address: newWallet.address, mnemonic: seed || "" };
       }
       return null;
-    } catch (error: any) {
-      console.error(`[WALLET_CREATE:ERROR] Creation stalled: ${error.message}`);
+    } catch (error) {
       return null;
-    } finally {
-      console.log("[WALLET_CREATE:END] handleCreateWallet resolved");
     }
   };
 
   const handleImportWallet = async (seedPhrase: string) => {
-    console.log("[WALLET_IMPORT:START] handleImportWallet invoked");
     try {
       return await importWallet(seedPhrase);
-    } catch (error: any) {
-      console.error(`[WALLET_IMPORT:ERROR] Import stalled: ${error.message}`);
+    } catch (error) {
       return false;
-    } finally {
-      console.log("[WALLET_IMPORT:END] handleImportWallet resolved");
     }
   };
 
   const handleGetSeedPhrase = async (): Promise<string | null> => {
-    console.log("[SEED_RETRIEVAL:START] handleGetSeedPhrase invoked");
     try {
       return await getSeedPhrase();
-    } catch (error: any) {
-      console.error(`[SEED_RETRIEVAL:ERROR] Seed phrase retrieval stalled: ${error.message}`);
+    } catch (error) {
       return null;
-    } finally {
-      console.log("[SEED_RETRIEVAL:END] handleGetSeedPhrase resolved");
     }
   };
 
@@ -148,32 +138,20 @@ const EnhancedWalletDashboard: React.FC = () => {
 
   const linkedPairsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    console.log("[WEB3_WATCHER:INIT] Evaluating local vs global wallet parity.");
-    try {
-      if (!stableUserId || !hasWallet || !localAddress) return;
-      if (localAddress === globalWalletAddress) return;
-
-      const pairKey = `${stableUserId}:${localAddress.toLowerCase()}`;
-      if (linkedPairsRef.current.has(pairKey)) return;
-      linkedPairsRef.current.add(pairKey);
-
-      console.log(`[WEB3_WATCHER:EXEC] One-shot link Vault ${localAddress} to User ${stableUserId}.`);
-      syncWalletToSupabase(localAddress);
-      window.dispatchEvent(new CustomEvent("vault-linked", { detail: { address: localAddress } }));
-    } catch (err: any) {
-      console.error(`[WEB3_WATCHER:ERROR] Vault link parity sequence stalled: ${err.message}`);
-    }
+    if (!stableUserId || !hasWallet || !localAddress) return;
+    const pairKey = `${stableUserId}:${localAddress.toLowerCase()}`;
+    if (linkedPairsRef.current.has(pairKey)) return;
+    linkedPairsRef.current.add(pairKey);
+    syncWalletToSupabase(localAddress);
   }, [hasWallet, localAddress, stableUserId, globalWalletAddress]);
 
   useEffect(() => {
     if (stableUserId) {
-      console.log(`[EFFECT_TRIGGER] Identity lock confirmed (${stableUserId}). Initiating parallel ledger fetch.`);
       fetchTransactions(stableUserId);
     }
   }, [stableUserId]);
 
   const fetchTransactions = async (userId: string) => {
-    console.log("[FETCH_LEDGERS:START] Querying strictly verified ledger databases...");
     try {
       const [txResult, synapseResult] = await Promise.all([
         supabase
@@ -189,9 +167,6 @@ const EnhancedWalletDashboard: React.FC = () => {
           .order("created_at", { ascending: false })
           .limit(30),
       ]);
-
-      if (txResult.error) throw new Error(`Transactions DB Error: ${txResult.error.message}`);
-      if (synapseResult.error) throw new Error(`Synapse Ledger DB Error: ${synapseResult.error.message}`);
 
       const mappedTx = (txResult.data || [])
         .map((tx: any) => {
@@ -237,50 +212,53 @@ const EnhancedWalletDashboard: React.FC = () => {
         })
         .filter(Boolean) as Transaction[];
 
-      const combinedHistory = [...mappedTx, ...mappedSynapse].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      setTransactions(
+        [...mappedTx, ...mappedSynapse].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        ),
       );
-
-      setTransactions(combinedHistory);
-      console.log(`[FETCH_LEDGERS:SUCCESS] Hydrated ${combinedHistory.length} verifications.`);
     } catch (error: any) {
-      console.error(`[FETCH_LEDGERS:CRITICAL_FAILURE] ${error.message}`);
-    } finally {
-      console.log("[FETCH_LEDGERS:END] Fetch routine resolved.");
+      console.error(`[FETCH_LEDGERS:FAILURE] ${error.message}`);
     }
   };
 
+  const handleCopyMetadata = () => {
+    if (!selectedTransaction?.metadata) return;
+    setIsCopying(true);
+    const json = JSON.stringify(selectedTransaction.metadata, null, 2);
+    navigator.clipboard.writeText(json);
+    toast({
+      title: "Ledger Copied",
+      description: "Cryptographic artifacts stored to clipboard.",
+    });
+    setTimeout(() => setIsCopying(false), 2000);
+  };
+
   const handleCalculateScore = async (moduleScores: Record<string, number>) => {
-    console.log("[SCORE_CALC:START] Firing telemetry array to remote algorithm.");
     setIsCalculating(true);
     try {
       const { tut, ...actualTelemetry } = moduleScores;
       const { data, error } = await supabase.functions.invoke("calculate-trust-score", {
         body: { user_id: stableUserId, telemetry: actualTelemetry },
       });
-
       if (error) throw error;
-
       if (updateProfile) {
         await updateProfile({
           trust_score: data.trust_score,
           available_credit_line: data.credit_line,
         });
       }
-
       setCreditSimulation({
         current_score: profile?.trust_score ?? "NO SCORE",
         simulated_score: data.trust_score,
-        actions: ["Psychometric telemetry verified via IDIA Protocol", "Deterministic capital limit recalculated"],
+        actions: ["Psychometric telemetry verified via IDIA Protocol", "Capital limit recalculated"],
       });
-      console.log("[SCORE_CALC:SUCCESS] Financial payload accepted.");
     } catch (err: any) {
-      console.error(`[SCORE_CALC:CRITICAL_ERROR] ${err.message}`);
+      console.error(err.message);
     } finally {
       setIsCalculating(false);
       setShowTestModal(false);
       setTimeout(() => fireFinaleConfetti(), 400);
-      console.log("[SCORE_CALC:END] Calculation sequence terminated.");
     }
   };
 
@@ -363,16 +341,16 @@ const EnhancedWalletDashboard: React.FC = () => {
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div className="text-center">
-                  <p className="text-teal-100 text-[10px] font-medium uppercase">Fiat (USD)</p>
-                  <p className="text-xl font-bold">${walletBalance?.cash_balance?.toFixed(2) || "0.00"}</p>
+                  <p className="text-teal-100 text-[10px] font-medium uppercase font-bold">Fiat (USD)</p>
+                  <p className="text-xl font-black">${walletBalance?.cash_balance?.toFixed(2) || "0.00"}</p>
                 </div>
                 <div className="text-center border-x border-white/20">
-                  <p className="text-teal-100 text-[10px] font-medium uppercase">Stable USDC</p>
-                  <p className="text-xl font-bold">${walletBalance?.usdc_balance?.toFixed(2) || "0.00"}</p>
+                  <p className="text-teal-100 text-[10px] font-medium uppercase font-bold">Stable USDC</p>
+                  <p className="text-xl font-black">${walletBalance?.usdc_balance?.toFixed(2) || "0.00"}</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-teal-100 text-[10px] font-medium uppercase">IDIA Token</p>
-                  <p className="text-xl font-bold">{walletBalance?.idia_token_balance?.toFixed(2) || "0.00"}</p>
+                  <p className="text-teal-100 text-[10px] font-medium uppercase font-bold">IDIA Token</p>
+                  <p className="text-xl font-black">{walletBalance?.idia_token_balance?.toFixed(2) || "0.00"}</p>
                 </div>
               </div>
             </CardContent>
@@ -390,7 +368,7 @@ const EnhancedWalletDashboard: React.FC = () => {
               Send/Req
             </Button>
             <Button variant="outline" className="h-14 flex-col text-xs" onClick={() => setShowNFCModal(true)}>
-              <Smartphone className="w-5 h-5 mb-1" /> NFC Pay
+              <Smartphone size={18} className="mb-1" /> NFC Pay
             </Button>
             <Button
               variant="outline"
@@ -398,7 +376,7 @@ const EnhancedWalletDashboard: React.FC = () => {
               onClick={() => setShowAddFundsModal(true)}
               disabled={!fiatProvisioned && !usdcProvisioned}
             >
-              <Plus className="w-5 h-5 mb-1" /> Add Funds
+              <Plus size={18} className="mb-1" /> Add Funds
             </Button>
           </div>
         </TabsContent>
@@ -418,20 +396,20 @@ const EnhancedWalletDashboard: React.FC = () => {
                         console.log(`[LEDGER_AUDIT] Opening receipt for: ${tx.id}`);
                         setSelectedTransaction(tx);
                       }}
-                      className="flex items-center space-x-3 p-3 border rounded-xl bg-card transition-all active:scale-[0.98] hover:bg-slate-50/80 cursor-pointer shadow-sm border-slate-100"
+                      className="flex items-center space-x-3 p-3 border rounded-xl bg-card transition-all active:scale-[0.98] hover:bg-slate-50 border-slate-100 cursor-pointer shadow-sm"
                     >
                       <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-                        <Icon className="w-5 h-5 text-muted-foreground" />
+                        <Icon size={18} className="text-muted-foreground" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm text-slate-800 truncate">{tx.description}</p>
+                        <p className="font-bold text-sm truncate text-slate-800">{tx.description}</p>
                         <div className="flex items-center gap-2">
                           <p className="text-[10px] font-medium text-muted-foreground">
                             {new Date(tx.created_at).toLocaleDateString()}
                           </p>
                           <Badge
                             variant="outline"
-                            className="text-[8px] h-3.5 px-1 uppercase font-black tracking-tighter opacity-70"
+                            className="text-[8px] h-3.5 px-1 uppercase font-black tracking-tighter opacity-60"
                           >
                             {tx.source}
                           </Badge>
@@ -546,27 +524,33 @@ const EnhancedWalletDashboard: React.FC = () => {
         </TabsContent>
       </Tabs>
 
-      {/* --- AUDIT RECEIPT POP-UP --- */}
+      {/* --- AUDIT RECEIPT POP-UP (ACCESSIBILITY FIXED) --- */}
       <Dialog open={!!selectedTransaction} onOpenChange={(open) => !open && setSelectedTransaction(null)}>
         <DialogContent className="max-w-md p-0 overflow-hidden border-none rounded-3xl shadow-2xl bg-white">
-          <div className="bg-teal-700 p-8 text-white relative">
-            <div className="flex justify-between items-start mb-6">
-              <div className="space-y-1">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Sovereign Receipt</p>
-                <p className="font-mono text-[9px] opacity-40">ID: {selectedTransaction?.id}</p>
+          <DialogHeader className="p-0">
+            <div className="bg-teal-700 p-8 text-white relative">
+              <div className="flex justify-between items-start mb-6">
+                <div className="space-y-1">
+                  <DialogTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 m-0">
+                    Sovereign Receipt
+                  </DialogTitle>
+                  <DialogDescription className="font-mono text-[9px] opacity-40 text-white">
+                    ID: {selectedTransaction?.id}
+                  </DialogDescription>
+                </div>
+                <Activity className="w-8 h-8 opacity-20" />
               </div>
-              <Activity className="w-8 h-8 opacity-20" />
+              <div className="text-center py-4">
+                <p className="text-[11px] font-bold uppercase tracking-widest opacity-60 mb-1">Verified Amount</p>
+                <h2 className="text-4xl font-black tracking-tight">
+                  {selectedTransaction && formatAmount(selectedTransaction.amount, selectedTransaction.source)}
+                </h2>
+                <Badge className="mt-4 bg-white/10 hover:bg-white/20 border-white/20 text-[10px] font-black uppercase tracking-widest px-3 py-1">
+                  {selectedTransaction?.transaction_type?.replace(/_/g, " ")}
+                </Badge>
+              </div>
             </div>
-            <div className="text-center py-4">
-              <p className="text-[11px] font-bold uppercase tracking-widest opacity-60 mb-1">Verified Amount</p>
-              <h2 className="text-4xl font-black tracking-tight">
-                {selectedTransaction && formatAmount(selectedTransaction.amount, selectedTransaction.source)}
-              </h2>
-              <Badge className="mt-4 bg-white/10 hover:bg-white/20 border-white/20 text-[10px] font-black uppercase tracking-widest px-3 py-1">
-                {selectedTransaction?.transaction_type?.replace(/_/g, " ")}
-              </Badge>
-            </div>
-          </div>
+          </DialogHeader>
 
           <div className="p-6 space-y-6">
             <div className="grid grid-cols-2 gap-6">
@@ -596,10 +580,21 @@ const EnhancedWalletDashboard: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                <Fingerprint size={12} /> Ledger Metadata
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                  <Fingerprint size={12} /> Ledger Metadata
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-[9px] font-bold uppercase text-teal-700 hover:text-teal-800 hover:bg-teal-50"
+                  onClick={handleCopyMetadata}
+                >
+                  {isCopying ? <Check size={10} className="mr-1" /> : <Copy size={10} className="mr-1" />}
+                  {isCopying ? "Copied" : "Copy Raw"}
+                </Button>
               </div>
-              <div className="bg-slate-900 rounded-2xl p-4 font-mono text-[10px] text-teal-400 max-h-48 overflow-y-auto custom-scrollbar border border-slate-800">
+              <div className="bg-slate-900 rounded-2xl p-4 font-mono text-[10px] text-teal-400 max-h-48 overflow-y-auto custom-scrollbar border border-slate-800 shadow-inner">
                 <pre className="whitespace-pre-wrap break-all">
                   {JSON.stringify(selectedTransaction?.metadata, null, 2)}
                 </pre>
