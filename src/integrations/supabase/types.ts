@@ -8487,7 +8487,7 @@ export type Database = {
         | "hub_protocol_fee"
         | "synapse_purchase"
       sync_status: "pending" | "processing" | "completed" | "failed"
-      user_role: "owner" | "manager" | "employee" | "warehouse_associate"
+      user_role: "leadership" | "manager" | "employee" | "csuite"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -8643,7 +8643,7 @@ export const Constants = {
         "synapse_purchase",
       ],
       sync_status: ["pending", "processing", "completed", "failed"],
-      user_role: ["owner", "manager", "employee", "warehouse_associate"],
+      user_role: ["leadership", "manager", "employee", "csuite"],
     },
   },
 } as const
