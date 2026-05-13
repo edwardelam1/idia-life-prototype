@@ -295,6 +295,19 @@ export function PrivacySettings() {
 
         <div className="flex items-center justify-between gap-3 bg-muted/20 p-3 rounded-lg border border-border/50">
           <div className="space-y-0.5 min-w-0">
+            <div className="text-sm font-medium">Terms of Service</div>
+            <p className="text-xs text-muted-foreground">View or download the IDIA Protocol Terms of Service you accepted</p>
+          </div>
+          <Button variant="outline" size="sm" asChild>
+            <a href="/legal/IDIA_Protocol_Terms_of_Service.pdf" download>
+              <Download className="w-3.5 h-3.5 mr-1.5" />
+              Download PDF
+            </a>
+          </Button>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 bg-muted/20 p-3 rounded-lg border border-border/50">
+          <div className="space-y-0.5 min-w-0">
             <div className="text-sm font-medium">Export Identity Ledger</div>
             <p className="text-xs text-muted-foreground">Download a CSV of your data & Consent Records</p>
           </div>
