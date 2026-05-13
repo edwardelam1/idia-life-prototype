@@ -1157,6 +1157,39 @@ export type Database = {
           },
         ]
       }
+      committee_applications: {
+        Row: {
+          aca_hash_key: string
+          aca_payload: Json
+          committee_id: string
+          created_at: string | null
+          id: string
+          statement_of_competence: string
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          aca_hash_key: string
+          aca_payload: Json
+          committee_id: string
+          created_at?: string | null
+          id?: string
+          statement_of_competence: string
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          aca_hash_key?: string
+          aca_payload?: Json
+          committee_id?: string
+          created_at?: string | null
+          id?: string
+          statement_of_competence?: string
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       community_pool_ledger: {
         Row: {
           id: string
@@ -1508,41 +1541,199 @@ export type Database = {
         }
         Relationships: []
       }
+      dao_hats: {
+        Row: {
+          created_at: string | null
+          eligibility_status: string | null
+          hat_type: string
+          id: string
+          revoked_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          eligibility_status?: string | null
+          hat_type: string
+          id?: string
+          revoked_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          eligibility_status?: string | null
+          hat_type?: string
+          id?: string
+          revoked_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      dao_msa_metrics: {
+        Row: {
+          current_value: number | null
+          id: string
+          measured_at: string | null
+          sla_name: string
+          status: string | null
+          target_value: number | null
+        }
+        Insert: {
+          current_value?: number | null
+          id?: string
+          measured_at?: string | null
+          sla_name: string
+          status?: string | null
+          target_value?: number | null
+        }
+        Update: {
+          current_value?: number | null
+          id?: string
+          measured_at?: string | null
+          sla_name?: string
+          status?: string | null
+          target_value?: number | null
+        }
+        Relationships: []
+      }
+      dao_pending_actions: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          status: string | null
+          timelock_expires_at: string
+          title: string
+          veto_count: number | null
+          veto_threshold: number | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          status?: string | null
+          timelock_expires_at: string
+          title: string
+          veto_count?: number | null
+          veto_threshold?: number | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          status?: string | null
+          timelock_expires_at?: string
+          title?: string
+          veto_count?: number | null
+          veto_threshold?: number | null
+        }
+        Relationships: []
+      }
       dao_proposals: {
         Row: {
           created_at: string | null
           description: string | null
           end_date: string | null
           id: string
+          lifecycle_phase: string | null
           proposer_id: string | null
           quorum_threshold: number | null
           status: string | null
           title: string
           vote_type: string | null
+          voting_modality: string | null
         }
         Insert: {
           created_at?: string | null
           description?: string | null
           end_date?: string | null
           id?: string
+          lifecycle_phase?: string | null
           proposer_id?: string | null
           quorum_threshold?: number | null
           status?: string | null
           title: string
           vote_type?: string | null
+          voting_modality?: string | null
         }
         Update: {
           created_at?: string | null
           description?: string | null
           end_date?: string | null
           id?: string
+          lifecycle_phase?: string | null
           proposer_id?: string | null
           quorum_threshold?: number | null
           status?: string | null
           title?: string
           vote_type?: string | null
+          voting_modality?: string | null
         }
         Relationships: []
+      }
+      dao_treasury_flows: {
+        Row: {
+          amount_usd: number
+          asset: string
+          counterparty_label: string | null
+          direction: string
+          id: string
+          recorded_at: string | null
+        }
+        Insert: {
+          amount_usd: number
+          asset: string
+          counterparty_label?: string | null
+          direction: string
+          id?: string
+          recorded_at?: string | null
+        }
+        Update: {
+          amount_usd?: number
+          asset?: string
+          counterparty_label?: string | null
+          direction?: string
+          id?: string
+          recorded_at?: string | null
+        }
+        Relationships: []
+      }
+      dao_vetoes: {
+        Row: {
+          aca_hash_key: string
+          aca_payload: Json
+          action_id: string
+          created_at: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          aca_hash_key: string
+          aca_payload: Json
+          action_id: string
+          created_at?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          aca_hash_key?: string
+          aca_payload?: Json
+          action_id?: string
+          created_at?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dao_vetoes_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "dao_pending_actions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       dao_votes: {
         Row: {
