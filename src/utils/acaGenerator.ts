@@ -9,16 +9,21 @@ export const generateACAHash = async (
 ): Promise<{ hash: string; payload: any }> => {
   console.log(`[ACA_HARDWARE] START: Initializing hardware attestation for user ${userId.slice(0, 8)}`);
 
+  // Check if the hardware-backed biometrics interface is even available in this browser
+  if (!window.PublicKeyCredential) {
+    console.error("[ACA_HARDWARE] FATAL: This browser or environment does not support Hardware Attestation.");
+    throw new Error("UNSUPPORTED_ENVIRONMENT: Hardware Secure Enclave unavailable.");
+  }
+
   try {
     // 1. GENERATE THE CHALLENGE
-    // We create a one-time challenge to prevent replay attacks.
     const challenge = crypto.getRandomValues(new Uint8Array(32));
 
     // 2. TRIGGER THE PHYSICAL REALITY PROMPT
-    // This is the "Reality" Trigger. This command wakes up the MacBook Secure Enclave
-    // or Mobile Biometric sensor. It MUST prompt the user for TouchID/FaceID.
     console.log(`[ACA_HARDWARE] PROMPT: Awaiting physical biological anchor (TouchID/FaceID)...`);
 
+    // We cast to 'any' initially to avoid complex DOM library type conflicts in the build,
+    // then extract the rawId which is the cryptographic proof.
     const credential = (await navigator.credentials.create({
       publicKey: {
         challenge,
@@ -28,33 +33,39 @@ export const generateACAHash = async (
           name: userId,
           displayName: "Sovereign Participant",
         },
-        pubKeyCredParams: [{ alg: -7, type: "public-key" }], // ES256 (Secure Enclave Standard)
+        pubKeyCredParams: [{ alg: -7, type: "public-key" }], // ES256
         authenticatorSelection: {
-          authenticatorAttachment: "platform", // Forces built-in hardware (not external keys)
-          userVerification: "required", // Hard-stop if biometrics are bypassed
+          authenticatorAttachment: "platform",
+          userVerification: "required",
         },
         timeout: 60000,
       },
-    })) as AuthenticatorAttestationResponse | null;
+    })) as any;
 
-    if (!credential) {
-      throw new Error("Hardware Attestation Failed: Null response from Secure Enclave.");
+    if (!credential || !credential.rawId) {
+      throw new Error("Hardware Attestation Failed: Secure Enclave returned an invalid or null payload.");
     }
 
     console.log(`[ACA_HARDWARE] SUCCESS: Biological anchor verified via Hardware Attestation.`);
 
     // 3. CREATE THE IMMUTABLE BINDING
-    // We hash the User ID, the Source, and the Hardware's unique response.
-    // This proves that THIS specific human touched THIS specific hardware for THIS action.
+    // Convert the rawId (ArrayBuffer) to a Base64 string safely
+    const rawIdArray = new Uint8Array(credential.rawId);
+    let binary = "";
+    for (let i = 0; i < rawIdArray.byteLength; i++) {
+      binary += String.fromCharCode(rawIdArray[i]);
+    }
+    const hardwareAttestationId = btoa(binary);
+
     const basePayload = {
       platform_guid: userId,
       source_id: sourceId,
       timestamp: new Date().toISOString(),
       consent_scope: scopes,
-      // We use the raw hardware response id as the entropy source, not a pseudo UUID.
-      hardware_attestation_id: btoa(String.fromCharCode(...new Uint8Array(credential.rawId))),
+      hardware_attestation_id: hardwareAttestationId,
     };
 
+    // Generate the final SHA-256 Hash of the combined physical/digital data
     const msgUint8 = new TextEncoder().encode(JSON.stringify(basePayload));
     const hashBuffer = await crypto.subtle.digest("SHA-256", msgUint8);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
