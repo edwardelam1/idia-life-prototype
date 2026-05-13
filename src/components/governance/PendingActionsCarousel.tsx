@@ -120,7 +120,17 @@ const PendingActionsCarousel: React.FC = () => {
         aca_payload: payload,
       });
 
-      if (ledgerError) throw ledgerError;
+      if (ledgerError) {
+        if ((ledgerError as any).code === "23505") {
+          toast({
+            title: "Already Vetoed",
+            description: "Your sovereign veto on this action is already on the ledger.",
+            variant: "destructive",
+          });
+          return;
+        }
+        throw ledgerError;
+      }
 
       console.log(`[VETO_ACTION] NETWORK_END: Veto committed. Triggering tally oracle verification.`);
       toast({
@@ -178,9 +188,11 @@ const PendingActionsCarousel: React.FC = () => {
                 <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[8px] font-black uppercase tracking-wider">
                   Optimistic Update
                 </Badge>
-                <span className="text-[9px] font-black uppercase tracking-widest text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md">
-                  {a.category}
-                </span>
+                {a.category && (
+                  <span className="text-[9px] font-black uppercase tracking-widest text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md">
+                    {a.category}
+                  </span>
+                )}
               </div>
 
               <div className="space-y-1">
