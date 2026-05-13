@@ -162,6 +162,8 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
       triggerGammaSequence(false);
     }
   };
+
+  useEffect(() => {
     if (isMasked) return;
     let isMounted = true;
     const stream = async () => {
