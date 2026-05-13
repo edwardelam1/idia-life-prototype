@@ -24,6 +24,16 @@ const ProposalCard: React.FC<{ prop: Proposal; balance: number }> = ({ prop, bal
 
   const handleCastVote = async () => {
     console.log(`[VOTE_CAST] START: Initializing quadratic vote sequence for proposal: ${prop.id}`);
+
+    if (!isNative()) {
+      toast({
+        title: "Native Device Required",
+        description: "Governance actions require Secure Enclave attestation. Please use the iOS or Android app.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
