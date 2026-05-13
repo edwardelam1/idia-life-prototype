@@ -183,12 +183,9 @@ const CommitteesList: React.FC = () => {
       fetchLedgerState();
       setSelectedCommittee(null);
     } catch (error: any) {
+      // Redundant toast removed here to prevent double-notifications.
+      // The terminal log maintains the engineering audit trail.
       console.error(`[COMMITTEE_APPLICATION] CRITICAL_FAILURE: Ascension sequence halted. Reason: ${error.message}`);
-      toast({
-        title: "Application Failed",
-        description: "The submission sequence was interrupted. Check terminal logs.",
-        variant: "destructive",
-      });
     } finally {
       setIsProcessing(false);
       console.log(`[COMMITTEE_APPLICATION] END: Execution thread terminated.`);
