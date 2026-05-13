@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Settings, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,19 @@ import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png";
 const Header = () => {
   const navigate = useNavigate();
   const { profile } = useEnhancedProfile();
+
+  // 1. Setup cache-busting state
+  const [avatarHash, setAvatarHash] = useState(Date.now());
+
+  // 2. Listen for atomic global updates to instantly refresh the image
+  useEffect(() => {
+    const handleAvatarUpdate = () => setAvatarHash(Date.now());
+    window.addEventListener("avatar-updated", handleAvatarUpdate);
+    return () => window.removeEventListener("avatar-updated", handleAvatarUpdate);
+  }, []);
+
+  // 3. Append the hash to force the browser to fetch the new file
+  const avatarSrc = profile?.avatar_url ? `${profile.avatar_url}?t=${avatarHash}` : "";
 
   return (
     <header className="fixed top-0 left-0 right-0 bg-background border-b border-border px-2 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] grid grid-cols-3 items-center z-40">
@@ -27,7 +41,7 @@ const Header = () => {
 
         {profile && (
           <Avatar className="w-8 h-8 border border-border cursor-pointer" onClick={() => navigate("/settings")}>
-            <AvatarImage src={profile.avatar_url || ""} alt={profile.display_name || "Profile"} />
+            <AvatarImage src={avatarSrc} alt={profile.display_name || "Profile"} />
             <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
               {profile.first_name ? profile.first_name[0] : <User className="w-4 h-4" />}
               {profile.last_name ? profile.last_name[0] : ""}
