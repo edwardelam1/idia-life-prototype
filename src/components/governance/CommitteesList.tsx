@@ -14,6 +14,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ShieldAlert, Code, Scale, HeartHandshake, ChevronRight, Fingerprint, Loader2 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { generateACAHash } from "@/utils/acaGenerator";
 
 interface Committee {
   id: string;
@@ -81,7 +83,7 @@ const CommitteesList: React.FC = () => {
       console.log(`[COMMITTEE_APPLICATION] VERIFY: Auditing Statement of Competence payload.`);
       if (statement.trim().length < 50) {
         const err = new Error(
-          "Statement of Competence failed validation: Insufficient length. Minimum 50 characters required to establish professional record.",
+          "Statement of Competence failed validation: Insufficient length. Minimum 50 characters required.",
         );
         console.error(`[COMMITTEE_APPLICATION] VALIDATION_ERROR: ${err.message}`);
         toast({
@@ -104,27 +106,53 @@ const CommitteesList: React.FC = () => {
         throw err;
       }
 
-      console.log(`[COMMITTEE_APPLICATION] ACA_ANCHOR: Requesting biological anchor to physical world...`);
-      // Simulating hardware ACA handshake delay
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      console.log(`[COMMITTEE_APPLICATION] ACA_ANCHOR: Biological presence verified via local enclave.`);
+      console.log(`[COMMITTEE_APPLICATION] AUTH: Retrieving local sovereign identity.`);
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        throw new Error("Authentication failure prior to ACA generation.");
+      }
 
-      console.log(`[COMMITTEE_APPLICATION] NETWORK: Transmitting secure payload to Delaware MSA Registry.`);
-      // Simulating network commit to Supabase/Ledger
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
+      console.log(`[COMMITTEE_APPLICATION] ACA_ANCHOR_START: Requesting hardware-backed biological anchor...`);
+      const { hash, payload } = await generateACAHash(user.id, `committee_join_${selectedCommittee?.id}`, [
+        "DELAWARE_MSA_BONDING",
+        "LEDGER_WRITE",
+      ]);
       console.log(
-        `[COMMITTEE_APPLICATION] SUCCESS: Ledger entry committed. Identity successfully bound to committee ${selectedCommittee?.id}.`,
+        `[COMMITTEE_APPLICATION] ACA_ANCHOR_END: Biological presence verified. SHA-256 Hash Generated: ${hash}`,
+      );
+
+      console.log(`[COMMITTEE_APPLICATION] NETWORK_START: Transmitting secure payload to Delaware MSA Registry.`);
+
+      // Implementation of Ledger Write with ACA Hash embedded
+      const { error: ledgerError } = await supabase.from("committee_applications" as any).insert({
+        user_id: user.id,
+        committee_id: selectedCommittee?.id,
+        statement_of_competence: statement,
+        aca_hash_key: hash,
+        aca_payload: payload,
+      });
+
+      if (ledgerError) throw ledgerError;
+      console.log(
+        `[COMMITTEE_APPLICATION] NETWORK_END: Ledger entry committed. Identity successfully bound to committee ${selectedCommittee?.id}.`,
       );
 
       toast({
         title: "Application Committed",
-        description: `Your identity is now anchored to the ${selectedCommittee?.name} registry.`,
+        description: `Identity anchored to ${selectedCommittee?.name} with ACA Hash: ${hash.substring(0, 8)}...`,
       });
 
       setSelectedCommittee(null);
     } catch (error: any) {
       console.error(`[COMMITTEE_APPLICATION] CRITICAL_FAILURE: Ascension sequence halted. Reason: ${error.message}`);
+      toast({
+        title: "Application Failed",
+        description: "The submission sequence was interrupted. Check terminal logs.",
+        variant: "destructive",
+      });
     } finally {
       setIsProcessing(false);
       console.log(`[COMMITTEE_APPLICATION] END: Execution thread terminated.`);
@@ -246,7 +274,7 @@ const CommitteesList: React.FC = () => {
               {isProcessing ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Awaiting ACA Anchor...
+                  Generating ACA Hash...
                 </>
               ) : (
                 <>
