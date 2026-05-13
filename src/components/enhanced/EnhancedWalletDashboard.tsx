@@ -284,26 +284,6 @@ const EnhancedWalletDashboard: React.FC = () => {
       console.error("🚨 [FETCH_TRANSACTIONS_CRITICAL_FAILURE] Ledger sync stalled:", error.message);
     }
   };
-        })
-        .filter(Boolean) as Transaction[];
-
-      // Synthesis & Chronological Sorting
-      console.log("💳 [FETCH_TRANSACTIONS_SYNTHESIS_START] Merging branch arrays into unified historical timeline.");
-      const combinedHistory = [...mappedTx, ...mappedSynapse].sort((a, b) => {
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      });
-
-      setTransactions(combinedHistory);
-      console.log("💳 [FETCH_TRANSACTIONS_STATE_UPDATED] Parallel ledger state array hydrated successfully.");
-    } catch (error) {
-      console.error(
-        "🚨 [FETCH_TRANSACTIONS_CRITICAL_FAILURE] Execution stalled during multi-ledger aggregation:",
-        error,
-      );
-    } finally {
-      console.log("💳 [FETCH_TRANSACTIONS_END] fetchTransactions routine complete and network lock released.");
-    }
-  };
 
   const exportTaxableEvents = async () => {
     console.log("[EXPORT_TAX_EVENTS_START] Aggregating taxable ledger history...");
