@@ -59,17 +59,34 @@ const ProposalCard: React.FC<{ prop: Proposal; balance: number }> = ({ prop, bal
       console.log(`[VOTE_CAST] ACA_ANCHOR_END: Biological presence verified. SHA-256 Hash Generated: ${hash}`);
 
       console.log(`[VOTE_CAST] NETWORK_START: Transmitting secure vote payload to Wyoming Operational Gateway.`);
-      const { error: ledgerError } = await (supabase.from("governance_ledger" as any).insert({
+      const { error: voteError } = await (supabase.from("dao_votes" as any).insert({
+        proposal_id: prop.id,
         user_id: user.id,
-        amount: -cost,
-        transaction_type: "vote_cast",
-        description: `Quadratic Vote [Weight: ${voteWeight[0]}]: ${prop.id}`,
+        vote_type: "for",
+        vote_weight: voteWeight[0],
         aca_hash_key: hash,
         aca_payload: payload,
       }) as any);
 
-      if (ledgerError) {
-        throw ledgerError;
+      if (voteError) {
+        if ((voteError as any).code === "23505") {
+          toast({
+            title: "Already Voted",
+            description: "Sovereign intent on this proposal is already recorded.",
+            variant: "destructive",
+          });
+          return;
+        }
+        throw voteError;
+      }
+
+      // Burn IDIA tokens via wallet decrement (atomic)
+      const { error: burnError } = await (supabase.rpc as any)("increment_wallet_balance", {
+        target_user_id: user.id,
+        increment_amount: -cost,
+      });
+      if (burnError) {
+        console.warn(`[VOTE_CAST] BURN_WARNING: Token burn failed but vote stands. ${burnError.message}`);
       }
 
       console.log(`[VOTE_CAST] NETWORK_END: Ledger entry committed. Intent synced for proposal ${prop.id}.`);

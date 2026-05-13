@@ -21,8 +21,17 @@ const GovernanceScreen: React.FC = () => {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
-      // Anchored to Zero Floor — wallets has no governance_tokens column yet.
-      setBalance(0);
+      const { data, error } = await supabase
+        .from("wallets")
+        .select("governance_tokens")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (error) {
+        console.error("[GOVERNANCE] Failed to load IDIA balance:", error.message);
+        setBalance(0);
+        return;
+      }
+      setBalance(Number((data as any)?.governance_tokens ?? 0));
     })();
   }, []);
 

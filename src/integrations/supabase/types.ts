@@ -1165,7 +1165,7 @@ export type Database = {
           created_at: string | null
           id: string
           statement_of_competence: string
-          status: string | null
+          status: string
           user_id: string
         }
         Insert: {
@@ -1175,7 +1175,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           statement_of_competence: string
-          status?: string | null
+          status?: string
           user_id: string
         }
         Update: {
@@ -1185,7 +1185,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           statement_of_competence?: string
-          status?: string | null
+          status?: string
           user_id?: string
         }
         Relationships: []
@@ -1545,6 +1545,7 @@ export type Database = {
         Row: {
           created_at: string | null
           eligibility_status: string | null
+          granted_at: string
           hat_type: string
           id: string
           revoked_at: string | null
@@ -1553,6 +1554,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           eligibility_status?: string | null
+          granted_at?: string
           hat_type: string
           id?: string
           revoked_at?: string | null
@@ -1561,6 +1563,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           eligibility_status?: string | null
+          granted_at?: string
           hat_type?: string
           id?: string
           revoked_at?: string | null
@@ -1737,6 +1740,8 @@ export type Database = {
       }
       dao_votes: {
         Row: {
+          aca_hash_key: string | null
+          aca_payload: Json | null
           created_at: string | null
           credits_spent: number
           id: string
@@ -1745,6 +1750,8 @@ export type Database = {
           vote_weight: number
         }
         Insert: {
+          aca_hash_key?: string | null
+          aca_payload?: Json | null
           created_at?: string | null
           credits_spent: number
           id?: string
@@ -1753,6 +1760,8 @@ export type Database = {
           vote_weight: number
         }
         Update: {
+          aca_hash_key?: string | null
+          aca_payload?: Json | null
           created_at?: string | null
           credits_spent?: number
           id?: string
@@ -8369,7 +8378,15 @@ export type Database = {
         Args: { p_pseudo_id: string }
         Returns: string
       }
+      grant_hat: {
+        Args: { _hat_type: string; _target_user: string }
+        Returns: string
+      }
       has_business_access: { Args: { p_business_id: string }; Returns: boolean }
+      has_hat: {
+        Args: { _hat_type: string; _user_id: string }
+        Returns: boolean
+      }
       increment_community_pool: {
         Args: { p_fiat_amount: number; p_pool_type: string }
         Returns: undefined
