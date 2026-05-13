@@ -94,6 +94,14 @@ const PendingActionsCarousel: React.FC = () => {
 
   const castVeto = async (actionId: string) => {
     console.log(`[VETO_ACTION] START: Initializing Negative Consent sequence for action: ${actionId}`);
+    if (!isNative()) {
+      toast({
+        title: "Native Device Required",
+        description: "Veto actions require Secure Enclave attestation. Please use the iOS or Android app.",
+        variant: "destructive",
+      });
+      return;
+    }
     setVetoing(actionId);
 
     try {
