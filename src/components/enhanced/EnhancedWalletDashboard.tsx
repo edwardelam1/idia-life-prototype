@@ -18,7 +18,7 @@ import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter
 import type { TestId } from "../psychometric/testBank";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { useSovereignWallet } from "@/hooks/useSovereignWallet";
-import { useWallet } from "@/hooks/useWallet"; // Seamlessly capture native wallet state
+import { useWallet } from "@/hooks/useWallet";
 import { supabase } from "@/integrations/supabase/client";
 import NFCPayrollModal from "../NFCPayrollModal";
 import SendRequestModal from "../SendRequestModal";
@@ -35,6 +35,7 @@ import {
   Plus,
   BrainCircuit,
   ArrowRight,
+  AlertOctagon,
 } from "lucide-react";
 
 interface Transaction {
@@ -42,7 +43,7 @@ interface Transaction {
   transaction_type: string;
   amount: number;
   description: string;
-  source: string; // Used to store Currency Type (USD, USDC, IDIA)
+  source: string;
   created_at: string;
   metadata?: any;
 }
@@ -63,80 +64,67 @@ const EnhancedWalletDashboard: React.FC = () => {
     usdcAddress,
   } = useWalletBalance();
 
-  // 1. Force a dedicated, stable ID state to prevent render-looping
   const [stableUserId, setStableUserId] = useState<string | null>(null);
-
-  // 2. Add mode state for Shawn's modal
   const [setupMode, setSetupMode] = useState<"create" | "import" | "view-seed">("create");
 
-  // 3. Deterministic ID Capture: Listen only for the moment the profile hydrates
   useEffect(() => {
-    console.log("[IDENTITY_SYNC_START] Evaluating profile hydration state...");
+    console.log("[IDENTITY_SYNC:START] Evaluating profile hydration state...");
     try {
       const resolvedId = profile?.id || profile?.user_id;
       if (resolvedId && resolvedId !== stableUserId) {
-        console.log(`✅ [ID_LOCK] Identity Verified: ${resolvedId}`);
+        console.log(`[IDENTITY_SYNC:LOCK] Identity Verified: ${resolvedId}`);
         setStableUserId(resolvedId);
       }
-      console.log("[IDENTITY_SYNC_END] Hydration evaluation complete.");
-    } catch (err) {
-      console.error("[IDENTITY_SYNC_ERROR] Silent failure during ID lock evaluation:", err);
+      console.log("[IDENTITY_SYNC:END] Hydration evaluation complete.");
+    } catch (err: any) {
+      console.error(`[IDENTITY_SYNC:ERROR] Silent failure during ID lock evaluation: ${err.message}`);
     }
   }, [profile, stableUserId]);
 
-  // 4. Updated useSovereignWallet with the stable ID
   const { globalWalletAddress, isHydrating, syncWalletToSupabase } = useSovereignWallet(stableUserId);
-
-  // 5. Pull local Web3 state exclusively from Native Wallet Infrastructure
   const { wallet: nativeWallet, hasWallet, createWallet, importWallet, getSeedPhrase } = useWallet();
   const localAddress = nativeWallet?.address;
 
-  // 6. Define the exact strict handlers required by WalletSetupModal, routed natively
   const handleCreateWallet = async () => {
-    console.log("🛡️ [WALLET_DASHBOARD_LOG] START: handleCreateWallet invoked");
+    console.log("[WALLET_CREATE:START] handleCreateWallet invoked");
     try {
-      console.log("🛡️ [WALLET_DASHBOARD_LOG] ACTION: Generating secure wallet via IDIA Infrastructure");
       const newWallet = await createWallet();
       if (newWallet?.address) {
         const seed = await getSeedPhrase();
         return { address: newWallet.address, mnemonic: seed || "" };
       }
       return null;
-    } catch (error) {
-      console.error(`🚨 [WALLET_DASHBOARD_ERROR] Creation stalled: ${error}`);
+    } catch (error: any) {
+      console.error(`[WALLET_CREATE:ERROR] Creation stalled: ${error.message}`);
       return null;
     } finally {
-      console.log("🛡️ [WALLET_DASHBOARD_LOG] END: handleCreateWallet resolved");
+      console.log("[WALLET_CREATE:END] handleCreateWallet resolved");
     }
   };
 
   const handleImportWallet = async (seedPhrase: string) => {
-    console.log("🛡️ [WALLET_DASHBOARD_LOG] START: handleImportWallet invoked");
+    console.log("[WALLET_IMPORT:START] handleImportWallet invoked");
     try {
-      console.log("🛡️ [WALLET_DASHBOARD_LOG] ACTION: Processing seed phrase import");
       return await importWallet(seedPhrase);
-    } catch (error) {
-      console.error(`🚨 [WALLET_DASHBOARD_ERROR] Import stalled: ${error}`);
+    } catch (error: any) {
+      console.error(`[WALLET_IMPORT:ERROR] Import stalled: ${error.message}`);
       return false;
     } finally {
-      console.log("🛡️ [WALLET_DASHBOARD_LOG] END: handleImportWallet resolved");
+      console.log("[WALLET_IMPORT:END] handleImportWallet resolved");
     }
   };
 
   const handleGetSeedPhrase = async (): Promise<string | null> => {
-    console.log("🛡️ [WALLET_DASHBOARD_LOG] START: handleGetSeedPhrase invoked");
+    console.log("[SEED_RETRIEVAL:START] handleGetSeedPhrase invoked");
     try {
-      console.log("🛡️ [WALLET_DASHBOARD_LOG] ACTION: Retrieving secure seed phrase");
       return await getSeedPhrase();
-    } catch (error) {
-      console.error(`🚨 [WALLET_DASHBOARD_ERROR] Seed phrase retrieval stalled: ${error}`);
+    } catch (error: any) {
+      console.error(`[SEED_RETRIEVAL:ERROR] Seed phrase retrieval stalled: ${error.message}`);
       return null;
     } finally {
-      console.log("🛡️ [WALLET_DASHBOARD_LOG] END: handleGetSeedPhrase resolved");
+      console.log("[SEED_RETRIEVAL:END] handleGetSeedPhrase resolved");
     }
   };
-
-  const syncLock = useRef(false);
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [creditSimulation, setCreditSimulation] = useState<CreditSimulation | null>(null);
@@ -152,10 +140,9 @@ const EnhancedWalletDashboard: React.FC = () => {
   const isProvisioned = !!displayAddress;
   const hasFBO = !!profile?.fbo_account_id;
 
-  // --- Identity-gated, one-shot wallet link (loop-proof) ---
   const linkedPairsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    console.log("[WEB3_WATCHER_INIT] Evaluating local vs global wallet parity.");
+    console.log("[WEB3_WATCHER:INIT] Evaluating local vs global wallet parity.");
     try {
       if (!stableUserId || !hasWallet || !localAddress) return;
       if (localAddress === globalWalletAddress) return;
@@ -164,35 +151,14 @@ const EnhancedWalletDashboard: React.FC = () => {
       if (linkedPairsRef.current.has(pairKey)) return;
       linkedPairsRef.current.add(pairKey);
 
-      console.log(`🔗 [WEB3_WATCHER_EXEC] START: One-shot link Vault ${localAddress} to User ${stableUserId}.`);
+      console.log(`[WEB3_WATCHER:EXEC] One-shot link Vault ${localAddress} to User ${stableUserId}.`);
       syncWalletToSupabase(localAddress);
       window.dispatchEvent(new CustomEvent("vault-linked", { detail: { address: localAddress } }));
-      console.log(`🔗 [WEB3_WATCHER_EXEC] END: Link process dispatched.`);
-    } catch (err) {
-      console.error("[WEB3_WATCHER_ERROR] Vault link parity sequence stalled:", err);
+    } catch (err: any) {
+      console.error(`[WEB3_WATCHER:ERROR] Vault link parity sequence stalled: ${err.message}`);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasWallet, localAddress, stableUserId, globalWalletAddress]);
 
-  // --- Native App Handshake ---
-  useEffect(() => {
-    const handleNativeAuthMessage = (event: MessageEvent) => {
-      console.log("[NATIVE_BRIDGE_MESSAGE] Incoming message evaluated.");
-      try {
-        if (event.data?.type === "IDIA_AUTH_COMPLETE") {
-          console.log("📱 [NATIVE_BRIDGE_EXEC] Handshake Confirmed. Transitioning to Active Dashboard.");
-          window.location.href = "/dashboard";
-        }
-      } catch (err) {
-        console.error("[NATIVE_BRIDGE_ERROR] Bridge message evaluation stalled:", err);
-      }
-    };
-
-    window.addEventListener("message", handleNativeAuthMessage);
-    return () => window.removeEventListener("message", handleNativeAuthMessage);
-  }, []);
-
-  // --- Parallel Ledger Transaction Fetching ---
   useEffect(() => {
     if (stableUserId) {
       console.log(`[EFFECT_TRIGGER] Identity lock confirmed (${stableUserId}). Initiating parallel ledger fetch.`);
@@ -201,9 +167,8 @@ const EnhancedWalletDashboard: React.FC = () => {
   }, [stableUserId]);
 
   const fetchTransactions = async (userId: string) => {
-    console.log("💳 [FETCH_TRANSACTIONS_START] Querying verified ledgers...");
+    console.log("[FETCH_LEDGERS:START] Querying strictly verified ledger databases...");
     try {
-      // Parallel fetch for speed and data parity
       const [txResult, synapseResult] = await Promise.all([
         supabase
           .from("transactions")
@@ -216,109 +181,108 @@ const EnhancedWalletDashboard: React.FC = () => {
           .select("*")
           .eq("user_id", userId)
           .order("created_at", { ascending: false })
-          .limit(30)
+          .limit(30),
       ]);
 
-      if (txResult.error) throw txResult.error;
+      if (txResult.error) throw new Error(`Transactions DB Error: ${txResult.error.message}`);
+      if (synapseResult.error) throw new Error(`Synapse Ledger DB Error: ${synapseResult.error.message}`);
 
       // --- BRANCH 1: Standard Transactions (Truth-Only) ---
-      const mappedTx = (txResult.data || []).map((tx: any) => {
-        try {
-          // STRICT CURRENCY CHECK: Do not guess. Pull from column or metadata.
-          const rawCurrency = tx.currency || tx.metadata?.currency;
-          
-          // Data Royalties are strictly USDC by Protocol definition
-          const isDataPayout = [
-            "DATA_SALE_PAYOUT", "data_reward", "data_earnings", 
-            "royalty_payout", "data_sale"
-          ].includes(tx.transaction_type);
+      console.log("[FETCH_LEDGERS:MAP:TX] Initiating core transaction mapping...");
+      const mappedTx = (txResult.data || [])
+        .map((tx: any) => {
+          try {
+            if (tx.amount === null || tx.amount === undefined) {
+              console.error(`[CRITICAL_DATA_FAULT] Transaction ${tx.id} missing amount entirely. Dropping row.`);
+              return null;
+            }
 
-          const finalCurrency = isDataPayout ? "USDC" : (rawCurrency || "UNKNOWN");
+            const strictCurrency = tx.currency || tx.metadata?.currency;
+            if (!strictCurrency) {
+              console.warn(`[DATA_WARNING] Transaction ${tx.id} is missing a designated currency label.`);
+            }
 
-          return {
-            id: tx.id,
-            transaction_type: tx.transaction_type,
-            amount: tx.amount ? Number(tx.amount) : 0,
-            description: tx.description || "Unlabeled Transaction",
-            source: finalCurrency,
-            created_at: tx.created_at,
-            metadata: tx.metadata,
-          };
-        } catch (err) {
-          console.error(`🚨 [MAPPING_ERROR] Standard TX ${tx.id} stalled:`, err);
-          return null;
-        }
-      }).filter(Boolean);
+            return {
+              id: tx.id,
+              transaction_type: tx.transaction_type,
+              amount: Number(tx.amount),
+              description: tx.description || "UNLABELED_TRANSACTION",
+              source: strictCurrency || "UNKNOWN_CURRENCY",
+              created_at: tx.created_at,
+              metadata: tx.metadata || {},
+            };
+          } catch (err: any) {
+            console.error(`[FETCH_LEDGERS:MAP_ERROR] Core TX ${tx.id} mapping failed: ${err.message}`);
+            return null;
+          }
+        })
+        .filter(Boolean) as Transaction[];
+      console.log(`[FETCH_LEDGERS:MAP:TX] Completed. ${mappedTx.length} viable standard rows parsed.`);
 
       // --- BRANCH 2: Synapse Compute Ledger (Truth-Only) ---
-      const mappedSynapse = (synapseResult.data || []).map((syn: any) => {
-        try {
-          // Identify the exact balance affected (USDC or IDIA)
-          const source = syn.amount_usdc ? "USDC" : syn.amount_idia_usd ? "IDIA" : "IDIA_COMPUTE";
-          const rawAmount = syn.amount_usdc || syn.amount_idia_usd || syn.amount;
+      console.log("[FETCH_LEDGERS:MAP:SYNAPSE] Initiating Synapse credit mapping...");
+      const mappedSynapse = (synapseResult.data || [])
+        .map((syn: any) => {
+          try {
+            let sourceAsset = "UNKNOWN_ASSET";
+            let atomicAmount = null;
 
-          return {
-            id: syn.id,
-            transaction_type: "synapse_compute",
-            amount: rawAmount ? -Math.abs(Number(rawAmount)) : 0, // Purchases are always deductions
-            description: syn.description || "Synapse Engine Allocation",
-            source: source,
-            created_at: syn.created_at,
-            metadata: { type: "compute_usage" },
-          };
-        } catch (err) {
-          console.error(`🚨 [MAPPING_ERROR] Synapse TX ${syn.id} stalled:`, err);
-          return null;
-        }
-      }).filter(Boolean);
+            // Strictly extract what is actively recorded without assuming defaults
+            if (syn.amount_usdc !== null && syn.amount_usdc !== undefined) {
+              sourceAsset = "USDC";
+              atomicAmount = Number(syn.amount_usdc);
+            } else if (syn.amount_idia_usd !== null && syn.amount_idia_usd !== undefined) {
+              sourceAsset = "IDIA";
+              atomicAmount = Number(syn.amount_idia_usd);
+            } else if (syn.amount !== null && syn.amount !== undefined) {
+              sourceAsset = "COMPUTE_CREDITS";
+              atomicAmount = Number(syn.amount);
+            }
 
-      // --- SYNTHESIS ---
-      const combinedHistory = [...mappedTx, ...mappedSynapse].sort((a, b) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            if (atomicAmount === null) {
+              console.error(
+                `[CRITICAL_DATA_FAULT] Synapse entry ${syn.id} lacks a quantifiable ledger column. Dropping row.`,
+              );
+              return null;
+            }
+
+            return {
+              id: syn.id,
+              transaction_type: "synapse_ledger_event",
+              amount: atomicAmount > 0 ? -Math.abs(atomicAmount) : atomicAmount,
+              description: syn.description || "SYNAPSE_CREDIT_EVENT",
+              source: sourceAsset,
+              created_at: syn.created_at,
+              metadata: { type: "synapse_ledger_event", original_data: syn },
+            };
+          } catch (err: any) {
+            console.error(`[FETCH_LEDGERS:MAP_ERROR] Synapse TX ${syn.id} mapping failed: ${err.message}`);
+            return null;
+          }
+        })
+        .filter(Boolean) as Transaction[];
+      console.log(`[FETCH_LEDGERS:MAP:SYNAPSE] Completed. ${mappedSynapse.length} viable compute rows parsed.`);
+
+      console.log("[FETCH_LEDGERS:SYNTHESIS] Merging ledgers into unified chronological timeline.");
+      const combinedHistory = [...mappedTx, ...mappedSynapse].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
       );
 
-      setTransactions(combinedHistory as Transaction[]);
-      console.log(`✅ [FETCH_TRANSACTIONS_END] ${combinedHistory.length} verified records loaded.`);
-      
+      setTransactions(combinedHistory);
+      console.log(
+        `[FETCH_LEDGERS:SUCCESS] State hydrated successfully with ${combinedHistory.length} total verifications.`,
+      );
     } catch (error: any) {
-      console.error("🚨 [FETCH_TRANSACTIONS_CRITICAL_FAILURE] Ledger sync stalled:", error.message);
-    }
-  };
-
-  const exportTaxableEvents = async () => {
-    console.log("[EXPORT_TAX_EVENTS_START] Aggregating taxable ledger history...");
-    try {
-      const taxableEvents = transactions.filter(
-        (t) =>
-          t.transaction_type === "DATA_SALE_PAYOUT" ||
-          t.transaction_type === "crypto_sale" ||
-          t.transaction_type === "income" ||
-          t.transaction_type === "royalty_payout" ||
-          t.transaction_type === "data_sale",
+      console.error(
+        `[FETCH_LEDGERS:CRITICAL_FAILURE] Execution stalled during multi-ledger aggregation: ${error.message}`,
       );
-
-      const csvContent = [
-        "Date,Type,Amount,Description,Tax Category",
-        ...taxableEvents.map(
-          (t) => `${t.created_at},${t.transaction_type},${t.amount},${t.description},Taxable Income`,
-        ),
-      ].join("\n");
-
-      const blob = new Blob([csvContent], { type: "text/csv" });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `taxable-events-${new Date().getFullYear()}.csv`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-      console.log("[EXPORT_TAX_EVENTS_END] Tax payload successfully formatted and downloaded.");
-    } catch (error) {
-      console.error("[EXPORT_TAX_EVENTS_ERROR] Silent failure during CSV blob generation:", error);
+    } finally {
+      console.log("[FETCH_LEDGERS:END] Fetch routine resolved. Network lock released.");
     }
   };
 
   const handleCalculateScore = async (moduleScores: Record<string, number>) => {
-    console.log("[SCORE_CALC_START] Firing telemetry array to remote algorithm.");
+    console.log("[SCORE_CALC:START] Firing telemetry array to remote algorithm.");
     setIsCalculating(true);
     try {
       const { tut, ...actualTelemetry } = moduleScores;
@@ -327,12 +291,12 @@ const EnhancedWalletDashboard: React.FC = () => {
       });
 
       if (error) {
-        console.error("[SCORE_CALC_RPC_ERROR] Edge function invocation rejected:", error);
+        console.error(`[SCORE_CALC:RPC_ERROR] Edge function invocation rejected: ${error.message}`);
         throw error;
       }
 
       if (updateProfile) {
-        console.log("[SCORE_CALC_UPDATE] Persisting computed matrix to user profile.");
+        console.log("[SCORE_CALC:UPDATE] Persisting computed matrix to user profile.");
         await updateProfile({
           trust_score: data.trust_score,
           available_credit_line: data.credit_line,
@@ -344,22 +308,23 @@ const EnhancedWalletDashboard: React.FC = () => {
         simulated_score: data.trust_score,
         actions: ["Psychometric telemetry verified via IDIA Protocol", "Deterministic capital limit recalculated"],
       });
-      console.log("[SCORE_CALC_SUCCESS] Financial payload accepted.");
-    } catch (err) {
-      console.error("[SCORE_CALC_CRITICAL_ERROR] Algorithm Execution Failed entirely:", err);
+      console.log("[SCORE_CALC:SUCCESS] Financial payload accepted.");
+    } catch (err: any) {
+      console.error(`[SCORE_CALC:CRITICAL_ERROR] Algorithm Execution Failed entirely: ${err.message}`);
     } finally {
       setIsCalculating(false);
       setShowTestModal(false);
       setTimeout(() => fireFinaleConfetti(), 400);
-      console.log("[SCORE_CALC_END] Calculation sequence terminated.");
+      console.log("[SCORE_CALC:END] Calculation sequence terminated.");
     }
   };
 
   const getTransactionIcon = (type: string, currency: string) => {
-    if (type === "synapse_purchase" || type === "synapse_credit_purchase") return BrainCircuit;
+    if (currency === "UNKNOWN_CURRENCY" || currency === "UNKNOWN_ASSET") return AlertOctagon;
+    if (type === "synapse_ledger_event") return BrainCircuit;
 
     if (currency === "USDC") return Shield;
-    if (currency === "IDIA Token") return BrainCircuit;
+    if (currency === "IDIA") return BrainCircuit;
 
     switch (type) {
       case "DATA_SALE_PAYOUT":
@@ -368,6 +333,7 @@ const EnhancedWalletDashboard: React.FC = () => {
       case "royalty_payout":
       case "data_sale":
         return TrendingUp;
+      case "token_issuance":
       case "payment_sent":
       case "withdrawal":
         return ArrowUpRight;
@@ -389,8 +355,11 @@ const EnhancedWalletDashboard: React.FC = () => {
     const value = Math.abs(amount).toFixed(2);
 
     if (currency === "USDC") return `${prefix}${value} USDC`;
-    if (currency === "IDIA Token") return `${prefix}${value} IDIA`;
-    return `${prefix}$${value}`;
+    if (currency === "IDIA") return `${prefix}${value} IDIA`;
+    if (currency === "COMPUTE_CREDITS") return `${prefix}${value} CREDS`;
+    if (currency === "UNKNOWN_CURRENCY" || currency === "UNKNOWN_ASSET") return `${prefix}${value} [UNVERIFIED_ASSET]`;
+
+    return `${prefix}${value} ${currency}`;
   };
 
   if (loading || balanceLoading || isHydrating) {
@@ -500,24 +469,31 @@ const EnhancedWalletDashboard: React.FC = () => {
           >
             {transactions.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground italic">
-                No multi-currency records found in IDIA Protocol
+                No verified multi-ledger records found.
               </div>
             ) : (
               <div className="space-y-3 pb-4">
                 {transactions.map((tx) => {
                   const Icon = getTransactionIcon(tx.transaction_type, tx.source);
+                  const isWarning = tx.source === "UNKNOWN_CURRENCY" || tx.source === "UNKNOWN_ASSET";
                   return (
-                    <div key={tx.id} className="flex items-center space-x-3 p-3 border rounded-lg bg-card">
+                    <div
+                      key={tx.id}
+                      className={`flex items-center space-x-3 p-3 border rounded-lg ${isWarning ? "bg-red-500/10 border-red-500/50" : "bg-card"}`}
+                    >
                       <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                        <Icon className="w-5 h-5 text-muted-foreground" />
+                        <Icon className={`w-5 h-5 ${isWarning ? "text-red-500" : "text-muted-foreground"}`} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{tx.description}</p>
+                        <p className={`font-medium truncate ${isWarning ? "text-red-600" : ""}`}>{tx.description}</p>
                         <div className="flex items-center gap-2">
                           <p className="text-xs text-muted-foreground">
                             {new Date(tx.created_at).toLocaleDateString()}
                           </p>
-                          <Badge variant="outline" className="text-[9px] h-4 py-0 px-1 uppercase opacity-70">
+                          <Badge
+                            variant={isWarning ? "destructive" : "outline"}
+                            className="text-[9px] h-4 py-0 px-1 uppercase opacity-70"
+                          >
                             {tx.source}
                           </Badge>
                         </div>
