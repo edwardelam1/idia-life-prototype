@@ -16,6 +16,7 @@ import { ShieldAlert, Code, Scale, HeartHandshake, ChevronRight, Fingerprint, Lo
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
+import { isNative } from "@/services/platform";
 
 // We keep the structural UI metadata static, but all metrics are hydrated live.
 const COMMITTEES_META = [
