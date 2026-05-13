@@ -14,6 +14,7 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import SecureVault from "./pages/SecureVault";
 import RecoveryPhrase from "./pages/RecoveryPhrase";
+import TermsOfService from "./pages/TermsOfService";
 
 // Architectural Note: Defined outside to prevent re-instantiation on re-renders
 const queryClient = new QueryClient({
@@ -71,6 +72,7 @@ const App = () => {
               <Route path="/" element={session ? <Index /> : <Navigate to="/auth" replace />} />
               <Route path="/dashboard" element={session ? <Index /> : <Navigate to="/auth" replace />} />
               <Route path="/onboarding" element={session ? <Onboarding /> : <Navigate to="/auth" replace />} />
+              <Route path="/terms" element={session ? <TermsOfService /> : <Navigate to="/auth" replace />} />
               <Route path="/recovery-phrase" element={session ? <RecoveryPhrase /> : <Navigate to="/auth" replace />} />
               <Route path="/settings" element={session ? <Settings /> : <Navigate to="/auth" replace />} />
               <Route path="/secure-vault" element={session ? <SecureVault /> : <Navigate to="/auth" replace />} />
