@@ -269,7 +269,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                      <p className="text-[10px] font-black text-slate-900 uppercase">Hardware Pulse</p>
                      <p className="text-[9px] text-teal-600 font-bold uppercase tracking-tighter">{gammaActive ? "Transmitting" : "Standby"}</p>
                   </div>
-                  <Switch checked={gammaActive} onCheckedChange={triggerGammaSequence} className="data-[state=checked]:bg-orange-500 shadow-sm" />
+                  <Switch checked={gammaActive} onCheckedChange={handleGammaToggle} className="data-[state=checked]:bg-orange-500 shadow-sm" />
                </div>
             </div>
           </TabsContent>
