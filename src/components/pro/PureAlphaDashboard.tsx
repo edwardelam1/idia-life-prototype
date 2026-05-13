@@ -116,6 +116,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
   // --- GAMMA & RSVP STATE ---
   const [gammaActive, setGammaActive] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
+  const [gammaWarningOpen, setGammaWarningOpen] = useState(false);
   
   const [rsvpPhase, setRsvpPhase] = useState<'IDLE' | 'CALIBRATING' | 'PRESENTING' | 'MASK' | 'RECALL' | 'ROUND_COMPLETE' | 'RESULT'>('IDLE');
   const [testRound, setTestRound] = useState(1);
