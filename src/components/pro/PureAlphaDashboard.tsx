@@ -409,6 +409,12 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
   // --- RENDER ---
   return (
     <GhostProtocolWrapper>
+      <GammaPhotosensitivityWarning
+        open={gammaWarningOpen}
+        surface="PureAlphaDashboard"
+        onCancel={() => setGammaWarningOpen(false)}
+        onAcknowledge={() => { setGammaWarningOpen(false); triggerGammaSequence(true); }}
+      />
       {isFlashing && createPortal(
         <div 
           className="fixed -inset-[200%] z-[99999] pointer-events-none animate-[seizure-rgb_25ms_linear_infinite]" 
