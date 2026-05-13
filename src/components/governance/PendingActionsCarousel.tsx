@@ -6,6 +6,7 @@ import { Clock, ShieldOff, Zap, Loader2, Fingerprint } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
+import { isNative } from "@/services/platform";
 
 interface PendingAction {
   id: string;
