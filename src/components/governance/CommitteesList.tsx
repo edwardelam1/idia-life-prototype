@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import React, { useState, useEffect } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,28 +12,19 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { ShieldAlert, Code, Scale, HeartHandshake, ChevronRight, Fingerprint, Loader2 } from "lucide-react";
+import { ShieldAlert, Code, Scale, HeartHandshake, ChevronRight, Fingerprint, Loader2, Clock } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
 
-interface Committee {
-  id: string;
-  name: string;
-  icon: React.ElementType;
-  description: string;
-  pathway: string;
-  members: number;
-}
-
-const COMMITTEES: Committee[] = [
+// We keep the structural UI metadata static, but all metrics are hydrated live.
+const COMMITTEES_META = [
   {
     id: "legal_defense",
     name: "Legal Defense & Jurisdiction",
     icon: Scale,
     description: "Fiduciary oversight of the Delaware MSA. Manages corporate defense funds and regulatory compliance.",
     pathway: "Level 1 pathway to the ⚖️ Legal Defense Hat",
-    members: 12,
   },
   {
     id: "sociorelational",
@@ -41,15 +32,13 @@ const COMMITTEES: Committee[] = [
     icon: HeartHandshake,
     description: "Manages the Virtuous Cycle. Oversees distribution of the 1% and 10% data yield to community grants.",
     pathway: "Level 1 pathway to the 🤝 Sociorelational Hat",
-    members: 24,
   },
   {
-    id: "security_aux",
+    id: "security_council", // Aligned ID with dao_hats enum
     name: "Security Council Auxiliary",
     icon: ShieldAlert,
     description: "Audits smart contracts, monitors for Sybil attacks, and reviews system threat telemetries.",
     pathway: "Level 1 pathway to the 🛡️ Security Council Hat",
-    members: 8,
   },
   {
     id: "product_xr",
@@ -57,22 +46,70 @@ const COMMITTEES: Committee[] = [
     icon: Code,
     description: "Enforces the 'Glossy/Glass' aesthetic and reviews spatial computing manifestations.",
     pathway: "Level 1 pathway to the 💻 Product/XR Hat",
-    members: 15,
   },
 ];
 
 const CommitteesList: React.FC = () => {
-  const [selectedCommittee, setSelectedCommittee] = useState<Committee | null>(null);
+  const [selectedCommittee, setSelectedCommittee] = useState<(typeof COMMITTEES_META)[0] | null>(null);
   const [statement, setStatement] = useState("");
   const [msaAcknowledged, setMsaAcknowledged] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleApplyClick = (committee: Committee) => {
+  // Live Ledger States
+  const [officerCounts, setOfficerCounts] = useState<Record<string, number>>({});
+  const [userApplications, setUserApplications] = useState<string[]>([]);
+  const [isLoadingLedger, setIsLoadingLedger] = useState(true);
+
+  const fetchLedgerState = async () => {
+    console.log("[COMMITTEES_LIST] START: Hydrating live registry metrics.");
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      // 1. Fetch live active officer counts from the Hats wardrobe ledger
+      const { data: hatsData, error: hatsError } = await supabase
+        .from("dao_hats" as any)
+        .select("hat_type")
+        .eq("eligibility_status", "active")
+        .is("revoked_at", null);
+
+      if (hatsError) throw hatsError;
+
+      const counts: Record<string, number> = {};
+      hatsData?.forEach((hat: any) => {
+        counts[hat.hat_type] = (counts[hat.hat_type] || 0) + 1;
+      });
+      setOfficerCounts(counts);
+
+      // 2. Fetch current user's pending applications to prevent duplicate submissions
+      if (user) {
+        const { data: appsData, error: appsError } = await supabase
+          .from("committee_applications" as any)
+          .select("committee_id")
+          .eq("user_id", user.id);
+
+        if (appsError) throw appsError;
+        if (appsData) setUserApplications(appsData.map((a: any) => a.committee_id));
+      }
+
+      console.log("[COMMITTEES_LIST] SUCCESS: Registry metrics synced.");
+    } catch (error: any) {
+      console.error("[COMMITTEES_LIST] CRITICAL_FAILURE: Matrix sync failed:", error.message);
+    } finally {
+      setIsLoadingLedger(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLedgerState();
+  }, []);
+
+  const handleApplyClick = (committee: (typeof COMMITTEES_META)[0]) => {
     console.log(`[UI_INTERACTION] START: User selected ${committee.name} for application.`);
     setSelectedCommittee(committee);
     setStatement("");
     setMsaAcknowledged(false);
-    console.log(`[UI_INTERACTION] SUCCESS: Application modal initialized for ${committee.id}.`);
   };
 
   const handleSubmission = async () => {
@@ -125,26 +162,25 @@ const CommitteesList: React.FC = () => {
       );
 
       console.log(`[COMMITTEE_APPLICATION] NETWORK_START: Transmitting secure payload to Delaware MSA Registry.`);
-
-      // Implementation of Ledger Write with ACA Hash embedded
       const { error: ledgerError } = await supabase.from("committee_applications" as any).insert({
         user_id: user.id,
         committee_id: selectedCommittee?.id,
         statement_of_competence: statement,
         aca_hash_key: hash,
         aca_payload: payload,
+        status: "pending",
       });
 
       if (ledgerError) throw ledgerError;
-      console.log(
-        `[COMMITTEE_APPLICATION] NETWORK_END: Ledger entry committed. Identity successfully bound to committee ${selectedCommittee?.id}.`,
-      );
+      console.log(`[COMMITTEE_APPLICATION] NETWORK_END: Ledger entry committed.`);
 
       toast({
         title: "Application Committed",
         description: `Identity anchored to ${selectedCommittee?.name} with ACA Hash: ${hash.substring(0, 8)}...`,
       });
 
+      // Refresh UI state
+      fetchLedgerState();
       setSelectedCommittee(null);
     } catch (error: any) {
       console.error(`[COMMITTEE_APPLICATION] CRITICAL_FAILURE: Ascension sequence halted. Reason: ${error.message}`);
@@ -159,6 +195,14 @@ const CommitteesList: React.FC = () => {
     }
   };
 
+  if (isLoadingLedger) {
+    return (
+      <div className="flex justify-center py-8">
+        <Loader2 className="w-5 h-5 animate-spin text-teal-600" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="px-2">
@@ -172,8 +216,12 @@ const CommitteesList: React.FC = () => {
       </div>
 
       <div className="grid gap-4">
-        {COMMITTEES.map((committee) => {
+        {COMMITTEES_META.map((committee) => {
           const Icon = committee.icon;
+          // Dynamically map active members. Defaults to 0 if none exist yet.
+          const activeMembers = officerCounts[committee.id] || 0;
+          const hasApplied = userApplications.includes(committee.id);
+
           return (
             <Card
               key={committee.id}
@@ -192,20 +240,33 @@ const CommitteesList: React.FC = () => {
                       </p>
                       <div className="flex items-center gap-2 mt-2">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">
-                          {committee.members} Active Officers
+                          {activeMembers} Active Officer{activeMembers === 1 ? "" : "s"}
                         </span>
                         <span className="text-[10px] text-muted-foreground font-medium">{committee.pathway}</span>
                       </div>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full sm:w-auto border-teal-200 text-teal-800 hover:bg-teal-50"
-                    onClick={() => handleApplyClick(committee)}
-                  >
-                    Apply to Join <ChevronRight className="w-4 h-4 ml-1 opacity-50" />
-                  </Button>
+
+                  {hasApplied ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled
+                      className="w-full sm:w-auto border-amber-200 text-amber-700 bg-amber-50/50"
+                    >
+                      <Clock className="w-3 h-3 mr-1.5" />
+                      Pending Audit
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full sm:w-auto border-teal-200 text-teal-800 hover:bg-teal-50"
+                      onClick={() => handleApplyClick(committee)}
+                    >
+                      Apply to Join <ChevronRight className="w-4 h-4 ml-1 opacity-50" />
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
