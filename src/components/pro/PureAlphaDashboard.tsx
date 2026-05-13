@@ -396,6 +396,16 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
     }
   };
 
+  const handleGammaToggle = (checked: boolean) => {
+    if (checked) {
+      console.log("[PureAlphaDashboard:UI] Gamma requested. Opening safety gate.");
+      setGammaWarningOpen(true);
+    } else {
+      console.log("[PureAlphaDashboard:UI] Disabling Gamma sequence.");
+      triggerGammaSequence(false);
+    }
+  };
+
   // --- RENDER ---
   return (
     <GhostProtocolWrapper>
