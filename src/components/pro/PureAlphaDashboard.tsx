@@ -23,6 +23,7 @@ import { toast } from "@/hooks/use-toast";
 
 // IDIA Protocol Components
 import GhostProtocolWrapper from "./GhostProtocol";
+import { GammaPhotosensitivityWarning } from "./GammaPhotosensitivityWarning";
 
 // --- EXPANDED SOVEREIGN SCHEMA ---
 interface StagedHealthData {
