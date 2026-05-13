@@ -6,6 +6,7 @@ import { Clock, ShieldOff, Zap, Loader2, Fingerprint } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
+import { isNative } from "@/services/platform";
 
 interface PendingAction {
   id: string;
@@ -93,6 +94,14 @@ const PendingActionsCarousel: React.FC = () => {
 
   const castVeto = async (actionId: string) => {
     console.log(`[VETO_ACTION] START: Initializing Negative Consent sequence for action: ${actionId}`);
+    if (!isNative()) {
+      toast({
+        title: "Native Device Required",
+        description: "Veto actions require Secure Enclave attestation. Please use the iOS or Android app.",
+        variant: "destructive",
+      });
+      return;
+    }
     setVetoing(actionId);
 
     try {
