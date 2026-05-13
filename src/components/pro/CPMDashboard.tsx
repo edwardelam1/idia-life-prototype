@@ -153,7 +153,15 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     }
   };
 
-  useEffect(() => {
+  const handleGammaToggle = (checked: boolean) => {
+    if (checked) {
+      console.log("[CPMDashboard:UI] Gamma requested. Opening safety gate.");
+      setGammaWarningOpen(true);
+    } else {
+      console.log("[CPMDashboard:UI] Disabling Gamma sequence.");
+      triggerGammaSequence(false);
+    }
+  };
     if (isMasked) return;
     let isMounted = true;
     const stream = async () => {
