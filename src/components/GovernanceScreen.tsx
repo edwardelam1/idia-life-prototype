@@ -10,6 +10,7 @@ import LifecycleTelemetry from "./governance/LifecycleTelemetry";
 import MSAComplianceCard from "./governance/MSAComplianceCard";
 import TreasuryFlows from "./governance/TreasuryFlows";
 import CommitteesList from "./governance/CommitteesList";
+import WelcomeManualGate from "./governance/WelcomeManualGate";
 
 const GovernanceScreen: React.FC = () => {
   const [balance, setBalance] = useState<number>(0);
