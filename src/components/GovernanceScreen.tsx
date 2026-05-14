@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { ethers } from "ethers";
 import { Card, CardContent } from "@/components/ui/card";
 import { ShieldCheck, Zap, Gavel, Activity, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useWalletBalance } from "@/hooks/useWalletBalance";
 import SegmentedJurisdiction, { Jurisdiction } from "./governance/SegmentedJurisdiction";
 import HatsWardrobe from "./governance/HatsWardrobe";
 import PendingActionsCarousel from "./governance/PendingActionsCarousel";
@@ -14,12 +14,11 @@ import CommitteesList from "./governance/CommitteesList";
 import WelcomeManualGate from "./governance/WelcomeManualGate";
 
 const IDIA_CONTRACT = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
-const BASE_RPC = (import.meta as any).env?.VITE_ALCHEMY_RPC_URL || "https://mainnet.base.org";
-const ERC20_ABI = ["function balanceOf(address) view returns (uint256)"];
 
 const GovernanceScreen: React.FC = () => {
-  const [balance, setBalance] = useState<number>(0);
-  const [chainVerified, setChainVerified] = useState<boolean>(false);
+  const { balance, usdcProvisioned } = useWalletBalance();
+  const idiaBalance = balance.idia_token_balance;
+  const chainVerified = usdcProvisioned; // same Alchemy/Base provider hydrates both
   const [jurisdiction, setJurisdiction] = useState<Jurisdiction>("wyoming");
   const [userId, setUserId] = useState<string | null>(null);
   const [needsWelcomeAck, setNeedsWelcomeAck] = useState<boolean>(false);
@@ -36,44 +35,9 @@ const GovernanceScreen: React.FC = () => {
         console.log("[GOVERNANCE] First visit detected — gating Vote page on Welcome Manual.");
         setNeedsWelcomeAck(true);
       }
-
-      // Resolve sovereign wallet address
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("wallet_address")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      const walletAddress = (profile as any)?.wallet_address;
-      if (walletAddress && walletAddress.startsWith("0x")) {
-        try {
-          console.log(`[GOVERNANCE] Reading on-chain IDIA for ${walletAddress} from ${IDIA_CONTRACT}`);
-          const provider = new ethers.JsonRpcProvider(BASE_RPC, 8453);
-          const idia = new ethers.Contract(IDIA_CONTRACT, ERC20_ABI, provider);
-          const raw = await idia.balanceOf(walletAddress);
-          const formatted = Number(ethers.formatEther(raw));
-          console.log(`[GOVERNANCE] On-chain IDIA balance: ${formatted}`);
-          setBalance(formatted);
-          setChainVerified(true);
-          return;
-        } catch (err: any) {
-          console.error(`[GOVERNANCE] On-chain read failed, falling back to ledger: ${err.message}`);
-        }
-      }
-
-      const { data, error } = await supabase
-        .from("wallets")
-        .select("governance_tokens")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (error) {
-        console.error("[GOVERNANCE] Failed to load IDIA balance:", error.message);
-        setBalance(0);
-        return;
-      }
-      setBalance(Number((data as any)?.governance_tokens ?? 0));
     })();
   }, []);
+
 
   return (
     <div className="space-y-5 bg-white min-h-screen p-4 pb-24 animate-in fade-in duration-700">
