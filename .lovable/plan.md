@@ -1,20 +1,15 @@
 ## Plan
 
-1. **Fix the DUNA popup viewer**
-   - Replace the current `<iframe>` PDF embed in `WelcomeManualGate` with an in-app rendered document view.
-   - Use pre-rendered page images generated from `public/legal/IDIA_Data_DUNA_Welcome_Manual.pdf`, so the manual displays reliably inside the popup instead of depending on the browser’s native PDF plugin.
+Apply the same in-app rendered viewer to the Terms of Service popup as was done for the DUNA Welcome Manual.
 
-2. **Keep existing governance acknowledgement behavior**
-   - Preserve the scroll-to-bottom requirement before enabling “I Understand”.
-   - Preserve ACA hash generation, `device_events`, `user_aca_records`, and auth metadata updates exactly as they are.
-   - Keep the existing “Open in new tab” and “Download PDF Copy” fallbacks.
+1. **Pre-render ToS pages**
+   - Convert all 12 pages of `public/legal/IDIA_Protocol_Terms_of_Service.pdf` into JPG images at `public/legal/tos-pages/page-NN.jpg` using `pdftoppm` at 150 DPI.
 
-3. **Match the existing Vote page UX**
-   - Keep the current modal header/footer structure and DUNA styling.
-   - Render all manual pages stacked in the scroll window with stable responsive widths, page shadows, and alt text.
-   - Avoid changing the Hats Wardrobe or governance voting logic.
+2. **Update `src/pages/TermsOfService.tsx`**
+   - Replace the `<object>`/`<iframe>` PDF embed inside the scrollable container with a stacked column of 12 `<img>` tags (one per page), matching the DUNA gate styling: `w-full max-w-[760px] rounded-md shadow-md border border-border bg-white`, eager-load the first two pages, lazy-load the rest, with proper alt text.
+   - Keep the existing modal header, footer, scroll-to-bottom acceptance gate, ACA hash flow, `device_events` + `user_aca_records` inserts, auth metadata update, and "Download PDF Copy" link unchanged.
+   - Add an "Open in new tab" fallback link consistent with the DUNA gate.
 
-4. **Validate**
-   - Confirm the PDF file exists and is valid.
-   - Confirm the rendered page assets are created from the 11-page PDF.
-   - Verify the updated component references all rendered pages and still includes the PDF download/open fallback.
+3. **Validate**
+   - Confirm the 12 page images exist on disk.
+   - Confirm the route renders without depending on the browser PDF plugin.
