@@ -1,7 +1,4 @@
-<<<<<<< HEAD
 
-=======
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

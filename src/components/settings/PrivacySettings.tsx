@@ -1,7 +1,4 @@
-<<<<<<< HEAD
 
-=======
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
 import { useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';

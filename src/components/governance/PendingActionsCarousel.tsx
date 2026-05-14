@@ -35,13 +35,8 @@ const PendingActionsCarousel: React.FC = () => {
   const fetchActions = async () => {
     console.log("[PENDING_ACTIONS] START: Syncing optimistic timelock actions from Wyoming Gateway.");
     try {
-<<<<<<< HEAD
       const { data, error } = await (supabase as any)
         .from("dao_pending_actions")
-=======
-      const { data, error } = await supabase
-        .from("dao_pending_actions" as any)
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
         .select("*")
         .eq("status", "pending")
         .order("timelock_expires_at", { ascending: true });
@@ -49,11 +44,7 @@ const PendingActionsCarousel: React.FC = () => {
       if (error) throw error;
 
       console.log(`[PENDING_ACTIONS] SUCCESS: Retrieved ${data?.length || 0} pending actions.`);
-<<<<<<< HEAD
       setActions(data || []);
-=======
-      setActions((data as any) || []);
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
     } catch (err: any) {
       console.error(`[PENDING_ACTIONS] CRITICAL_FAILURE: Failed to query pending actions. Reason: ${err.message}`);
       toast({
@@ -131,13 +122,9 @@ const PendingActionsCarousel: React.FC = () => {
       console.log(`[VETO_ACTION] ACA_ANCHOR_END: Biological presence verified. SHA-256 Hash Generated: ${hash}`);
 
       console.log(`[VETO_ACTION] NETWORK_START: Transmitting secure veto payload to Wyoming Operational Gateway.`);
-<<<<<<< HEAD
       
       // FIX: Cast supabase to any to prevent 'never' type inference errors
       const { error: ledgerError } = await (supabase as any).from("dao_vetoes").insert({
-=======
-      const { error: ledgerError } = await supabase.from("dao_vetoes" as any).insert({
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
         action_id: actionId,
         user_id: user.id,
         aca_hash_key: hash,
@@ -145,11 +132,7 @@ const PendingActionsCarousel: React.FC = () => {
       });
 
       if (ledgerError) {
-<<<<<<< HEAD
         if (ledgerError.code === "23505") {
-=======
-        if ((ledgerError as any).code === "23505") {
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
           toast({
             title: "Already Vetoed",
             description: "Your sovereign veto on this action is already on the ledger.",
