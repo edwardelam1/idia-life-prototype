@@ -5,7 +5,21 @@ import { ethers } from "ethers"; // <-- Swapped viem for ethers (Native Infrastr
 // Base Mainnet contracts (live)
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const IDIA_ADDRESS = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
-const BASE_RPC_URL = (import.meta as any).env?.VITE_ALCHEMY_RPC_URL || "https://mainnet.base.org";
+
+const resolveBaseRpc = (): string => {
+  const raw = (import.meta as any).env?.VITE_ALCHEMY_RPC_URL;
+  try {
+    if (typeof raw === "string" && /^https:\/\/\S+$/.test(raw.trim())) {
+      return raw.trim();
+    }
+    console.error("[RPC_CONFIG] VITE_ALCHEMY_RPC_URL invalid or missing — falling back to public Base RPC.");
+  } catch (e) {
+    console.error("[RPC_CONFIG] RPC URL resolution failed:", e);
+  }
+  return "https://mainnet.base.org";
+};
+const BASE_RPC_URL = resolveBaseRpc();
+const BASE_NETWORK = ethers.Network.from(8453);
 
 // Minimal Human-Readable ABI for read-only operations via ethers
 const ERC20_BALANCE_ABI = ["function balanceOf(address account) view returns (uint256)"];
@@ -150,7 +164,7 @@ export const useWalletBalance = () => {
 
         try {
           // Live Base mainnet read via ethers — IDIA + USDC in parallel
-          const provider = new ethers.JsonRpcProvider(BASE_RPC_URL, 8453);
+          const provider = new ethers.JsonRpcProvider(BASE_RPC_URL, BASE_NETWORK, { staticNetwork: BASE_NETWORK });
           const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_BALANCE_ABI, provider);
           const idiaContract = new ethers.Contract(IDIA_ADDRESS, ERC20_BALANCE_ABI, provider);
 
