@@ -216,7 +216,7 @@ const ActiveProposalsList: React.FC<{ balance: number; refreshTrigger?: number }
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [refreshTrigger]);
 
   if (loading) {
     return (
