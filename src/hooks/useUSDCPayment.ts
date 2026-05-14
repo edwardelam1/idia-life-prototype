@@ -17,6 +17,18 @@ export function useUSDCPayment() {
   const [isPaymentPending, setIsPaymentPending] = useState(false);
   const [lastPaymentResult, setLastPaymentResult] = useState<PaymentResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [usdcBalance, setUsdcBalance] = useState<{ formatted: string; raw: string } | null>(null);
+
+  const refreshUSDCBalance = useCallback(async () => {
+    try {
+      if (!walletService.getAddress()) { setUsdcBalance(null); return; }
+      const b = await walletService.getUSDCBalance();
+      setUsdcBalance({ formatted: b.balanceFormatted, raw: b.balance });
+    } catch (e) {
+      console.error('USDC balance refresh failed:', e);
+      setUsdcBalance(null);
+    }
+  }, []);
 
   const pay = useCallback(async (
     paymentRequest: PaymentRequest,
@@ -32,6 +44,7 @@ export function useUSDCPayment() {
 
       const result = await executePayment(rawWallet, paymentRequest, amountOverride);
       setLastPaymentResult(result);
+      refreshUSDCBalance();
       return result;
     } catch (e: any) {
       const errMsg = e.message || 'Payment failed';
@@ -49,12 +62,14 @@ export function useUSDCPayment() {
     } finally {
       setIsPaymentPending(false);
     }
-  }, []);
+  }, [refreshUSDCBalance]);
 
   return {
     pay,
     isPaymentPending,
     lastPaymentResult,
+    usdcBalance,
+    refreshUSDCBalance,
     clearLastResult: useCallback(() => setLastPaymentResult(null), []),
     error,
     clearError: useCallback(() => setError(null), []),
