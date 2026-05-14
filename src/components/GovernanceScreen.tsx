@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
+import { ethers } from "ethers";
 import { Card, CardContent } from "@/components/ui/card";
-import { ShieldCheck, Zap, Gavel, Activity } from "lucide-react";
+import { ShieldCheck, Zap, Gavel, Activity, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import SegmentedJurisdiction, { Jurisdiction } from "./governance/SegmentedJurisdiction";
 import HatsWardrobe from "./governance/HatsWardrobe";
@@ -12,8 +13,13 @@ import TreasuryFlows from "./governance/TreasuryFlows";
 import CommitteesList from "./governance/CommitteesList";
 import WelcomeManualGate from "./governance/WelcomeManualGate";
 
+const IDIA_CONTRACT = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
+const BASE_RPC = (import.meta as any).env?.VITE_ALCHEMY_RPC_URL || "https://mainnet.base.org";
+const ERC20_ABI = ["function balanceOf(address) view returns (uint256)"];
+
 const GovernanceScreen: React.FC = () => {
   const [balance, setBalance] = useState<number>(0);
+  const [chainVerified, setChainVerified] = useState<boolean>(false);
   const [jurisdiction, setJurisdiction] = useState<Jurisdiction>("wyoming");
   const [userId, setUserId] = useState<string | null>(null);
   const [needsWelcomeAck, setNeedsWelcomeAck] = useState<boolean>(false);
@@ -30,6 +36,31 @@ const GovernanceScreen: React.FC = () => {
         console.log("[GOVERNANCE] First visit detected — gating Vote page on Welcome Manual.");
         setNeedsWelcomeAck(true);
       }
+
+      // Resolve sovereign wallet address
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("wallet_address")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const walletAddress = (profile as any)?.wallet_address;
+      if (walletAddress && walletAddress.startsWith("0x")) {
+        try {
+          console.log(`[GOVERNANCE] Reading on-chain IDIA for ${walletAddress} from ${IDIA_CONTRACT}`);
+          const provider = new ethers.JsonRpcProvider(BASE_RPC, 8453);
+          const idia = new ethers.Contract(IDIA_CONTRACT, ERC20_ABI, provider);
+          const raw = await idia.balanceOf(walletAddress);
+          const formatted = Number(ethers.formatEther(raw));
+          console.log(`[GOVERNANCE] On-chain IDIA balance: ${formatted}`);
+          setBalance(formatted);
+          setChainVerified(true);
+          return;
+        } catch (err: any) {
+          console.error(`[GOVERNANCE] On-chain read failed, falling back to ledger: ${err.message}`);
+        }
+      }
+
       const { data, error } = await supabase
         .from("wallets")
         .select("governance_tokens")
@@ -55,17 +86,24 @@ const GovernanceScreen: React.FC = () => {
                 IDIA Governance Token
               </p>
               <h1 className="text-4xl font-black">
-                {balance.toLocaleString()} <span className="text-sm font-medium text-teal-100/40">IDIA</span>
+                {balance.toLocaleString(undefined, { maximumFractionDigits: 4 })}{" "}
+                <span className="text-sm font-medium text-teal-100/40">IDIA</span>
               </h1>
             </div>
             <ShieldCheck className="w-10 h-10 text-orange-400 drop-shadow-lg" />
           </div>
-          <div className="mt-6 flex items-center gap-2 border-t border-white/10 pt-4">
-            <Zap size={12} className="text-orange-400" />
+          <a
+            href={`https://basescan.org/token/${IDIA_CONTRACT}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-6 flex items-center gap-2 border-t border-white/10 pt-4 hover:opacity-80 transition-opacity"
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${chainVerified ? "bg-emerald-400 animate-pulse" : "bg-orange-400"}`} />
             <span className="text-[9px] font-black uppercase tracking-widest text-teal-50">
-              Dual-Jurisdiction Mainnet · WY DUNA × DE MSA
+              {chainVerified ? "Live · Base Mainnet" : "Mainnet"} · {IDIA_CONTRACT.slice(0, 6)}…{IDIA_CONTRACT.slice(-4)}
             </span>
-          </div>
+            <ExternalLink size={10} className="text-teal-100/60 ml-auto" />
+          </a>
         </CardContent>
       </Card>
 

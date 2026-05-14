@@ -2,11 +2,13 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ethers } from "ethers"; // <-- Swapped viem for ethers (Native Infrastructure)
 
-// Base Mainnet USDC Contract
+// Base Mainnet contracts (live)
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const IDIA_ADDRESS = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
+const BASE_RPC_URL = (import.meta as any).env?.VITE_ALCHEMY_RPC_URL || "https://mainnet.base.org";
 
 // Minimal Human-Readable ABI for read-only operations via ethers
-const USDC_ABI = ["function balanceOf(address account) view returns (uint256)"];
+const ERC20_BALANCE_ABI = ["function balanceOf(address account) view returns (uint256)"];
 
 export interface WalletBalance {
   usdc_balance: number;
@@ -147,14 +149,20 @@ export const useWalletBalance = () => {
         console.log("🌐 [FETCH_BALANCE_LOG] ACTION: Initializing ethers JSON RPC provider for USDC hydration.");
 
         try {
-          // Replaced Viem with Ethers natively
-          const provider = new ethers.JsonRpcProvider("https://mainnet.base.org");
-          const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, provider);
+          // Live Base mainnet read via ethers — IDIA + USDC in parallel
+          const provider = new ethers.JsonRpcProvider(BASE_RPC_URL, 8453);
+          const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_BALANCE_ABI, provider);
+          const idiaContract = new ethers.Contract(IDIA_ADDRESS, ERC20_BALANCE_ABI, provider);
 
-          const rawBalance = await usdcContract.balanceOf(walletAddress);
-          usdcBalance = Number(ethers.formatUnits(rawBalance, 6));
+          const [rawUsdc, rawIdia] = await Promise.all([
+            usdcContract.balanceOf(walletAddress),
+            idiaContract.balanceOf(walletAddress),
+          ]);
 
-          console.log(`🌐 [FETCH_BALANCE_LOG] SUCCESS: Verified absolute on-chain USDC truth: $${usdcBalance}`);
+          usdcBalance = Number(ethers.formatUnits(rawUsdc, 6));
+          tokenBalance = Number(ethers.formatEther(rawIdia)); // override DB with on-chain truth
+
+          console.log(`🌐 [FETCH_BALANCE_LOG] SUCCESS: USDC=$${usdcBalance} · IDIA=${tokenBalance} (on-chain)`);
         } catch (chainErr: any) {
           console.error("🚨 [FETCH_BALANCE_LOG] ERROR_START: Ethers smart contract read failed.");
           console.error("🚨 [FETCH_BALANCE_LOG] ERROR_DETAILS:", chainErr.message || String(chainErr));
