@@ -50,7 +50,7 @@ const GovernanceScreen: React.FC = () => {
                 IDIA Governance Token
               </p>
               <h1 className="text-4xl font-black">
-                {balance.toLocaleString(undefined, { maximumFractionDigits: 4 })}{" "}
+                {idiaBalance.toLocaleString(undefined, { maximumFractionDigits: 4 })}{" "}
                 <span className="text-sm font-medium text-teal-100/40">IDIA</span>
               </h1>
             </div>
@@ -91,7 +91,7 @@ const GovernanceScreen: React.FC = () => {
             <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
               <Gavel size={14} className="text-teal-600" /> Active Proposals · Quadratic
             </h2>
-            <ActiveProposalsList balance={balance} />
+            <ActiveProposalsList balance={idiaBalance} />
           </section>
 
           <section className="space-y-3">
