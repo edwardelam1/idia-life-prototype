@@ -106,6 +106,13 @@ const GovernanceScreen: React.FC = () => {
           <CommitteesList />
         </div>
       )}
+
+      {needsWelcomeAck && userId && (
+        <WelcomeManualGate
+          userId={userId}
+          onAcknowledged={() => setNeedsWelcomeAck(false)}
+        />
+      )}
     </div>
   );
 };
