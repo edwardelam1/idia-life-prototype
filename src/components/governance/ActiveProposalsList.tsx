@@ -170,7 +170,7 @@ const ProposalCard: React.FC<{ proposal: Proposal; balance: number }> = ({ propo
 };
 
 // 2. The Main List Component
-const ActiveProposalsList: React.FC<{ balance: number }> = ({ balance }) => {
+const ActiveProposalsList: React.FC<{ balance: number; refreshTrigger?: number }> = ({ balance, refreshTrigger = 0 }) => {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
 
