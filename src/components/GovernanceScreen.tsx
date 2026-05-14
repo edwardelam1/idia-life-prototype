@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { ShieldCheck, Zap, Gavel, Activity, ExternalLink } from "lucide-react";
+import { ShieldCheck, Zap, Gavel, Activity, ExternalLink, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import SegmentedJurisdiction, { Jurisdiction } from "./governance/SegmentedJurisdiction";
@@ -12,6 +13,7 @@ import MSAComplianceCard from "./governance/MSAComplianceCard";
 import TreasuryFlows from "./governance/TreasuryFlows";
 import CommitteesList from "./governance/CommitteesList";
 import WelcomeManualGate from "./governance/WelcomeManualGate";
+import CreateDaoProposalModal from "./governance/CreateDaoProposalModal";
 
 const IDIA_CONTRACT = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
 
@@ -22,6 +24,8 @@ const GovernanceScreen: React.FC = () => {
   const [jurisdiction, setJurisdiction] = useState<Jurisdiction>("wyoming");
   const [userId, setUserId] = useState<string | null>(null);
   const [needsWelcomeAck, setNeedsWelcomeAck] = useState<boolean>(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -88,10 +92,19 @@ const GovernanceScreen: React.FC = () => {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
-              <Gavel size={14} className="text-teal-600" /> Active Proposals · Quadratic
-            </h2>
-            <ActiveProposalsList balance={idiaBalance} />
+            <div className="flex items-center justify-between px-2">
+              <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                <Gavel size={14} className="text-teal-600" /> Active Proposals · Quadratic
+              </h2>
+              <Button
+                size="sm"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="h-8 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[9px] tracking-widest rounded-full px-3"
+              >
+                <Plus size={12} className="mr-1" /> Submit Proposal
+              </Button>
+            </div>
+            <ActiveProposalsList balance={idiaBalance} refreshTrigger={refreshKey} />
           </section>
 
           <section className="space-y-3">
@@ -115,6 +128,12 @@ const GovernanceScreen: React.FC = () => {
           onAcknowledged={() => setNeedsWelcomeAck(false)}
         />
       )}
+
+      <CreateDaoProposalModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={() => setRefreshKey((p) => p + 1)}
+      />
     </div>
   );
 };
