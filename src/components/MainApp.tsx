@@ -1,9 +1,5 @@
-<<<<<<< HEAD
 
 import { useState, useEffect, useRef, useMemo } from "react";
-=======
-import { useState, useEffect, useRef, useMemo } from "react"; // Added useMemo
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
 import { Wallet, Database, Users, ShoppingBag, Vote, Crown } from "lucide-react";
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
 import EnhancedWalletDashboard from "./enhanced/EnhancedWalletDashboard";

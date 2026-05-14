@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,23 +14,19 @@ import {
   DialogTrigger,
   DialogDescription,
   DialogFooter,
+  
 } from "@/components/ui/dialog";
+
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
 import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { useSovereignWallet } from "@/hooks/useSovereignWallet";
 import { useWallet } from "@/hooks/useWallet";
-<<<<<<< HEAD
 import { IS_TESTNET } from "@/config/contracts";
 import { USDC_PAYMENTS_ENABLED } from "@/config/usdc";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
 import { NFCPayrollModal } from "../NFCPayrollModal";
-=======
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import NFCPayrollModal from "../NFCPayrollModal";
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
 import SendRequestModal from "../SendRequestModal";
 import PaymentTrigger from "../PaymentTrigger";
 import RequestPaymentQR from "../RequestPaymentQR";
@@ -46,15 +43,10 @@ import {
   Plus,
   BrainCircuit,
   ArrowRight,
-<<<<<<< HEAD
-=======
-  AlertOctagon,
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
   Activity,
   Hash,
   Clock,
   Fingerprint,
-<<<<<<< HEAD
   Copy,
   Check,
   AlertTriangle,
@@ -64,11 +56,6 @@ import {
   Vote,
   Network,
   QrCode
-=======
-  Info,
-  Copy,
-  Check,
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
 } from "lucide-react";
 
 interface Transaction {
@@ -101,10 +88,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [setupMode, setSetupMode] = useState<"create" | "import" | "view-seed">("create");
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isCopying, setIsCopying] = useState(false);
-<<<<<<< HEAD
   const [showRequestPayment, setShowRequestPayment] = useState(false);
-=======
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
 
   useEffect(() => {
     console.log("[IDENTITY_SYNC:START] Evaluating profile hydration state...");
@@ -120,7 +104,6 @@ const EnhancedWalletDashboard: React.FC = () => {
   }, [profile, stableUserId]);
 
   const { globalWalletAddress, isHydrating, syncWalletToSupabase } = useSovereignWallet(stableUserId);
-<<<<<<< HEAD
 
   // New useWallet API — returns balances.eth, balances.idia, balances.usdc
   const {
@@ -134,34 +117,18 @@ const EnhancedWalletDashboard: React.FC = () => {
   const localAddress = wallet?.address;
 
   // ── Wallet handlers ──
-=======
-  const { wallet: nativeWallet, hasWallet, createWallet, importWallet, getSeedPhrase } = useWallet();
-  const localAddress = nativeWallet?.address;
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
 
   const handleCreateWallet = async () => {
     try {
       const newWallet = await createWallet();
-<<<<<<< HEAD
       if (newWallet?.address && stableUserId) await syncWalletToSupabase(newWallet.address);
       const seed = await getSeedPhrase(); // FIXED: Added await here!
       return newWallet ? { address: newWallet.address, mnemonic: seed || newWallet.mnemonic || "" } : null;
     } catch (error) { console.error("Wallet creation error:", error); return null; }
-=======
-      if (newWallet?.address) {
-        const seed = await getSeedPhrase();
-        return { address: newWallet.address, mnemonic: seed || "" };
-      }
-      return null;
-    } catch (error) {
-      return null;
-    }
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
   };
 
   const handleImportWallet = async (seedPhrase: string) => {
     try {
-<<<<<<< HEAD
       const result = await importWallet(seedPhrase);
       if (result?.address && stableUserId) await syncWalletToSupabase(result.address);
       return !!result;
@@ -188,22 +155,6 @@ const EnhancedWalletDashboard: React.FC = () => {
   // ── Refs and state ──
 
   const syncLock = useRef(false);
-=======
-      return await importWallet(seedPhrase);
-    } catch (error) {
-      return false;
-    }
-  };
-
-  const handleGetSeedPhrase = async (): Promise<string | null> => {
-    try {
-      return await getSeedPhrase();
-    } catch (error) {
-      return null;
-    }
-  };
-
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [creditSimulation, setCreditSimulation] = useState<CreditSimulation | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
@@ -218,10 +169,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   const isProvisioned = !!displayAddress;
   const hasFBO = !!profile?.fbo_account_id;
 
-<<<<<<< HEAD
   // ── Auto-link wallet to Supabase ──
-=======
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
   const linkedPairsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!stableUserId || !hasWallet || !localAddress) return;
@@ -231,7 +179,6 @@ const EnhancedWalletDashboard: React.FC = () => {
     syncWalletToSupabase(localAddress);
   }, [hasWallet, localAddress, stableUserId, globalWalletAddress]);
 
-<<<<<<< HEAD
   // ── Native bridge ──
   useEffect(() => {
     const handleNativeAuthMessage = (event: MessageEvent) => {
@@ -251,35 +198,18 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
 
   const fetchTransactions = async () => {
     if (!stableUserId) return;
-=======
-  useEffect(() => {
-    if (stableUserId) {
-      fetchTransactions(stableUserId);
-    }
-  }, [stableUserId]);
-
-  const fetchTransactions = async (userId: string) => {
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
     try {
       const [txResult, synapseResult] = await Promise.all([
         supabase
           .from("transactions")
           .select("*")
-<<<<<<< HEAD
           .eq("user_id", stableUserId)
-=======
-          .eq("user_id", userId)
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
           .order("created_at", { ascending: false })
           .limit(30),
         supabase
           .from("synapse_credit_ledger")
           .select("*")
-<<<<<<< HEAD
           .eq("user_id", stableUserId)
-=======
-          .eq("user_id", userId)
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
           .order("created_at", { ascending: false })
           .limit(30),
       ]);
@@ -401,14 +331,10 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
 
   const formatAmount = (amount: number, currency: string) => {
     const prefix = amount > 0 ? "+" : "";
-<<<<<<< HEAD
     const value = Math.abs(amount).toFixed(2);
     if (currency === "USDC") return `${prefix}${value} USDC`;
     if (currency === "IDIA Token") return `${prefix}${value} IDIA`;
     return `${prefix}$${value}`;
-=======
-    return `${prefix}${Math.abs(amount).toFixed(2)} ${currency}`;
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
   };
 
   if (loading || balanceLoading || isHydrating || walletLoading) {
@@ -472,10 +398,7 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
                   <p className="text-xl font-black">{walletBalance?.idia_token_balance?.toFixed(2) || "0.00"}</p>
                 </div>
               </div>
-<<<<<<< HEAD
               {!isProvisioned && (<div className="mt-4 pt-2 border-t border-white/20 text-center"><p className="text-[10px] text-teal-50 italic">Link a Sovereign Vault to enable liquidation</p></div>)}
-=======
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
             </CardContent>
           </Card>
 
@@ -539,13 +462,7 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
                           </Badge>
                         </div>
                       </div>
-<<<<<<< HEAD
                       <div className={`font-semibold ${getTransactionColor(tx.amount)}`}>{formatAmount(tx.amount, tx.source)}</div>
-=======
-                      <div className={`font-black text-xs shrink-0 ${getTransactionColor(tx.amount)}`}>
-                        {formatAmount(tx.amount, tx.source)}
-                      </div>
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
                     </div>
                   );
                 })}
@@ -590,7 +507,6 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
           </Card>
         </TabsContent>
 
-<<<<<<< HEAD
         {/* ═══ WALLET TAB (was "Security") ═══ */}
         <TabsContent value="security" className="flex-1 min-h-0 overflow-hidden">
           <div className="h-full overflow-y-auto touch-pan-y no-scrollbar pr-1 space-y-4" style={{ WebkitOverflowScrolling: "touch" }}>
@@ -767,68 +683,6 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
             </Card>
           )}
           </div>
-=======
-        <TabsContent value="security" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="w-5 h-5" /> Security & Identity
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between items-center text-sm">
-                <span>Self-Custody Status</span>
-                <Badge variant={isProvisioned ? "default" : "destructive"}>
-                  {isProvisioned ? "Connected" : "Not Linked"}
-                </Badge>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span>FBO Rail Status</span>
-                <Badge variant={hasFBO ? "default" : "secondary"}>{hasFBO ? "Connected" : "Not Linked"}</Badge>
-              </div>
-              <div className="mt-6 pt-4 border-t">
-                {isProvisioned ? (
-                  <div className="space-y-4">
-                    <div className="p-3 bg-secondary/50 rounded-lg border">
-                      <p className="text-xs text-muted-foreground mb-1">Global Vault Attached</p>
-                      <p className="font-mono text-xs break-all">{displayAddress}</p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => {
-                        setSetupMode("view-seed");
-                        setIsSetupModalOpen(true);
-                      }}
-                    >
-                      <Shield className="w-4 h-4 mr-2" /> Reveal Recovery Phrase
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-3 mt-3">
-                    <Button
-                      onClick={() => {
-                        setSetupMode("create");
-                        setIsSetupModalOpen(true);
-                      }}
-                    >
-                      <Shield className="w-4 h-4 mr-2" /> Create
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setSetupMode("import");
-                        setIsSetupModalOpen(true);
-                      }}
-                    >
-                      <Download className="w-4 h-4 mr-2" /> Import
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
         </TabsContent>
       </Tabs>
 
@@ -874,61 +728,14 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
                 <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
                   <Hash size={12} /> Asset Rail
                 </div>
-<<<<<<< HEAD
                 <p className="text-sm font-bold text-slate-800">{selectedTransaction?.source}</p> 
               </div>
             </div>
-=======
-                <p className="text-sm font-bold text-slate-800">{selectedTransaction?.source}</p>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                <Info size={12} /> Description
-              </div>
-              <p className="text-sm text-slate-700 leading-relaxed font-medium bg-slate-50 p-3 rounded-xl border border-slate-100">
-                {selectedTransaction?.description}
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                  <Fingerprint size={12} /> Ledger Metadata
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-[9px] font-bold uppercase text-teal-700 hover:text-teal-800 hover:bg-teal-50"
-                  onClick={handleCopyMetadata}
-                >
-                  {isCopying ? <Check size={10} className="mr-1" /> : <Copy size={10} className="mr-1" />}
-                  {isCopying ? "Copied" : "Copy Raw"}
-                </Button>
-              </div>
-              <div className="bg-slate-900 rounded-2xl p-4 font-mono text-[10px] text-teal-400 max-h-48 overflow-y-auto custom-scrollbar border border-slate-800 shadow-inner">
-                <pre className="whitespace-pre-wrap break-all">
-                  {JSON.stringify(selectedTransaction?.metadata, null, 2)}
-                </pre>
-              </div>
-            </div>
-
-            <Button
-              className="w-full bg-teal-700 hover:bg-teal-800 text-white font-bold h-12 rounded-2xl transition-all shadow-lg shadow-teal-900/20"
-              onClick={() => setSelectedTransaction(null)}
-            >
-              Close Verification
-            </Button>
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
           </div>
         </DialogContent>
       </Dialog>
 
-<<<<<<< HEAD
       {/* ═══ MODALS ═══ */}
-=======
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
       <NFCPayrollModal isOpen={showNFCModal} onClose={() => setShowNFCModal(false)} />
       <SendRequestModal isOpen={showSendRequestModal} onClose={() => setShowSendRequestModal(false)} />
       <AddFundsModal

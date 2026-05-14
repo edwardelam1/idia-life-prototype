@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-
-=======
->>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Settings, User } from "lucide-react";
