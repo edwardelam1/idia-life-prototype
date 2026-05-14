@@ -86,17 +86,24 @@ const GovernanceScreen: React.FC = () => {
                 IDIA Governance Token
               </p>
               <h1 className="text-4xl font-black">
-                {balance.toLocaleString()} <span className="text-sm font-medium text-teal-100/40">IDIA</span>
+                {balance.toLocaleString(undefined, { maximumFractionDigits: 4 })}{" "}
+                <span className="text-sm font-medium text-teal-100/40">IDIA</span>
               </h1>
             </div>
             <ShieldCheck className="w-10 h-10 text-orange-400 drop-shadow-lg" />
           </div>
-          <div className="mt-6 flex items-center gap-2 border-t border-white/10 pt-4">
-            <Zap size={12} className="text-orange-400" />
+          <a
+            href={`https://basescan.org/token/${IDIA_CONTRACT}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-6 flex items-center gap-2 border-t border-white/10 pt-4 hover:opacity-80 transition-opacity"
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${chainVerified ? "bg-emerald-400 animate-pulse" : "bg-orange-400"}`} />
             <span className="text-[9px] font-black uppercase tracking-widest text-teal-50">
-              Dual-Jurisdiction Mainnet · WY DUNA × DE MSA
+              {chainVerified ? "Live · Base Mainnet" : "Mainnet"} · {IDIA_CONTRACT.slice(0, 6)}…{IDIA_CONTRACT.slice(-4)}
             </span>
-          </div>
+            <ExternalLink size={10} className="text-teal-100/60 ml-auto" />
+          </a>
         </CardContent>
       </Card>
 
