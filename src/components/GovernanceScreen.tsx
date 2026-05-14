@@ -92,10 +92,19 @@ const GovernanceScreen: React.FC = () => {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
-              <Gavel size={14} className="text-teal-600" /> Active Proposals · Quadratic
-            </h2>
-            <ActiveProposalsList balance={idiaBalance} />
+            <div className="flex items-center justify-between px-2">
+              <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                <Gavel size={14} className="text-teal-600" /> Active Proposals · Quadratic
+              </h2>
+              <Button
+                size="sm"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="h-8 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[9px] tracking-widest rounded-full px-3"
+              >
+                <Plus size={12} className="mr-1" /> Submit Proposal
+              </Button>
+            </div>
+            <ActiveProposalsList balance={idiaBalance} refreshTrigger={refreshKey} />
           </section>
 
           <section className="space-y-3">
