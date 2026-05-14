@@ -15,6 +15,8 @@ import WelcomeManualGate from "./governance/WelcomeManualGate";
 const GovernanceScreen: React.FC = () => {
   const [balance, setBalance] = useState<number>(0);
   const [jurisdiction, setJurisdiction] = useState<Jurisdiction>("wyoming");
+  const [userId, setUserId] = useState<string | null>(null);
+  const [needsWelcomeAck, setNeedsWelcomeAck] = useState<boolean>(false);
 
   useEffect(() => {
     (async () => {
