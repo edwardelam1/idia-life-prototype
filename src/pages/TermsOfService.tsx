@@ -102,19 +102,33 @@ const TermsOfService = () => {
           onScroll={handleScroll}
           className="flex-1 overflow-y-auto bg-muted/20"
         >
-          <object
-            data={`${TOS_PDF_URL}#toolbar=0&navpanes=0`}
-            type="application/pdf"
-            className="w-full h-[1400px] block"
-            aria-label="IDIA Protocol Terms of Service"
-          >
-            <iframe
-              src={TOS_PDF_URL}
-              title="IDIA Protocol Terms of Service"
-              className="w-full h-[1400px] border-0"
-            />
-          </object>
-          {/* Sentinel padding to ensure scroll-to-bottom can fire after PDF area */}
+          <div className="flex flex-col items-center gap-4 py-4 px-3 bg-muted/20">
+            {Array.from({ length: 12 }, (_, i) => {
+              const n = String(i + 1).padStart(2, "0");
+              return (
+                <img
+                  key={n}
+                  src={`/legal/tos-pages/page-${n}.jpg`}
+                  alt={`IDIA Protocol Terms of Service — Page ${i + 1}`}
+                  loading={i < 2 ? "eager" : "lazy"}
+                  className="w-full max-w-[760px] rounded-md shadow-md border border-border bg-white"
+                />
+              );
+            })}
+          </div>
+          <div className="px-6 py-4 text-center bg-white border-t border-border">
+            <p className="text-xs text-muted-foreground mb-2">
+              Prefer the original PDF?
+            </p>
+            <a
+              href={TOS_PDF_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline text-sm font-semibold"
+            >
+              Open Terms of Service in new tab
+            </a>
+          </div>
           <div className="h-8" />
         </div>
 
