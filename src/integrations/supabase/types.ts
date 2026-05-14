@@ -3423,6 +3423,24 @@ export type Database = {
           },
         ]
       }
+      indexer_cursor: {
+        Row: {
+          chain_id: number
+          last_block: number
+          updated_at: string
+        }
+        Insert: {
+          chain_id: number
+          last_block?: number
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: number
+          last_block?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       interests: {
         Row: {
           category: string | null
@@ -5370,6 +5388,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      protocol_events: {
+        Row: {
+          block_number: number
+          block_timestamp: string | null
+          contract_address: string
+          contract_name: string
+          decoded_args: Json
+          event_name: string
+          event_signature: string
+          id: number
+          indexed_at: string
+          log_index: number
+          raw_data: string | null
+          raw_topics: string[]
+          tx_hash: string
+        }
+        Insert: {
+          block_number: number
+          block_timestamp?: string | null
+          contract_address: string
+          contract_name: string
+          decoded_args?: Json
+          event_name: string
+          event_signature: string
+          id?: number
+          indexed_at?: string
+          log_index: number
+          raw_data?: string | null
+          raw_topics?: string[]
+          tx_hash: string
+        }
+        Update: {
+          block_number?: number
+          block_timestamp?: string | null
+          contract_address?: string
+          contract_name?: string
+          decoded_args?: Json
+          event_name?: string
+          event_signature?: string
+          id?: number
+          indexed_at?: string
+          log_index?: number
+          raw_data?: string | null
+          raw_topics?: string[]
+          tx_hash?: string
+        }
+        Relationships: []
       }
       pulse_survey_responses: {
         Row: {
@@ -8017,6 +8083,69 @@ export type Database = {
         }
         Relationships: []
       }
+      escrow_distributions: {
+        Row: {
+          amount_wei: string | null
+          approved_by: string | null
+          block_timestamp: string | null
+          escrow: string | null
+          event_name: string | null
+          executor: string | null
+          proposal_id: string | null
+          reason: string | null
+          recipient: string | null
+          tx_hash: string | null
+        }
+        Insert: {
+          amount_wei?: never
+          approved_by?: never
+          block_timestamp?: string | null
+          escrow?: string | null
+          event_name?: string | null
+          executor?: never
+          proposal_id?: never
+          reason?: never
+          recipient?: never
+          tx_hash?: string | null
+        }
+        Update: {
+          amount_wei?: never
+          approved_by?: never
+          block_timestamp?: string | null
+          escrow?: string | null
+          event_name?: string | null
+          executor?: never
+          proposal_id?: never
+          reason?: never
+          recipient?: never
+          tx_hash?: string | null
+        }
+        Relationships: []
+      }
+      escrow_migrations: {
+        Row: {
+          amount_wei: string | null
+          block_timestamp: string | null
+          new_escrow: string | null
+          old_escrow: string | null
+          tx_hash: string | null
+        }
+        Insert: {
+          amount_wei?: never
+          block_timestamp?: string | null
+          new_escrow?: never
+          old_escrow?: string | null
+          tx_hash?: string | null
+        }
+        Update: {
+          amount_wei?: never
+          block_timestamp?: string | null
+          new_escrow?: never
+          old_escrow?: string | null
+          tx_hash?: string | null
+        }
+        Relationships: []
+      }
       gl_journal_entries: {
         Row: {
           account: string | null
@@ -8061,6 +8190,60 @@ export type Database = {
           data_type: string | null
           is_nullable: string | null
           table_name: unknown
+        }
+        Relationships: []
+      }
+      idia_transfers: {
+        Row: {
+          amount_wei: string | null
+          block_timestamp: string | null
+          from_address: string | null
+          to_address: string | null
+          tx_hash: string | null
+        }
+        Insert: {
+          amount_wei?: never
+          block_timestamp?: string | null
+          from_address?: never
+          to_address?: never
+          tx_hash?: string | null
+        }
+        Update: {
+          amount_wei?: never
+          block_timestamp?: string | null
+          from_address?: never
+          to_address?: never
+          tx_hash?: string | null
+        }
+        Relationships: []
+      }
+      liability_receipts: {
+        Row: {
+          aca_count: string | null
+          block_timestamp: string | null
+          data_buyer: string | null
+          purchase_amount_usdc: string | null
+          receipt_id: string | null
+          synapse_receipt_id: string | null
+          tx_hash: string | null
+        }
+        Insert: {
+          aca_count?: never
+          block_timestamp?: string | null
+          data_buyer?: never
+          purchase_amount_usdc?: never
+          receipt_id?: never
+          synapse_receipt_id?: never
+          tx_hash?: string | null
+        }
+        Update: {
+          aca_count?: never
+          block_timestamp?: string | null
+          data_buyer?: never
+          purchase_amount_usdc?: never
+          receipt_id?: never
+          synapse_receipt_id?: never
+          tx_hash?: string | null
         }
         Relationships: []
       }
