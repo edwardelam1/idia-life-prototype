@@ -25,9 +25,9 @@ export interface NetworkConfig {
   symbol: string;
   blockExplorer: string;
   isTestnet: boolean;
-  // Token contract addresses for THIS network
-  idiaToken: string;  // Empty string if not deployed on this network
-  usdc: string;       // USDC contract for this chain
+  // Token contract addresses for THIS network (optional — not deployed on every chain)
+  idiaToken?: string;
+  usdc?: string;
 }
 
 export const NETWORKS: Record<string, NetworkConfig> = {
@@ -107,11 +107,12 @@ export interface TokenBalance {
   name: string;
   balance: string;
   balanceFormatted: string;
-  symbol: string;
-  network: string;
+  network?: string;
   decimals: number;
   contractAddress?: string;
 }
+
+export type TransactionResult = TxResult;
 
 export interface TxRequest {
   to: string;
@@ -165,6 +166,13 @@ class WalletService {
       const { value } = await Preferences.get({ key: STORAGE_KEYS.WALLET_EXISTS });
       return value === 'true';
     } catch { return false; }
+  }
+
+  getAddress(): string | null { return this.wallet?.address || null; }
+
+  async getSeedPhrase(): Promise<string | null> {
+    if (this.mnemonic) return this.mnemonic;
+    try { const { value } = await SecureStoragePlugin.get({ key: KEYS.MNEMONIC }); return value || null; } catch { return null; }
   }
 
   async createWallet(): Promise<{ address: string; mnemonic: string }> {
@@ -228,11 +236,7 @@ class WalletService {
     } catch { return null; }
   }
 
-  getAddress(): string | null { return this.wallet?.address || null; }
 
-  async getSeedPhrase(): Promise<string | null> {
-    try { const { value } = await SecureStoragePlugin.get({ key: KEYS.MNEMONIC }); return value || null; } catch { return null; }
-  }
 
   async deleteWallet(): Promise<void> {
     this.wallet = null;
@@ -243,9 +247,7 @@ class WalletService {
     try { await SecureStoragePlugin.remove({ key: KEYS.NETWORK }); } catch {}
   }
 
-  getAddress(): string | null { return this.wallet?.address || null; }
   getRawWallet(): ethers.HDNodeWallet | null { return this.wallet; }
-  getSeedPhrase(): string | null { return this.mnemonic; }
 
   // ── Network Management ────────────────────────────────────────
 
@@ -451,14 +453,14 @@ class WalletService {
     };
   }
 
-  async estimateTransfer(to: string, amount: string): Promise<{
-    gasFeeFormatted: string; totalCostFormatted: string; symbol: string;
+  async estimateTransfer(req: TxRequest): Promise<{
+    gasFeeFormatted: string; totalCostFormatted: string; symbol: string; network?: string;
   } | null> {
     if (!this.wallet) return null;
     try {
       const provider = this.getProvider();
-      const network = this.getActiveNetwork();
-      const amountWei = ethers.parseEther(amount);
+      const net = this.getActiveNetwork();
+      const amountWei = ethers.parseEther(req.amount);
       const feeData = await provider.getFeeData();
       const gasPrice = feeData.gasPrice || 0n;
       const gasLimit = await provider.estimateGas({ from: this.wallet.address, to: req.to, value: amountWei, data: req.data });
