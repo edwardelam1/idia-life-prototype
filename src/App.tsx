@@ -15,6 +15,10 @@ import NotFound from "./pages/NotFound";
 import SecureVault from "./pages/SecureVault";
 import RecoveryPhrase from "./pages/RecoveryPhrase";
 
+// NFC PAYMENT IMPORTS
+import { usePaymentDeepLink } from "@/hooks/usePaymentDeepLink";
+import NfcPaymentModal from "@/components/NfcPaymentModal";
+import TermsOfService from "./pages/TermsOfService";
 // Architectural Note: Defined outside to prevent re-instantiation on re-renders
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,6 +32,17 @@ const queryClient = new QueryClient({
 const App = () => {
   const [session, setSession] = useState<any>(null);
   const [isFetched, setIsFetched] = useState(false);
+
+  // ── NFC Payment Deep Link ──
+  const { paymentRequest, clearPayment } = usePaymentDeepLink();
+  const [showNfcPaymentModal, setShowNfcPaymentModal] = useState(false);
+
+  // Auto-open the NFC payment modal when a deep link arrives
+  useEffect(() => {
+    if (paymentRequest) {
+      setShowNfcPaymentModal(true);
+    }
+  }, [paymentRequest]);
 
   useEffect(() => {
     console.log("[START] App Lifecycle: Initializing Sovereign Routing & Auth Manifest...");
@@ -45,8 +60,59 @@ const App = () => {
       setSession(session);
     });
 
+    // Deep link handler for OAuth callbacks on native (Android/iOS)
+    // Supabase redirects to idialife://auth-callback#access_token=...
+    // The MainActivity intent-filter routes that URL to our app.
+    let deepLinkListener: any = null;
+    const setupDeepLinks = async () => {
+      try {
+        const { Capacitor } = await import("@capacitor/core");
+        if (!Capacitor.isNativePlatform()) return;
+
+        const { App: CapacitorApp } = await import("@capacitor/app");
+        deepLinkListener = await CapacitorApp.addListener("appUrlOpen", async (event: any) => {
+          console.log("[DeepLink] Received URL:", event.url);
+
+          const url = event.url;
+
+          // ── Payment URIs: handled by usePaymentDeepLink hook ──
+          // Don't process these in the OAuth flow
+          if (url.startsWith("idialife://pay") || url.startsWith("ethereum:")) {
+            console.log("[DeepLink] Payment URI detected, deferring to usePaymentDeepLink");
+            return;
+          }
+
+          const fragmentIndex = url.indexOf("#");
+          if (fragmentIndex === -1) {
+            console.log("[DeepLink] No URL fragment, ignoring");
+            return;
+          }
+
+          const fragment = url.substring(fragmentIndex + 1);
+          const params = new URLSearchParams(fragment);
+          const access_token = params.get("access_token");
+          const refresh_token = params.get("refresh_token");
+
+          if (access_token && refresh_token) {
+            console.log("[DeepLink] Setting Supabase session from OAuth callback");
+            const { data, error } = await supabase.auth.setSession({
+              access_token,
+              refresh_token,
+            });
+
+            if (error) console.error("[DeepLink] Failed to set session:", error);
+            else console.log("[DeepLink] Session established:", data.session?.user.email);
+          }
+        });
+      } catch (e) {
+        console.error("[DeepLink] Setup failed:", e);
+      }
+    };
+    setupDeepLinks();
+
     return () => {
       subscription.unsubscribe();
+      if (deepLinkListener) deepLinkListener.remove();
     };
   }, []);
 
@@ -71,6 +137,7 @@ const App = () => {
               <Route path="/" element={session ? <Index /> : <Navigate to="/auth" replace />} />
               <Route path="/dashboard" element={session ? <Index /> : <Navigate to="/auth" replace />} />
               <Route path="/onboarding" element={session ? <Onboarding /> : <Navigate to="/auth" replace />} />
+              <Route path="/terms" element={session ? <TermsOfService /> : <Navigate to="/auth" replace />} />
               <Route path="/recovery-phrase" element={session ? <RecoveryPhrase /> : <Navigate to="/auth" replace />} />
               <Route path="/settings" element={session ? <Settings /> : <Navigate to="/auth" replace />} />
               <Route path="/secure-vault" element={session ? <SecureVault /> : <Navigate to="/auth" replace />} />
@@ -78,6 +145,14 @@ const App = () => {
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
+
+          {/* ── NFC Payment Modal (root level — catches deep links regardless of route) ── */}
+          <NfcPaymentModal
+            isOpen={showNfcPaymentModal}
+            onClose={() => setShowNfcPaymentModal(false)}
+            paymentRequest={paymentRequest}
+            onClearPayment={clearPayment}
+          />
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>

@@ -88,10 +88,18 @@ const Auth = () => {
   const handleOAuthSignIn = async (provider: "google" | "apple") => {
     setIsLoading(true);
     try {
+      // On native (Android/iOS), use the custom URL scheme registered in MainActivity.kt
+      // so OAuth redirects back into the app instead of opening localhost in a browser
+      const { Capacitor } = await import("@capacitor/core");
+      const isNative = Capacitor.isNativePlatform();
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
-        // Surgical Fix: Land on root after OAuth handshake
-        options: { redirectTo: `${window.location.origin}/` },
+        options: {
+          redirectTo: isNative
+            ? "idialife://auth-callback"
+            : `${window.location.origin}/`,
+        },
       });
       if (error) throw error;
     } catch (error: any) {

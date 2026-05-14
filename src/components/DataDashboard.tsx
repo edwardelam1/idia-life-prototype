@@ -10,6 +10,7 @@ import { supabase as typedSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AppleHealthModal from "./AppleHealthModal";
 import AndroidHealthModal from "./AndroidHealthModal";
+import { isAndroid, isIOS, isWeb } from "@/services/platform";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 
 // 2. THE ULTIMATE BYPASS:
@@ -35,6 +36,7 @@ const DataDashboard = () => {
   const [connections, setConnections] = useState<DataBlocker[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
+  const [showAndroidHealthModal, setShowAndroidHealthModal] = useState(false);
   const [lastSyncStatus, setLastSyncStatus] = useState<string>("unknown");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [acaRecords, setAcaRecords] = useState<any[]>([]);
@@ -250,7 +252,11 @@ const DataDashboard = () => {
     return connections.find((conn) => conn.connection_type === connectionType);
   };
 
-  const visibleConnections = connections.filter((c) => c.connection_type === "apple_health");
+  const visibleConnections = connections.filter((c) => {
+    if (c.connection_type === "apple_health") return isIOS() || isWeb();
+    if (c.connection_type === "health_connect") return isAndroid();
+    return false;
+  });
 
   const formatSourceName = (sourceId: string) => {
     return sourceId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -301,24 +307,48 @@ const DataDashboard = () => {
         <TabsContent value="connections" className="space-y-4">
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">Available Data Sources</h2>
-            {!getConnectionStatus("apple_health") ? (
-              <div className="flex justify-center">
-                <div className="relative cursor-pointer group" onClick={() => setShowAppleHealthModal(true)}>
-                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
-                    <img
-                      src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
-                      alt="Apple Health"
-                      className="w-full h-full object-contain p-2"
-                    />
+            {(() => {
+              const healthType = isAndroid() ? "health_connect" : "apple_health";
+              const hasHealth = getConnectionStatus(healthType);
+              
+              if (hasHealth) {
+                return (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">All available data sources connected</p>
+                  </div>
+                );
+              }
+              
+              return (
+                <div className="flex justify-center">
+                  <div
+                    className="relative cursor-pointer group"
+                    onClick={() => {
+                      if (isAndroid()) setShowAndroidHealthModal(true);
+                      else setShowAppleHealthModal(true);
+                    }}
+                  >
+                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
+                      {isAndroid() ? (
+                        <div className="w-full h-full flex items-center justify-center bg-green-50">
+                          <Activity className="w-8 h-8 text-green-600" />
+                        </div>
+                      ) : (
+                        <img
+                          src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
+                          alt="Apple Health"
+                          className="w-full h-full object-contain p-2"
+                        />
+                      )}
+                    </div>
+                    <p className="text-xs text-center mt-1 text-muted-foreground">
+                      {isAndroid() ? "Health Connect" : "Apple Health"}
+                    </p>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">All available data sources connected</p>
-              </div>
-            )}
+              );
+            })()}
           </div>
 
           <div className="space-y-4">
@@ -331,15 +361,22 @@ const DataDashboard = () => {
                     className="flex flex-col items-center cursor-pointer group"
                     onClick={() => {
                       if (connection.connection_type === "apple_health") setShowAppleHealthModal(true);
+                      else if (connection.connection_type === "health_connect") setShowAndroidHealthModal(true);
                     }}
                   >
                     <div className="relative">
                       <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border-2 border-green-500 transition-all group-hover:shadow-md group-hover:scale-105">
-                        <img
-                          src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
-                          alt={connection.connection_type}
-                          className="w-full h-full object-contain p-2"
-                        />
+                        {connection.connection_type === "health_connect" ? (
+                          <div className="w-full h-full flex items-center justify-center bg-green-50">
+                            <Activity className="w-8 h-8 text-green-600" />
+                          </div>
+                        ) : (
+                          <img
+                            src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
+                            alt={connection.connection_type}
+                            className="w-full h-full object-contain p-2"
+                          />
+                        )}
                       </div>
                       <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background">
                         <CheckCircle className="w-3 h-3 text-white" />
@@ -418,7 +455,21 @@ const DataDashboard = () => {
         onClose={() => setShowAppleHealthModal(false)}
         onComplete={handleAppleHealthComplete}
         existingConnection={getConnectionStatus("apple_health")}
-        onDisconnect={handleAppleHealthDisconnect} // <-- The clean exit
+        onDisconnect={handleAppleHealthDisconnect}
+      />
+
+      <AndroidHealthModal
+        isOpen={showAndroidHealthModal}
+        onClose={() => setShowAndroidHealthModal(false)}
+        onComplete={async () => {
+          setShowAndroidHealthModal(false);
+          await fetchConnections();
+        }}
+        existingConnection={getConnectionStatus("health_connect")}
+        onDisconnect={async () => {
+          await fetchConnections();
+          setShowAndroidHealthModal(false);
+        }}
       />
     </div>
   );

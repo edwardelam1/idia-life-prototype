@@ -1,15 +1,29 @@
+
+import { useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Shield, Database, Trash2, Download, Smartphone, Activity, Camera, HeartPulse, Bluetooth, Mic, ScanLine, Info } from 'lucide-react';
+import { Shield, Database, Trash2, Download, Smartphone, Activity, Camera, HeartPulse, Bluetooth, Mic, ScanLine, Info, Loader2 } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { SecureStoragePlugin } from 'capacitor-secure-storage-plugin';
+
+const SECURE_KEYS_TO_WIPE = [
+  'user_pii_profile',
+  'recovery_phrase',
+  'sovereign_seed',
+  'vault_master_key',
+  'wallet_private_key',
+];
 
 export function PrivacySettings() {
   const { preferences, updatePreferences } = useProfile();
   const { toast } = useToast();
+  const [purging, setPurging] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
 
   const handlePreferenceUpdate = async (key: string, value: boolean) => {
     console.log(`[PrivacySettings] handlePreferenceUpdate START: Attempting to set '${key}' to ${value}`);
@@ -46,7 +60,9 @@ export function PrivacySettings() {
       console.log('[PrivacySettings] exportData: Formatting CSV structure');
       const csvRows = [];
       
-      // Profile Data - PII Stripped
+      // Profile Data
+      const fullName = profile?.display_name || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'N/A';
+      
       csvRows.push(['--- SOVEREIGN IDENTITY PROFILE ---']);
       csvRows.push(['ID', 'Created At']);
       csvRows.push([profile?.id || 'N/A', profile?.created_at || 'N/A']);
@@ -89,18 +105,45 @@ export function PrivacySettings() {
     }
   };
 
+  const wipeDevicePII = async () => {
+    // Clear known Secure Enclave keys (best effort — missing keys throw)
+    await Promise.all(
+      SECURE_KEYS_TO_WIPE.map(async (key) => {
+        try { await SecureStoragePlugin.remove({ key }); } catch { /* not present */ }
+      })
+    );
+    try { await SecureStoragePlugin.clear(); } catch { /* web fallback or empty */ }
+    try { localStorage.clear(); } catch { /* sandboxed */ }
+    try { sessionStorage.clear(); } catch { /* sandboxed */ }
+  };
+
   const deleteAccount = async () => {
     console.log("[PrivacySettings] deleteAccount START: Initiating permanent identity purge");
+    setPurging(true);
     try {
-      const { error } = await supabase.auth.signOut();
+      // 1. Server-side purge: every public-schema row + auth.users entry
+      const { data, error } = await supabase.functions.invoke('purge-identity');
       if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || 'Purge failed');
 
-      console.log("[PrivacySettings] deleteAccount SUCCESS: Session purged, database teardown active");
+      console.log("[PrivacySettings] deleteAccount: Server purge complete", data);
+
+      // 2. Wipe on-device PII (Secure Enclave + web storage)
+      await wipeDevicePII();
+
+      // 3. Sign out everywhere
+      await supabase.auth.signOut({ scope: 'global' });
+
       toast({ title: 'Account Purged', description: 'Your Sovereign Identity has been permanently deleted.' });
       window.location.href = '/';
     } catch (error) {
       console.error('[PrivacySettings] deleteAccount ERROR: Failed to execute deletion protocol', error);
-      toast({ title: 'Deletion Failed', description: 'Failed to delete your account', variant: 'destructive' });
+      toast({
+        title: 'Deletion Failed',
+        description: error instanceof Error ? error.message : 'Failed to delete your account',
+        variant: 'destructive',
+      });
+      setPurging(false);
     } finally {
       console.log("[PrivacySettings] deleteAccount END");
     }
@@ -255,6 +298,19 @@ export function PrivacySettings() {
 
         <div className="flex items-center justify-between gap-3 bg-muted/20 p-3 rounded-lg border border-border/50">
           <div className="space-y-0.5 min-w-0">
+            <div className="text-sm font-medium">Terms of Service</div>
+            <p className="text-xs text-muted-foreground">View or download the IDIA Protocol Terms of Service you accepted</p>
+          </div>
+          <Button variant="outline" size="sm" asChild>
+            <a href="/legal/IDIA_Protocol_Terms_of_Service.pdf" download>
+              <Download className="w-3.5 h-3.5 mr-1.5" />
+              Download PDF
+            </a>
+          </Button>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 bg-muted/20 p-3 rounded-lg border border-border/50">
+          <div className="space-y-0.5 min-w-0">
             <div className="text-sm font-medium">Export Identity Ledger</div>
             <p className="text-xs text-muted-foreground">Download a CSV of your data & Consent Records</p>
           </div>
@@ -269,11 +325,11 @@ export function PrivacySettings() {
             <div className="text-sm font-medium text-destructive">Purge Identity</div>
             <p className="text-[10px] text-muted-foreground">Permanently destroy account and keys</p>
           </div>
-          <AlertDialog>
+          <AlertDialog onOpenChange={(open) => { if (!open) setConfirmText(''); }}>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm">
-                <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                Purge
+              <Button variant="destructive" size="sm" disabled={purging}>
+                {purging ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 mr-1.5" />}
+                {purging ? 'Purging…' : 'Purge'}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -281,16 +337,28 @@ export function PrivacySettings() {
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
                   This action cannot be undone. This will permanently delete your account,
-                  purge all Consent Records, and destroy your Sovereign Wallet keys.
+                  purge all Consent Records, erase every database row tied to you, and destroy
+                  your Sovereign Wallet keys on this device. Type <strong>PURGE</strong> below to confirm.
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              <Input
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder="Type PURGE to confirm"
+                autoComplete="off"
+                disabled={purging}
+              />
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel disabled={purging}>Cancel</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={deleteAccount}
+                  onClick={(e) => {
+                    if (confirmText !== 'PURGE') { e.preventDefault(); return; }
+                    deleteAccount();
+                  }}
+                  disabled={confirmText !== 'PURGE' || purging}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
-                  Yes, Purge Identity
+                  {purging ? 'Purging…' : 'Yes, Purge Identity'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
