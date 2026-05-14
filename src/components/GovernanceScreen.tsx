@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
+import { ethers } from "ethers";
 import { Card, CardContent } from "@/components/ui/card";
-import { ShieldCheck, Zap, Gavel, Activity } from "lucide-react";
+import { ShieldCheck, Zap, Gavel, Activity, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import SegmentedJurisdiction, { Jurisdiction } from "./governance/SegmentedJurisdiction";
 import HatsWardrobe from "./governance/HatsWardrobe";
@@ -11,6 +12,10 @@ import MSAComplianceCard from "./governance/MSAComplianceCard";
 import TreasuryFlows from "./governance/TreasuryFlows";
 import CommitteesList from "./governance/CommitteesList";
 import WelcomeManualGate from "./governance/WelcomeManualGate";
+
+const IDIA_CONTRACT = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
+const BASE_RPC = (import.meta as any).env?.VITE_ALCHEMY_RPC_URL || "https://mainnet.base.org";
+const ERC20_ABI = ["function balanceOf(address) view returns (uint256)"];
 
 const GovernanceScreen: React.FC = () => {
   const [balance, setBalance] = useState<number>(0);
