@@ -128,6 +128,12 @@ const GovernanceScreen: React.FC = () => {
           onAcknowledged={() => setNeedsWelcomeAck(false)}
         />
       )}
+
+      <CreateDaoProposalModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={() => setRefreshKey((p) => p + 1)}
+      />
     </div>
   );
 };
