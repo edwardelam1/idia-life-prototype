@@ -149,14 +149,20 @@ export const useWalletBalance = () => {
         console.log("🌐 [FETCH_BALANCE_LOG] ACTION: Initializing ethers JSON RPC provider for USDC hydration.");
 
         try {
-          // Replaced Viem with Ethers natively
-          const provider = new ethers.JsonRpcProvider("https://mainnet.base.org");
-          const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, provider);
+          // Live Base mainnet read via ethers — IDIA + USDC in parallel
+          const provider = new ethers.JsonRpcProvider(BASE_RPC_URL, 8453);
+          const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_BALANCE_ABI, provider);
+          const idiaContract = new ethers.Contract(IDIA_ADDRESS, ERC20_BALANCE_ABI, provider);
 
-          const rawBalance = await usdcContract.balanceOf(walletAddress);
-          usdcBalance = Number(ethers.formatUnits(rawBalance, 6));
+          const [rawUsdc, rawIdia] = await Promise.all([
+            usdcContract.balanceOf(walletAddress),
+            idiaContract.balanceOf(walletAddress),
+          ]);
 
-          console.log(`🌐 [FETCH_BALANCE_LOG] SUCCESS: Verified absolute on-chain USDC truth: $${usdcBalance}`);
+          usdcBalance = Number(ethers.formatUnits(rawUsdc, 6));
+          tokenBalance = Number(ethers.formatEther(rawIdia)); // override DB with on-chain truth
+
+          console.log(`🌐 [FETCH_BALANCE_LOG] SUCCESS: USDC=$${usdcBalance} · IDIA=${tokenBalance} (on-chain)`);
         } catch (chainErr: any) {
           console.error("🚨 [FETCH_BALANCE_LOG] ERROR_START: Ethers smart contract read failed.");
           console.error("🚨 [FETCH_BALANCE_LOG] ERROR_DETAILS:", chainErr.message || String(chainErr));
