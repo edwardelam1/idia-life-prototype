@@ -18,17 +18,27 @@ interface Proposal {
 
 const calculateVoteCost = (n: number) => Math.pow(n, 2);
 
+<<<<<<< HEAD
 // 1. Extracted Individual Proposal Card Component
 const ProposalCard: React.FC<{ proposal: Proposal; balance: number }> = ({ proposal, balance }) => {
+=======
+const ProposalCard: React.FC<{ prop: Proposal; balance: number }> = ({ prop, balance }) => {
+>>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
   const [voteWeight, setVoteWeight] = useState([1]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleCastVote = async () => {
+<<<<<<< HEAD
     const cost = calculateVoteCost(voteWeight[0]);
     if (cost > balance) {
+=======
+    console.log(`[VOTE_CAST] START: Initializing quadratic vote sequence for proposal: ${prop.id}`);
+
+    if (!isNative()) {
+>>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
       toast({
-        title: "Insufficient IDIA Tokens",
-        description: `This weight costs ${cost} tokens.`,
+        title: "Native Device Required",
+        description: "Governance actions require Secure Enclave attestation. Please use the iOS or Android app.",
         variant: "destructive",
       });
       return;
@@ -38,6 +48,23 @@ const ProposalCard: React.FC<{ proposal: Proposal; balance: number }> = ({ propo
 
     try {
       console.log(`[VOTE_CAST] VERIFY: Auditing financial metrics for quadratic weight: ${voteWeight[0]}`);
+<<<<<<< HEAD
+=======
+      const cost = calculateVoteCost(voteWeight[0]);
+
+      if (cost > balance) {
+        const err = new Error(
+          `Insufficient Governance Tokens. Requested weight costs ${cost}, but sovereign balance is ${balance}.`,
+        );
+        console.error(`[VOTE_CAST] VALIDATION_ERROR: ${err.message}`);
+        toast({
+          title: "Insufficient IDIA Tokens",
+          description: `This quadratic weight costs ${cost} tokens.`,
+          variant: "destructive",
+        });
+        throw err;
+      }
+>>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
 
       console.log(`[VOTE_CAST] AUTH: Retrieving local sovereign identity.`);
       const {
@@ -49,25 +76,41 @@ const ProposalCard: React.FC<{ proposal: Proposal; balance: number }> = ({ propo
       }
 
       console.log(`[VOTE_CAST] ACA_ANCHOR_START: Requesting hardware-backed biological anchor for vote mapping...`);
+<<<<<<< HEAD
       const { hash, payload } = await generateACAHash(user.id, `proposal_vote_${proposal.id}`, [
+=======
+      const { hash, payload } = await generateACAHash(user.id, `proposal_vote_${prop.id}`, [
+>>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
         "GOVERNANCE_VOTE",
         "LEDGER_WRITE",
       ]);
       console.log(`[VOTE_CAST] ACA_ANCHOR_END: Biological presence verified. SHA-256 Hash Generated: ${hash}`);
 
       console.log(`[VOTE_CAST] NETWORK_START: Transmitting secure vote payload to Wyoming Operational Gateway.`);
+<<<<<<< HEAD
       
       const { error: voteError } = await (supabase as any).from("dao_votes").insert({
         proposal_id: proposal.id,
+=======
+      const { error: voteError } = await (supabase.from("dao_votes" as any).insert({
+        proposal_id: prop.id,
+>>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
         user_id: user.id,
         vote_type: "for",
         vote_weight: voteWeight[0],
         aca_hash_key: hash,
         aca_payload: payload,
+<<<<<<< HEAD
       });
 
       if (voteError) {
         if (voteError.code === "23505") {
+=======
+      }) as any);
+
+      if (voteError) {
+        if ((voteError as any).code === "23505") {
+>>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
           toast({
             title: "Already Voted",
             description: "Sovereign intent on this proposal is already recorded.",
@@ -79,16 +122,27 @@ const ProposalCard: React.FC<{ proposal: Proposal; balance: number }> = ({ propo
       }
 
       // Burn IDIA tokens via wallet decrement (atomic)
+<<<<<<< HEAD
       const { error: burnError } = await (supabase as any).rpc("increment_wallet_balance", {
         target_user_id: user.id,
         increment_amount: -cost,
       });
       
+=======
+      const { error: burnError } = await (supabase.rpc as any)("increment_wallet_balance", {
+        target_user_id: user.id,
+        increment_amount: -cost,
+      });
+>>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
       if (burnError) {
         console.warn(`[VOTE_CAST] BURN_WARNING: Token burn failed but vote stands. ${burnError.message}`);
       }
 
+<<<<<<< HEAD
       console.log(`[VOTE_CAST] NETWORK_END: Ledger entry committed. Intent synced for proposal ${proposal.id}.`);
+=======
+      console.log(`[VOTE_CAST] NETWORK_END: Ledger entry committed. Intent synced for proposal ${prop.id}.`);
+>>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
       toast({
         title: "Intent Cast Successfully",
         description: `Secured via ACA Hash ${hash.substring(0, 8)}...`,
@@ -113,10 +167,17 @@ const ProposalCard: React.FC<{ proposal: Proposal; balance: number }> = ({ propo
       <CardContent className="p-5 space-y-4">
         <div className="space-y-2">
           <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[9px] font-black uppercase tracking-wider">
+<<<<<<< HEAD
             {proposal.status}
           </Badge>
           <h3 className="font-black text-lg leading-tight text-slate-800">{proposal.title}</h3>
           <p className="text-xs text-muted-foreground leading-relaxed">{proposal.description}</p>
+=======
+            {prop.status}
+          </Badge>
+          <h3 className="font-black text-lg leading-tight text-slate-800">{prop.title}</h3>
+          <p className="text-xs text-muted-foreground leading-relaxed">{prop.description}</p>
+>>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
         </div>
 
         <div className="p-4 bg-teal-50/50 rounded-2xl border border-teal-100/50 space-y-4">
@@ -153,7 +214,11 @@ const ProposalCard: React.FC<{ proposal: Proposal; balance: number }> = ({ propo
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+<<<<<<< HEAD
                   VERIFYING...
+=======
+                  VERIFYING ACA...
+>>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
                 </>
               ) : (
                 <>
@@ -169,7 +234,10 @@ const ProposalCard: React.FC<{ proposal: Proposal; balance: number }> = ({ propo
   );
 };
 
+<<<<<<< HEAD
 // 2. The Main List Component
+=======
+>>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
 const ActiveProposalsList: React.FC<{ balance: number }> = ({ balance }) => {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -180,11 +248,19 @@ const ActiveProposalsList: React.FC<{ balance: number }> = ({ balance }) => {
     (async () => {
       console.log("[ACTIVE_PROPOSALS] START: Initializing protocol fetch for active quadratic proposals.");
       try {
+<<<<<<< HEAD
         const { data, error } = await (supabase as any)
           .from("dao_proposals")
           .select("*")
           .eq("voting_modality", "quadratic")
           .order("created_at", { ascending: false });
+=======
+        const { data, error } = await (supabase
+          .from("dao_proposals" as any)
+          .select("*")
+          .eq("voting_modality", "quadratic")
+          .order("created_at", { ascending: false }) as any);
+>>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
 
         if (error) {
           throw error;
@@ -241,7 +317,11 @@ const ActiveProposalsList: React.FC<{ balance: number }> = ({ balance }) => {
   return (
     <div className="space-y-5">
       {proposals.map((prop) => (
+<<<<<<< HEAD
         <ProposalCard key={prop.id} proposal={prop} balance={balance} />
+=======
+        <ProposalCard key={prop.id} prop={prop} balance={balance} />
+>>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
       ))}
     </div>
   );

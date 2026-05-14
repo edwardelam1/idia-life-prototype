@@ -3349,6 +3349,7 @@ export type Database = {
         }
         Relationships: []
       }
+<<<<<<< HEAD
        hub_notifications: {
         Row: {
           body: string | null
@@ -3362,25 +3363,34 @@ export type Database = {
           title: string
           user_id: string
       idia_life_accounts: {
+=======
+      hub_notifications: {
+>>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
         Row: {
-          created_at: string | null
+          body: string | null
+          category: string
+          created_at: string
           id: string
-          last_deposit_at: string | null
-          liquid_balance: number | null
-          pseudo_user_id: string
-          total_earned: number | null
-          updated_at: string | null
+          link: string | null
+          metadata: Json
+          read_at: string | null
+          severity: string
+          title: string
+          user_id: string
         }
         Insert: {
           body?: string | null
           category?: string
           created_at?: string
           id?: string
+<<<<<<< HEAD
           last_deposit_at?: string | null
           liquid_balance?: number | null
           pseudo_user_id: string
           total_earned?: number | null
           updated_at?: string | null
+=======
+>>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
           link?: string | null
           metadata?: Json
           read_at?: string | null
@@ -3393,11 +3403,14 @@ export type Database = {
           category?: string
           created_at?: string
           id?: string
+<<<<<<< HEAD
           last_deposit_at?: string | null
           liquid_balance?: number | null
           pseudo_user_id?: string
           total_earned?: number | null
           updated_at?: string | null
+=======
+>>>>>>> 5526f632f4f5eed5daac6feaa4617a3149ba6e2f
           link?: string | null
           metadata?: Json
           read_at?: string | null
@@ -5010,6 +5023,7 @@ export type Database = {
           idia_usd_amount: number | null
           items: Json | null
           initiated_via_ar: boolean | null
+          items: Json | null
           location_id: string
           loyalty_points_earned: number | null
           nfc_payload: Json | null

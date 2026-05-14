@@ -6,9 +6,7 @@ import { ethers } from "ethers"; // <-- Swapped viem for ethers (Native Infrastr
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
 // Minimal Human-Readable ABI for read-only operations via ethers
-const USDC_ABI = [
-  "function balanceOf(address account) view returns (uint256)"
-];
+const USDC_ABI = ["function balanceOf(address account) view returns (uint256)"];
 
 export interface WalletBalance {
   usdc_balance: number;

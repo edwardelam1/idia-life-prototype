@@ -103,6 +103,7 @@ const LifecycleTelemetry: React.FC = () => {
   return (
     <div className="space-y-3">
       {items.map((it) => {
+        // Fallback to draft if the phase isn't recognized
         const meta = PHASE_META[it.lifecycle_phase] || PHASE_META.draft;
 
         return (
