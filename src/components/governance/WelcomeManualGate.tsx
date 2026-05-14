@@ -94,18 +94,24 @@ const WelcomeManualGate: React.FC<WelcomeManualGateProps> = ({ userId, onAcknowl
         </div>
 
         <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto bg-muted/20">
-          <object
-            data={`${MANUAL_PDF_URL}#toolbar=0&navpanes=0`}
-            type="application/pdf"
-            className="w-full h-[1400px] block"
-            aria-label="IDIA Data DUNA Welcome Manual"
-          >
-            <iframe
-              src={MANUAL_PDF_URL}
-              title="IDIA Data DUNA Welcome Manual"
-              className="w-full h-[1400px] border-0"
-            />
-          </object>
+          <iframe
+            src={MANUAL_PDF_URL}
+            title="IDIA Data DUNA Welcome Manual"
+            className="w-full h-[1400px] border-0 block bg-white"
+          />
+          <div className="px-6 py-4 text-center bg-white border-t border-border">
+            <p className="text-xs text-muted-foreground mb-2">
+              PDF not rendering? Open it directly:
+            </p>
+            <a
+              href={MANUAL_PDF_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[hsl(178,42%,32%)] underline text-sm font-semibold"
+            >
+              Open Welcome Manual in new tab
+            </a>
+          </div>
           <div className="h-8" />
         </div>
 
