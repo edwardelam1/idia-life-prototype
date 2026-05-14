@@ -24,6 +24,12 @@ const GovernanceScreen: React.FC = () => {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
+      setUserId(user.id);
+      const ackAt = (user.user_metadata as any)?.duna_welcome_ack_at;
+      if (!ackAt) {
+        console.log("[GOVERNANCE] First visit detected — gating Vote page on Welcome Manual.");
+        setNeedsWelcomeAck(true);
+      }
       const { data, error } = await supabase
         .from("wallets")
         .select("governance_tokens")
