@@ -98,6 +98,10 @@ const NfcPaymentModal: React.FC<NfcPaymentModalProps> = ({
         // ── Gasless EIP-3009 relay for USDC ──
         // Convert NfcPaymentRequest → @/config/usdc PaymentRequest
         const usdcReq: USDCPaymentRequest = {
+          version: 1,
+          type: 'usdc_payment_request',
+          currency: 'USDC',
+          network: 'base',
           recipient: paymentRequest.recipient,
           amount: paymentRequest.amount,
           merchant_id: paymentRequest.merchantId,

@@ -19,7 +19,6 @@ import TermsOfService from "./pages/TermsOfService";
 // NFC PAYMENT IMPORTS
 import { usePaymentDeepLink } from "@/hooks/usePaymentDeepLink";
 import NfcPaymentModal from "@/components/NfcPaymentModal";
-import TermsOfService from "./pages/TermsOfService";
 // Architectural Note: Defined outside to prevent re-instantiation on re-renders
 const queryClient = new QueryClient({
   defaultOptions: {

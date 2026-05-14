@@ -22,6 +22,7 @@ export type BalanceInfo = any;
 interface UseWalletReturn {
   // --- NEW STATE API ---
   wallet: WalletInfo | null;
+  hasWallet: boolean;
   balances: WalletBalances | null;
   votingPower: string | null;
   delegatee: string | null;
@@ -252,6 +253,7 @@ export function useWallet(): UseWalletReturn {
   return {
     // --- Unified Return Object ---
     wallet,
+    hasWallet,
     balances,
     votingPower,
     delegatee,

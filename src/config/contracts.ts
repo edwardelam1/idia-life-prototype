@@ -86,7 +86,7 @@ export const PROTOCOL = DEPLOYMENTS[ACTIVE_DEPLOYMENT];
  * Helper to check if we're running in test mode.
  * Use this throughout the app instead of checking ACTIVE_DEPLOYMENT directly.
  */
-export const IS_TESTNET = ACTIVE_DEPLOYMENT === 'testnet';
+export const IS_TESTNET = (ACTIVE_DEPLOYMENT as DeploymentEnv) === 'testnet';
 
 // ── Minimal ABIs (only the functions the app needs to call) ─────────
 
