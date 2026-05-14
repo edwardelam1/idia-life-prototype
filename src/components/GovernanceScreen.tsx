@@ -24,6 +24,8 @@ const GovernanceScreen: React.FC = () => {
   const [jurisdiction, setJurisdiction] = useState<Jurisdiction>("wyoming");
   const [userId, setUserId] = useState<string | null>(null);
   const [needsWelcomeAck, setNeedsWelcomeAck] = useState<boolean>(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     (async () => {
