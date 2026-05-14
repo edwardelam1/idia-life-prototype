@@ -113,7 +113,7 @@ export interface TokenBalance {
 }
 
 export type TransactionResult = TxResult;
-export type BalanceInfo = WalletBalances;
+export type BalanceInfo = TokenBalance;
 
 export interface TxRequest {
   to: string;
