@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Crown, ShieldAlert, Code2, Scale, HeartHandshake, Loader2 } from "lucide-react";
+import { Crown, ShieldAlert, Code2, Scale, HeartHandshake, Loader2, FileDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
