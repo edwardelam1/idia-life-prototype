@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { ShieldCheck, Zap, Gavel, Activity, ExternalLink } from "lucide-react";
+import { ShieldCheck, Zap, Gavel, Activity, ExternalLink, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import SegmentedJurisdiction, { Jurisdiction } from "./governance/SegmentedJurisdiction";
@@ -12,6 +13,7 @@ import MSAComplianceCard from "./governance/MSAComplianceCard";
 import TreasuryFlows from "./governance/TreasuryFlows";
 import CommitteesList from "./governance/CommitteesList";
 import WelcomeManualGate from "./governance/WelcomeManualGate";
+import CreateDaoProposalModal from "./governance/CreateDaoProposalModal";
 
 const IDIA_CONTRACT = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
 
