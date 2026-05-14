@@ -117,10 +117,19 @@ const HatsWardrobe: React.FC = () => {
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-between items-baseline px-2">
+      <div className="flex justify-between items-center px-2 gap-2">
         <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
           Hats Wardrobe · Role Authority
         </h3>
+        <a
+          href="/legal/IDIA_Data_DUNA_Welcome_Manual.pdf"
+          download
+          title="Download IDIA DUNA Welcome Manual"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest text-[hsl(178,42%,32%)] bg-teal-50 hover:bg-teal-100 transition-colors border border-teal-200"
+        >
+          <FileDown size={11} />
+          Manual
+        </a>
       </div>
 
       <div className="flex gap-3 overflow-x-auto pb-2 px-1 scrollbar-hide">
