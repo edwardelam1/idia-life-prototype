@@ -4,6 +4,14 @@
 <dict>
 	<key>CFBundleGetInfoString</key>
 	<string></string>
+	<!-- ─── Apple Compliance: NFC Usage Description (REQUIRED for CoreNFC) ─── -->
+	<key>NFCReaderUsageDescription</key>
+	<string>IDIA Life uses NFC to securely sync identity and payment handshakes between trusted devices. No personal data is transmitted without your explicit consent.</string>
+	<!-- ─── NDEF Application Identifiers (Required for Background Tag Reading) ─── -->
+	<key>com.apple.developer.nfc.readersession.iso7816.select-identifiers</key>
+	<array>
+		<string>D2760000850101</string>
+	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
