@@ -179,21 +179,21 @@ const Onboarding = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
+    <div className="min-h-screen bg-background flex items-start justify-center px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-2">
-          <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-            <Shield className="w-6 h-6 text-primary" />
+        <CardHeader className="text-center space-y-1 p-4 pb-2">
+          <div className="mx-auto w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+            <Shield className="w-5 h-5 text-primary" />
           </div>
-          <CardTitle className="text-xl">Sovereign Onboarding</CardTitle>
-          <p className="text-muted-foreground text-sm">
+          <CardTitle className="text-lg">Sovereign Onboarding</CardTitle>
+          <p className="text-muted-foreground text-xs">
             Your identity stays on your device. We only store a consent hash.
           </p>
         </CardHeader>
 
-        <CardContent className="space-y-5">
+        <CardContent className="space-y-3 p-4 pt-0">
           {/* Privacy badge */}
-          <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-3">
+          <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-2">
             <Lock className="w-4 h-4 text-muted-foreground shrink-0" />
             <span className="text-xs text-muted-foreground">
               PII is encrypted in your device's secure enclave — never sent to our servers.
@@ -246,7 +246,7 @@ const Onboarding = () => {
             />
           </div>
 
-          <div className="flex items-start gap-2 bg-destructive/5 border border-destructive/20 rounded-lg p-3">
+          <div className="flex items-start gap-2 bg-destructive/5 border border-destructive/20 rounded-lg p-2">
             <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
             <span className="text-xs text-muted-foreground">
               <strong className="text-foreground">Legal Notice:</strong> You must provide truthful and accurate
