@@ -61,6 +61,29 @@ const Onboarding = () => {
     };
   }, [navigate]);
 
+  // Pull hardware-sealed identity (e.g. from native Apple Sign-In) and pre-fill
+  useEffect(() => {
+    if (!authChecked) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const stored = await SecureStoragePlugin.get({ key: "user_pii_profile" });
+        if (cancelled || !stored?.value) return;
+        const payload = JSON.parse(stored.value);
+        console.log("[Onboarding] Found hardware-sealed identity. Pre-filling form.");
+        if (payload.first_name) setFirstName(payload.first_name);
+        if (payload.last_name) setLastName(payload.last_name);
+        if (payload.email) setEmail(payload.email);
+        if (payload.phone) setPhone(formatPhone(payload.phone));
+      } catch {
+        console.log("[Onboarding] No hardware identity found.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authChecked]);
+
   const isValid =
     firstName.trim().length >= 2 && lastName.trim().length >= 2 && email.includes("@") && PHONE_REGEX.test(phone);
 
