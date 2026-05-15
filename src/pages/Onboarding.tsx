@@ -246,7 +246,7 @@ const Onboarding = () => {
             />
           </div>
 
-          <div className="flex items-start gap-2 bg-destructive/5 border border-destructive/20 rounded-lg p-3">
+          <div className="flex items-start gap-2 bg-destructive/5 border border-destructive/20 rounded-lg p-2">
             <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
             <span className="text-xs text-muted-foreground">
               <strong className="text-foreground">Legal Notice:</strong> You must provide truthful and accurate
