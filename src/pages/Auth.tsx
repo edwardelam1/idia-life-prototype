@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Mail, Lock, User, KeyRound } from "lucide-react";
 import { runVaultGuard } from "@/lib/vaultGuard";
+import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
