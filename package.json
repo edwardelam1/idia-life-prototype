@@ -15,6 +15,7 @@
     "mobile:build": "npm run build && npx cap sync && echo 'Ready for Android Studio / Xcode'"
   },
   "dependencies": {
+    "@capacitor-community/apple-sign-in": "^7.1.0",
     "@capacitor/android": "^8.3.1",
     "@capacitor/app": "^8.0.0",
     "@capacitor/core": "^8.3.1",
