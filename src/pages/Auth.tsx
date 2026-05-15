@@ -89,20 +89,51 @@ const Auth = () => {
   const handleOAuthSignIn = async (provider: "google" | "apple") => {
     setIsLoading(true);
     try {
-      // On native (Android/iOS), use the custom URL scheme registered in MainActivity.kt
-      // so OAuth redirects back into the app instead of opening localhost in a browser
       const { Capacitor } = await import("@capacitor/core");
       const isNative = Capacitor.isNativePlatform();
 
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: isNative
-            ? "idialife://auth-callback"
-            : `${window.location.origin}/`,
-        },
-      });
-      if (error) throw error;
+      if (provider === "apple" && isNative) {
+        console.log("[START] Native Apple Sign-In Intercept");
+        const { SignInWithApple } = await import("@capacitor-community/apple-sign-in");
+
+        // 1. Native Apple UI — requests Name & Email (only present on first sign-in)
+        const result: any = await SignInWithApple.authorize({
+          clientId: "com.thebigidia.app",
+          redirectURI: `${window.location.origin}/`,
+          scopes: "email name",
+        });
+
+        // 2. Intercept PII on-device — seal in Secure Enclave
+        if (result?.response?.email || result?.response?.givenName) {
+          console.log("[APPLE_AUTH] PII detected. Sealing in local Secure Enclave.");
+          const piiPayload = {
+            first_name: result.response.givenName || "",
+            last_name: result.response.familyName || "",
+            email: result.response.email || "",
+            phone: "",
+          };
+          await SecureStoragePlugin.set({
+            key: "user_pii_profile",
+            value: JSON.stringify(piiPayload),
+          });
+        }
+
+        // 3. Authenticate with Supabase using only the cryptographic ID token (zero PII)
+        const { error } = await supabase.auth.signInWithIdToken({
+          provider: "apple",
+          token: result.response.identityToken,
+        });
+        if (error) throw error;
+        console.log("[END] Native Apple Auth Complete.");
+      } else {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider,
+          options: {
+            redirectTo: isNative ? "idialife://auth-callback" : `${window.location.origin}/`,
+          },
+        });
+        if (error) throw error;
+      }
     } catch (error: any) {
       toast({ title: `${provider} Sign In failed`, description: error.message, variant: "destructive" });
       setIsLoading(false);
