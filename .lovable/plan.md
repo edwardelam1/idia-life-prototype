@@ -1,59 +1,39 @@
 ## Problem
 
-On the Life page, tapping **Start Syncing** opens the iOS NFC sheet and Apple reports a successful read, but the **Connections** tab never gains a new entry.
-
-Root cause (verified in code):
-
-- `useNFCBridge` correctly fires the `nfc:scan-complete` event with a peer token.
-- `LifeScreen`'s handler (`src/components/enhanced/LifeScreen.tsx`, lines 104–129) only does cosmetic work: color wash, toast, then `setRateTarget(peerToken)` and `promptLabelForLatestSync()`.
-- **No row is ever inserted into the `friends` table**, so `useSocialGraph` keeps returning the same list and the UI shows no new Connection.
-- `promptLabelForLatestSync` then picks the most recent existing friend (or none), so the label/rate prompts target the wrong row.
-- Secondary issue: the native `NFCManager` returns a raw NDEF payload string. To create a `friends` row we need the peer's Supabase `user_id`. The handshake payload must carry (or resolve to) that id.
+Tapping **Start Syncing** on Life triggers a successful Apple NFC read, but no row is inserted into `friends`, so the Connections list never updates. `LifeScreen`'s `nfc:scan-complete` handler only does cosmetic work (color wash, toast, label/rate prompt) and never persists the handshake.
 
 ## Plan
 
-### 1. Define the on-tag payload contract
-Standardize the NDEF record both devices write/read as a compact JSON envelope:
-```
-{ "v": 1, "uid": "<peer auth user_id uuid>", "sig": "<base64 ed25519 sig>", "ts": <unix> }
-```
-- `uid` → peer's Supabase auth user id.
-- `sig` → signature over `uid|ts` using the device's enclave key (DELT-compatible, validated server-side).
-- `ts` → freshness check (reject if >120s old).
-
-No Native changes are required for *reading*; the existing `didDetectNDEFs` already forwards `scannedPayload` to JS. Writing the user's own tag is a follow-up (out of scope here — assumed already broadcast by peer).
-
-### 2. New edge function `nfc-handshake-resolve`
+### 1. New edge function — `nfc-handshake-resolve`
 `supabase/functions/nfc-handshake-resolve/index.ts`:
-- Auth: requires the caller's JWT (anon key path; reads `auth.uid()` from the verified token).
-- Body: `{ peerPayload: string | object, aca_hash: string }`.
-- Steps:
-  1. Parse envelope; reject malformed / stale / self-handshake.
-  2. Verify `sig` (stub for now with TODO; structure ready for ed25519 verification once enclave pubkeys are registered).
-  3. Generate / validate ACA hash (reuse `utils/acaGenerator` pattern server-side).
-  4. Upsert into `public.friends` with `(user_id_1 = auth.uid(), user_id_2 = peer_uid, status = 'accepted', accepted_at = now())`. Use canonical ordering (smaller uuid first) so the unique constraint dedupes regardless of who tapped first.
-  5. Return `{ friendshipId, peerUserId, aca_hash }`.
-- Logs with `[NFC_RESOLVE_*]` markers per project convention.
+- Verifies caller JWT → `auth.uid()` (anon-key client built from the `Authorization` header).
+- Body: `{ peerPayload: string | object, aca_hash?: string }`.
+- Parses the peer payload as either:
+  - JSON envelope `{ v, uid, sig?, ts? }` (preferred, future-proof for ed25519 sig verification — stubbed with TODO).
+  - Or a raw uuid string (current native bridge fallback).
+- Rejects: malformed payload, self-handshake, `ts` older than 120s when present.
+- Generates / validates an ACA hash server-side (mirrors `utils/acaGenerator`) per DELT protocol.
+- Canonical-orders the pair (smaller uuid → `user_id_1`) and **upserts** into `public.friends` with `status='accepted'`, `accepted_at = now()`. Idempotent against the existing `friends_pair_idx` (and the future unique variant).
+- Returns `{ friendshipId, peerUserId, aca_hash, created: boolean }`.
+- Logs with `[NFC_RESOLVE_*]` markers.
+- Uses `SUPABASE_SERVICE_ROLE_KEY` internally for the upsert after JWT verification (matches edge-function standards memory).
 
-### 3. Migration — friends table hardening
-- Add unique index `(LEAST(user_id_1,user_id_2), GREATEST(user_id_1,user_id_2))` if not already present, so the upsert is idempotent.
-- Confirm RLS allows a user to insert/select rows where they are either side. Add policy if missing.
-
-### 4. Wire LifeScreen to the resolver
-`src/components/enhanced/LifeScreen.tsx` `nfc:scan-complete` handler (lines 104–129):
-- Call `supabase.functions.invoke('nfc-handshake-resolve', { body: { peerPayload: detail.peerToken, aca_hash } })`.
+### 2. Wire `LifeScreen` to the resolver
+In `src/components/enhanced/LifeScreen.tsx` `nfc:scan-complete` handler (lines ~104–129):
+- Call `supabase.functions.invoke('nfc-handshake-resolve', { body: { peerPayload: detail.raw ?? detail.peerToken, aca_hash } })`.
 - On success:
-  - `await reload()` from `useSocialGraph` so `friends` repopulates.
-  - Use the returned `friendshipId` for `setRateTarget` and `setLabelTarget` (replaces the broken `promptLabelForLatestSync` heuristic).
-  - Keep the color wash + toast.
-- On failure: surface a toast with the resolver's error message; do not show a fake "Connection" success.
+  - `await reload()` from `useSocialGraph` so the Connections tab repopulates.
+  - Use returned `friendshipId` for `setRateTarget` and `setLabelTarget` — replaces the broken `promptLabelForLatestSync` heuristic that picks the most recent existing row.
+  - Keep the color wash + success toast.
+- On failure: error toast with the resolver's message, no fake success state.
 
-### 5. Verification
-- Confirm the legacy `src/components/life/NFCHandshake.tsx` is unused on the Life page (LifeScreen now owns the bridge via `useNFCBridge`); leave it alone or delete in a follow-up.
-- Manual test: simulate a `nfc:scan-complete` event from devtools with a valid envelope → friends list increments, label/rate sheets target the new row.
+### 3. Verification
+- Manually dispatch a `nfc:scan-complete` CustomEvent from devtools with a valid uuid envelope → confirm a row appears in `friends`, `useSocialGraph.reload()` populates Connections, and the label/rate sheets target the new row.
+- Re-tap same peer → no duplicate (existing `friends_pair_idx` makes the upsert clean; future unique flip is a no-op for this code path).
+- Check `[NFC_RESOLVE_*]` logs in Supabase Edge Function logs.
 
 ### Technical notes
-- `friends` schema (verified): `id uuid`, `user_id_1 uuid NOT NULL`, `user_id_2 uuid NOT NULL`, `status text`, `created_at`, `accepted_at`.
-- Edge function uses `SUPABASE_SERVICE_ROLE_KEY` internally to bypass RLS for the upsert, after verifying the caller JWT — matches existing edge function standards in memory.
-- No PII written to public schema; only auth user uuids (already allowed).
-- Out of scope: the native side writing the user's own tag, ed25519 enclave key registry — both stubbed with TODOs the resolver tolerates so the flow works end-to-end with the current payload, with signature verification a drop-in upgrade.
+- No DB migration needed — `friends_pair_idx` is already in place; uniqueness intentionally deferred until after Apple review.
+- No PII written to public schema; only auth uuids.
+- Native side writing the device's own NDEF tag and ed25519 signature verification are out of scope; the resolver tolerates the current raw-uuid payload via the fallback parser, with the JSON envelope path ready for the signed upgrade.
+- Legacy `src/components/life/NFCHandshake.tsx` is unused on the Life page (LifeScreen owns the bridge via `useNFCBridge`); leave as-is.
