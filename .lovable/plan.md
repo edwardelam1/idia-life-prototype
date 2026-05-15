@@ -1,11 +1,30 @@
-## Condense the `/onboarding` page layout
+## Goal
+Intercept Apple Sign-In PII natively on-device, seal it in Secure Enclave via `SecureStoragePlugin`, authenticate with Supabase via `signInWithIdToken` (zero PII to backend), and pre-fill the Onboarding form from the sealed payload.
 
-**Problem:** The "Secure & Continue" button is below the fold because the onboarding card has too much vertical spacing for the available viewport.
+## Changes
 
-**Changes:**
-1. **Tighten outer container** — reduce `p-4` to `p-2` (or `px-3 py-2`) on the form wrapper while keeping safe-area insets.
-2. **Compress card header** — change `CardHeader space-y-2` to `space-y-1` and shrink the icon container from `w-12 h-12` to `w-10 h-10`.
-3. **Reduce content gaps** — change `CardContent space-y-5` to `space-y-3` so the four inputs, badge, notice, and button sit closer together.
-4. **Shrink info boxes** — reduce padding on the privacy badge and legal notice from `p-3` to `p-2`.
+### 1. Install dependency
+- `@capacitor-community/apple-sign-in` (already have `capacitor-secure-storage-plugin` — verify; install if missing).
 
-These four spacing reductions will bring the CTA fully into view without removing any fields or content.
+### 2. `src/pages/Auth.tsx` — `handleOAuthSignIn`
+- Branch when `provider === "apple"` AND `Capacitor.isNativePlatform()`.
+- Call `SignInWithApple.authorize({ clientId: 'com.thebigidia.app', redirectURI: window.location.origin + '/', scopes: 'email name' })`.
+- If `result.response.email || givenName`, write JSON `{first_name,last_name,email,phone:""}` to `SecureStoragePlugin` under key `user_pii_profile`.
+- Authenticate via `supabase.auth.signInWithIdToken({ provider: 'apple', token: result.response.identityToken })`.
+- Web + Google path unchanged (existing `signInWithOAuth`).
+- Confirm `clientId` = `com.thebigidia.app` is correct (matches Apple Service ID configured in Supabase).
+
+### 3. `src/pages/Onboarding.tsx` — pre-fill effect
+- Add `useEffect` (gated on existing auth-check flag) that reads `SecureStoragePlugin.get({ key: "user_pii_profile" })`.
+- On hit, parse JSON and call existing setters (`setFirstName`, `setLastName`, `setEmail`, `setPhone`) for any non-empty fields.
+- Swallow errors (missing key is normal for email/password users).
+- Need to view current Onboarding.tsx to confirm exact state setter names + the auth-check flag name (the user wrote `authChecked`; current code may differ).
+
+### 4. Verification
+- Type-check passes.
+- Web flow: Apple branch is skipped (non-native) → no regression.
+- Manual native test deferred to user (requires Xcode build).
+
+## Open questions
+- Confirm Apple Service ID is `com.thebigidia.app` (matches what's configured in Supabase Auth → Apple provider). If different, I'll use the correct one.
+- Confirm we should keep the sealed payload after onboarding completes, or delete it post-prefill. Current spec doesn't say — I'll leave it (Onboarding can clear it after submit if desired later).
