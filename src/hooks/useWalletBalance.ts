@@ -269,12 +269,12 @@ export const useWalletBalance = () => {
     // FIX: Catch the floating setup promise to stop white-screen unhandled rejections
     setup().catch((e) => console.error("🚨 [SETUP_PROMISE_FAULT]:", e));
 
-    // Auto-poll the blockchain every 15 seconds parallel to Hub's design
+    // Auto-poll the blockchain once per hour (Alchemy update cadence)
     const interval = setInterval(() => {
-      console.log("🔄 [REALTIME_SYNC_LOG] INFO: 15-second polling tick fired for ethers fetch.");
+      console.log("🔄 [REALTIME_SYNC_LOG] INFO: 60-minute polling tick fired for ethers fetch.");
       // FIX: Catch the polling loop to prevent silent application crashes
       fetchBalance().catch((e) => console.error("🚨 [POLL_PROMISE_FAULT]:", e));
-    }, 15000);
+    }, 3600000);
 
     // React to auth changes — purge state on sign-out, refetch on sign-in
     console.log("🔐 [AUTH_STATE_LOG] START: Attaching AuthState listener.");
