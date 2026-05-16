@@ -12,10 +12,10 @@ interface ProposalLite {
 }
 
 const PHASE_META = {
-  draft: { icon: "📝", label: "Proposed", color: "text-slate-600 bg-slate-50 border-slate-100" },
-  active: { icon: "⚡", label: "Live Vote", color: "text-orange-600 bg-orange-50 border-orange-100" },
-  queued: { icon: "⏳", label: "In Timelock", color: "text-amber-700 bg-amber-50 border-amber-100" },
-  executed: { icon: "✅", label: "Settled", color: "text-teal-700 bg-teal-50 border-teal-100" },
+  draft: { icon: "📝", label: "Proposed", color: "text-slate-600 dark:text-slate-200 bg-slate-50 dark:bg-slate-900/40 border-slate-100 dark:border-slate-800" },
+  active: { icon: "⚡", label: "Live Vote", color: "text-orange-600 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/30 border-orange-100 dark:border-orange-900/50" },
+  queued: { icon: "⏳", label: "In Timelock", color: "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border-amber-100 dark:border-amber-900/50" },
+  executed: { icon: "✅", label: "Settled", color: "text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30 border-teal-100 dark:border-teal-900/50" },
 } as const;
 
 const LifecycleTelemetry: React.FC = () => {
@@ -84,7 +84,7 @@ const LifecycleTelemetry: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-8 space-y-3 bg-slate-50/50 rounded-2xl border border-slate-100">
+      <div className="flex flex-col items-center justify-center py-8 space-y-3 bg-slate-50/50 dark:bg-muted/30 rounded-2xl border border-slate-100 dark:border-border">
         <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
         <p className="text-[9px] font-black uppercase tracking-widest text-teal-700/50">Syncing Live Telemetry...</p>
       </div>
@@ -93,7 +93,7 @@ const LifecycleTelemetry: React.FC = () => {
 
   if (items.length === 0) {
     return (
-      <div className="py-10 text-center opacity-40 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+      <div className="py-10 text-center opacity-40 bg-slate-50 dark:bg-muted/30 rounded-2xl border border-slate-100 dark:border-border space-y-2">
         <Activity className="w-8 h-8 mx-auto text-slate-400" />
         <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">No Telemetry Detected</p>
       </div>
@@ -109,7 +109,7 @@ const LifecycleTelemetry: React.FC = () => {
         return (
           <div
             key={it.id}
-            className="flex items-center gap-4 p-3.5 bg-white border border-teal-50 shadow-sm rounded-2xl transition-all hover:shadow-md"
+            className="flex items-center gap-4 p-3.5 bg-white dark:bg-card border border-teal-50 dark:border-teal-900/40 shadow-sm rounded-2xl transition-all hover:shadow-md"
           >
             <div
               className={cn(
@@ -121,12 +121,12 @@ const LifecycleTelemetry: React.FC = () => {
             </div>
 
             <div className="flex-1 min-w-0 pr-2">
-              <p className="text-xs font-bold text-slate-800 truncate">{it.title}</p>
+              <p className="text-xs font-bold text-slate-800 dark:text-foreground truncate">{it.title}</p>
               <div className="flex items-center gap-2 mt-1">
-                <p className={cn("text-[9px] font-black uppercase tracking-[0.15em]", meta.color.split(" ")[0])}>
+                <p className={cn("text-[9px] font-black uppercase tracking-[0.15em]", meta.color.split(" ")[0], meta.color.split(" ")[1] || "")}>
                   {meta.label}
                 </p>
-                <span className="text-slate-300 text-[8px] font-bold tracking-widest uppercase">
+                <span className="text-slate-300 dark:text-muted-foreground text-[8px] font-bold tracking-widest uppercase">
                   · {new Date(it.created_at).toLocaleDateString()}
                 </span>
               </div>

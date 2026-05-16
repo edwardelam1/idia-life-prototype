@@ -109,22 +109,22 @@ const ProposalCard: React.FC<{ proposal: Proposal; balance: number }> = ({ propo
   };
 
   return (
-    <Card className="border-teal-50 shadow-sm rounded-3xl overflow-hidden transition-all hover:shadow-md">
+    <Card className="border-teal-50 dark:bg-card dark:border-teal-900/40 shadow-sm rounded-3xl overflow-hidden transition-all hover:shadow-md">
       <CardContent className="p-5 space-y-4">
         <div className="space-y-2">
           <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[9px] font-black uppercase tracking-wider">
             {proposal.status}
           </Badge>
-          <h3 className="font-black text-lg leading-tight text-slate-800">{proposal.title}</h3>
+          <h3 className="font-black text-lg leading-tight text-slate-800 dark:text-foreground">{proposal.title}</h3>
           <p className="text-xs text-muted-foreground leading-relaxed">{proposal.description}</p>
         </div>
 
-        <div className="p-4 bg-teal-50/50 rounded-2xl border border-teal-100/50 space-y-4">
+        <div className="p-4 bg-teal-50/50 dark:bg-teal-950/30 rounded-2xl border border-teal-100/50 dark:border-teal-900/50 space-y-4">
           <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider">
-            <span className="text-teal-700 flex items-center gap-1">
+            <span className="text-teal-700 dark:text-teal-200 flex items-center gap-1">
               <Activity size={12} /> Quadratic Weight
             </span>
-            <span className="text-orange-600 bg-orange-100/50 px-2 py-1 rounded-md">
+            <span className="text-orange-600 dark:text-orange-300 bg-orange-100/50 dark:bg-orange-950/40 px-2 py-1 rounded-md">
               Cost: {calculateVoteCost(voteWeight[0])} IDIA
             </span>
           </div>
@@ -141,8 +141,8 @@ const ProposalCard: React.FC<{ proposal: Proposal; balance: number }> = ({ propo
 
           <div className="flex justify-between items-center pt-2">
             <div className="flex items-baseline gap-1">
-              <p className="text-3xl font-black text-teal-800 tracking-tighter">{voteWeight[0]}</p>
-              <span className="text-[10px] font-bold text-teal-600/60 uppercase tracking-widest">VOTES</span>
+              <p className="text-3xl font-black text-teal-800 dark:text-teal-200 tracking-tighter">{voteWeight[0]}</p>
+              <span className="text-[10px] font-bold text-teal-600/60 dark:text-teal-300/70 uppercase tracking-widest">VOTES</span>
             </div>
 
             <Button
@@ -231,7 +231,7 @@ const ActiveProposalsList: React.FC<{ balance: number; refreshTrigger?: number }
 
   if (proposals.length === 0) {
     return (
-      <div className="py-16 text-center opacity-40 space-y-3 bg-slate-50 rounded-3xl border border-slate-100">
+      <div className="py-16 text-center opacity-40 space-y-3 bg-slate-50 dark:bg-muted/30 rounded-3xl border border-slate-100 dark:border-border">
         <Gavel className="mx-auto w-10 h-10 text-slate-400" />
         <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">No Active Proposals Found</p>
       </div>

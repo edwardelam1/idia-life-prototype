@@ -21,7 +21,7 @@ const dotColor = (s: string) =>
       : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)] animate-pulse";
 
 const textColor = (s: string) =>
-  s === "meeting" ? "text-emerald-700" : s === "warning" ? "text-amber-700" : "text-red-700";
+  s === "meeting" ? "text-emerald-700 dark:text-emerald-300" : s === "warning" ? "text-amber-700 dark:text-amber-300" : "text-red-700 dark:text-red-300";
 
 const MSAComplianceCard: React.FC = () => {
   const [items, setItems] = useState<MSA[]>([]);
@@ -83,7 +83,7 @@ const MSAComplianceCard: React.FC = () => {
 
   if (isLoading) {
     return (
-      <Card className="rounded-3xl border-teal-50 shadow-sm overflow-hidden">
+      <Card className="rounded-3xl border-teal-50 dark:bg-card dark:border-teal-900/40 shadow-sm overflow-hidden">
         <CardContent className="p-8 flex flex-col items-center justify-center space-y-3">
           <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
           <p className="text-[9px] font-black uppercase tracking-widest text-teal-700/50">
@@ -95,11 +95,11 @@ const MSAComplianceCard: React.FC = () => {
   }
 
   return (
-    <Card className="rounded-3xl border-teal-50 shadow-sm overflow-hidden transition-all">
+    <Card className="rounded-3xl border-teal-50 dark:bg-card dark:border-teal-900/40 shadow-sm overflow-hidden transition-all">
       <CardContent className="p-5 space-y-4">
-        <div className="flex items-center justify-between border-b border-teal-50/50 pb-3">
-          <h3 className="text-[10px] font-black uppercase tracking-widest text-teal-800 flex items-center gap-2">
-            <ShieldCheck size={14} className="text-teal-600" />
+        <div className="flex items-center justify-between border-b border-teal-50/50 dark:border-teal-900/40 pb-3">
+          <h3 className="text-[10px] font-black uppercase tracking-widest text-teal-800 dark:text-teal-200 flex items-center gap-2">
+            <ShieldCheck size={14} className="text-teal-600 dark:text-teal-300" />
             Delaware MSA · SLA Compliance
           </h3>
           {items.some((i) => i.status === "breach") && (
@@ -122,10 +122,10 @@ const MSAComplianceCard: React.FC = () => {
                 className={cn(
                   "flex items-center justify-between p-3 rounded-xl border transition-colors",
                   m.status === "meeting"
-                    ? "bg-teal-50/30 border-teal-50"
+                    ? "bg-teal-50/30 dark:bg-teal-950/20 border-teal-50 dark:border-teal-900/40"
                     : m.status === "warning"
-                      ? "bg-amber-50/30 border-amber-100"
-                      : "bg-red-50/30 border-red-100",
+                      ? "bg-amber-50/30 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/40"
+                      : "bg-red-50/30 dark:bg-red-950/20 border-red-100 dark:border-red-900/40",
                 )}
               >
                 <div className="flex items-center gap-3">
@@ -141,13 +141,13 @@ const MSAComplianceCard: React.FC = () => {
                 </div>
 
                 <div className="text-right">
-                  <div className="text-sm font-black tracking-tighter text-slate-700">
+                  <div className="text-sm font-black tracking-tighter text-slate-700 dark:text-foreground">
                     {m.current_value ?? "—"}{" "}
-                    <span className="text-[10px] text-slate-400 font-medium tracking-normal">
+                    <span className="text-[10px] text-slate-400 dark:text-muted-foreground font-medium tracking-normal">
                       / {m.target_value ?? "—"}
                     </span>
                   </div>
-                  <div className="text-[8px] font-black uppercase tracking-widest text-slate-400">Oracle Metric</div>
+                  <div className="text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-muted-foreground">Oracle Metric</div>
                 </div>
               </div>
             ))}

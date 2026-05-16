@@ -92,7 +92,7 @@ const TreasuryFlows: React.FC = () => {
 
   if (isLoading) {
     return (
-      <Card className="rounded-3xl border-teal-50 shadow-sm overflow-hidden">
+      <Card className="rounded-3xl border-teal-50 dark:bg-card dark:border-teal-900/40 shadow-sm overflow-hidden">
         <CardContent className="p-8 flex flex-col items-center justify-center space-y-3">
           <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
           <p className="text-[9px] font-black uppercase tracking-widest text-teal-700/50">
@@ -104,14 +104,14 @@ const TreasuryFlows: React.FC = () => {
   }
 
   return (
-    <Card className="rounded-3xl border-teal-50 shadow-sm overflow-hidden transition-all">
+    <Card className="rounded-3xl border-teal-50 dark:bg-card dark:border-teal-900/40 shadow-sm overflow-hidden transition-all">
       <CardContent className="p-5 space-y-4">
-        <div className="flex items-center justify-between border-b border-teal-50/50 pb-3">
-          <h3 className="text-[10px] font-black uppercase tracking-widest text-teal-800 flex items-center gap-2">
-            <TrendingUp size={14} className="text-teal-600" />
+        <div className="flex items-center justify-between border-b border-teal-50/50 dark:border-teal-900/40 pb-3">
+          <h3 className="text-[10px] font-black uppercase tracking-widest text-teal-800 dark:text-teal-200 flex items-center gap-2">
+            <TrendingUp size={14} className="text-teal-600 dark:text-teal-300" />
             Treasury Flows · 30D Window
           </h3>
-          <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">USD / Stablecoins</div>
+          <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-muted-foreground">USD / Stablecoins</div>
         </div>
 
         {series.length === 0 ? (
@@ -144,10 +144,12 @@ const TreasuryFlows: React.FC = () => {
                     contentStyle={{
                       fontSize: 11,
                       borderRadius: 12,
-                      border: "1px solid #e2e8f0",
+                      background: "hsl(var(--popover))",
+                      border: "1px solid hsl(var(--border))",
+                      color: "hsl(var(--popover-foreground))",
                       boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
                     }}
-                    itemStyle={{ fontWeight: 800 }}
+                    itemStyle={{ fontWeight: 800, color: "hsl(var(--popover-foreground))" }}
                   />
                   <Area
                     type="monotone"
@@ -169,27 +171,27 @@ const TreasuryFlows: React.FC = () => {
               </ResponsiveContainer>
             </div>
 
-            <div className="space-y-2 pt-4 border-t border-teal-50">
-              <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-2">
+            <div className="space-y-2 pt-4 border-t border-teal-50 dark:border-teal-900/40">
+              <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-muted-foreground mb-2">
                 Recent Atomic Settlements
               </p>
               {flows.slice(0, 5).map((f) => (
                 <div
                   key={f.id}
-                  className="flex items-center justify-between p-2.5 rounded-xl border border-transparent hover:border-slate-100 hover:bg-slate-50 transition-colors"
+                  className="flex items-center justify-between p-2.5 rounded-xl border border-transparent hover:border-slate-100 dark:hover:border-border hover:bg-slate-50 dark:hover:bg-muted/30 transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <div
                       className={cn(
                         "p-1.5 rounded-lg",
-                        f.direction === "in" ? "bg-emerald-50 text-emerald-600" : "bg-orange-50 text-orange-500",
+                        f.direction === "in" ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-300" : "bg-orange-50 dark:bg-orange-950/40 text-orange-500 dark:text-orange-300",
                       )}
                     >
                       {f.direction === "in" ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />}
                     </div>
                     <div className="space-y-0.5">
-                      <span className="text-xs font-bold text-slate-800 block">{f.counterparty_label || f.asset}</span>
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">
+                      <span className="text-xs font-bold text-slate-800 dark:text-foreground block">{f.counterparty_label || f.asset}</span>
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-muted-foreground block">
                         {new Date(f.recorded_at).toLocaleDateString()}
                       </span>
                     </div>
@@ -197,7 +199,7 @@ const TreasuryFlows: React.FC = () => {
                   <span
                     className={cn(
                       "font-black tracking-tighter",
-                      f.direction === "in" ? "text-emerald-700" : "text-slate-700",
+                      f.direction === "in" ? "text-emerald-700 dark:text-emerald-300" : "text-slate-700 dark:text-foreground",
                     )}
                   >
                     {f.direction === "in" ? "+" : "-"}${Number(f.amount_usd).toLocaleString()}
