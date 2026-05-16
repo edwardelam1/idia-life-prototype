@@ -1,25 +1,22 @@
-## Show the Menu Bar During the Spotlight Tour
+## Taper the Spotlight Gloss So the Menu Bar Stays Crisp
 
-In `src/components/life/WelcomeSequence.tsx`, Step 3 (spotlight tour) is the slide that begins with the Wallet copy *"See, manage, and control your world…"*. Today the welcome overlay paints its full glossy background across the entire viewport at `z-[200]`, so the bottom menu bar (rendered in `MainApp` at `z-30`) is hidden behind it. The radial spotlight is just a dim overlay on top of that background — there's nothing real underneath to spotlight.
+In `src/components/life/WelcomeSequence.tsx` (Step 3 spotlight overlay), the dim layer applies a uniform `backdrop-filter: blur(2px)` across the whole viewport. The radial gradient only fades the *tint*, not the blur, so the menu tabs inside the "transparent" hole still get blurred and washed out.
 
-Also: the `SPOTLIGHT_TABS` list includes `shop`, but the Shop tab is gated until July 11, 2026 in `MainApp`. Pre-release, `tabRefs.current.shop` is `undefined`, the spotlight measurement no-ops, and the tour silently sticks on whatever tab was last computed.
+### Fix (single overlay swap, lines ~269–276)
 
-### Changes (frontend only, `src/components/life/WelcomeSequence.tsx`)
+Replace the dim layer with a masked overlay so the blur and tint are both removed inside the spotlight and taper smoothly outward into the glass.
 
-1. **Reveal the real menu bar during Step 3.**
-   - Move the glossy `background: radial-gradient(...)` styles off the root `fixed inset-0` container and onto a new `<div className="absolute inset-0 -z-10">` that renders only when `step !== 3`.
-   - Root container keeps `fixed inset-0 z-[200]` + layout/safe-area padding but becomes transparent during Step 3 so the bottom nav (z-30) is visible underneath.
-   - Keep the existing radial *dim* overlay + spotlight ring exactly as-is — they already cut a hole around the tab using its measured rect.
-   - Make sure the spotlight dim overlay and the copy card use `pointer-events-none` where needed so the nav tabs visually appear but the user still progresses only via the "Next/Continue" button (no accidental tab switching mid-tour).
+- **Background tint**: keep `rgba(248,250,252, ~0.78)` for the surrounding glass.
+- **Backdrop blur**: bump to ~`blur(10px)` so the glass area reads as glass (currently it barely registers).
+- **Mask out the spotlight**: apply `mask-image` + `-webkit-mask-image` with a radial gradient centered on `spotlightRect`:
+  - `transparent` from `0` → `r` (fully clear over the menu — no tint, no blur)
+  - taper through `rgba(0,0,0,0.35)` at `r + 24px`
+  - to `black` at `r + 110px` (full gloss resumes)
+- Keep `pointer-events-none` and the `transition-all duration-500`.
+- Leave the glow ring (second div) and copy card untouched.
 
-2. **Hide Shop from the tour until July 11, 2026.**
-   - Add the same `IDIA_PAY_RELEASE_DATE` gate used in `MainApp` (`new Date() >= 2026-07-11Z`).
-   - Filter `SPOTLIGHT_TABS` with `useMemo` so the `shop` entry is excluded when `!isPayReady`. Result is 5 slides pre-release (Wallet → Data → Life → Vote → Pro), 6 post-release.
-   - Pager dots and "Next vs Continue" already derive from the array length, so they update automatically.
-
-3. **Defensive guard.**
-   - In the Step 3 `compute` effect, if `tabRefs.current?.[tab.id]` is missing, skip to the next tab (or to Step 4 if it's the last) instead of getting stuck. This protects against any future tab being gated similarly.
+### Why this works
+`mask-image` applies to the element's own paint *including* its `backdrop-filter`. A transparent mask region produces a true hole — the live menu bar underneath renders unblurred and untinted — while the surrounding gloss keeps its frosted look. The taper avoids a hard edge between the clear hole and the glass.
 
 ### Out of scope
-- No changes to `MainApp`, the nav itself, copy, animations, or other steps (1, 2, 4, 5).
-- No backend, routing, or business-logic changes.
+No other steps, no MainApp/nav changes, no logic changes.

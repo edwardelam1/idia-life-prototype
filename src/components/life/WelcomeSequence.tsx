@@ -269,9 +269,11 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
           <div
             className="absolute inset-0 pointer-events-none transition-all duration-500"
             style={{
-              background: `radial-gradient(circle at ${spotlightRect.x}px ${spotlightRect.y}px, rgba(255,255,255,0) 0px, rgba(255,255,255,0) ${spotlightRect.r}px, rgba(248,250,252,0.88) ${spotlightRect.r + 24}px)`,
-              backdropFilter: "blur(2px)",
-              WebkitBackdropFilter: "blur(2px)",
+              background: "rgba(248,250,252,0.78)",
+              backdropFilter: "blur(10px)",
+              WebkitBackdropFilter: "blur(10px)",
+              maskImage: `radial-gradient(circle at ${spotlightRect.x}px ${spotlightRect.y}px, transparent 0px, transparent ${spotlightRect.r}px, rgba(0,0,0,0.35) ${spotlightRect.r + 24}px, black ${spotlightRect.r + 110}px)`,
+              WebkitMaskImage: `radial-gradient(circle at ${spotlightRect.x}px ${spotlightRect.y}px, transparent 0px, transparent ${spotlightRect.r}px, rgba(0,0,0,0.35) ${spotlightRect.r + 24}px, black ${spotlightRect.r + 110}px)`,
             }}
           />
           <div
