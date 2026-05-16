@@ -29,6 +29,11 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
   const [tabIndex, setTabIndex] = useState(0);
   const [spotlightRect, setSpotlightRect] = useState<{ x: number; y: number; r: number } | null>(null);
 
+  const SPOTLIGHT_TABS = useMemo(() => {
+    const isPayReady = new Date() >= IDIA_PAY_RELEASE_DATE;
+    return isPayReady ? ALL_SPOTLIGHT_TABS : ALL_SPOTLIGHT_TABS.filter((t) => t.id !== "shop");
+  }, []);
+
   useEffect(() => {
     console.log("[WELCOME_SEQUENCE_START]");
     return () => console.log("[WELCOME_SEQUENCE_END]");
