@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 // PAGE IMPORTS
 import Auth from "./pages/Auth";
 import Index from "./pages/Index";
-import Onboarding from "./pages/Onboarding";
+
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import SecureVault from "./pages/SecureVault";
@@ -136,7 +136,7 @@ const App = () => {
               <Route path="/auth" element={session ? <Navigate to="/" replace /> : <Auth />} />
               <Route path="/" element={session ? <Index /> : <Navigate to="/auth" replace />} />
               <Route path="/dashboard" element={session ? <Index /> : <Navigate to="/auth" replace />} />
-              <Route path="/onboarding" element={session ? <Onboarding /> : <Navigate to="/auth" replace />} />
+              
               <Route path="/terms" element={session ? <TermsOfService /> : <Navigate to="/auth" replace />} />
               <Route path="/recovery-phrase" element={session ? <RecoveryPhrase /> : <Navigate to="/auth" replace />} />
               <Route path="/settings" element={session ? <Settings /> : <Navigate to="/auth" replace />} />
