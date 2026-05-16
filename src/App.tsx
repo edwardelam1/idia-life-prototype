@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 // PAGE IMPORTS
 import Auth from "./pages/Auth";
 import Index from "./pages/Index";
-import Onboarding from "./pages/Onboarding";
+
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import SecureVault from "./pages/SecureVault";
