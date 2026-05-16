@@ -254,14 +254,7 @@ const CommitteesList: React.FC = () => {
 
   const handleRemoveMembership = async (committee: CommitteeMeta) => {
     console.log(`[COMMITTEE_RESIGN] START: Revoking active hat ${committee.id}.`);
-    if (!isNative()) {
-      toast({
-        title: "Native Device Required",
-        description: "Resigning an officer hat requires Secure Enclave attestation.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // ACA gate temporarily disabled — will re-enable once Secure Enclave capture is fixed.
     setActionBusyId(committee.id);
     try {
       const {
