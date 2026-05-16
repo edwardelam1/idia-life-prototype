@@ -483,12 +483,12 @@ const CommitteesList: React.FC = () => {
               {isProcessing ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Generating ACA Hash...
+                  Processing...
                 </>
               ) : (
                 <>
                   <Fingerprint className="mr-2 h-4 w-4" />
-                  ACA Handshake & Submit
+                  Submit
                 </>
               )}
             </Button>
@@ -505,17 +505,12 @@ const CommitteesList: React.FC = () => {
               Revoke Pending Request
             </DialogTitle>
             <DialogDescription>
-              Withdraw your pending application to{" "}
-              <strong className="text-foreground">{revokeTarget?.name}</strong>. Your fiduciary ACA bond will be
-              released and you may re-apply later.
+              Withdraw your pending application to <strong className="text-foreground">{revokeTarget?.name}</strong>.
+              Your fiduciary ACA bond will be released and you may re-apply later.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => setRevokeTarget(null)}
-              disabled={actionBusyId === revokeTarget?.id}
-            >
+            <Button variant="ghost" onClick={() => setRevokeTarget(null)} disabled={actionBusyId === revokeTarget?.id}>
               Cancel
             </Button>
             <Button
@@ -526,12 +521,12 @@ const CommitteesList: React.FC = () => {
               {actionBusyId === revokeTarget?.id ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Releasing ACA…
+                  Releasing…
                 </>
               ) : (
                 <>
                   <Fingerprint className="mr-2 h-4 w-4" />
-                  ACA Handshake & Withdraw
+                  Withdraw
                 </>
               )}
             </Button>
@@ -548,17 +543,13 @@ const CommitteesList: React.FC = () => {
               Remove Committee Membership
             </DialogTitle>
             <DialogDescription>
-              You are stepping down from <strong className="text-foreground">{resignTarget?.name}</strong>. Your
-              officer hat will be revoked on-ledger and you will lose committee voting rights. This action is
-              recorded immutably.
+              You are stepping down from <strong className="text-foreground">{resignTarget?.name}</strong>. Your officer
+              hat will be revoked on-ledger and you will lose committee voting rights. This action is recorded
+              immutably.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => setResignTarget(null)}
-              disabled={actionBusyId === resignTarget?.id}
-            >
+            <Button variant="ghost" onClick={() => setResignTarget(null)} disabled={actionBusyId === resignTarget?.id}>
               Cancel
             </Button>
             <Button
@@ -569,12 +560,12 @@ const CommitteesList: React.FC = () => {
               {actionBusyId === resignTarget?.id ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Revoking Hat…
+                  Resigning Hat…
                 </>
               ) : (
                 <>
                   <Fingerprint className="mr-2 h-4 w-4" />
-                  ACA Handshake & Resign
+                  Resign
                 </>
               )}
             </Button>
