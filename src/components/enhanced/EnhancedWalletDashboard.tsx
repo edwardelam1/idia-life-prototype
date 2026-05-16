@@ -361,15 +361,12 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
-        <TabsList className="grid grid-cols-4 w-full bg-muted/20 shrink-0">
+        <TabsList className="grid grid-cols-3 w-full bg-muted/20 shrink-0">
           <TabsTrigger value="overview" className="text-[11px] px-1">
             Overview
           </TabsTrigger>
           <TabsTrigger value="transactions" className="text-[11px] px-1">
             History
-          </TabsTrigger>
-          <TabsTrigger value="credit" className="text-[11px] px-1">
-            Credit
           </TabsTrigger>
           <TabsTrigger value="security" className="text-[11px] px-1">
             Security
