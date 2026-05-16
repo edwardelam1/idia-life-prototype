@@ -47,8 +47,15 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
     if (step !== 3) return;
     const compute = () => {
       const tab = SPOTLIGHT_TABS[tabIndex];
+      if (!tab) return;
       const el = tabRefs.current?.[tab.id];
-      if (!el) return;
+      if (!el) {
+        // Defensive: tab not mounted (e.g., gated). Skip forward.
+        console.log(`[SPOTLIGHT_TAB_MISSING: ${tab.id}] — skipping`);
+        if (tabIndex < SPOTLIGHT_TABS.length - 1) setTabIndex(tabIndex + 1);
+        else setStep(4);
+        return;
+      }
       const rect = el.getBoundingClientRect();
       const x = rect.left + rect.width / 2;
       const y = rect.top + rect.height / 2;
@@ -59,7 +66,7 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
     compute();
     window.addEventListener("resize", compute);
     return () => window.removeEventListener("resize", compute);
-  }, [step, tabIndex, tabRefs]);
+  }, [step, tabIndex, tabRefs, SPOTLIGHT_TABS]);
 
   const finish = () => {
     try {
