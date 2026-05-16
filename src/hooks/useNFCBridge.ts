@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@/components/ui/sonner";
+import { useProfile } from "@/hooks/useProfile";
 
 /**
  * useNFCBridge — IDIA Sovereign Handshake Bridge
@@ -31,6 +32,8 @@ export function useNFCBridge() {
   const [isBridgeAvailable, setIsBridgeAvailable] = useState<boolean>(() => detectBridge());
   const [isScanning, setIsScanning] = useState(false);
   const scanningRef = useRef(false);
+  const { preferences } = useProfile();
+  const nfcAllowed = (preferences as any)?.privacy_nfc !== false;
 
   // ---- Listener installation ---------------------------------------------
   useEffect(() => {
@@ -90,6 +93,14 @@ export function useNFCBridge() {
     (mode: NFCBridgeMode = "STANDARD") => {
       console.log("[BRIDGE_HANDSHAKE_START]", { mode });
 
+      if (!nfcAllowed) {
+        console.warn("[BRIDGE_HANDSHAKE_BLOCKED] NFC disabled in Privacy Settings");
+        toast("NFC is turned off", {
+          description: "Enable NFC Scan under Settings → Privacy to use the Sovereign Handshake.",
+        });
+        return;
+      }
+
       if (scanningRef.current) {
         console.warn("[BRIDGE_HANDSHAKE_ABORTED] Scanning already in progress");
         return;
@@ -133,7 +144,7 @@ export function useNFCBridge() {
       
       console.log("[BRIDGE_HANDSHAKE_END]");
     },
-    []
+    [nfcAllowed]
   );
 
   return { isBridgeAvailable, isScanning, initiateSovereignHandshake };

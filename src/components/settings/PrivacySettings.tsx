@@ -5,11 +5,13 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Shield, Database, Trash2, Download, Smartphone, Activity, Camera, HeartPulse, Bluetooth, Mic, ScanLine, Info, Loader2 } from 'lucide-react';
+import { Shield, Database, Trash2, Download, Smartphone, Activity, Camera, HeartPulse, Bluetooth, Mic, ScanLine, Info, Loader2, ExternalLink, CheckCircle2, XCircle } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { SecureStoragePlugin } from 'capacitor-secure-storage-plugin';
+import { useHardwarePermission } from '@/hooks/useHardwarePermission';
+import type { HardwareKey } from '@/plugins/permissions';
 
 const SECURE_KEYS_TO_WIPE = [
   'user_pii_profile',
@@ -187,110 +189,7 @@ export function PrivacySettings() {
       </section>
 
       {/* 2. Hardware Permissions (Edge Gating) */}
-      <section className="space-y-4 pt-2 border-t">
-        <div className="flex items-center gap-2">
-          <Smartphone className="w-4 h-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Hardware Permissions</h3>
-        </div>
-
-        <div className="space-y-4 pl-1">
-          {/* Motion */}
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <Activity className="w-4 h-4 text-muted-foreground" />
-              <div className="space-y-0.5">
-                <Label htmlFor="privacy-motion" className="text-sm font-medium">Device Motion</Label>
-                <p className="text-xs text-muted-foreground">Gyroscope and spatial awareness</p>
-              </div>
-            </div>
-            <Switch
-              id="privacy-motion"
-              checked={preferences?.privacy_motion !== false}
-              onCheckedChange={(v) => handlePreferenceUpdate('privacy_motion', v)}
-            />
-          </div>
-
-          {/* Camera */}
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <Camera className="w-4 h-4 text-muted-foreground" />
-              <div className="space-y-0.5">
-                <Label htmlFor="privacy-camera" className="text-sm font-medium">Camera</Label>
-                <p className="text-xs text-muted-foreground">Visual processing and AR features</p>
-              </div>
-            </div>
-            <Switch
-              id="privacy-camera"
-              checked={preferences?.privacy_camera !== false}
-              onCheckedChange={(v) => handlePreferenceUpdate('privacy_camera', v)}
-            />
-          </div>
-
-          {/* Health */}
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <HeartPulse className="w-4 h-4 text-muted-foreground" />
-              <div className="space-y-0.5">
-                <Label htmlFor="privacy-health" className="text-sm font-medium">Health Kit</Label>
-                <p className="text-xs text-muted-foreground">Biometrics and vitals syncing</p>
-              </div>
-            </div>
-            <Switch
-              id="privacy-health"
-              checked={preferences?.privacy_health !== false}
-              onCheckedChange={(v) => handlePreferenceUpdate('privacy_health', v)}
-            />
-          </div>
-
-          {/* Bluetooth */}
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <Bluetooth className="w-4 h-4 text-muted-foreground" />
-              <div className="space-y-0.5">
-                <Label htmlFor="privacy-bluetooth" className="text-sm font-medium">Bluetooth</Label>
-                <p className="text-xs text-muted-foreground">Proximity and external wearables</p>
-              </div>
-            </div>
-            <Switch
-              id="privacy-bluetooth"
-              checked={preferences?.privacy_bluetooth !== false}
-              onCheckedChange={(v) => handlePreferenceUpdate('privacy_bluetooth', v)}
-            />
-          </div>
-
-          {/* Microphone */}
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <Mic className="w-4 h-4 text-muted-foreground" />
-              <div className="space-y-0.5">
-                <Label htmlFor="privacy-mic" className="text-sm font-medium">Microphone</Label>
-                <p className="text-xs text-muted-foreground">Voice interactions and commands</p>
-              </div>
-            </div>
-            <Switch
-              id="privacy-mic"
-              checked={preferences?.privacy_microphone !== false}
-              onCheckedChange={(v) => handlePreferenceUpdate('privacy_microphone', v)}
-            />
-          </div>
-
-          {/* NFC Scan */}
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <ScanLine className="w-4 h-4 text-muted-foreground" />
-              <div className="space-y-0.5">
-                <Label htmlFor="privacy-nfc" className="text-sm font-medium">NFC Scan</Label>
-                <p className="text-xs text-muted-foreground">Physical tap and handshake logic</p>
-              </div>
-            </div>
-            <Switch
-              id="privacy-nfc"
-              checked={preferences?.privacy_nfc !== false}
-              onCheckedChange={(v) => handlePreferenceUpdate('privacy_nfc', v)}
-            />
-          </div>
-        </div>
-      </section>
+      <HardwarePermissionsSection />
 
       {/* 3. Data Management */}
       <section className="space-y-4 pt-4 border-t">
@@ -366,5 +265,83 @@ export function PrivacySettings() {
         </div>
       </section>
     </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// Hardware Permissions Section — three-state UI bound to native OS prompts.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const HW_ROWS: Array<{
+  key: HardwareKey;
+  label: string;
+  description: string;
+  Icon: React.ComponentType<{ className?: string }>;
+}> = [
+  { key: 'motion',     label: 'Device Motion', description: 'Gyroscope and spatial awareness',  Icon: Activity },
+  { key: 'camera',     label: 'Camera',        description: 'Visual processing and AR features', Icon: Camera },
+  { key: 'health',     label: 'Health Kit',    description: 'Biometrics and vitals syncing',     Icon: HeartPulse },
+  { key: 'bluetooth',  label: 'Bluetooth',     description: 'Proximity and external wearables',  Icon: Bluetooth },
+  { key: 'microphone', label: 'Microphone',    description: 'Voice interactions and commands',   Icon: Mic },
+  { key: 'nfc',        label: 'NFC Scan',      description: 'Physical tap and handshake logic',  Icon: ScanLine },
+];
+
+function HardwarePermissionsSection() {
+  const { isEnabled, grantState, setToggle, openAppSettings } = useHardwarePermission();
+  const [pending, setPending] = useState<HardwareKey | null>(null);
+
+  const onToggle = async (key: HardwareKey, next: boolean) => {
+    setPending(key);
+    try { await setToggle(key, next); } finally { setPending(null); }
+  };
+
+  return (
+    <section className="space-y-4 pt-2 border-t">
+      <div className="flex items-center gap-2">
+        <Smartphone className="w-4 h-4 text-muted-foreground" />
+        <h3 className="text-sm font-semibold">Hardware Permissions</h3>
+      </div>
+
+      <div className="space-y-4 pl-1">
+        {HW_ROWS.map(({ key, label, description, Icon }) => {
+          const enabled = isEnabled(key);
+          const state = grantState[key];
+          const denied = state === 'denied';
+          const unsupported = state === 'unsupported';
+          return (
+            <div key={key} className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <Icon className="w-4 h-4 text-muted-foreground" />
+                <div className="space-y-0.5">
+                  <Label htmlFor={`privacy-${key}`} className="text-sm font-medium flex items-center gap-1.5">
+                    {label}
+                    {state === 'granted' && enabled && <CheckCircle2 className="w-3 h-3 text-[hsl(142,71%,45%)]" />}
+                    {denied && <XCircle className="w-3 h-3 text-amber-500" />}
+                  </Label>
+                  <p className="text-xs text-muted-foreground">{description}</p>
+                  {denied && (
+                    <button
+                      type="button"
+                      onClick={openAppSettings}
+                      className="text-[11px] text-amber-600 hover:underline inline-flex items-center gap-0.5 mt-0.5"
+                    >
+                      Open device Settings <ExternalLink className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                  {unsupported && (
+                    <p className="text-[11px] text-muted-foreground italic">Not available on this device</p>
+                  )}
+                </div>
+              </div>
+              <Switch
+                id={`privacy-${key}`}
+                checked={enabled}
+                disabled={pending === key || unsupported}
+                onCheckedChange={(v) => onToggle(key, v)}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }

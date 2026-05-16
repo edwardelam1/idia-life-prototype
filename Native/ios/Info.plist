@@ -4,6 +4,28 @@
 <dict>
 	<key>CFBundleGetInfoString</key>
 	<string></string>
+
+	<!-- ═══ Hardware Permission Usage Descriptions ═══ -->
+	<!-- Required by iOS — missing strings = silent app crash on first hardware access. -->
+	<key>NSMotionUsageDescription</key>
+	<string>IDIA uses motion to verify spatial presence during NFC handshakes and proximity awareness.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Used for AR Shop discovery and QR scanning during Sovereign Handshakes.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Voice commands for the Friend assistant and secure dictation.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Sync your vitals to your Sovereign Health ledger. Data stays on-device unless you explicitly contribute it.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Write health milestones back to Apple Health when you complete IDIA wellness tasks.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Detect nearby IDIA wearables and proximity tags for Sphere of Influence.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Pair with IDIA-compatible wearables for biometric tethering.</string>
+	<key>NFCReaderUsageDescription</key>
+	<string>Tap-to-pay and Sovereign Handshake between IDIA members.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Location is used for Shop AR discovery of nearby IDIA merchants.</string>
+
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
