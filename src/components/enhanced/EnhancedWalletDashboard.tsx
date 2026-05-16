@@ -399,29 +399,6 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-3 gap-4">
-            <Button
-              className="h-14 flex-col bg-teal-600 hover:bg-teal-700 text-xs"
-              onClick={() => setShowSendRequestModal(true)}
-            >
-              <div className="flex space-x-1 mb-1">
-                <ArrowUpRight className="w-4 h-4" />
-                <ArrowDownLeft className="w-4 h-4" />
-              </div>{" "}
-              Send/Req
-            </Button>
-            <Button variant="outline" className="h-14 flex-col text-xs" onClick={() => setShowNFCModal(true)}>
-              <Smartphone size={18} className="mb-1" /> NFC Pay
-            </Button>
-            <Button
-              variant="outline"
-              className="h-14 flex-col text-xs"
-              onClick={() => setShowAddFundsModal(true)}
-              disabled={!fiatProvisioned && !usdcProvisioned}
-            >
-              <Plus size={18} className="mb-1" /> Add Funds
-            </Button>
-          </div>
         </TabsContent>
 
         {/* ═══ TRANSACTIONS TAB ═══ */}
