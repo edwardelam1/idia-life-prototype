@@ -108,16 +108,25 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
     <div
       className="fixed inset-0 z-[200] overflow-hidden text-slate-800 flex flex-col"
       style={{
-        background: `
-          radial-gradient(ellipse at 15% 10%, rgba(186,230,253,0.85) 0%, transparent 55%),
-          radial-gradient(ellipse at 85% 20%, rgba(254,243,199,0.85) 0%, transparent 55%),
-          radial-gradient(ellipse at 50% 95%, rgba(224,242,254,0.9) 0%, transparent 60%),
-          linear-gradient(180deg, #fbfdff 0%, #f3f7fb 50%, #fefaf2 100%)
-        `,
         paddingTop: "env(safe-area-inset-top)",
         paddingBottom: "env(safe-area-inset-bottom)",
       }}
     >
+      {/* Glossy backdrop — hidden during Step 3 so the real menu bar shows through */}
+      {step !== 3 && (
+        <div
+          className="absolute inset-0 -z-10 pointer-events-none"
+          style={{
+            background: `
+              radial-gradient(ellipse at 15% 10%, rgba(186,230,253,0.85) 0%, transparent 55%),
+              radial-gradient(ellipse at 85% 20%, rgba(254,243,199,0.85) 0%, transparent 55%),
+              radial-gradient(ellipse at 50% 95%, rgba(224,242,254,0.9) 0%, transparent 60%),
+              linear-gradient(180deg, #fbfdff 0%, #f3f7fb 50%, #fefaf2 100%)
+            `,
+          }}
+        />
+      )}
+
       {/* Persistent Skip */}
       <button
         onClick={() => {
