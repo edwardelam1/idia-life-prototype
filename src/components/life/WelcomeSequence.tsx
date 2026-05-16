@@ -13,7 +13,9 @@ interface SpotlightTab {
   copy: string;
 }
 
-const SPOTLIGHT_TABS: SpotlightTab[] = [
+const IDIA_PAY_RELEASE_DATE = new Date("2026-07-11T00:00:00Z");
+
+const ALL_SPOTLIGHT_TABS: SpotlightTab[] = [
   { id: "wallet", label: "Wallet", copy: "See, manage, and control your financial world with clarity." },
   { id: "data", label: "My Data", copy: "Connect your apps. Turn everyday digital activity into earnings." },
   { id: "life", label: "Life", copy: "Take assessments that reveal how you think, act, and operate." },
