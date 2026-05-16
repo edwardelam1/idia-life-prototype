@@ -68,6 +68,7 @@ const Auth = () => {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        supabase.functions.invoke("send-security-alert", { body: { event: "new_login" } }).catch(() => {});
         toast({ title: "Welcome back!", description: "You've been signed in successfully." });
       } else {
         const { error } = await supabase.auth.signUp({
@@ -188,6 +189,8 @@ const Auth = () => {
         password: newPassword,
       });
       if (updateError) throw updateError;
+
+      supabase.functions.invoke("send-security-alert", { body: { event: "password_changed" } }).catch(() => {});
 
       toast({
         title: "Password Updated!",
