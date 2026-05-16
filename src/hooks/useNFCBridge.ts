@@ -93,6 +93,14 @@ export function useNFCBridge() {
     (mode: NFCBridgeMode = "STANDARD") => {
       console.log("[BRIDGE_HANDSHAKE_START]", { mode });
 
+      if (!nfcAllowed) {
+        console.warn("[BRIDGE_HANDSHAKE_BLOCKED] NFC disabled in Privacy Settings");
+        toast("NFC is turned off", {
+          description: "Enable NFC Scan under Settings → Privacy to use the Sovereign Handshake.",
+        });
+        return;
+      }
+
       if (scanningRef.current) {
         console.warn("[BRIDGE_HANDSHAKE_ABORTED] Scanning already in progress");
         return;
