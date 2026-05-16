@@ -179,25 +179,87 @@ const DataDashboard = () => {
     window.dispatchEvent(new CustomEvent("showFriend", { detail: { trigger: "data" } }));
   };
 
+  const STATUS_META: Record<string, { label: string; description: string; dot: string; badge: JSX.Element }> = {
+    recent: {
+      label: "Synced Recently",
+      description: "Data flowed in the last 6 hours.",
+      dot: "bg-green-500",
+      badge: <Badge variant="secondary" className="bg-green-100 text-green-800 cursor-pointer">Synced Recently</Badge>,
+    },
+    delayed: {
+      label: "Idle",
+      description: "Last sync was 6–24 hours ago.",
+      dot: "bg-yellow-500",
+      badge: <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 cursor-pointer">Idle</Badge>,
+    },
+    no_data: {
+      label: "No Data Found",
+      description: "Source connected but no audit record yet.",
+      dot: "bg-muted-foreground",
+      badge: <Badge variant="outline" className="cursor-pointer">No Data Found</Badge>,
+    },
+    unknown: {
+      label: "Checking…",
+      description: "Still verifying the pipe.",
+      dot: "bg-muted-foreground/50",
+      badge: <Badge variant="outline" className="cursor-pointer">Checking...</Badge>,
+    },
+  };
+
+  const formatRelative = (d: Date) => {
+    const diffMs = Date.now() - d.getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
+  };
+
   const getSyncStatusBadge = () => {
-    switch (lastSyncStatus) {
-      case "recent":
-        return (
-          <Badge variant="secondary" className="bg-green-100 text-green-800">
-            Synced Recently
-          </Badge>
-        );
-      case "delayed":
-        return (
-          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-            Idle
-          </Badge>
-        );
-      case "no_data":
-        return <Badge variant="outline">No Data Found</Badge>;
-      default:
-        return <Badge variant="outline">Checking...</Badge>;
-    }
+    const activeKey = STATUS_META[lastSyncStatus] ? lastSyncStatus : "unknown";
+    const order = ["recent", "delayed", "no_data", "unknown"];
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <button type="button" onClick={(e) => e.stopPropagation()} className="focus:outline-none">
+            {STATUS_META[activeKey].badge}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-3" onClick={(e) => e.stopPropagation()}>
+          <p className="text-xs font-semibold text-foreground mb-2 uppercase tracking-wider">Sync Status</p>
+          <div className="space-y-1.5">
+            {order.map((key) => {
+              const meta = STATUS_META[key];
+              const isActive = key === activeKey;
+              return (
+                <div
+                  key={key}
+                  className={`flex items-start gap-2 rounded-md p-1.5 ${isActive ? "bg-muted ring-1 ring-border" : ""}`}
+                >
+                  <span className={`mt-1 h-2 w-2 rounded-full shrink-0 ${meta.dot}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-medium text-foreground">{meta.label}</p>
+                      {isActive && (
+                        <span className="text-[9px] uppercase tracking-wider text-primary font-bold">Current</span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground leading-snug">{meta.description}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {lastStatusChangeAt && (
+            <p className="mt-3 pt-2 border-t border-border text-[10px] text-muted-foreground">
+              Last change: {formatRelative(lastStatusChangeAt)} · {lastStatusChangeAt.toLocaleString()}
+            </p>
+          )}
+        </PopoverContent>
+      </Popover>
+    );
   };
 
   // Per-source sync badge. Each connection type owns its own badge state.
