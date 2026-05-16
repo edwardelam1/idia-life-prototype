@@ -9,8 +9,16 @@ export function useNativeHealth() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<HealthSyncResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { preferences } = useProfile();
+  const healthAllowed = (preferences as any)?.privacy_health !== false;
 
   useEffect(() => { healthService.getStatus().then(setStatus).catch(console.error); }, []);
+
+  const blockedResult = (): HealthSyncResult => ({
+    success: false,
+    error: 'Health Kit is disabled in Privacy Settings',
+    synced: false,
+  });
 
   const requestPermissions = useCallback(async () => {
     setError(null);
@@ -20,6 +28,7 @@ export function useNativeHealth() {
   }, []);
 
   const quickSync = useCallback(async () => {
+    if (!healthAllowed) { const r = blockedResult(); setLastSync(r); setError(r.error!); return r; }
     setIsSyncing(true); setError(null);
     try {
       const r = await healthService.quickSync(); setLastSync(r);
@@ -29,7 +38,7 @@ export function useNativeHealth() {
       const r: HealthSyncResult = { success: false, error: e.message, synced: false };
       setLastSync(r); setError(e.message); return r;
     } finally { setIsSyncing(false); }
-  }, []);
+  }, [healthAllowed]);
 
   const fetchRange = useCallback(async (start: Date, end: Date) => {
     setIsSyncing(true); setError(null);
