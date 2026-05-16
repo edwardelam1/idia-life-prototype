@@ -1,65 +1,56 @@
-# Plan
+# Delaware Registry — Revoke Request & Remove Membership
 
-## 1. Wallet — hide Fiat (USD) column
-`src/components/enhanced/EnhancedWalletDashboard.tsx` (Total Balance card, lines ~384–397)
-- Change `grid-cols-3` → `grid-cols-2`, remove the Fiat (USD) cell, keep Stable USDC and IDIA Token, drop the `border-x` divider styling.
-- Same edit in `src/components/WalletDashboard.tsx` (Your Balances card) for parity.
+The "Delaware Registry · Level 1 Ascension" panel (`src/components/governance/CommitteesList.tsx`) currently lets a user **Apply to Join** a committee, which then shows a disabled **Pending Audit** chip. Two states are missing:
 
-## 2. Wire notification preferences to real behavior
+1. While the application is `pending`, the user has no way to withdraw it.
+2. Once the application is approved and the matching hat in `dao_hats` is granted, the user has no way to step down.
 
-Today the toggles only write to `user_preferences`; nothing reads them. Wire each one:
+This plan adds both, fully ACA-anchored on native devices and consistent with the existing glossy/teal aesthetic.
 
-- **Header Alerts (`in_app_alerts`)** — `src/components/NotificationBell.tsx`: read preference via `useProfile`; when `false`, suppress the unread badge and disable the popover toast feed.
-- **UI Sound Effects (`in_app_sounds`)** — `src/lib/notify.ts`: add a small `playChime()` helper gated on `in_app_sounds`. Call it from the existing notify entry points (transaction, alert). Use a single bundled WebAudio beep — no asset download.
-- **Enable Push (`push_notifications`)** — new hook `src/hooks/usePushNotifications.ts`:
-  - On enable: call `@capacitor/push-notifications` `requestPermissions` + `register` (web fallback: `Notification.requestPermission`).
-  - Persist FCM/APNs token to a new `push_tokens` table (user_id, token, platform).
-  - On disable: unregister + delete token row.
-- **Activity & Goals (`push_activity`)** — used server-side as a filter; client only needs to surface the toggle (already does). Add note in the description ("controls reminder pushes").
-- **AI Insights (`push_insights`)** — hidden behind `IDIA_PAY_RELEASE_DATE` gate (see §3).
+## UX changes (CommitteesList.tsx)
 
-Add `@capacitor/push-notifications` to `package.json`.
+For each committee card, derive one of four states from live ledger data:
 
-## 3. Hide AI Insights, Product Updates, Monthly Reports until 2026-07-11
+```text
+not_applied   → [ Apply to Join ]            (existing)
+pending       → [ Pending Audit ] [ Revoke Request ]   (NEW second button)
+active_member → [ Active Officer ] [ Remove Membership ]   (NEW row)
+revoked       → [ Apply to Join ]            (re-enabled, same as not_applied)
+```
 
-`src/components/settings/NotificationSettings.tsx`:
-- Import the shared release-date constant (extract `IDIA_PAY_RELEASE_DATE` from `MainApp.tsx` into `src/config/release.ts` and import in both places).
-- Compute `isPayReady = new Date() >= IDIA_PAY_RELEASE_DATE`.
-- Conditionally render the **AI Insights** row, **Product Updates** row, **Monthly Reports** row only when `isPayReady`.
+- **Revoke Request** — outline button, orange tint, `RotateCcw` icon. Opens a small confirm dialog ("Withdraw your pending application to {committee}. Your ACA bond will be released.") with an ACA handshake on confirm.
+- **Remove Membership** — outline button, red tint, `LogOut` icon. Opens a confirm dialog warning that the user's officer hat will be revoked and they will lose committee voting rights. Requires ACA handshake.
+- Both gated on `isNative()`, matching the existing Apply flow.
+- Pending chip + Revoke button render side-by-side on desktop, stacked on mobile (`flex-col sm:flex-row gap-2`).
 
-## 4. Focus Mode — live + history with labeled profiles
+## Data model
 
-New table `public.focus_modes` (migration):
-- columns: `id`, `user_id`, `label`, `quiet_hours_start`, `quiet_hours_end`, `is_active`, `created_at`, `updated_at`
-- RLS: owner-only (`user_id = auth.uid()`) for select/insert/update/delete
-- Partial unique index: only one `is_active = true` per user
+No schema changes to `committee_applications` columns themselves — `status` already exists as text. We add:
 
-`src/components/settings/NotificationSettings.tsx` Focus Mode section:
-- When master Focus toggle is on, render:
-  - Dropdown of saved profiles (`Default`, plus user-created), with Activate / Edit / Delete
-  - Inline "New profile" form (label + start + end → insert row, mark active)
-- Activating a profile mirrors its `quiet_hours_*` into `user_preferences` so existing consumers still work, and flips `is_active` atomically (deactivate others first).
+- Two new allowed status values: `withdrawn`, `revoked` (text, no enum). Filtering in `fetchLedgerState` changes from "any row" to `status IN ('pending','approved')` so withdrawn/revoked rows free the user to re-apply.
+- **RLS policy additions** on `public.committee_applications` to let a user `UPDATE` their own row (currently insert-only is assumed). Policy: `auth.uid() = user_id`.
+- **RLS policy additions** on `public.dao_hats` to let a user `UPDATE` their own hat row to set `revoked_at = now()` and `eligibility_status = 'revoked'` (`auth.uid() = user_id`). Approval/grant remains backend-only.
 
-New hook `src/hooks/useFocusModes.ts` wraps fetch/create/activate/delete.
+These are the only DB changes; no new tables.
 
-## 5. Email Comms — security alerts wired
+## Client logic
 
-`src/components/settings/PrivacySettings.tsx`/auth flows already cover password reset via Supabase's built-in recovery email. Add:
+In `CommitteesList.tsx`:
 
-- New edge function `supabase/functions/send-security-alert/index.ts` — payload `{ user_id, event: 'new_login' | 'password_changed' }`, looks up email from `auth.users` (service role), sends via the existing `auth-email-hook` infra (or `RESEND_API_KEY` if already configured — confirm via secrets).
-- Client triggers:
-  - `src/pages/Auth.tsx` (or wherever `signInWithPassword` resolves): on successful sign-in invoke `send-security-alert` with `event: 'new_login'`.
-  - `EnhancedProfileSettings` / password-change flow: on successful `updateUser({ password })`, invoke with `event: 'password_changed'`.
-- The Security Alerts toggle stays locked/on (compliance), but now actually fires.
+- Extend `fetchLedgerState` to also pull the current user's active hats: `dao_hats` where `user_id = me`, `eligibility_status = 'active'`, `revoked_at IS NULL`. Store as `Set<hat_type>` in `userActiveHats`.
+- Extend `userApplications` to a `Record<committee_id, applicationId>` so we can target the row on revoke.
+- Add `handleRevokeRequest(committeeId)`:
+  - ACA hash with action `committee_revoke_request_{id}`, tags `["DELAWARE_MSA_WITHDRAWAL","LEDGER_WRITE"]`.
+  - `UPDATE committee_applications SET status='withdrawn', aca_hash_key=…, aca_payload=… WHERE id = applicationId AND user_id = me AND status='pending'`.
+  - Toast + refresh.
+- Add `handleRemoveMembership(committeeId)`:
+  - ACA hash with action `committee_resign_{id}`, tags `["DELAWARE_MSA_RESIGNATION","HAT_REVOCATION"]`.
+  - `UPDATE dao_hats SET revoked_at=now(), eligibility_status='revoked' WHERE user_id = me AND hat_type = committeeId AND revoked_at IS NULL`.
+  - Toast + refresh; the existing realtime channel on `dao_hats` (via `CommitteesList` re-fetch) updates Active Officer count.
 
-## 6. Out of scope / no changes
-- No changes to wallet polling (already 1h).
-- No backend cron or new triggers beyond focus_modes table + push_tokens table.
+## Files touched
 
-## Technical notes
+- `src/components/governance/CommitteesList.tsx` — UI states, two new handlers, two new confirm dialogs.
+- One Supabase migration — RLS update policies for `committee_applications` and `dao_hats` scoped to `auth.uid() = user_id`.
 
-- Migration combined: create `focus_modes`, `push_tokens`, plus RLS policies.
-- `IDIA_PAY_RELEASE_DATE` extraction is a pure refactor; update import in `MainApp.tsx`.
-- For the push permission UX, surface a toast if the user denies OS-level permission and revert the switch.
-- Email: if no `RESEND_API_KEY` secret exists yet, prompt to add it before deploying `send-security-alert`.
-
+No other components change. No new tables, no new edge functions.
