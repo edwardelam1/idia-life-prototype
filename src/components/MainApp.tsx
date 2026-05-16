@@ -16,7 +16,7 @@ import WelcomeSequence from "./life/WelcomeSequence";
 const IDIA_PAY_RELEASE_DATE = new Date("2026-07-11T00:00:00Z");
 
 const MainApp = () => {
-  const [activeTab, setActiveTab] = useState("life");
+  const [activeTab, setActiveTab] = useState("wallet");
   const [showFriend, setShowFriend] = useState(false);
   const [friendTrigger, setFriendTrigger] = useState<"social" | "wallet" | "data" | "achievement" | undefined>();
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
