@@ -361,15 +361,12 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
-        <TabsList className="grid grid-cols-4 w-full bg-muted/20 shrink-0">
+        <TabsList className="grid grid-cols-3 w-full bg-muted/20 shrink-0">
           <TabsTrigger value="overview" className="text-[11px] px-1">
             Overview
           </TabsTrigger>
           <TabsTrigger value="transactions" className="text-[11px] px-1">
             History
-          </TabsTrigger>
-          <TabsTrigger value="credit" className="text-[11px] px-1">
-            Credit
           </TabsTrigger>
           <TabsTrigger value="security" className="text-[11px] px-1">
             Security
@@ -402,29 +399,6 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-3 gap-4">
-            <Button
-              className="h-14 flex-col bg-teal-600 hover:bg-teal-700 text-xs"
-              onClick={() => setShowSendRequestModal(true)}
-            >
-              <div className="flex space-x-1 mb-1">
-                <ArrowUpRight className="w-4 h-4" />
-                <ArrowDownLeft className="w-4 h-4" />
-              </div>{" "}
-              Send/Req
-            </Button>
-            <Button variant="outline" className="h-14 flex-col text-xs" onClick={() => setShowNFCModal(true)}>
-              <Smartphone size={18} className="mb-1" /> NFC Pay
-            </Button>
-            <Button
-              variant="outline"
-              className="h-14 flex-col text-xs"
-              onClick={() => setShowAddFundsModal(true)}
-              disabled={!fiatProvisioned && !usdcProvisioned}
-            >
-              <Plus size={18} className="mb-1" /> Add Funds
-            </Button>
-          </div>
         </TabsContent>
 
         {/* ═══ TRANSACTIONS TAB ═══ */}

@@ -16,7 +16,7 @@ import WelcomeSequence from "./life/WelcomeSequence";
 const IDIA_PAY_RELEASE_DATE = new Date("2026-07-11T00:00:00Z");
 
 const MainApp = () => {
-  const [activeTab, setActiveTab] = useState("life");
+  const [activeTab, setActiveTab] = useState("wallet");
   const [showFriend, setShowFriend] = useState(false);
   const [friendTrigger, setFriendTrigger] = useState<"social" | "wallet" | "data" | "achievement" | undefined>();
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -40,11 +40,10 @@ const MainApp = () => {
     () => [
       { id: "wallet", label: "Wallet", icon: Wallet, component: EnhancedWalletDashboard },
       { id: "data", label: "Data", icon: Database, component: DataDashboard },
-      { id: "life", label: "Life", icon: Users, component: LifeScreen },
-      // Shop is conditionally injected based on the July 11th gate
+      ...(isPayReady ? [{ id: "life", label: "Life", icon: Users, component: LifeScreen }] : []),
       ...(isPayReady ? [{ id: "shop", label: "Shop", icon: ShoppingBag, component: ShopScreen }] : []),
       { id: "vote", label: "Gov", icon: Vote, component: GovernanceScreen },
-      { id: "pro", label: "Pro", icon: Crown, component: ProScreen },
+      ...(isPayReady ? [{ id: "pro", label: "Pro", icon: Crown, component: ProScreen }] : []),
     ],
     [isPayReady],
   );

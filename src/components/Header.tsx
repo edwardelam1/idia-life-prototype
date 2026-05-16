@@ -62,9 +62,7 @@ const Header = () => {
         <h1 className="text-lg font-bold text-foreground">IDIA Life</h1>
       </div>
 
-      <div className="justify-self-center">
-        <FriendOrb />
-      </div>
+      <div className="justify-self-center" />
 
       <div className="flex items-center gap-1 justify-self-end">
         <NotificationBell />

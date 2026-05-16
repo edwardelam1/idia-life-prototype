@@ -31,7 +31,8 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
 
   const SPOTLIGHT_TABS = useMemo(() => {
     const isPayReady = new Date() >= IDIA_PAY_RELEASE_DATE;
-    return isPayReady ? ALL_SPOTLIGHT_TABS : ALL_SPOTLIGHT_TABS.filter((t) => t.id !== "shop");
+    const gated = new Set(isPayReady ? [] : ["shop", "life", "pro"]);
+    return ALL_SPOTLIGHT_TABS.filter((t) => !gated.has(t.id));
   }, []);
 
   useEffect(() => {
