@@ -40,11 +40,10 @@ const MainApp = () => {
     () => [
       { id: "wallet", label: "Wallet", icon: Wallet, component: EnhancedWalletDashboard },
       { id: "data", label: "Data", icon: Database, component: DataDashboard },
-      { id: "life", label: "Life", icon: Users, component: LifeScreen },
-      // Shop is conditionally injected based on the July 11th gate
+      ...(isPayReady ? [{ id: "life", label: "Life", icon: Users, component: LifeScreen }] : []),
       ...(isPayReady ? [{ id: "shop", label: "Shop", icon: ShoppingBag, component: ShopScreen }] : []),
       { id: "vote", label: "Gov", icon: Vote, component: GovernanceScreen },
-      { id: "pro", label: "Pro", icon: Crown, component: ProScreen },
+      ...(isPayReady ? [{ id: "pro", label: "Pro", icon: Crown, component: ProScreen }] : []),
     ],
     [isPayReady],
   );
