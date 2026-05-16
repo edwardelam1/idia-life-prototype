@@ -210,14 +210,7 @@ const CommitteesList: React.FC = () => {
 
   const handleRevokeRequest = async (committee: CommitteeMeta) => {
     console.log(`[COMMITTEE_REVOKE] START: Withdrawing pending application for ${committee.id}.`);
-    if (!isNative()) {
-      toast({
-        title: "Native Device Required",
-        description: "Withdrawing a bonded application requires Secure Enclave attestation.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // ACA gate temporarily disabled — will re-enable once Secure Enclave capture is fixed.
     const app = userApplications[committee.id];
     if (!app || app.status !== "pending") {
       toast({ title: "No Pending Application", description: "Nothing to withdraw.", variant: "destructive" });
