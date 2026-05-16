@@ -157,10 +157,10 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
-      <DialogContent className="sm:max-w-md rounded-3xl bg-white">
+      <DialogContent className="sm:max-w-md rounded-3xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-slate-800 font-black">
-            <Send className="w-5 h-5 text-[hsl(178,42%,32%)]" />
+          <DialogTitle className="flex items-center gap-2 text-foreground font-black">
+            <Send className="w-5 h-5 text-[hsl(178,42%,32%)] dark:text-teal-300" />
             Submit a Governance Proposal
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
@@ -170,7 +170,7 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           <div className="space-y-2">
-            <Label htmlFor="prop-title" className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+            <Label htmlFor="prop-title" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
               Title
             </Label>
             <Input
@@ -180,18 +180,18 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
               placeholder="Enter proposal title"
               maxLength={100}
               disabled={isSubmitting}
-              className="bg-slate-50 border-slate-200"
+              className="bg-muted/40 border-input text-foreground placeholder:text-muted-foreground"
               required
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                 Category
               </Label>
               <Select value={category} onValueChange={setCategory} disabled={isSubmitting}>
-                <SelectTrigger className="bg-slate-50 border-slate-200">
+                <SelectTrigger className="bg-muted/40 border-input text-foreground">
                   <SelectValue placeholder="Select..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -205,11 +205,11 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                 Expected Impact
               </Label>
               <Select value={impact} onValueChange={setImpact} disabled={isSubmitting}>
-                <SelectTrigger className="bg-slate-50 border-slate-200">
+                <SelectTrigger className="bg-muted/40 border-input text-foreground">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -224,7 +224,7 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="prop-desc" className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+            <Label htmlFor="prop-desc" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
               Description
             </Label>
             <Textarea
@@ -235,7 +235,7 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
               maxLength={1000}
               rows={6}
               disabled={isSubmitting}
-              className="bg-slate-50 border-slate-200 resize-none"
+              className="bg-muted/40 border-input text-foreground placeholder:text-muted-foreground resize-none"
               required
             />
             <p className="text-[10px] text-muted-foreground text-right">
@@ -244,9 +244,9 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
           </div>
 
           {hasInsufficientBalance && (
-            <div className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2">
-              <ShieldAlert className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-              <p className="text-[11px] text-amber-800 leading-snug">
+            <div className="flex items-start gap-2 rounded-xl border border-amber-300 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
+              <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-300 mt-0.5 shrink-0" />
+              <p className="text-[11px] text-amber-800 dark:text-amber-200 leading-snug">
                 Insufficient IDIA — hold at least {MIN_IDIA_TO_PROPOSE} IDIA to mint a proposal.
                 Current: {idiaBalance.toFixed(4)}.
               </p>

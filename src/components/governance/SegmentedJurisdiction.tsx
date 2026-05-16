@@ -41,7 +41,7 @@ const SegmentedJurisdiction: React.FC<Props> = ({ value, onChange }) => {
   };
 
   return (
-    <div className="flex p-1 bg-teal-50/60 backdrop-blur-md rounded-full border border-teal-100/70 shadow-inner">
+    <div className="flex p-1 bg-teal-50/60 dark:bg-teal-950/40 backdrop-blur-md rounded-full border border-teal-100/70 dark:border-teal-900/60 shadow-inner">
       {segs.map((s) => {
         const active = value === s.id;
         const Icon = s.icon;
@@ -54,7 +54,7 @@ const SegmentedJurisdiction: React.FC<Props> = ({ value, onChange }) => {
               "flex-1 flex flex-col items-center justify-center py-3 px-2 rounded-full transition-all duration-300 outline-none focus:ring-2 focus:ring-teal-500/50",
               active
                 ? "bg-[hsl(178,42%,32%)] text-white shadow-md transform scale-[1.02]"
-                : "text-teal-700/60 hover:text-teal-800 hover:bg-teal-100/50",
+                : "text-teal-700/60 dark:text-teal-200/70 hover:text-teal-800 dark:hover:text-teal-100 hover:bg-teal-100/50 dark:hover:bg-teal-900/40",
             )}
           >
             <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest">
@@ -64,7 +64,7 @@ const SegmentedJurisdiction: React.FC<Props> = ({ value, onChange }) => {
             <div
               className={cn(
                 "text-[8px] font-bold mt-1 tracking-wider uppercase transition-colors",
-                active ? "text-teal-100/80" : "text-teal-600/50",
+                active ? "text-teal-100/80" : "text-teal-600/50 dark:text-teal-300/50",
               )}
             >
               {s.sub}

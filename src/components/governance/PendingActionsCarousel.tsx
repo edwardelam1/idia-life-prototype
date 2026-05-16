@@ -176,7 +176,7 @@ const PendingActionsCarousel: React.FC = () => {
 
   if (actions.length === 0) {
     return (
-      <div className="py-10 text-center opacity-40 bg-orange-50/50 rounded-3xl border border-orange-100 space-y-2">
+      <div className="py-10 text-center opacity-40 bg-orange-50/50 dark:bg-orange-950/20 rounded-3xl border border-orange-100 dark:border-orange-900/40 space-y-2">
         <Zap className="mx-auto w-8 h-8 text-orange-400" />
         <p className="text-[10px] font-bold uppercase tracking-widest text-orange-600/70">
           No Pending Actions in Timelock
@@ -192,7 +192,7 @@ const PendingActionsCarousel: React.FC = () => {
         return (
           <Card
             key={a.id}
-            className="min-w-[280px] max-w-[280px] snap-center rounded-[1.5rem] border-orange-100 shadow-sm flex-shrink-0 transition-all hover:shadow-md bg-white"
+            className="min-w-[280px] max-w-[280px] snap-center rounded-[1.5rem] border-orange-100 dark:border-orange-900/40 shadow-sm flex-shrink-0 transition-all hover:shadow-md bg-white dark:bg-card"
           >
             <CardContent className="p-5 space-y-4">
               <div className="flex items-center justify-between">
@@ -200,32 +200,32 @@ const PendingActionsCarousel: React.FC = () => {
                   Optimistic Update
                 </Badge>
                 {a.category && (
-                  <span className="text-[9px] font-black uppercase tracking-widest text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 px-2 py-0.5 rounded-md">
                     {a.category}
                   </span>
                 )}
               </div>
 
               <div className="space-y-1">
-                <h4 className="font-black text-sm leading-tight text-slate-800">{a.title}</h4>
+                <h4 className="font-black text-sm leading-tight text-slate-800 dark:text-foreground">{a.title}</h4>
                 <p className="text-[11px] text-muted-foreground line-clamp-3 leading-relaxed">{a.description}</p>
               </div>
 
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-orange-600 bg-orange-50/80 p-2 rounded-lg border border-orange-100/50">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-orange-600 dark:text-orange-300 bg-orange-50/80 dark:bg-orange-950/30 p-2 rounded-lg border border-orange-100/50 dark:border-orange-900/40">
                 <Clock size={12} className="animate-pulse" />
                 {formatRemaining(a.timelock_expires_at)}
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-orange-50/50">
-                <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                  Vetoes <span className="text-slate-700">{a.veto_count}</span>/{a.veto_threshold}
+              <div className="flex items-center justify-between pt-3 border-t border-orange-50/50 dark:border-orange-900/30">
+                <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-muted-foreground">
+                  Vetoes <span className="text-slate-700 dark:text-foreground">{a.veto_count}</span>/{a.veto_threshold}
                 </div>
                 <Button
                   size="sm"
                   variant="outline"
                   disabled={vetoing === a.id || expired}
                   onClick={() => castVeto(a.id)}
-                  className="h-8 text-[9px] font-black uppercase tracking-widest border-orange-200 text-orange-700 hover:bg-orange-50 rounded-full transition-all hover:border-orange-300 shadow-sm"
+                  className="h-8 text-[9px] font-black uppercase tracking-widest border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/40 rounded-full transition-all hover:border-orange-300 shadow-sm"
                 >
                   {vetoing === a.id ? (
                     <>

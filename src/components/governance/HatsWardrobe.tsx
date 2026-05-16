@@ -125,7 +125,7 @@ const HatsWardrobe: React.FC = () => {
           href="/legal/IDIA_Data_DUNA_Welcome_Manual.pdf"
           download
           title="Download IDIA DUNA Welcome Manual"
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest text-[hsl(178,42%,32%)] bg-teal-50 hover:bg-teal-100 transition-colors border border-teal-200"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest text-[hsl(178,42%,32%)] dark:text-teal-200 bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/50 transition-colors border border-teal-200 dark:border-teal-800"
         >
           <FileDown size={11} />
           Manual
@@ -151,15 +151,15 @@ const HatsWardrobe: React.FC = () => {
               className={cn(
                 "min-w-[72px] flex-shrink-0 rounded-2xl p-3 border text-center transition-all duration-300 relative group cursor-help",
                 active
-                  ? "bg-white border-teal-200 shadow-sm hover:shadow-md"
+                  ? "bg-white dark:bg-card border-teal-200 dark:border-teal-800 shadow-sm hover:shadow-md"
                   : grayed
-                    ? "bg-amber-50/50 border-amber-200 opacity-80"
-                    : "bg-slate-50 border-slate-200 opacity-40 hover:opacity-60",
+                    ? "bg-amber-50/50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/50 opacity-80"
+                    : "bg-slate-50 dark:bg-muted/40 border-slate-200 dark:border-border opacity-40 hover:opacity-60",
               )}
             >
               {grayed && (
                 <div
-                  className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full border-2 border-white animate-pulse"
+                  className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full border-2 border-white dark:border-card animate-pulse"
                   title="Authority Rot Warning: Verify Identity"
                 />
               )}
@@ -167,14 +167,14 @@ const HatsWardrobe: React.FC = () => {
               <Icon
                 className={cn(
                   "w-5 h-5 mx-auto mb-1 transition-colors",
-                  active ? "text-orange-500 drop-shadow-sm" : grayed ? "text-amber-600" : "text-slate-400",
+                  active ? "text-orange-500 drop-shadow-sm" : grayed ? "text-amber-600 dark:text-amber-400" : "text-slate-400 dark:text-muted-foreground",
                 )}
               />
 
               <div
                 className={cn(
                   "text-[8px] font-black uppercase tracking-wider transition-colors",
-                  active ? "text-teal-800" : grayed ? "text-amber-800" : "text-slate-400",
+                  active ? "text-teal-800 dark:text-teal-200" : grayed ? "text-amber-800 dark:text-amber-300" : "text-slate-400 dark:text-muted-foreground",
                 )}
               >
                 {meta.label}

@@ -44,7 +44,7 @@ const GovernanceScreen: React.FC = () => {
 
 
   return (
-    <div className="space-y-5 bg-white min-h-screen p-4 pb-24 animate-in fade-in duration-700">
+    <div className="space-y-5 bg-white dark:bg-background min-h-screen p-4 pb-24 animate-in fade-in duration-700">
       {/* IDIA Governance Token Card */}
       <Card className="bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] text-white border-none shadow-xl rounded-[2.5rem] overflow-hidden">
         <CardContent className="p-7">
