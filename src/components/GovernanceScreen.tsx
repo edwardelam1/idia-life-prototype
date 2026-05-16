@@ -133,6 +133,7 @@ const GovernanceScreen: React.FC = () => {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onSuccess={() => setRefreshKey((p) => p + 1)}
+        idiaBalance={idiaBalance}
       />
     </div>
   );
