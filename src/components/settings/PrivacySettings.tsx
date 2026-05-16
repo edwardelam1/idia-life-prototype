@@ -5,11 +5,13 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Shield, Database, Trash2, Download, Smartphone, Activity, Camera, HeartPulse, Bluetooth, Mic, ScanLine, Info, Loader2 } from 'lucide-react';
+import { Shield, Database, Trash2, Download, Smartphone, Activity, Camera, HeartPulse, Bluetooth, Mic, ScanLine, Info, Loader2, ExternalLink, CheckCircle2, XCircle } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { SecureStoragePlugin } from 'capacitor-secure-storage-plugin';
+import { useHardwarePermission } from '@/hooks/useHardwarePermission';
+import type { HardwareKey } from '@/plugins/permissions';
 
 const SECURE_KEYS_TO_WIPE = [
   'user_pii_profile',
