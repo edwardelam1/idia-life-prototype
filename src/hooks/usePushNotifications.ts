@@ -15,9 +15,10 @@ export function usePushNotifications() {
     let platform = "web";
 
     try {
-      // Try Capacitor first (native)
-      // @ts-ignore - optional dep on web
-      const mod = await import("@capacitor/push-notifications").catch(() => null);
+      // Try Capacitor first (native). Use variable + vite-ignore so the web bundle
+      // doesn't fail when the optional native dep is absent.
+      const pkg = "@capacitor/push-notifications";
+      const mod = await import(/* @vite-ignore */ pkg).catch(() => null);
       if (mod?.PushNotifications) {
         const perm = await mod.PushNotifications.requestPermissions();
         if (perm.receive !== "granted") {
