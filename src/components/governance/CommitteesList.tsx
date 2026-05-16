@@ -340,13 +340,13 @@ const CommitteesList: React.FC = () => {
           return (
             <Card
               key={committee.id}
-              className="overflow-hidden border-teal-100 shadow-sm transition-all hover:shadow-md"
+              className="overflow-hidden border-teal-100 dark:bg-card dark:border-teal-900/40 shadow-sm transition-all hover:shadow-md"
             >
               <CardContent className="p-0">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-4">
                   <div className="flex items-start gap-4">
-                    <div className="p-3 bg-teal-50 rounded-xl">
-                      <Icon className="w-6 h-6 text-teal-700" />
+                    <div className="p-3 bg-teal-50 dark:bg-teal-950/40 rounded-xl">
+                      <Icon className="w-6 h-6 text-teal-700 dark:text-teal-300" />
                     </div>
                     <div className="space-y-1">
                       <h3 className="font-bold text-sm text-foreground">{committee.name}</h3>
@@ -354,7 +354,7 @@ const CommitteesList: React.FC = () => {
                         {committee.description}
                       </p>
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-orange-500 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/30 px-2 py-0.5 rounded-full">
                           {activeMembers} Active Officer{activeMembers === 1 ? "" : "s"}
                         </span>
                         <span className="text-[10px] text-muted-foreground font-medium">{committee.pathway}</span>
@@ -365,7 +365,7 @@ const CommitteesList: React.FC = () => {
                   <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
                     {isActiveMember ? (
                       <>
-                        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
+                        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 px-2.5 py-1 rounded-full border border-emerald-100 dark:border-emerald-900/50">
                           <ShieldCheck className="w-3 h-3" /> Active Officer
                         </div>
                         <Button
@@ -373,7 +373,7 @@ const CommitteesList: React.FC = () => {
                           size="sm"
                           disabled={busy}
                           onClick={() => setResignTarget(committee)}
-                          className="w-full sm:w-auto border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+                          className="w-full sm:w-auto border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-800"
                         >
                           {busy ? (
                             <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
@@ -385,7 +385,7 @@ const CommitteesList: React.FC = () => {
                       </>
                     ) : isPending ? (
                       <>
-                        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-900/50">
                           <Clock className="w-3 h-3" /> Pending Audit
                         </div>
                         <Button
@@ -393,7 +393,7 @@ const CommitteesList: React.FC = () => {
                           size="sm"
                           disabled={busy}
                           onClick={() => setRevokeTarget(committee)}
-                          className="w-full sm:w-auto border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-800"
+                          className="w-full sm:w-auto border-orange-200 dark:border-orange-900/50 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/30 hover:text-orange-800"
                         >
                           {busy ? (
                             <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
@@ -407,7 +407,7 @@ const CommitteesList: React.FC = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full sm:w-auto border-teal-200 text-teal-800 hover:bg-teal-50"
+                        className="w-full sm:w-auto border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-200 hover:bg-teal-50 dark:hover:bg-teal-950/40"
                         onClick={() => handleApplyClick(committee)}
                       >
                         Apply to Join <ChevronRight className="w-4 h-4 ml-1 opacity-50" />
@@ -443,7 +443,7 @@ const CommitteesList: React.FC = () => {
               <Textarea
                 id="competence"
                 placeholder="Detail your professional experience and operational readiness for this specific domain..."
-                className="min-h-[120px] resize-none text-sm"
+                className="min-h-[120px] resize-none text-sm bg-background text-foreground border-input placeholder:text-muted-foreground"
                 value={statement}
                 onChange={(e) => setStatement(e.target.value)}
                 disabled={isProcessing}
@@ -451,7 +451,7 @@ const CommitteesList: React.FC = () => {
               <p className="text-[10px] text-right text-muted-foreground">{statement.length} / 50 min chars</p>
             </div>
 
-            <div className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+            <div className="flex items-start space-x-3 p-3 bg-slate-50 dark:bg-muted/30 rounded-lg border border-slate-100 dark:border-border">
               <Checkbox
                 id="msa"
                 checked={msaAcknowledged}
