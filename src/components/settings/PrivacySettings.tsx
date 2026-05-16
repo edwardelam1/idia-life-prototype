@@ -267,3 +267,81 @@ export function PrivacySettings() {
     </div>
   );
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// Hardware Permissions Section — three-state UI bound to native OS prompts.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const HW_ROWS: Array<{
+  key: HardwareKey;
+  label: string;
+  description: string;
+  Icon: React.ComponentType<{ className?: string }>;
+}> = [
+  { key: 'motion',     label: 'Device Motion', description: 'Gyroscope and spatial awareness',  Icon: Activity },
+  { key: 'camera',     label: 'Camera',        description: 'Visual processing and AR features', Icon: Camera },
+  { key: 'health',     label: 'Health Kit',    description: 'Biometrics and vitals syncing',     Icon: HeartPulse },
+  { key: 'bluetooth',  label: 'Bluetooth',     description: 'Proximity and external wearables',  Icon: Bluetooth },
+  { key: 'microphone', label: 'Microphone',    description: 'Voice interactions and commands',   Icon: Mic },
+  { key: 'nfc',        label: 'NFC Scan',      description: 'Physical tap and handshake logic',  Icon: ScanLine },
+];
+
+function HardwarePermissionsSection() {
+  const { isEnabled, grantState, setToggle, openAppSettings } = useHardwarePermission();
+  const [pending, setPending] = useState<HardwareKey | null>(null);
+
+  const onToggle = async (key: HardwareKey, next: boolean) => {
+    setPending(key);
+    try { await setToggle(key, next); } finally { setPending(null); }
+  };
+
+  return (
+    <section className="space-y-4 pt-2 border-t">
+      <div className="flex items-center gap-2">
+        <Smartphone className="w-4 h-4 text-muted-foreground" />
+        <h3 className="text-sm font-semibold">Hardware Permissions</h3>
+      </div>
+
+      <div className="space-y-4 pl-1">
+        {HW_ROWS.map(({ key, label, description, Icon }) => {
+          const enabled = isEnabled(key);
+          const state = grantState[key];
+          const denied = state === 'denied';
+          const unsupported = state === 'unsupported';
+          return (
+            <div key={key} className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <Icon className="w-4 h-4 text-muted-foreground" />
+                <div className="space-y-0.5">
+                  <Label htmlFor={`privacy-${key}`} className="text-sm font-medium flex items-center gap-1.5">
+                    {label}
+                    {state === 'granted' && enabled && <CheckCircle2 className="w-3 h-3 text-[hsl(142,71%,45%)]" />}
+                    {denied && <XCircle className="w-3 h-3 text-amber-500" />}
+                  </Label>
+                  <p className="text-xs text-muted-foreground">{description}</p>
+                  {denied && (
+                    <button
+                      type="button"
+                      onClick={openAppSettings}
+                      className="text-[11px] text-amber-600 hover:underline inline-flex items-center gap-0.5 mt-0.5"
+                    >
+                      Open device Settings <ExternalLink className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                  {unsupported && (
+                    <p className="text-[11px] text-muted-foreground italic">Not available on this device</p>
+                  )}
+                </div>
+              </div>
+              <Switch
+                id={`privacy-${key}`}
+                checked={enabled}
+                disabled={pending === key || unsupported}
+                onCheckedChange={(v) => onToggle(key, v)}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
