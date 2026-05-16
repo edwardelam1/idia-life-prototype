@@ -157,7 +157,13 @@ const DataDashboard = () => {
         cleaned.push(entry);
       }
 
-      setLastSyncStatus(calculatedSyncStatus);
+      setLastSyncStatus((prev) => {
+        if (prev !== calculatedSyncStatus) {
+          const seed = auditData.length > 0 ? new Date(auditData[0].created_at) : new Date();
+          setLastStatusChangeAt(seed);
+        }
+        return calculatedSyncStatus;
+      });
       setConnections(cleaned);
 
       // Wallet balance handled by useWalletBalance hook (USDC tile).
