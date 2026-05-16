@@ -12,7 +12,19 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { ShieldAlert, Code, Scale, HeartHandshake, ChevronRight, Fingerprint, Loader2, Clock } from "lucide-react";
+import {
+  ShieldAlert,
+  Code,
+  Scale,
+  HeartHandshake,
+  ChevronRight,
+  Fingerprint,
+  Loader2,
+  Clock,
+  RotateCcw,
+  LogOut,
+  ShieldCheck,
+} from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
@@ -35,7 +47,7 @@ const COMMITTEES_META = [
     pathway: "Level 1 pathway to the 🤝 Sociorelational Hat",
   },
   {
-    id: "security_council", // Aligned ID with dao_hats enum
+    id: "security_council",
     name: "Security Council Auxiliary",
     icon: ShieldAlert,
     description: "Audits smart contracts, monitors for Sybil attacks, and reviews system threat telemetries.",
@@ -50,16 +62,26 @@ const COMMITTEES_META = [
   },
 ];
 
+type CommitteeMeta = (typeof COMMITTEES_META)[0];
+
 const CommitteesList: React.FC = () => {
-  const [selectedCommittee, setSelectedCommittee] = useState<(typeof COMMITTEES_META)[0] | null>(null);
+  const [selectedCommittee, setSelectedCommittee] = useState<CommitteeMeta | null>(null);
   const [statement, setStatement] = useState("");
   const [msaAcknowledged, setMsaAcknowledged] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Live Ledger States
   const [officerCounts, setOfficerCounts] = useState<Record<string, number>>({});
-  const [userApplications, setUserApplications] = useState<string[]>([]);
+  // Map committee_id -> { applicationId, status } for the current user
+  const [userApplications, setUserApplications] = useState<Record<string, { id: string; status: string }>>({});
+  // Set of hat_type values where the current user holds an active hat
+  const [userActiveHats, setUserActiveHats] = useState<Set<string>>(new Set());
   const [isLoadingLedger, setIsLoadingLedger] = useState(true);
+
+  // Confirm dialog state for revoke + resign
+  const [revokeTarget, setRevokeTarget] = useState<CommitteeMeta | null>(null);
+  const [resignTarget, setResignTarget] = useState<CommitteeMeta | null>(null);
+  const [actionBusyId, setActionBusyId] = useState<string | null>(null);
 
   const fetchLedgerState = async () => {
     console.log("[COMMITTEES_LIST] START: Hydrating live registry metrics.");
@@ -68,30 +90,38 @@ const CommitteesList: React.FC = () => {
         data: { user },
       } = await supabase.auth.getUser();
 
-      // 1. Fetch live active officer counts from the Hats wardrobe ledger
+      // 1. Live active officer counts
       const { data: hatsData, error: hatsError } = await (supabase as any)
         .from("dao_hats")
-        .select("hat_type")
+        .select("hat_type, user_id, eligibility_status, revoked_at")
         .eq("eligibility_status", "active")
         .is("revoked_at", null);
 
       if (hatsError) throw hatsError;
 
       const counts: Record<string, number> = {};
+      const myHats = new Set<string>();
       hatsData?.forEach((hat: any) => {
         counts[hat.hat_type] = (counts[hat.hat_type] || 0) + 1;
+        if (user && hat.user_id === user.id) myHats.add(hat.hat_type);
       });
       setOfficerCounts(counts);
+      setUserActiveHats(myHats);
 
-      // 2. Fetch current user's pending applications to prevent duplicate submissions
+      // 2. Current user's pending/approved applications
       if (user) {
         const { data: appsData, error: appsError } = await (supabase as any)
           .from("committee_applications")
-          .select("committee_id")
-          .eq("user_id", user.id);
+          .select("id, committee_id, status")
+          .eq("user_id", user.id)
+          .in("status", ["pending", "approved"]);
 
         if (appsError) throw appsError;
-        if (appsData) setUserApplications(appsData.map((a: any) => a.committee_id));
+        const map: Record<string, { id: string; status: string }> = {};
+        (appsData || []).forEach((a: any) => {
+          map[a.committee_id] = { id: a.id, status: a.status };
+        });
+        setUserApplications(map);
       }
 
       console.log("[COMMITTEES_LIST] SUCCESS: Registry metrics synced.");
@@ -106,7 +136,7 @@ const CommitteesList: React.FC = () => {
     fetchLedgerState();
   }, []);
 
-  const handleApplyClick = (committee: (typeof COMMITTEES_META)[0]) => {
+  const handleApplyClick = (committee: CommitteeMeta) => {
     console.log(`[UI_INTERACTION] START: User selected ${committee.name} for application.`);
     setSelectedCommittee(committee);
     setStatement("");
@@ -126,52 +156,34 @@ const CommitteesList: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      console.log(`[COMMITTEE_APPLICATION] VERIFY: Auditing Statement of Competence payload.`);
       if (statement.trim().length < 50) {
-        const err = new Error(
-          "Statement of Competence failed validation: Insufficient length. Minimum 50 characters required.",
-        );
-        console.error(`[COMMITTEE_APPLICATION] VALIDATION_ERROR: ${err.message}`);
         toast({
           title: "Validation Failed",
           description: "Your Statement of Competence must be at least 50 characters.",
           variant: "destructive",
         });
-        throw err;
+        throw new Error("Statement too short.");
       }
-
-      console.log(`[COMMITTEE_APPLICATION] VERIFY: Checking Delaware MSA Fiduciary Bonding acknowledgment.`);
       if (!msaAcknowledged) {
-        const err = new Error("Fiduciary bonding refused. User must acknowledge MSA liability.");
-        console.error(`[COMMITTEE_APPLICATION] VALIDATION_ERROR: ${err.message}`);
         toast({
           title: "Bonding Required",
           description: "You must legally bind your identity to the MSA to proceed.",
           variant: "destructive",
         });
-        throw err;
+        throw new Error("MSA not acknowledged.");
       }
 
-      console.log(`[COMMITTEE_APPLICATION] AUTH: Retrieving local sovereign identity.`);
       const {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
-      if (authError || !user) {
-        throw new Error("Authentication failure prior to ACA generation.");
-      }
+      if (authError || !user) throw new Error("Authentication failure prior to ACA generation.");
 
-      console.log(`[COMMITTEE_APPLICATION] ACA_ANCHOR_START: Requesting hardware-backed biological anchor...`);
       const { hash, payload } = await generateACAHash(user.id, `committee_join_${selectedCommittee?.id}`, [
         "DELAWARE_MSA_BONDING",
         "LEDGER_WRITE",
       ]);
-      console.log(
-        `[COMMITTEE_APPLICATION] ACA_ANCHOR_END: Biological presence verified. SHA-256 Hash Generated: ${hash}`,
-      );
 
-      console.log(`[COMMITTEE_APPLICATION] NETWORK_START: Transmitting secure payload to Delaware MSA Registry.`);
-      // Fixed: Cast the entire supabase object to any to bypass inference
       const { error: ledgerError } = await (supabase as any).from("committee_applications").insert({
         user_id: user.id,
         committee_id: selectedCommittee?.id,
@@ -180,25 +192,133 @@ const CommitteesList: React.FC = () => {
         aca_payload: payload,
         status: "pending",
       });
-
       if (ledgerError) throw ledgerError;
-      console.log(`[COMMITTEE_APPLICATION] NETWORK_END: Ledger entry committed.`);
 
       toast({
         title: "Application Committed",
         description: `Identity anchored to ${selectedCommittee?.name} with ACA Hash: ${hash.substring(0, 8)}...`,
       });
 
-      // Refresh UI state
       fetchLedgerState();
       setSelectedCommittee(null);
     } catch (error: any) {
-      // Redundant toast removed here to prevent double-notifications.
-      // The terminal log maintains the engineering audit trail.
-      console.error(`[COMMITTEE_APPLICATION] CRITICAL_FAILURE: Ascension sequence halted. Reason: ${error.message}`);
+      console.error(`[COMMITTEE_APPLICATION] CRITICAL_FAILURE: ${error.message}`);
     } finally {
       setIsProcessing(false);
-      console.log(`[COMMITTEE_APPLICATION] END: Execution thread terminated.`);
+    }
+  };
+
+  const handleRevokeRequest = async (committee: CommitteeMeta) => {
+    console.log(`[COMMITTEE_REVOKE] START: Withdrawing pending application for ${committee.id}.`);
+    if (!isNative()) {
+      toast({
+        title: "Native Device Required",
+        description: "Withdrawing a bonded application requires Secure Enclave attestation.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const app = userApplications[committee.id];
+    if (!app || app.status !== "pending") {
+      toast({ title: "No Pending Application", description: "Nothing to withdraw.", variant: "destructive" });
+      setRevokeTarget(null);
+      return;
+    }
+
+    setActionBusyId(committee.id);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Authentication failure.");
+
+      const { hash, payload } = await generateACAHash(user.id, `committee_revoke_request_${committee.id}`, [
+        "DELAWARE_MSA_WITHDRAWAL",
+        "LEDGER_WRITE",
+      ]);
+
+      const { error } = await (supabase as any)
+        .from("committee_applications")
+        .update({ status: "withdrawn", aca_hash_key: hash, aca_payload: payload })
+        .eq("id", app.id)
+        .eq("user_id", user.id)
+        .eq("status", "pending");
+      if (error) throw error;
+
+      toast({
+        title: "Request Withdrawn",
+        description: `Pending application to ${committee.name} released. ACA ${hash.substring(0, 8)}…`,
+      });
+      setRevokeTarget(null);
+      fetchLedgerState();
+    } catch (error: any) {
+      console.error(`[COMMITTEE_REVOKE] CRITICAL_FAILURE: ${error.message}`);
+      toast({ title: "Withdrawal Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
+  const handleRemoveMembership = async (committee: CommitteeMeta) => {
+    console.log(`[COMMITTEE_RESIGN] START: Revoking active hat ${committee.id}.`);
+    if (!isNative()) {
+      toast({
+        title: "Native Device Required",
+        description: "Resigning an officer hat requires Secure Enclave attestation.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setActionBusyId(committee.id);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Authentication failure.");
+
+      const { hash, payload } = await generateACAHash(user.id, `committee_resign_${committee.id}`, [
+        "DELAWARE_MSA_RESIGNATION",
+        "HAT_REVOCATION",
+      ]);
+
+      const { error } = await (supabase as any)
+        .from("dao_hats")
+        .update({
+          revoked_at: new Date().toISOString(),
+          eligibility_status: "revoked",
+          revocation_aca_hash: hash,
+          revocation_aca_payload: payload,
+        })
+        .eq("user_id", user.id)
+        .eq("hat_type", committee.id)
+        .eq("eligibility_status", "active")
+        .is("revoked_at", null);
+
+      // If the optional columns don't exist, retry minimally without them.
+      if (error && (error.message?.includes("revocation_aca_hash") || error.message?.includes("column"))) {
+        const retry = await (supabase as any)
+          .from("dao_hats")
+          .update({ revoked_at: new Date().toISOString(), eligibility_status: "revoked" })
+          .eq("user_id", user.id)
+          .eq("hat_type", committee.id)
+          .eq("eligibility_status", "active")
+          .is("revoked_at", null);
+        if (retry.error) throw retry.error;
+      } else if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Membership Revoked",
+        description: `You have stepped down from ${committee.name}. ACA ${hash.substring(0, 8)}…`,
+      });
+      setResignTarget(null);
+      fetchLedgerState();
+    } catch (error: any) {
+      console.error(`[COMMITTEE_RESIGN] CRITICAL_FAILURE: ${error.message}`);
+      toast({ title: "Resignation Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setActionBusyId(null);
     }
   };
 
@@ -225,9 +345,11 @@ const CommitteesList: React.FC = () => {
       <div className="grid gap-4">
         {COMMITTEES_META.map((committee) => {
           const Icon = committee.icon;
-          // Dynamically map active members. Defaults to 0 if none exist yet.
           const activeMembers = officerCounts[committee.id] || 0;
-          const hasApplied = userApplications.includes(committee.id);
+          const app = userApplications[committee.id];
+          const isActiveMember = userActiveHats.has(committee.id);
+          const isPending = !!app && app.status === "pending";
+          const busy = actionBusyId === committee.id;
 
           return (
             <Card
@@ -245,7 +367,7 @@ const CommitteesList: React.FC = () => {
                       <p className="text-xs text-muted-foreground line-clamp-2 sm:line-clamp-none max-w-sm">
                         {committee.description}
                       </p>
-                      <div className="flex items-center gap-2 mt-2">
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">
                           {activeMembers} Active Officer{activeMembers === 1 ? "" : "s"}
                         </span>
@@ -254,26 +376,58 @@ const CommitteesList: React.FC = () => {
                     </div>
                   </div>
 
-                  {hasApplied ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled
-                      className="w-full sm:w-auto border-amber-200 text-amber-700 bg-amber-50/50"
-                    >
-                      <Clock className="w-3 h-3 mr-1.5" />
-                      Pending Audit
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full sm:w-auto border-teal-200 text-teal-800 hover:bg-teal-50"
-                      onClick={() => handleApplyClick(committee)}
-                    >
-                      Apply to Join <ChevronRight className="w-4 h-4 ml-1 opacity-50" />
-                    </Button>
-                  )}
+                  <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
+                    {isActiveMember ? (
+                      <>
+                        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
+                          <ShieldCheck className="w-3 h-3" /> Active Officer
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => setResignTarget(committee)}
+                          className="w-full sm:w-auto border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+                        >
+                          {busy ? (
+                            <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                          ) : (
+                            <LogOut className="w-3 h-3 mr-1.5" />
+                          )}
+                          Remove Membership
+                        </Button>
+                      </>
+                    ) : isPending ? (
+                      <>
+                        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                          <Clock className="w-3 h-3" /> Pending Audit
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => setRevokeTarget(committee)}
+                          className="w-full sm:w-auto border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-800"
+                        >
+                          {busy ? (
+                            <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                          ) : (
+                            <RotateCcw className="w-3 h-3 mr-1.5" />
+                          )}
+                          Revoke Request
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full sm:w-auto border-teal-200 text-teal-800 hover:bg-teal-50"
+                        onClick={() => handleApplyClick(committee)}
+                      >
+                        Apply to Join <ChevronRight className="w-4 h-4 ml-1 opacity-50" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -281,6 +435,7 @@ const CommitteesList: React.FC = () => {
         })}
       </div>
 
+      {/* Apply dialog */}
       <Dialog open={!!selectedCommittee} onOpenChange={(open) => !open && setSelectedCommittee(null)}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -348,6 +503,92 @@ const CommitteesList: React.FC = () => {
                 <>
                   <Fingerprint className="mr-2 h-4 w-4" />
                   ACA Handshake & Submit
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Revoke pending request dialog */}
+      <Dialog open={!!revokeTarget} onOpenChange={(open) => !open && setRevokeTarget(null)}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="w-5 h-5 text-orange-500" />
+              Revoke Pending Request
+            </DialogTitle>
+            <DialogDescription>
+              Withdraw your pending application to{" "}
+              <strong className="text-foreground">{revokeTarget?.name}</strong>. Your fiduciary ACA bond will be
+              released and you may re-apply later.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setRevokeTarget(null)}
+              disabled={actionBusyId === revokeTarget?.id}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+              onClick={() => revokeTarget && handleRevokeRequest(revokeTarget)}
+              disabled={actionBusyId === revokeTarget?.id}
+            >
+              {actionBusyId === revokeTarget?.id ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Releasing ACA…
+                </>
+              ) : (
+                <>
+                  <Fingerprint className="mr-2 h-4 w-4" />
+                  ACA Handshake & Withdraw
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove membership dialog */}
+      <Dialog open={!!resignTarget} onOpenChange={(open) => !open && setResignTarget(null)}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <LogOut className="w-5 h-5 text-red-500" />
+              Remove Committee Membership
+            </DialogTitle>
+            <DialogDescription>
+              You are stepping down from <strong className="text-foreground">{resignTarget?.name}</strong>. Your
+              officer hat will be revoked on-ledger and you will lose committee voting rights. This action is
+              recorded immutably.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setResignTarget(null)}
+              disabled={actionBusyId === resignTarget?.id}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => resignTarget && handleRemoveMembership(resignTarget)}
+              disabled={actionBusyId === resignTarget?.id}
+            >
+              {actionBusyId === resignTarget?.id ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Revoking Hat…
+                </>
+              ) : (
+                <>
+                  <Fingerprint className="mr-2 h-4 w-4" />
+                  ACA Handshake & Resign
                 </>
               )}
             </Button>
