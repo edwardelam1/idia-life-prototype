@@ -35,10 +35,12 @@ export const generateACAHash = async (
         throw new Error("BIOMETRIC_REJECTED");
       }
     } else {
-      // ─── DEVELOPMENT BYPASS (Iframe/Web Only) ─────────────────────────────
-      // Only active during development to prevent build stalls.
-      console.warn("[ACA_HARDWARE] PLATFORM: Web/Preview. Emulating anchor for development.");
-      hardwareAttestationId = `DEV_TOUCHPOINT_SIMULATION_${crypto.randomUUID()}`;
+      // ─── WEB / PREVIEW REFUSAL ────────────────────────────────────────────
+      // No simulated ACA, ever. Without a real Secure Enclave attestation we
+      // refuse to fabricate an anchor. Callers must surface a "use native app"
+      // path. This enforces the No-Mock-Data rule for the ACA pipeline.
+      console.error("[ACA_HARDWARE] REFUSED: Native Secure Enclave required. No simulation permitted.");
+      throw new Error("ACA_NATIVE_REQUIRED");
     }
 
     // ─── IMMUTABLE PAYLOAD CONSTRUCTION ─────────────────────────────────────
