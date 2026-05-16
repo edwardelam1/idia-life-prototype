@@ -32,6 +32,8 @@ export function useNFCBridge() {
   const [isBridgeAvailable, setIsBridgeAvailable] = useState<boolean>(() => detectBridge());
   const [isScanning, setIsScanning] = useState(false);
   const scanningRef = useRef(false);
+  const { preferences } = useProfile();
+  const nfcAllowed = (preferences as any)?.privacy_nfc !== false;
 
   // ---- Listener installation ---------------------------------------------
   useEffect(() => {
