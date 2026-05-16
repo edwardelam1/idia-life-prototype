@@ -11,9 +11,7 @@ import ProScreen from "./pro/ProScreen";
 import Header from "./Header";
 import { FriendAssistantProvider } from "./FriendAssistant";
 import WelcomeSequence from "./life/WelcomeSequence";
-
-// Protocol Release Constant
-const IDIA_PAY_RELEASE_DATE = new Date("2026-07-11T00:00:00Z");
+import { IDIA_PAY_RELEASE_DATE } from "@/config/release";
 
 const MainApp = () => {
   const [activeTab, setActiveTab] = useState("wallet");

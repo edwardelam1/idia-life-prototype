@@ -180,20 +180,13 @@ const WalletDashboard = () => {
             <h2 className="text-lg font-bold">Your Balances</h2>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center">
-              <p className="text-teal-100 text-xs font-medium">Cash</p>
-              {/* Updated to use balance from hook */}
-              <p className="text-xl font-bold">${balance.cash_balance.toFixed(2)}</p>
-            </div>
+          <div className="grid grid-cols-2 gap-4">
             <div className="text-center">
               <p className="text-teal-100 text-xs font-medium">USDC</p>
-              {/* Updated to use balance from hook */}
               <p className="text-xl font-bold">${balance.usdc_balance.toFixed(2)}</p>
             </div>
             <div className="text-center">
               <p className="text-teal-100 text-xs font-medium">IDIA Token</p>
-              {/* Updated to use balance from hook */}
               <p className="text-xl font-bold">{balance.idia_token_balance.toFixed(2)}</p>
             </div>
           </div>
