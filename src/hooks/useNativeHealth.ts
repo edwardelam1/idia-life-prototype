@@ -41,6 +41,7 @@ export function useNativeHealth() {
   }, [healthAllowed]);
 
   const fetchRange = useCallback(async (start: Date, end: Date) => {
+    if (!healthAllowed) { const r = blockedResult(); setLastSync(r); setError(r.error!); return r; }
     setIsSyncing(true); setError(null);
     try {
       const r = await healthService.fetchAndSync(start, end, true); setLastSync(r);
@@ -50,7 +51,7 @@ export function useNativeHealth() {
       const r: HealthSyncResult = { success: false, error: e.message, synced: false };
       setLastSync(r); setError(e.message); return r;
     } finally { setIsSyncing(false); }
-  }, []);
+  }, [healthAllowed]);
 
   return { status, isAvailable: status?.available ?? false, isSyncing, lastSync, error,
     requestPermissions, quickSync, fetchRange, isNativePlatform: isNative() };
