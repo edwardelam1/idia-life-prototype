@@ -2838,6 +2838,39 @@ export type Database = {
         }
         Relationships: []
       }
+      focus_modes: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          quiet_hours_end: string
+          quiet_hours_start: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          quiet_hours_end?: string
+          quiet_hours_start?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          quiet_hours_end?: string
+          quiet_hours_start?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       franchise_agreements: {
         Row: {
           agreement_end_date: string | null
@@ -5634,6 +5667,33 @@ export type Database = {
           supplier_name?: string
           total_amount?: number | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      push_tokens: {
+        Row: {
+          created_at: string
+          id: string
+          platform: string
+          token: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          platform: string
+          token: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          platform?: string
+          token?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

@@ -381,12 +381,8 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
                 <h2 className="text-lg font-bold">Total Balance</h2>
                 <Wallet className="w-6 h-6 opacity-50" />
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <div className="text-center">
-                  <p className="text-teal-100 text-[10px] font-medium uppercase font-bold">Fiat (USD)</p>
-                  <p className="text-xl font-black">${walletBalance?.cash_balance?.toFixed(2) || "0.00"}</p>
-                </div>
-                <div className="text-center border-x border-white/20">
                   <p className="text-teal-100 text-[10px] font-medium uppercase font-bold">Stable USDC</p>
                   <p className="text-xl font-black">${walletBalance?.usdc_balance?.toFixed(2) || "0.00"}</p>
                 </div>

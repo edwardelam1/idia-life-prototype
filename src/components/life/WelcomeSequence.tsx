@@ -13,7 +13,7 @@ interface SpotlightTab {
   copy: string;
 }
 
-const IDIA_PAY_RELEASE_DATE = new Date("2026-07-11T00:00:00Z");
+import { IDIA_PAY_RELEASE_DATE } from "@/config/release";
 
 const ALL_SPOTLIGHT_TABS: SpotlightTab[] = [
   { id: "wallet", label: "Wallet", copy: "See, manage, and control your financial world with clarity." },
