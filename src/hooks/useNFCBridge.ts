@@ -144,7 +144,7 @@ export function useNFCBridge() {
       
       console.log("[BRIDGE_HANDSHAKE_END]");
     },
-    []
+    [nfcAllowed]
   );
 
   return { isBridgeAvailable, isScanning, initiateSovereignHandshake };
