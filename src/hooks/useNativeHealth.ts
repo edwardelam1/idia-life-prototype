@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { healthService } from '@/services/healthService';
 import type { HealthSyncResult, HealthServiceStatus } from '@/services/healthService';
 import { isNative } from '@/services/platform';
+import { useProfile } from '@/hooks/useProfile';
 
 export function useNativeHealth() {
   const [status, setStatus] = useState<HealthServiceStatus | null>(null);
