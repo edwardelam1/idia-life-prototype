@@ -4,88 +4,167 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Fingerprint, PenTool } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Loader2, Send, ShieldAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { generateACAHash } from "@/utils/acaGenerator";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  idiaBalance: number;
 }
 
-export const CreateDaoProposalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
+const MIN_IDIA_TO_PROPOSE = 1;
+
+const CATEGORIES: { value: string; label: string }[] = [
+  { value: "data-policy", label: "Data Policy" },
+  { value: "rewards", label: "Rewards & Incentives" },
+  { value: "platform", label: "Platform Features" },
+  { value: "governance", label: "Governance" },
+  { value: "security", label: "Security & Privacy" },
+  { value: "other", label: "Other" },
+];
+
+const IMPACTS = ["Low", "Medium", "High"] as const;
+
+export const CreateDaoProposalModal: React.FC<Props> = ({
+  isOpen,
+  onClose,
+  onSuccess,
+  idiaBalance,
+}) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("");
+  const [impact, setImpact] = useState<string>("Medium");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const hasInsufficientBalance = idiaBalance < MIN_IDIA_TO_PROPOSE;
+
+  const resetForm = () => {
+    setTitle("");
+    setDescription("");
+    setCategory("");
+    setImpact("Medium");
+  };
+
+  const fireInsufficientToast = () => {
+    toast({
+      title: "Insufficient IDIA",
+      description: `You must hold at least ${MIN_IDIA_TO_PROPOSE} IDIA to initiate a proposal.`,
+      variant: "destructive",
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !description.trim()) return;
+
+    // Balance gate (defense-in-depth)
+    if (hasInsufficientBalance) {
+      fireInsufficientToast();
+      return;
+    }
+
+    // Friction check
+    if (!title.trim() || !description.trim() || !category) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsSubmitting(true);
+    console.log("[PROPOSAL_SUBMIT] FLOW_START: Sovereign initiated proposal submission.");
+
     try {
+      console.log("[PROPOSAL_SUBMIT] AUTH_START: Resolving sovereign identity...");
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) throw new Error("Sovereign authentication failed.");
+      if (!user) throw new Error("Authentication required.");
+      console.log("[PROPOSAL_SUBMIT] AUTH_SUCCESS: User resolved.");
 
-      console.log(`[PROPOSAL_MINT] ACA_ANCHOR_START: Generating biometric anchor...`);
-      const { hash } = await generateACAHash(user.id, "create_proposal", [
-        "GOVERNANCE_PROPOSE",
-        "LEDGER_WRITE",
-      ]);
-      console.log(`[PROPOSAL_MINT] ACA_ANCHOR_END: Hash ${hash.substring(0, 12)}...`);
+      console.log("[PROPOSAL_SUBMIT] DB_INSERT_START: Committing payload to ledger...");
+      const { data: inserted, error: insertError } = await supabase
+        .from("user_proposals")
+        .insert({
+          user_id: user.id,
+          title: title.trim(),
+          description: description.trim(),
+          category,
+          suggested_impact: impact,
+        })
+        .select()
+        .single();
+      if (insertError) throw insertError;
+      console.log("[PROPOSAL_SUBMIT] DB_INSERT_SUCCESS: Row committed safely.", inserted.id);
 
-      const endDate = new Date();
-      endDate.setDate(endDate.getDate() + 7);
-
-      const { error } = await (supabase as any).from("dao_proposals").insert({
-        proposer_id: user.id,
-        title: title.trim(),
-        description: description.trim(),
-        voting_modality: "quadratic",
-        vote_type: "quadratic",
-        status: "active",
-        lifecycle_phase: "voting",
-        quorum_threshold: 1000,
-        end_date: endDate.toISOString(),
-      });
-
-      if (error) throw error;
+      console.log("[PROPOSAL_SUBMIT] EDGE_INVOKE_START: Triggering 'validate-proposal' synchronous check...");
+      const { data: validation, error: fnError } = await supabase.functions.invoke(
+        "validate-proposal",
+        {
+          body: {
+            proposalId: inserted.id,
+            title: title.trim(),
+            description: description.trim(),
+            category,
+          },
+        }
+      );
+      if (fnError) throw fnError;
+      console.log("[PROPOSAL_SUBMIT] EDGE_INVOKE_SUCCESS: Content validation complete.", validation);
 
       toast({
-        title: "Proposal Minted",
-        description: `Secured via ACA Hash ${hash.substring(0, 8)}...`,
+        title: "Proposal submitted!",
+        description:
+          validation?.feedback
+            ? `Status: ${validation.status} — ${validation.feedback}`
+            : "Your proposal is now under automated review.",
       });
 
-      setTitle("");
-      setDescription("");
+      resetForm();
       onSuccess();
       onClose();
     } catch (err: any) {
-      console.error("[PROPOSAL_MINT] Error:", err.message);
+      console.error("[PROPOSAL_SUBMIT] FLOW_ERROR:", err);
       toast({
-        title: "Mint Failed",
-        description: err.message,
+        title: "Submission failed",
+        description: err?.message ?? "Unknown error",
         variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
+      console.log("[PROPOSAL_SUBMIT] FLOW_END.");
     }
   };
 
+  const submitDisabled =
+    isSubmitting ||
+    !title.trim() ||
+    !description.trim() ||
+    !category ||
+    hasInsufficientBalance;
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
       <DialogContent className="sm:max-w-md rounded-3xl bg-white">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-slate-800 font-black">
-            <PenTool className="w-5 h-5 text-[hsl(178,42%,32%)]" />
-            Mint Proposal
+            <Send className="w-5 h-5 text-[hsl(178,42%,32%)]" />
+            Submit a Governance Proposal
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Submit a quadratic governance proposal to the Wyoming Operational Gateway.
+            Shape the protocol. Proposals are routed through automated validation before reaching the floor.
           </DialogDescription>
         </DialogHeader>
 
@@ -98,13 +177,53 @@ export const CreateDaoProposalModal: React.FC<Props> = ({ isOpen, onClose, onSuc
               id="prop-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Concise proposal title"
+              placeholder="Enter proposal title"
+              maxLength={100}
+              disabled={isSubmitting}
               className="bg-slate-50 border-slate-200"
               required
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                Category
+              </Label>
+              <Select value={category} onValueChange={setCategory} disabled={isSubmitting}>
+                <SelectTrigger className="bg-slate-50 border-slate-200">
+                  <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                Expected Impact
+              </Label>
+              <Select value={impact} onValueChange={setImpact} disabled={isSubmitting}>
+                <SelectTrigger className="bg-slate-50 border-slate-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {IMPACTS.map((i) => (
+                    <SelectItem key={i} value={i}>
+                      {i} Impact
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-1">
             <Label htmlFor="prop-desc" className="text-[10px] font-black uppercase tracking-widest text-slate-600">
               Description
             </Label>
@@ -112,25 +231,59 @@ export const CreateDaoProposalModal: React.FC<Props> = ({ isOpen, onClose, onSuc
               id="prop-desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Outline intent, scope, and expected outcome..."
-              className="bg-slate-50 border-slate-200 min-h-[120px] resize-none"
+              placeholder="Describe your proposal in detail..."
+              maxLength={1000}
+              rows={6}
+              disabled={isSubmitting}
+              className="bg-slate-50 border-slate-200 resize-none"
               required
             />
+            <p className="text-[10px] text-muted-foreground text-right">
+              {description.length}/1000
+            </p>
           </div>
 
-          <Button
-            type="submit"
-            disabled={isSubmitting || !title.trim() || !description.trim()}
-            className="w-full bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase tracking-widest h-12 rounded-xl mt-2"
-          >
-            {isSubmitting ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <>
-                <Fingerprint className="w-5 h-5 mr-2" /> Sign & Mint
-              </>
-            )}
-          </Button>
+          {hasInsufficientBalance && (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2">
+              <ShieldAlert className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-[11px] text-amber-800 leading-snug">
+                Insufficient IDIA — hold at least {MIN_IDIA_TO_PROPOSE} IDIA to mint a proposal.
+                Current: {idiaBalance.toFixed(4)}.
+              </p>
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="flex-1 h-11 rounded-xl"
+            >
+              Cancel
+            </Button>
+            <span
+              className="w-full block cursor-pointer flex-1"
+              onClick={() => {
+                if (hasInsufficientBalance && !isSubmitting) fireInsufficientToast();
+              }}
+            >
+              <Button
+                type="submit"
+                disabled={submitDisabled}
+                className="w-full h-11 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase tracking-widest rounded-xl"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" /> Submitting...
+                  </>
+                ) : (
+                  "Submit Proposal"
+                )}
+              </Button>
+            </span>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
