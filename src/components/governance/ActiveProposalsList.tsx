@@ -27,8 +27,8 @@ const ProposalCard: React.FC<{ proposal: Proposal; balance: number }> = ({ propo
     const cost = calculateVoteCost(voteWeight[0]);
     if (cost > balance) {
       toast({
-        title: "Native Device Required",
-        description: "Governance actions require Secure Enclave attestation. Please use the iOS or Android app.",
+        title: "Insufficient IDIA",
+        description: `This vote costs ${cost} IDIA. Your balance is ${balance}.`,
         variant: "destructive",
       });
       return;
