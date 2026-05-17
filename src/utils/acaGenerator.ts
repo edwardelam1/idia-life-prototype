@@ -1,4 +1,6 @@
 import { Capacitor } from "@capacitor/core";
+import { NativeBiometric } from "capacitor-native-biometric";
+import { Device } from "@capacitor/device";
 import { toast } from "@/hooks/use-toast";
 
 /**
@@ -18,21 +20,34 @@ export const generateACAHash = async (
     let hardwareAttestationId: string;
 
     if (isNative) {
-      // ─── MOBILE HARDWARE ANCHOR (iOS Swift / Android Kotlin) ──────────────
+      // ─── MOBILE HARDWARE ANCHOR (Face ID / Touch ID via Secure Enclave) ───
       // This forces the physical prompt. No biometric = No hash. No hash = No entry.
       console.log(`[ACA_HARDWARE] PLATFORM: Native. Requesting hardware attestation.`);
 
       try {
-        const result = await (window as any).Capacitor.Plugins.NativeBiometric.verifyIdentity({
+        // Confirm hardware is present and enrolled before prompting
+        const available = await NativeBiometric.isAvailable();
+        if (!available.isAvailable) {
+          throw new Error("BIOMETRIC_HARDWARE_UNAVAILABLE");
+        }
+
+        // Triggers Face ID / Touch ID. Resolves on success, rejects on cancel/failure.
+        await NativeBiometric.verifyIdentity({
           reason: `Biological anchor required for: ${sourceId}`,
           title: "Verify Sovereign Intent",
-          description: "Proof of physical presence is required to write to the ledger.",
+          subtitle: "Proof of physical presence",
+          description: "Required to write to the IDIA ledger.",
         });
 
-        hardwareAttestationId = result.signature || result.deviceToken;
+        // Bind the attestation to this physical device. Device.getId() returns
+        // the IDFV on iOS / a stable hardware id on Android. Combined with the
+        // post-verification timestamp it forms an anchor that only exists
+        // *after* a real Face ID / Touch ID confirmation succeeds.
+        const { identifier } = await Device.getId();
+        hardwareAttestationId = `${identifier}:${Date.now()}:${available.biometryType}`;
       } catch (nativeErr: any) {
-        console.error(`[ACA_HARDWARE] FATAL: Hardware handshake rejected.`);
-        throw new Error("BIOMETRIC_REJECTED");
+        console.error(`[ACA_HARDWARE] FATAL: Hardware handshake rejected.`, nativeErr);
+        throw new Error(`BIOMETRIC_REJECTED:${nativeErr?.message || "unknown"}`);
       }
     } else {
       // ─── WEB / PREVIEW REFUSAL ────────────────────────────────────────────
@@ -74,7 +89,9 @@ export const generateACAHash = async (
 
     toast({
       title: "Handshake Failed",
-      description: "Biological anchor required for human touchpoints.",
+      description: isNative
+        ? "Face ID / Touch ID is required to anchor this action."
+        : "Open the IDIA iOS app to complete this action — the web preview cannot anchor consent.",
       variant: "destructive",
     });
 

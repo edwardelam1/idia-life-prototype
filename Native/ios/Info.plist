@@ -13,6 +13,8 @@
 	<string>Used for AR Shop discovery and QR scanning during Sovereign Handshakes.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Voice commands for the Friend assistant and secure dictation.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>IDIA uses Face ID to anchor your sovereign consent (ACA) for ledger writes and data connections.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Sync your vitals to your Sovereign Health ledger. Data stays on-device unless you explicitly contribute it.</string>
 	<key>NSHealthUpdateUsageDescription</key>
