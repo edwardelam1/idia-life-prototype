@@ -1,49 +1,65 @@
-# Dark Mode Pass — Governance Surface
+# Why ACA is failing on Apple Health connect
 
-The Glossy Light Theme stays the default. This pass only adds `dark:` overrides where hardcoded white / teal-50 / slate-700 / slate-800 / orange-50 / amber-50 backgrounds and text break in dark mode. No layout, no logic, no light-mode regressions.
+There are two distinct failures, both produced by `src/utils/acaGenerator.ts`.
 
-## Scope
+## Failure 1 — In the Lovable web preview (what you're looking at right now)
 
-1. **`src/components/GovernanceScreen.tsx`** — outer wrapper `bg-white min-h-screen` → keep light, add `dark:bg-background`. Section header text uses `text-muted-foreground` already (theme-safe), leave alone.
+`generateACAHash` is hard-coded to refuse on any non-native runtime:
 
-2. **`src/components/governance/SegmentedJurisdiction.tsx`** — pill bar uses `bg-teal-50/60`, `border-teal-100/70`, inactive text `text-teal-700/60`. Add `dark:bg-teal-950/40 dark:border-teal-900/60`, inactive `dark:text-teal-200/60 dark:hover:text-teal-100 dark:hover:bg-teal-900/40`, sublabel `dark:text-teal-300/40`. Active pill is already teal/white — keep.
+```ts
+} else {
+  console.error("[ACA_HARDWARE] REFUSED: Native Secure Enclave required…");
+  throw new Error("ACA_NATIVE_REQUIRED");
+}
+```
 
-3. **`src/components/governance/HatsWardrobe.tsx`** — manual link chip, tile backgrounds (`bg-white`, `bg-amber-50/50`, `bg-slate-50`), and `text-slate-400` / `text-teal-800`. Add `dark:bg-card dark:border-teal-900/60`, grayed → `dark:bg-amber-950/30 dark:border-amber-900/50`, severed → `dark:bg-muted/40 dark:border-border`, label colors `dark:text-teal-100 / dark:text-amber-300 / dark:text-muted-foreground`.
+This is **by design** (per the "No Simulated ACA" rule in project memory). The web preview has no Secure Enclave, so Apple Health connection from the browser will always throw `ACA_NATIVE_REQUIRED`. That is not a regression — it cannot be "fixed" without violating the no-mock rule. The Data screen's Apple Health card must be exercised from the Xcode build on a physical device.
 
-4. **`src/components/governance/PendingActionsCarousel.tsx`** — card `bg-white border-orange-100` and inner `bg-orange-50/80`, `text-slate-800`, `text-slate-400/700` need `dark:bg-card`, `dark:border-orange-900/40`, `dark:bg-orange-950/30 dark:border-orange-900/40`, `dark:text-foreground`, `dark:text-muted-foreground`. Empty state `bg-orange-50/50` → add `dark:bg-orange-950/20 dark:border-orange-900/40`.
+## Failure 2 — In the Xcode build on device (the real bug)
 
-5. **`src/components/governance/ActiveProposalsList.tsx`** — `ProposalCard` uses `border-teal-50`, inner box `bg-teal-50/50 border-teal-100/50`, headings `text-slate-800`, accents `text-teal-700/800`, `text-orange-600 bg-orange-100/50`. Add `dark:bg-card dark:border-teal-900/40`, inner `dark:bg-teal-950/30 dark:border-teal-900/50`, title `dark:text-foreground`, accents `dark:text-teal-200 / dark:text-orange-300 dark:bg-orange-950/40`. Empty state `bg-slate-50` → `dark:bg-muted/30 dark:border-border`.
+On native, `generateACAHash` calls:
 
-6. **`src/components/governance/LifecycleTelemetry.tsx`** — row `bg-white border-teal-50` and `text-slate-800` → `dark:bg-card dark:border-teal-900/40 dark:text-foreground`. Empty / loading wrappers `bg-slate-50` → `dark:bg-muted/30 dark:border-border`. `PHASE_META` color tokens (`text-slate-600 bg-slate-50 border-slate-100`, orange/amber/teal variants) get dark equivalents (`dark:bg-{color}-950/30 dark:border-{color}-900/50 dark:text-{color}-200`).
+```ts
+await (window as any).Capacitor.Plugins.NativeBiometric.verifyIdentity({...})
+```
 
-7. **`src/components/governance/MSAComplianceCard.tsx`** — `border-teal-50`, row tints `bg-teal-50/30 / amber-50/30 / red-50/30`, `text-slate-700/400`. Add `dark:bg-card dark:border-teal-900/40`, row dark tints `dark:bg-teal-950/20 dark:border-teal-900/40` (and amber/red variants), values `dark:text-foreground`, sublabels `dark:text-muted-foreground`. `textColor` helper gains dark variants (`dark:text-emerald-300 / dark:text-amber-300 / dark:text-red-300`).
+But `NativeBiometric` **does not exist in this project**. I checked:
 
-8. **`src/components/governance/TreasuryFlows.tsx`** — card and inner rows hardcoded `border-teal-50`, `bg-emerald-50/orange-50` icon chips, `text-slate-700/800/400`, Tooltip `border #e2e8f0` light. Add `dark:bg-card dark:border-teal-900/40`, icon chips `dark:bg-emerald-950/40 dark:text-emerald-300` / `dark:bg-orange-950/40 dark:text-orange-300`, labels `dark:text-foreground / dark:text-muted-foreground`, Recharts Tooltip `contentStyle` switched to use CSS variables (`hsl(var(--popover))`, border `hsl(var(--border))`, color `hsl(var(--popover-foreground))`).
+- `package.json` — no `capacitor-native-biometric` (or any biometric plugin) is installed. Only `@capacitor/*` core plugins, `@capacitor-community/apple-sign-in`, and `capacitor-secure-storage-plugin`.
+- `Native/ios/` and `Native/native/ios/` — only `IDIAHealthPlugin` (HealthKit) exists. No Swift `LAContext` / Face ID plugin was ever written.
 
-9. **`src/components/governance/CommitteesList.tsx`** (issue #3 — attestation box invisible):
-   - List card: `border-teal-100` → add `dark:bg-card dark:border-teal-900/40`.
-   - Icon tile `bg-teal-50` → `dark:bg-teal-950/40`, icon `dark:text-teal-300`.
-   - Heading `text-foreground` already safe; `text-muted-foreground` safe.
-   - Status chips (orange-50, emerald-50, amber-50) → add `dark:bg-*-950/30 dark:border-*-900/50 dark:text-*-300`.
-   - Action buttons (`border-teal-200 text-teal-800 hover:bg-teal-50`, red, orange) → add `dark:border-teal-800 dark:text-teal-200 dark:hover:bg-teal-950/40` (and red/orange equivalents).
-   - **Apply (Statement of Competence) Dialog** — this is the "committee attestation box":
-     - `DialogContent` inherits popover tokens (already dark-aware), but the inner `<Textarea>` and the MSA-acknowledgement block currently rely on default light contrast. Force readable values: textarea uses theme `bg-background border-input text-foreground` (drop any white assumption); the MSA checkbox card / acknowledgment row gets `dark:bg-muted/30 dark:border-border`; warning callouts keyed to amber/orange get `dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-900/50`.
-     - Title icon and ACA hash preview text: ensure `text-foreground` / `text-muted-foreground` instead of slate-800/500.
+So `Capacitor.Plugins.NativeBiometric` is `undefined` on the device. `.verifyIdentity(...)` throws → caught as `BIOMETRIC_REJECTED` → rewrapped as `ACA_PROMPT_REJECTED: BIOMETRIC_REJECTED`. That's the message you're seeing.
 
-10. **`src/components/governance/CreateDaoProposalModal.tsx`** (issue #2):
-    - `DialogContent className="... bg-white"` → drop `bg-white` (DialogContent already uses `bg-popover` token), or replace with `bg-background dark:bg-card`.
-    - Title `text-slate-800` → `text-foreground`.
-    - All `Label` `text-slate-600` → `text-muted-foreground`.
-    - `<Input>` / `<Textarea>` / `<SelectTrigger>` `bg-slate-50 border-slate-200` → `bg-muted/40 border-input text-foreground placeholder:text-muted-foreground` so they render in dark mode.
-    - Insufficient-IDIA warning `border-amber-300 bg-amber-50 text-amber-800/600` → add `dark:bg-amber-950/30 dark:border-amber-900/50 dark:text-amber-200`.
-    - Submit button gradient stays (brand teal works on both). Cancel button is theme-safe via `variant="outline"`.
+This affects every ACA touchpoint, not just Apple Health (Terms of Service accept, governance votes, committee join, NFC handshake, etc.) — they're all silently broken on device for the same reason.
 
-## Verification
+# The fix
 
-- Toggle dark mode via Settings → Appearance and re-open: GovernanceScreen (Wyoming + Delaware), Submit Proposal modal, Apply-to-Committee modal. Confirm no white-on-white text, no invisible cards, attestation textarea + checkbox visible.
-- Light mode should look identical to current — every change is additive (`dark:` prefix or token swap to existing theme variable).
+Install the community biometric plugin and wire iOS Face ID permissions.
 
-## Out of scope
+## Steps
 
-- Welcome Manual gate, IDIA Governance token gradient card (already dark-safe), and the orange brand accents (intentional in both themes).
-- No new tokens added to `index.css` / `tailwind.config.ts`; using existing semantic ones plus tailwind `*-950/900/300/200` shades.
+1. **Add `capacitor-native-biometric`** (well-maintained, used widely with Capacitor 6/7/8): `bun add capacitor-native-biometric`.
+2. **Import properly** in `src/utils/acaGenerator.ts` — replace the `(window as any).Capacitor.Plugins.NativeBiometric` access with `import { NativeBiometric } from 'capacitor-native-biometric'`. Cleaner and type-safe.
+3. **Add Face ID usage string** to `Native/ios/Info.plist`:
+   ```xml
+   <key>NSFaceIDUsageDescription</key>
+   <string>IDIA requires Face ID to anchor your sovereign consent for ledger writes.</string>
+   ```
+   (Without it, iOS silently kills the app the first time Face ID is invoked.)
+4. **Handle the `verifyIdentity` return shape correctly** — the community plugin's `verifyIdentity` resolves with `void` on success and rejects on cancel/failure. The current code reads `result.signature || result.deviceToken`, which are always `undefined`. We'll synthesize the `hardware_attestation_id` from a real signal that exists on success: `await Device.getId()` (Capacitor Device plugin) combined with the verification timestamp — both produced only after a real Face ID confirmation, so the no-simulation rule still holds.
+   - If you'd rather have a true cryptographic Secure Enclave signature (not just a "Face ID succeeded" gate), that's a bigger lift — needs a custom Swift plugin around `SecKeyCreateRandomKey` with `kSecAttrTokenIDSecureEnclave`. Say the word and I'll scope it as a separate plan.
+5. **Sync the native project** — after install you'll need to `npx cap sync ios` locally and rebuild in Xcode.
+
+## Optional follow-up (recommended but separate)
+
+The Lovable web preview will continue to throw `ACA_NATIVE_REQUIRED` on every ACA touchpoint. Right now that shows up as a red toast saying "Handshake Failed", which looks like a bug to anyone testing in the browser. A small UX improvement: detect non-native in the modal callers (`AppleHealthModal`, `TermsOfService`, etc.) and show a friendlier "Open this in the IDIA iOS app to complete" state instead of the generic error toast. I can fold this into the same plan if you want.
+
+# What I will NOT touch
+
+- The "no simulated ACA" rule — web preview stays refused.
+- Existing ACA payload schema, edge function validation, or `user_aca_records` table.
+- HealthKit plugin code — that's working; the failure is upstream at the biometric gate.
+
+# Open question for you
+
+Do you want **just the quick fix** (install `capacitor-native-biometric` + Info.plist + Device.getId fallback for `hardware_attestation_id`), or do you also want the **Secure Enclave signing plugin** written in Swift for a true cryptographic attestation? The quick fix unblocks you tonight; the Swift plugin is the correct long-term anchor.
