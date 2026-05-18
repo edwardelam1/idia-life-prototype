@@ -40,7 +40,7 @@ const formatRemaining = (iso: string) => {
   return `${h}h ${m}m remaining`;
 };
 
-const PendingActionsCarousel: React.FC = () => {
+const PendingActionsCarousel: React.FC<PendingActionsCarouselProps> = ({ escrowTargets }) => {
   const [actions, setActions] = useState<PendingAction[]>([]);
   const [loading, setLoading] = useState(true);
   const [vetoing, setVetoing] = useState<string | null>(null);
