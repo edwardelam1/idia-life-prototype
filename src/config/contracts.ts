@@ -90,6 +90,22 @@ export const PROTOCOL = DEPLOYMENTS[ACTIVE_DEPLOYMENT];
  */
 export const IS_TESTNET = (ACTIVE_DEPLOYMENT as DeploymentEnv) === 'testnet';
 
+// ─── BOOT GUARD ─────────────────────────────────────────────────────
+// Runtime trace so live production tracking can confirm at a glance
+// that the bundle loaded the mainnet block (and not a stale testnet
+// build). Fires once on module import.
+if ((ACTIVE_DEPLOYMENT as DeploymentEnv) !== 'mainnet') {
+  console.error(
+    '[PROTOCOL][BOOT][END:FAIL] Non-mainnet deployment detected — ACTIVE_DEPLOYMENT =',
+    ACTIVE_DEPLOYMENT,
+  );
+} else {
+  console.log('[PROTOCOL][BOOT][START] Loading mainnet contract config…');
+  console.log('[PROTOCOL][BOOT][END:OK] Live · Base Mainnet · idiaToken =', PROTOCOL.idiaToken);
+}
+// ─────────────────────────────────────────────────────────────────────
+
+
 // ── Minimal ABIs (only the functions the app needs to call) ─────────
 
 export const IDIA_TOKEN_ABI = [
