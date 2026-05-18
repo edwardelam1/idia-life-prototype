@@ -277,6 +277,27 @@ const PendingActionsCarousel: React.FC = () => {
                   )}
                 </Button>
               </div>
+
+              {expired && a.onchain_proposal_id !== null && a.escrow_target && (
+                <Button
+                  size="sm"
+                  disabled={executing === a.id}
+                  onClick={() => executeOnChain(a)}
+                  className="w-full h-9 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[10px] tracking-widest rounded-full shadow-md"
+                >
+                  {executing === a.id ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                      RELAYING TO BASE…
+                    </>
+                  ) : (
+                    <>
+                      <Rocket size={12} className="mr-1.5" />
+                      EXECUTE ON-CHAIN
+                    </>
+                  )}
+                </Button>
+              )}
             </CardContent>
           </Card>
         );
