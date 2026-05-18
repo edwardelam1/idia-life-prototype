@@ -180,7 +180,16 @@ const PendingActionsCarousel: React.FC<PendingActionsCarouselProps> = ({ escrowT
   };
 
   const executeOnChain = async (action: PendingAction) => {
+    const s = stage("GOV_UI", "EXECUTE_ON_CHAIN");
+    s.start({
+      actionId: action.id,
+      escrowTarget: action.escrow_target,
+      vault: action.escrow_target ? escrowTargets?.[action.escrow_target] : undefined,
+      proposalId: action.onchain_proposal_id,
+    });
     if (action.onchain_proposal_id === null || !action.escrow_target) {
+      const err = new Error("Action has no on-chain mapping yet.");
+      s.fail(err);
       toast({
         title: "Not Executable On-Chain",
         description: "This action has no on-chain mapping yet.",
@@ -200,8 +209,10 @@ const PendingActionsCarousel: React.FC<PendingActionsCarouselProps> = ({ escrowT
         title: "Executed On-Chain",
         description: `Tx ${result.tx_hash.slice(0, 10)}… mined in block ${result.block_number}.`,
       });
+      s.ok({ tx_hash: result.tx_hash, block_number: result.block_number });
       fetchActions();
     } catch (err: any) {
+      s.fail(err);
       toast({
         title: "Execution Failed",
         description: err.message ?? "Relayer rejected the transaction.",
