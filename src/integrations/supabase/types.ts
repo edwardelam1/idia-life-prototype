@@ -1603,10 +1603,14 @@ export type Database = {
           category: string | null
           created_at: string | null
           description: string | null
+          escrow_target: string | null
           id: string
+          onchain_proposal_id: number | null
+          processed_at: string | null
           status: string | null
           timelock_expires_at: string
           title: string
+          tx_hash: string | null
           veto_count: number | null
           veto_threshold: number | null
         }
@@ -1614,10 +1618,14 @@ export type Database = {
           category?: string | null
           created_at?: string | null
           description?: string | null
+          escrow_target?: string | null
           id?: string
+          onchain_proposal_id?: number | null
+          processed_at?: string | null
           status?: string | null
           timelock_expires_at: string
           title: string
+          tx_hash?: string | null
           veto_count?: number | null
           veto_threshold?: number | null
         }
@@ -1625,10 +1633,14 @@ export type Database = {
           category?: string | null
           created_at?: string | null
           description?: string | null
+          escrow_target?: string | null
           id?: string
+          onchain_proposal_id?: number | null
+          processed_at?: string | null
           status?: string | null
           timelock_expires_at?: string
           title?: string
+          tx_hash?: string | null
           veto_count?: number | null
           veto_threshold?: number | null
         }
