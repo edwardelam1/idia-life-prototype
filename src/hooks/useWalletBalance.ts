@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ethers } from "ethers"; // <-- Swapped viem for ethers (Native Infrastructure)
+import { PROTOCOL } from "@/config/contracts";
+import { stage } from "@/lib/stageLogger";
 
-// Base Mainnet contracts (live)
-const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-const IDIA_ADDRESS = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
+// Base Mainnet contracts — sourced from the single PROTOCOL config so
+// any future address change flows from one place. No hardcoded strings.
+const USDC_ADDRESS = PROTOCOL.usdc;
+const IDIA_ADDRESS = PROTOCOL.idiaToken;
 
 const resolveBaseRpc = (): string => {
   const raw = (import.meta as any).env?.VITE_ALCHEMY_RPC_URL;
