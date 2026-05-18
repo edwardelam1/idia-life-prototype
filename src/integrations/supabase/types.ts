@@ -3450,7 +3450,7 @@ export type Database = {
           {
             foreignKeyName: "idia_schema_manifest_vault_business_id_fkey"
             columns: ["business_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
