@@ -169,6 +169,39 @@ const PendingActionsCarousel: React.FC = () => {
     }
   };
 
+  const executeOnChain = async (action: PendingAction) => {
+    if (action.onchain_proposal_id === null || !action.escrow_target) {
+      toast({
+        title: "Not Executable On-Chain",
+        description: "This action has no on-chain mapping yet.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setExecuting(action.id);
+    try {
+      const result = await relayGovernanceAction({
+        actionType: "APPROVE_AND_EXECUTE",
+        escrowTarget: action.escrow_target,
+        proposalId: action.onchain_proposal_id,
+        actionId: action.id,
+      });
+      toast({
+        title: "Executed On-Chain",
+        description: `Tx ${result.tx_hash.slice(0, 10)}… mined in block ${result.block_number}.`,
+      });
+      fetchActions();
+    } catch (err: any) {
+      toast({
+        title: "Execution Failed",
+        description: err.message ?? "Relayer rejected the transaction.",
+        variant: "destructive",
+      });
+    } finally {
+      setExecuting(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-8 space-y-3">
