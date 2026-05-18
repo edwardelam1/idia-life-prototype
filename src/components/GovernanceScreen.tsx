@@ -14,8 +14,10 @@ import TreasuryFlows from "./governance/TreasuryFlows";
 import CommitteesList from "./governance/CommitteesList";
 import WelcomeManualGate from "./governance/WelcomeManualGate";
 import CreateDaoProposalModal from "./governance/CreateDaoProposalModal";
+import { PROTOCOL, ACTIVE_DEPLOYMENT } from "@/config/contracts";
 
-const IDIA_CONTRACT = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
+const IDIA_CONTRACT = PROTOCOL.idiaToken;
+const IS_MAINNET = ACTIVE_DEPLOYMENT === "mainnet";
 
 const GovernanceScreen: React.FC = () => {
   const { balance, usdcProvisioned } = useWalletBalance();
