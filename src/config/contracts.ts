@@ -13,9 +13,11 @@
 
 export type DeploymentEnv = 'testnet' | 'mainnet';
 
-// ─── MASTER TOGGLE ──────────────────────────────────────────────────
-// Change to 'testnet' for internal test builds only.
-// Production builds MUST use 'mainnet'.
+// ─── PRODUCTION LOCK ────────────────────────────────────────────────
+// The protocol is LIVE on Base Mainnet (Chain ID 8453). The mainnet
+// addresses below are the on-chain source of truth. DO NOT flip this
+// toggle to 'testnet' on production branches and DO NOT zero-out the
+// mainnet block under any circumstance.
 export const ACTIVE_DEPLOYMENT: DeploymentEnv = 'mainnet';
 // ─────────────────────────────────────────────────────────────────────
 
