@@ -7,7 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { isNative } from "@/services/platform";
-import { relayGovernanceAction } from "@/services/governanceRelay";
+import { relayGovernanceAction, type EscrowTarget } from "@/services/governanceRelay";
+import { stage } from "@/lib/stageLogger";
 
 interface PendingAction {
   id: string;
@@ -19,7 +20,16 @@ interface PendingAction {
   veto_count: number;
   status: "pending" | "vetoed" | "executed";
   onchain_proposal_id: number | string | null;
-  escrow_target: "team" | "ecosystem" | null;
+  escrow_target: EscrowTarget | null;
+}
+
+export interface PendingActionsCarouselProps {
+  /**
+   * Mainnet addresses of the 5 IDIAEscrow vaults, sourced from
+   * PROTOCOL.escrow. Passed in as a prop so no child re-hardcodes a
+   * contract address. Optional — purely informational for tooltips.
+   */
+  escrowTargets?: Record<EscrowTarget, string>;
 }
 
 const formatRemaining = (iso: string) => {
