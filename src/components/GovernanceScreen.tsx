@@ -90,7 +90,7 @@ const GovernanceScreen: React.FC = () => {
             <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
               <Zap size={14} className="text-orange-500" /> Pending Actions · Negative Consent
             </h2>
-            <PendingActionsCarousel />
+            <PendingActionsCarousel escrowTargets={PROTOCOL.escrow} />
           </section>
 
           <section className="space-y-3">
