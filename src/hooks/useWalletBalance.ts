@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ethers } from "ethers"; // <-- Swapped viem for ethers (Native Infrastructure)
+import { PROTOCOL } from "@/config/contracts";
+import { stage } from "@/lib/stageLogger";
 
-// Base Mainnet contracts (live)
-const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-const IDIA_ADDRESS = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
+// Base Mainnet contracts — sourced from the single PROTOCOL config so
+// any future address change flows from one place. No hardcoded strings.
+const USDC_ADDRESS = PROTOCOL.usdc;
+const IDIA_ADDRESS = PROTOCOL.idiaToken;
 
 const resolveBaseRpc = (): string => {
   const raw = (import.meta as any).env?.VITE_ALCHEMY_RPC_URL;
@@ -162,22 +165,40 @@ export const useWalletBalance = () => {
         setUsdcAddress(walletAddress);
         console.log("🌐 [FETCH_BALANCE_LOG] ACTION: Initializing ethers JSON RPC provider for USDC hydration.");
 
+        const sRpc = stage("WALLET_BALANCE", "RPC_HYDRATE");
+        sRpc.start({ wallet: walletAddress, idia: IDIA_ADDRESS, usdc: USDC_ADDRESS });
         try {
           // Live Base mainnet read via ethers — IDIA + USDC in parallel
+          const sConnect = stage("WALLET_BALANCE", "RPC_CONNECT");
+          sConnect.start({ rpc: BASE_RPC_URL });
           const provider = new ethers.JsonRpcProvider(BASE_RPC_URL, BASE_NETWORK, { staticNetwork: BASE_NETWORK });
           const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_BALANCE_ABI, provider);
           const idiaContract = new ethers.Contract(IDIA_ADDRESS, ERC20_BALANCE_ABI, provider);
+          sConnect.ok();
+
+          const sReadUsdc = stage("WALLET_BALANCE", "READ_USDC_BALANCE");
+          const sReadIdia = stage("WALLET_BALANCE", "READ_IDIA_BALANCE");
+          sReadUsdc.start();
+          sReadIdia.start();
 
           const [rawUsdc, rawIdia] = await Promise.all([
-            usdcContract.balanceOf(walletAddress),
-            idiaContract.balanceOf(walletAddress),
+            usdcContract.balanceOf(walletAddress).then(
+              (v: bigint) => { sReadUsdc.ok({ raw: v.toString() }); return v; },
+              (e: unknown) => { sReadUsdc.fail(e); throw e; },
+            ),
+            idiaContract.balanceOf(walletAddress).then(
+              (v: bigint) => { sReadIdia.ok({ raw: v.toString() }); return v; },
+              (e: unknown) => { sReadIdia.fail(e); throw e; },
+            ),
           ]);
 
           usdcBalance = Number(ethers.formatUnits(rawUsdc, 6));
           tokenBalance = Number(ethers.formatEther(rawIdia)); // override DB with on-chain truth
 
           console.log(`🌐 [FETCH_BALANCE_LOG] SUCCESS: USDC=$${usdcBalance} · IDIA=${tokenBalance} (on-chain)`);
+          sRpc.ok({ usdc: usdcBalance, idia: tokenBalance });
         } catch (chainErr: any) {
+          sRpc.fail(chainErr);
           console.error("🚨 [FETCH_BALANCE_LOG] ERROR_START: Ethers smart contract read failed.");
           console.error("🚨 [FETCH_BALANCE_LOG] ERROR_DETAILS:", chainErr.message || String(chainErr));
           console.error("🚨 [FETCH_BALANCE_LOG] ERROR_END: Ethers reading terminated.");

@@ -7,7 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { isNative } from "@/services/platform";
-import { relayGovernanceAction } from "@/services/governanceRelay";
+import { relayGovernanceAction, type EscrowTarget } from "@/services/governanceRelay";
+import { stage } from "@/lib/stageLogger";
 
 interface PendingAction {
   id: string;
@@ -19,7 +20,16 @@ interface PendingAction {
   veto_count: number;
   status: "pending" | "vetoed" | "executed";
   onchain_proposal_id: number | string | null;
-  escrow_target: "team" | "ecosystem" | null;
+  escrow_target: EscrowTarget | null;
+}
+
+export interface PendingActionsCarouselProps {
+  /**
+   * Mainnet addresses of the 5 IDIAEscrow vaults, sourced from
+   * PROTOCOL.escrow. Passed in as a prop so no child re-hardcodes a
+   * contract address. Optional — purely informational for tooltips.
+   */
+  escrowTargets?: Record<EscrowTarget, string>;
 }
 
 const formatRemaining = (iso: string) => {
@@ -30,7 +40,7 @@ const formatRemaining = (iso: string) => {
   return `${h}h ${m}m remaining`;
 };
 
-const PendingActionsCarousel: React.FC = () => {
+const PendingActionsCarousel: React.FC<PendingActionsCarouselProps> = ({ escrowTargets }) => {
   const [actions, setActions] = useState<PendingAction[]>([]);
   const [loading, setLoading] = useState(true);
   const [vetoing, setVetoing] = useState<string | null>(null);
@@ -170,7 +180,16 @@ const PendingActionsCarousel: React.FC = () => {
   };
 
   const executeOnChain = async (action: PendingAction) => {
+    const s = stage("GOV_UI", "EXECUTE_ON_CHAIN");
+    s.start({
+      actionId: action.id,
+      escrowTarget: action.escrow_target,
+      vault: action.escrow_target ? escrowTargets?.[action.escrow_target] : undefined,
+      proposalId: action.onchain_proposal_id,
+    });
     if (action.onchain_proposal_id === null || !action.escrow_target) {
+      const err = new Error("Action has no on-chain mapping yet.");
+      s.fail(err);
       toast({
         title: "Not Executable On-Chain",
         description: "This action has no on-chain mapping yet.",
@@ -190,8 +209,10 @@ const PendingActionsCarousel: React.FC = () => {
         title: "Executed On-Chain",
         description: `Tx ${result.tx_hash.slice(0, 10)}… mined in block ${result.block_number}.`,
       });
+      s.ok({ tx_hash: result.tx_hash, block_number: result.block_number });
       fetchActions();
     } catch (err: any) {
+      s.fail(err);
       toast({
         title: "Execution Failed",
         description: err.message ?? "Relayer rejected the transaction.",

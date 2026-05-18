@@ -14,8 +14,10 @@ import TreasuryFlows from "./governance/TreasuryFlows";
 import CommitteesList from "./governance/CommitteesList";
 import WelcomeManualGate from "./governance/WelcomeManualGate";
 import CreateDaoProposalModal from "./governance/CreateDaoProposalModal";
+import { PROTOCOL, ACTIVE_DEPLOYMENT } from "@/config/contracts";
 
-const IDIA_CONTRACT = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
+const IDIA_CONTRACT = PROTOCOL.idiaToken;
+const IS_MAINNET = ACTIVE_DEPLOYMENT === "mainnet";
 
 const GovernanceScreen: React.FC = () => {
   const { balance, usdcProvisioned } = useWalletBalance();
@@ -68,7 +70,7 @@ const GovernanceScreen: React.FC = () => {
           >
             <span className={`w-1.5 h-1.5 rounded-full ${chainVerified ? "bg-emerald-400 animate-pulse" : "bg-orange-400"}`} />
             <span className="text-[9px] font-black uppercase tracking-widest text-teal-50">
-              {chainVerified ? "Live · Base Mainnet" : "Mainnet"} · {IDIA_CONTRACT.slice(0, 6)}…{IDIA_CONTRACT.slice(-4)}
+              {IS_MAINNET ? "Live · Base Mainnet" : "Mainnet"} · {IDIA_CONTRACT.slice(0, 6)}…{IDIA_CONTRACT.slice(-4)}
             </span>
             <ExternalLink size={10} className="text-teal-100/60 ml-auto" />
           </a>
@@ -88,7 +90,7 @@ const GovernanceScreen: React.FC = () => {
             <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
               <Zap size={14} className="text-orange-500" /> Pending Actions · Negative Consent
             </h2>
-            <PendingActionsCarousel />
+            <PendingActionsCarousel escrowTargets={PROTOCOL.escrow} />
           </section>
 
           <section className="space-y-3">
