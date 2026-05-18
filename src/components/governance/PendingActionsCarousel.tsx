@@ -34,6 +34,7 @@ const PendingActionsCarousel: React.FC = () => {
   const [actions, setActions] = useState<PendingAction[]>([]);
   const [loading, setLoading] = useState(true);
   const [vetoing, setVetoing] = useState<string | null>(null);
+  const [executing, setExecuting] = useState<string | null>(null);
 
   const fetchActions = async () => {
     console.log("[PENDING_ACTIONS] START: Syncing optimistic timelock actions from Wyoming Gateway.");
