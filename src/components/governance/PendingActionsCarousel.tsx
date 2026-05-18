@@ -2,11 +2,12 @@ import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, ShieldOff, Zap, Loader2, Fingerprint } from "lucide-react";
+import { Clock, ShieldOff, Zap, Loader2, Fingerprint, Rocket } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { isNative } from "@/services/platform";
+import { relayGovernanceAction } from "@/services/governanceRelay";
 
 interface PendingAction {
   id: string;
@@ -17,6 +18,8 @@ interface PendingAction {
   veto_threshold: number;
   veto_count: number;
   status: "pending" | "vetoed" | "executed";
+  onchain_proposal_id: number | string | null;
+  escrow_target: "team" | "ecosystem" | null;
 }
 
 const formatRemaining = (iso: string) => {
@@ -31,6 +34,7 @@ const PendingActionsCarousel: React.FC = () => {
   const [actions, setActions] = useState<PendingAction[]>([]);
   const [loading, setLoading] = useState(true);
   const [vetoing, setVetoing] = useState<string | null>(null);
+  const [executing, setExecuting] = useState<string | null>(null);
 
   const fetchActions = async () => {
     console.log("[PENDING_ACTIONS] START: Syncing optimistic timelock actions from Wyoming Gateway.");
@@ -165,6 +169,39 @@ const PendingActionsCarousel: React.FC = () => {
     }
   };
 
+  const executeOnChain = async (action: PendingAction) => {
+    if (action.onchain_proposal_id === null || !action.escrow_target) {
+      toast({
+        title: "Not Executable On-Chain",
+        description: "This action has no on-chain mapping yet.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setExecuting(action.id);
+    try {
+      const result = await relayGovernanceAction({
+        actionType: "APPROVE_AND_EXECUTE",
+        escrowTarget: action.escrow_target,
+        proposalId: action.onchain_proposal_id,
+        actionId: action.id,
+      });
+      toast({
+        title: "Executed On-Chain",
+        description: `Tx ${result.tx_hash.slice(0, 10)}… mined in block ${result.block_number}.`,
+      });
+      fetchActions();
+    } catch (err: any) {
+      toast({
+        title: "Execution Failed",
+        description: err.message ?? "Relayer rejected the transaction.",
+        variant: "destructive",
+      });
+    } finally {
+      setExecuting(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-8 space-y-3">
@@ -240,6 +277,27 @@ const PendingActionsCarousel: React.FC = () => {
                   )}
                 </Button>
               </div>
+
+              {expired && a.onchain_proposal_id !== null && a.escrow_target && (
+                <Button
+                  size="sm"
+                  disabled={executing === a.id}
+                  onClick={() => executeOnChain(a)}
+                  className="w-full h-9 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[10px] tracking-widest rounded-full shadow-md"
+                >
+                  {executing === a.id ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                      RELAYING TO BASE…
+                    </>
+                  ) : (
+                    <>
+                      <Rocket size={12} className="mr-1.5" />
+                      EXECUTE ON-CHAIN
+                    </>
+                  )}
+                </Button>
+              )}
             </CardContent>
           </Card>
         );
