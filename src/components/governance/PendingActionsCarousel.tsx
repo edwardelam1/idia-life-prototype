@@ -2,11 +2,12 @@ import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, ShieldOff, Zap, Loader2, Fingerprint } from "lucide-react";
+import { Clock, ShieldOff, Zap, Loader2, Fingerprint, Rocket } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { isNative } from "@/services/platform";
+import { relayGovernanceAction } from "@/services/governanceRelay";
 
 interface PendingAction {
   id: string;
@@ -17,6 +18,8 @@ interface PendingAction {
   veto_threshold: number;
   veto_count: number;
   status: "pending" | "vetoed" | "executed";
+  onchain_proposal_id: number | string | null;
+  escrow_target: "team" | "ecosystem" | null;
 }
 
 const formatRemaining = (iso: string) => {
