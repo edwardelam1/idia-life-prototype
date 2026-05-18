@@ -108,6 +108,10 @@ if ((ACTIVE_DEPLOYMENT as DeploymentEnv) !== 'mainnet') {
 
 // ── Minimal ABIs (only the functions the app needs to call) ─────────
 
+// IDIA Token is a standard ERC20Votes governance token on Base Mainnet.
+// All methods below — including `transfer`, `approve`, `delegate`,
+// `delegates`, and `getVotes` — are live on-chain. Do NOT strip them on
+// the (incorrect) assumption that IDIA is a non-transferable receipt.
 export const IDIA_TOKEN_ABI = [
   'function name() view returns (string)',
   'function symbol() view returns (string)',
