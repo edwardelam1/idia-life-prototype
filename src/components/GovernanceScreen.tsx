@@ -70,7 +70,7 @@ const GovernanceScreen: React.FC = () => {
           >
             <span className={`w-1.5 h-1.5 rounded-full ${chainVerified ? "bg-emerald-400 animate-pulse" : "bg-orange-400"}`} />
             <span className="text-[9px] font-black uppercase tracking-widest text-teal-50">
-              {chainVerified ? "Live · Base Mainnet" : "Mainnet"} · {IDIA_CONTRACT.slice(0, 6)}…{IDIA_CONTRACT.slice(-4)}
+              {IS_MAINNET ? "Live · Base Mainnet" : "Mainnet"} · {IDIA_CONTRACT.slice(0, 6)}…{IDIA_CONTRACT.slice(-4)}
             </span>
             <ExternalLink size={10} className="text-teal-100/60 ml-auto" />
           </a>
