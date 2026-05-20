@@ -22,8 +22,6 @@ interface Props {
   idiaBalance: number;
 }
 
-// TEMP: testing — gate disabled (was 1)
-const MIN_IDIA_TO_PROPOSE = 0;
 // TEMP: testing — AI validation gate bypassed entirely.
 const TEMP_DISABLE_AI_VALIDATION = true;
 
@@ -42,7 +40,6 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
   isOpen,
   onClose,
   onSuccess,
-  idiaBalance,
 }) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -63,7 +60,6 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
     // TEMP: testing — balance + required-field gates disabled. Fill defaults so DB NOT NULL holds.
     const safeTitle = title.trim() || "(untitled)";
     const safeDescription = description.trim() || "(no description)";
-    const safeCategory = category || "other";
 
     setIsSubmitting(true);
     console.log("[PROPOSAL_SUBMIT] FLOW_START: Sovereign initiated proposal submission.");
@@ -77,8 +73,8 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
       console.log("[PROPOSAL_SUBMIT] AUTH_SUCCESS: User resolved.");
 
       console.log("[PROPOSAL_SUBMIT] DB_INSERT_START: Committing approved active proposal to quadratic ledger...");
-      const { data: inserted, error: insertError } = await supabase
-        .from("dao_proposals" as any)
+      const { data: inserted, error: insertError } = await (supabase as any)
+        .from("dao_proposals")
         .insert({
           proposer_id: user.id,
           title: safeTitle,
@@ -91,7 +87,7 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
         .select()
         .single();
       if (insertError) throw insertError;
-      console.log("[PROPOSAL_SUBMIT] DB_INSERT_SUCCESS: Row committed safely.", inserted.id);
+      console.log("[PROPOSAL_SUBMIT] DB_INSERT_SUCCESS: Row committed safely.", inserted?.id);
 
       if (TEMP_DISABLE_AI_VALIDATION) {
         console.log("[PROPOSAL_SUBMIT] VALIDATION_SKIPPED: Testing mode bypass active. No edge validator invoked.");
@@ -130,7 +126,7 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
             Submit a Governance Proposal
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Shape the protocol. Proposals are routed through automated validation before reaching the floor.
+            Shape the protocol. Testing mode routes submissions directly into Active Proposals.
           </DialogDescription>
         </DialogHeader>
 
@@ -147,7 +143,6 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
               maxLength={100}
               disabled={isSubmitting}
               className="bg-muted/40 border-input text-foreground placeholder:text-muted-foreground"
-              required
             />
           </div>
 
@@ -202,23 +197,11 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
               rows={6}
               disabled={isSubmitting}
               className="bg-muted/40 border-input text-foreground placeholder:text-muted-foreground resize-none"
-              required
             />
             <p className="text-[10px] text-muted-foreground text-right">
               {description.length}/1000
             </p>
           </div>
-
-          {/* TEMP: testing — insufficient balance warning hidden */}
-          {false && hasInsufficientBalance && (
-            <div className="flex items-start gap-2 rounded-xl border border-amber-300 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
-              <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-300 mt-0.5 shrink-0" />
-              <p className="text-[11px] text-amber-800 dark:text-amber-200 leading-snug">
-                Insufficient IDIA — hold at least {MIN_IDIA_TO_PROPOSE} IDIA to mint a proposal.
-                Current: {idiaBalance.toFixed(4)}.
-              </p>
-            </div>
-          )}
 
           <div className="flex gap-2 pt-2">
             <Button
