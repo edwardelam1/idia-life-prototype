@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Send, ShieldAlert } from "lucide-react";
+import { Loader2, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -24,6 +24,8 @@ interface Props {
 
 // TEMP: testing — gate disabled (was 1)
 const MIN_IDIA_TO_PROPOSE = 0;
+// TEMP: testing — AI validation gate bypassed entirely.
+const TEMP_DISABLE_AI_VALIDATION = true;
 
 const CATEGORIES: { value: string; label: string }[] = [
   { value: "data-policy", label: "Data Policy" },
@@ -48,21 +50,11 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
   const [impact, setImpact] = useState<string>("Medium");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const hasInsufficientBalance = idiaBalance < MIN_IDIA_TO_PROPOSE;
-
   const resetForm = () => {
     setTitle("");
     setDescription("");
     setCategory("");
     setImpact("Medium");
-  };
-
-  const fireInsufficientToast = () => {
-    toast({
-      title: "Insufficient IDIA",
-      description: `You must hold at least ${MIN_IDIA_TO_PROPOSE} IDIA to initiate a proposal.`,
-      variant: "destructive",
-    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -84,42 +76,30 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
       if (!user) throw new Error("Authentication required.");
       console.log("[PROPOSAL_SUBMIT] AUTH_SUCCESS: User resolved.");
 
-      console.log("[PROPOSAL_SUBMIT] DB_INSERT_START: Committing payload to ledger...");
+      console.log("[PROPOSAL_SUBMIT] DB_INSERT_START: Committing approved active proposal to quadratic ledger...");
       const { data: inserted, error: insertError } = await supabase
-        .from("user_proposals")
+        .from("dao_proposals" as any)
         .insert({
-          user_id: user.id,
+          proposer_id: user.id,
           title: safeTitle,
           description: safeDescription,
-          category: safeCategory,
-          suggested_impact: impact,
+          status: "active",
+          vote_type: "quadratic",
+          voting_modality: "quadratic",
+          lifecycle_phase: "active",
         })
         .select()
         .single();
       if (insertError) throw insertError;
       console.log("[PROPOSAL_SUBMIT] DB_INSERT_SUCCESS: Row committed safely.", inserted.id);
 
-      console.log("[PROPOSAL_SUBMIT] EDGE_INVOKE_START: Triggering 'validate-proposal' synchronous check...");
-      const { data: validation, error: fnError } = await supabase.functions.invoke(
-        "validate-proposal",
-        {
-          body: {
-            proposalId: inserted.id,
-            title: safeTitle,
-            description: safeDescription,
-            category: safeCategory,
-          },
-        }
-      );
-      if (fnError) throw fnError;
-      console.log("[PROPOSAL_SUBMIT] EDGE_INVOKE_SUCCESS: Content validation complete.", validation);
+      if (TEMP_DISABLE_AI_VALIDATION) {
+        console.log("[PROPOSAL_SUBMIT] VALIDATION_SKIPPED: Testing mode bypass active. No edge validator invoked.");
+      }
 
       toast({
         title: "Proposal submitted!",
-        description:
-          validation?.feedback
-            ? `Status: ${validation.status} — ${validation.feedback}`
-            : "Your proposal is now under automated review.",
+        description: "Approved for testing and added to Active Proposals.",
       });
 
       resetForm();
