@@ -89,9 +89,9 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
         .from("user_proposals")
         .insert({
           user_id: user.id,
-          title: title.trim(),
-          description: description.trim(),
-          category,
+          title: safeTitle,
+          description: safeDescription,
+          category: safeCategory,
           suggested_impact: impact,
         })
         .select()
@@ -105,9 +105,9 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
         {
           body: {
             proposalId: inserted.id,
-            title: title.trim(),
-            description: description.trim(),
-            category,
+            title: safeTitle,
+            description: safeDescription,
+            category: safeCategory,
           },
         }
       );
@@ -138,12 +138,8 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
     }
   };
 
-  const submitDisabled =
-    isSubmitting ||
-    !title.trim() ||
-    !description.trim() ||
-    !category ||
-    hasInsufficientBalance;
+  // TEMP: testing — only block while submitting
+  const submitDisabled = isSubmitting;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
@@ -233,7 +229,8 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
             </p>
           </div>
 
-          {hasInsufficientBalance && (
+          {/* TEMP: testing — insufficient balance warning hidden */}
+          {false && hasInsufficientBalance && (
             <div className="flex items-start gap-2 rounded-xl border border-amber-300 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
               <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-300 mt-0.5 shrink-0" />
               <p className="text-[11px] text-amber-800 dark:text-amber-200 leading-snug">
@@ -253,12 +250,7 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
             >
               Cancel
             </Button>
-            <span
-              className="w-full block cursor-pointer flex-1"
-              onClick={() => {
-                if (hasInsufficientBalance && !isSubmitting) fireInsufficientToast();
-              }}
-            >
+            <span className="w-full block flex-1">
               <Button
                 type="submit"
                 disabled={submitDisabled}
