@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Send, ShieldAlert } from "lucide-react";
+import { Loader2, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -19,11 +19,10 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  idiaBalance: number;
 }
 
-// TEMP: testing — gate disabled (was 1)
-const MIN_IDIA_TO_PROPOSE = 0;
+// TEMP: testing — AI validation gate bypassed entirely.
+const TEMP_DISABLE_AI_VALIDATION = true;
 
 const CATEGORIES: { value: string; label: string }[] = [
   { value: "data-policy", label: "Data Policy" },
@@ -40,15 +39,12 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
   isOpen,
   onClose,
   onSuccess,
-  idiaBalance,
 }) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [impact, setImpact] = useState<string>("Medium");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const hasInsufficientBalance = idiaBalance < MIN_IDIA_TO_PROPOSE;
 
   const resetForm = () => {
     setTitle("");
@@ -57,21 +53,12 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
     setImpact("Medium");
   };
 
-  const fireInsufficientToast = () => {
-    toast({
-      title: "Insufficient IDIA",
-      description: `You must hold at least ${MIN_IDIA_TO_PROPOSE} IDIA to initiate a proposal.`,
-      variant: "destructive",
-    });
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // TEMP: testing — balance + required-field gates disabled. Fill defaults so DB NOT NULL holds.
     const safeTitle = title.trim() || "(untitled)";
     const safeDescription = description.trim() || "(no description)";
-    const safeCategory = category || "other";
 
     setIsSubmitting(true);
     console.log("[PROPOSAL_SUBMIT] FLOW_START: Sovereign initiated proposal submission.");
@@ -84,42 +71,30 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
       if (!user) throw new Error("Authentication required.");
       console.log("[PROPOSAL_SUBMIT] AUTH_SUCCESS: User resolved.");
 
-      console.log("[PROPOSAL_SUBMIT] DB_INSERT_START: Committing payload to ledger...");
-      const { data: inserted, error: insertError } = await supabase
-        .from("user_proposals")
+      console.log("[PROPOSAL_SUBMIT] DB_INSERT_START: Committing approved active proposal to quadratic ledger...");
+      const { data: inserted, error: insertError } = await (supabase as any)
+        .from("dao_proposals")
         .insert({
-          user_id: user.id,
+          proposer_id: user.id,
           title: safeTitle,
           description: safeDescription,
-          category: safeCategory,
-          suggested_impact: impact,
+          status: "active",
+          vote_type: "quadratic",
+          voting_modality: "quadratic",
+          lifecycle_phase: "active",
         })
         .select()
         .single();
       if (insertError) throw insertError;
-      console.log("[PROPOSAL_SUBMIT] DB_INSERT_SUCCESS: Row committed safely.", inserted.id);
+      console.log("[PROPOSAL_SUBMIT] DB_INSERT_SUCCESS: Row committed safely.", inserted?.id);
 
-      console.log("[PROPOSAL_SUBMIT] EDGE_INVOKE_START: Triggering 'validate-proposal' synchronous check...");
-      const { data: validation, error: fnError } = await supabase.functions.invoke(
-        "validate-proposal",
-        {
-          body: {
-            proposalId: inserted.id,
-            title: safeTitle,
-            description: safeDescription,
-            category: safeCategory,
-          },
-        }
-      );
-      if (fnError) throw fnError;
-      console.log("[PROPOSAL_SUBMIT] EDGE_INVOKE_SUCCESS: Content validation complete.", validation);
+      if (TEMP_DISABLE_AI_VALIDATION) {
+        console.log("[PROPOSAL_SUBMIT] VALIDATION_SKIPPED: Testing mode bypass active. No edge validator invoked.");
+      }
 
       toast({
         title: "Proposal submitted!",
-        description:
-          validation?.feedback
-            ? `Status: ${validation.status} — ${validation.feedback}`
-            : "Your proposal is now under automated review.",
+        description: "Approved for testing and added to Active Proposals.",
       });
 
       resetForm();
@@ -150,7 +125,7 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
             Submit a Governance Proposal
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Shape the protocol. Proposals are routed through automated validation before reaching the floor.
+            Shape the protocol. Testing mode routes submissions directly into Active Proposals.
           </DialogDescription>
         </DialogHeader>
 
@@ -167,7 +142,6 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
               maxLength={100}
               disabled={isSubmitting}
               className="bg-muted/40 border-input text-foreground placeholder:text-muted-foreground"
-              required
             />
           </div>
 
@@ -222,23 +196,11 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
               rows={6}
               disabled={isSubmitting}
               className="bg-muted/40 border-input text-foreground placeholder:text-muted-foreground resize-none"
-              required
             />
             <p className="text-[10px] text-muted-foreground text-right">
               {description.length}/1000
             </p>
           </div>
-
-          {/* TEMP: testing — insufficient balance warning hidden */}
-          {false && hasInsufficientBalance && (
-            <div className="flex items-start gap-2 rounded-xl border border-amber-300 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
-              <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-300 mt-0.5 shrink-0" />
-              <p className="text-[11px] text-amber-800 dark:text-amber-200 leading-snug">
-                Insufficient IDIA — hold at least {MIN_IDIA_TO_PROPOSE} IDIA to mint a proposal.
-                Current: {idiaBalance.toFixed(4)}.
-              </p>
-            </div>
-          )}
 
           <div className="flex gap-2 pt-2">
             <Button
