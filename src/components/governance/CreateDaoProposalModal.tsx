@@ -22,7 +22,8 @@ interface Props {
   idiaBalance: number;
 }
 
-const MIN_IDIA_TO_PROPOSE = 1;
+// TEMP: testing — gate disabled (was 1)
+const MIN_IDIA_TO_PROPOSE = 0;
 
 const CATEGORIES: { value: string; label: string }[] = [
   { value: "data-policy", label: "Data Policy" },
@@ -67,21 +68,10 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Balance gate (defense-in-depth)
-    if (hasInsufficientBalance) {
-      fireInsufficientToast();
-      return;
-    }
-
-    // Friction check
-    if (!title.trim() || !description.trim() || !category) {
-      toast({
-        title: "Missing information",
-        description: "Please fill in all required fields.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // TEMP: testing — balance + required-field gates disabled. Fill defaults so DB NOT NULL holds.
+    const safeTitle = title.trim() || "(untitled)";
+    const safeDescription = description.trim() || "(no description)";
+    const safeCategory = category || "other";
 
     setIsSubmitting(true);
     console.log("[PROPOSAL_SUBMIT] FLOW_START: Sovereign initiated proposal submission.");
@@ -99,9 +89,9 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
         .from("user_proposals")
         .insert({
           user_id: user.id,
-          title: title.trim(),
-          description: description.trim(),
-          category,
+          title: safeTitle,
+          description: safeDescription,
+          category: safeCategory,
           suggested_impact: impact,
         })
         .select()
@@ -115,9 +105,9 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
         {
           body: {
             proposalId: inserted.id,
-            title: title.trim(),
-            description: description.trim(),
-            category,
+            title: safeTitle,
+            description: safeDescription,
+            category: safeCategory,
           },
         }
       );
@@ -148,12 +138,8 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
     }
   };
 
-  const submitDisabled =
-    isSubmitting ||
-    !title.trim() ||
-    !description.trim() ||
-    !category ||
-    hasInsufficientBalance;
+  // TEMP: testing — only block while submitting
+  const submitDisabled = isSubmitting;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
@@ -243,7 +229,8 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
             </p>
           </div>
 
-          {hasInsufficientBalance && (
+          {/* TEMP: testing — insufficient balance warning hidden */}
+          {false && hasInsufficientBalance && (
             <div className="flex items-start gap-2 rounded-xl border border-amber-300 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
               <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-300 mt-0.5 shrink-0" />
               <p className="text-[11px] text-amber-800 dark:text-amber-200 leading-snug">
@@ -263,12 +250,7 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
             >
               Cancel
             </Button>
-            <span
-              className="w-full block cursor-pointer flex-1"
-              onClick={() => {
-                if (hasInsufficientBalance && !isSubmitting) fireInsufficientToast();
-              }}
-            >
+            <span className="w-full block flex-1">
               <Button
                 type="submit"
                 disabled={submitDisabled}
