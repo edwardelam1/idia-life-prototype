@@ -19,7 +19,6 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  idiaBalance: number;
 }
 
 // TEMP: testing — AI validation gate bypassed entirely.
