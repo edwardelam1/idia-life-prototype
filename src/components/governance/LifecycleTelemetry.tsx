@@ -17,13 +17,32 @@ interface ProposalLite {
   created_at: string;
   end_date: string | null;
   quorum_threshold: number | null;
+  on_chain_block?: number;
 }
 
 const PHASE_META = {
-  draft: { icon: "📝", label: "Proposed", color: "text-slate-600 dark:text-slate-200 bg-slate-50 dark:bg-slate-900/40 border-slate-100 dark:border-slate-800" },
-  active: { icon: "⚡", label: "Live Vote", color: "text-orange-600 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/30 border-orange-100 dark:border-orange-900/50" },
-  queued: { icon: "⏳", label: "In Timelock", color: "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border-amber-100 dark:border-amber-900/50" },
-  executed: { icon: "✅", label: "Settled", color: "text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30 border-teal-100 dark:border-teal-900/50" },
+  draft: {
+    icon: "📝",
+    label: "Proposed",
+    color: "text-slate-600 dark:text-slate-200 bg-slate-50 dark:bg-slate-900/40 border-slate-100 dark:border-slate-800",
+  },
+  active: {
+    icon: "⚡",
+    label: "Live Vote",
+    color:
+      "text-orange-600 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/30 border-orange-100 dark:border-orange-900/50",
+  },
+  queued: {
+    icon: "⏳",
+    label: "In Timelock",
+    color:
+      "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border-amber-100 dark:border-amber-900/50",
+  },
+  executed: {
+    icon: "✅",
+    label: "Settled",
+    color: "text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30 border-teal-100 dark:border-teal-900/50",
+  },
 } as const;
 
 const formatRemaining = (endIso: string | null): { label: string; tone: "live" | "ended" | "none" } => {
@@ -121,9 +140,12 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
               <div
                 className={cn(
                   "p-3 rounded-2xl border text-[10px] font-black uppercase tracking-widest",
-                  remaining.tone === "live" && "border-orange-100 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-950/20 text-orange-700 dark:text-orange-200",
-                  remaining.tone === "ended" && "border-rose-100 dark:border-rose-900/40 bg-rose-50/50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-200",
-                  remaining.tone === "none" && "border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/30 text-slate-600 dark:text-slate-300",
+                  remaining.tone === "live" &&
+                    "border-orange-100 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-950/20 text-orange-700 dark:text-orange-200",
+                  remaining.tone === "ended" &&
+                    "border-rose-100 dark:border-rose-900/40 bg-rose-50/50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-200",
+                  remaining.tone === "none" &&
+                    "border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/30 text-slate-600 dark:text-slate-300",
                 )}
               >
                 ⏱ {remaining.label}
@@ -217,7 +239,13 @@ const LifecycleTelemetry: React.FC = () => {
               <div className="flex-1 min-w-0 pr-2">
                 <p className="text-xs font-bold text-slate-800 dark:text-foreground truncate">{it.title}</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <p className={cn("text-[9px] font-black uppercase tracking-[0.15em]", meta.color.split(" ")[0], meta.color.split(" ")[1] || "")}>
+                  <p
+                    className={cn(
+                      "text-[9px] font-black uppercase tracking-[0.15em]",
+                      meta.color.split(" ")[0],
+                      meta.color.split(" ")[1] || "",
+                    )}
+                  >
                     {meta.label}
                   </p>
                   <span className="text-slate-300 dark:text-muted-foreground text-[8px] font-bold tracking-widest uppercase">
