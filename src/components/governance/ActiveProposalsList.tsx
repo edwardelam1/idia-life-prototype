@@ -161,7 +161,7 @@ const ProposalCard: React.FC<{ proposal: Proposal; balance: number }> = ({ propo
               ) : (
                 <>
                   <Fingerprint className="w-4 h-4 mr-2" />
-                  SYNC INTENT
+                  VOTE
                 </>
               )}
             </Button>
