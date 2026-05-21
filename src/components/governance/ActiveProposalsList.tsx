@@ -56,12 +56,13 @@ const ProposalCard: React.FC<{ proposal: Proposal; balance: number }> = ({ propo
       console.log(`[VOTE_CAST] ACA_ANCHOR_END: Biological presence verified. SHA-256 Hash Generated: ${hash}`);
 
       console.log(`[VOTE_CAST] NETWORK_START: Transmitting secure vote payload to Wyoming Operational Gateway.`);
-      
+
       const { error: voteError } = await (supabase as any).from("dao_votes").insert({
         proposal_id: proposal.id,
         user_id: user.id,
         vote_type: "for",
         vote_weight: voteWeight[0],
+        credits_spent: cost,
         aca_hash_key: hash,
         aca_payload: payload,
       });
@@ -83,7 +84,7 @@ const ProposalCard: React.FC<{ proposal: Proposal; balance: number }> = ({ propo
         target_user_id: user.id,
         increment_amount: -cost,
       });
-      
+
       if (burnError) {
         console.warn(`[VOTE_CAST] BURN_WARNING: Token burn failed but vote stands. ${burnError.message}`);
       }
@@ -142,7 +143,9 @@ const ProposalCard: React.FC<{ proposal: Proposal; balance: number }> = ({ propo
           <div className="flex justify-between items-center pt-2">
             <div className="flex items-baseline gap-1">
               <p className="text-3xl font-black text-teal-800 dark:text-teal-200 tracking-tighter">{voteWeight[0]}</p>
-              <span className="text-[10px] font-bold text-teal-600/60 dark:text-teal-300/70 uppercase tracking-widest">VOTES</span>
+              <span className="text-[10px] font-bold text-teal-600/60 dark:text-teal-300/70 uppercase tracking-widest">
+                VOTES
+              </span>
             </div>
 
             <Button
@@ -170,7 +173,10 @@ const ProposalCard: React.FC<{ proposal: Proposal; balance: number }> = ({ propo
 };
 
 // 2. The Main List Component
-const ActiveProposalsList: React.FC<{ balance: number; refreshTrigger?: number }> = ({ balance, refreshTrigger = 0 }) => {
+const ActiveProposalsList: React.FC<{ balance: number; refreshTrigger?: number }> = ({
+  balance,
+  refreshTrigger = 0,
+}) => {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
 
