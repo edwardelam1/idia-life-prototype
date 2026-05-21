@@ -134,6 +134,10 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
                 )}
               </div>
               <DialogTitle className="font-black text-lg leading-tight text-foreground">{proposal.title}</DialogTitle>
+              <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                <Activity className="w-3 h-3" />
+                {blockNumber ? <span>Block: #{blockNumber}</span> : <span>Block: Pending Chain Sync</span>}
+              </div>
               <DialogDescription className="text-xs whitespace-pre-wrap text-muted-foreground">
                 {proposal.description || "No description provided."}
               </DialogDescription>
