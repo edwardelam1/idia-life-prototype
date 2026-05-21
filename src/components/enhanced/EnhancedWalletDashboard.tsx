@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +13,6 @@ import {
   DialogTrigger,
   DialogDescription,
   DialogFooter,
-  
 } from "@/components/ui/dialog";
 
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
@@ -55,7 +53,7 @@ import {
   Loader2,
   Vote,
   Network,
-  QrCode
+  QrCode,
 } from "lucide-react";
 
 interface Transaction {
@@ -107,10 +105,24 @@ const EnhancedWalletDashboard: React.FC = () => {
 
   // New useWallet API — returns balances.eth, balances.idia, balances.usdc
   const {
-    wallet, balances, votingPower, delegatee, loading: walletLoading, balancesLoading,
-    activeNetwork, activeNetworkKey, availableNetworks, switchNetwork,
-    createWallet, importWallet, deleteWallet, getSeedPhrase,
-    refreshBalances, sendNative, sendIDIA, delegateVotes,
+    wallet,
+    balances,
+    votingPower,
+    delegatee,
+    loading: walletLoading,
+    balancesLoading,
+    activeNetwork,
+    activeNetworkKey,
+    availableNetworks,
+    switchNetwork,
+    createWallet,
+    importWallet,
+    deleteWallet,
+    getSeedPhrase,
+    refreshBalances,
+    sendNative,
+    sendIDIA,
+    delegateVotes,
   } = useWallet();
 
   const hasWallet = wallet !== null;
@@ -124,7 +136,10 @@ const EnhancedWalletDashboard: React.FC = () => {
       if (newWallet?.address && stableUserId) await syncWalletToSupabase(newWallet.address);
       const seed = await getSeedPhrase(); // FIXED: Added await here!
       return newWallet ? { address: newWallet.address, mnemonic: seed || newWallet.mnemonic || "" } : null;
-    } catch (error) { console.error("Wallet creation error:", error); return null; }
+    } catch (error) {
+      console.error("Wallet creation error:", error);
+      return null;
+    }
   };
 
   const handleImportWallet = async (seedPhrase: string) => {
@@ -132,7 +147,10 @@ const EnhancedWalletDashboard: React.FC = () => {
       const result = await importWallet(seedPhrase);
       if (result?.address && stableUserId) await syncWalletToSupabase(result.address);
       return !!result;
-    } catch (error) { console.error("Wallet import error:", error); return false; }
+    } catch (error) {
+      console.error("Wallet import error:", error);
+      return false;
+    }
   };
 
   const handleSyncIdiaWallet = async () => {
@@ -141,15 +159,22 @@ const EnhancedWalletDashboard: React.FC = () => {
   };
 
   const handleGetSeedPhrase = async (): Promise<string | null> => {
-    try { return await getSeedPhrase(); } // FIXED: Added await here!
-    catch (error) { console.error("Seed phrase error:", error); return null; }
+    try {
+      return await getSeedPhrase();
+    } catch (error) {
+      // FIXED: Added await here!
+      console.error("Seed phrase error:", error);
+      return null;
+    }
   };
 
   const handleDelegateVotes = async () => {
     if (!wallet?.address) return;
     try {
       await delegateVotes(); // Self-delegate by default
-    } catch (e) { console.error("Delegation failed:", e); }
+    } catch (e) {
+      console.error("Delegation failed:", e);
+    }
   };
 
   // ── Refs and state ──
@@ -188,12 +213,12 @@ const EnhancedWalletDashboard: React.FC = () => {
       }
     };
     window.addEventListener("message", handleNativeAuthMessage);
-return () => window.removeEventListener("message", handleNativeAuthMessage);
+    return () => window.removeEventListener("message", handleNativeAuthMessage);
   }, []);
 
   // ── Transactions ──
-  useEffect(() => { 
-    if (stableUserId) fetchTransactions(); 
+  useEffect(() => {
+    if (stableUserId) fetchTransactions();
   }, [stableUserId]);
 
   const fetchTransactions = async () => {
@@ -338,7 +363,13 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
   };
 
   if (loading || balanceLoading || isHydrating || walletLoading) {
-    return (<div className="p-4 space-y-4 animate-pulse"><div className="h-8 bg-muted rounded w-1/3"></div><div className="h-32 bg-muted rounded"></div><div className="h-64 bg-muted rounded"></div></div>);
+    return (
+      <div className="p-4 space-y-4 animate-pulse">
+        <div className="h-8 bg-muted rounded w-1/3"></div>
+        <div className="h-32 bg-muted rounded"></div>
+        <div className="h-64 bg-muted rounded"></div>
+      </div>
+    );
   }
 
   const TestModal = () => (
@@ -374,27 +405,115 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
         </TabsList>
 
         {/* ═══ OVERVIEW TAB ═══ */}
-        <TabsContent value="overview" className="space-y-4">
-          <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white relative overflow-hidden">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold">Total Balance</h2>
-                <Wallet className="w-6 h-6 opacity-50" />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="text-center">
-                  <p className="text-teal-100 text-[10px] font-medium uppercase font-bold">Stable USDC</p>
-                  <p className="text-xl font-black">${walletBalance?.usdc_balance?.toFixed(2) || "0.00"}</p>
+        <TabsContent value="overview" className="flex-1 min-h-0 overflow-hidden mt-2">
+          <div
+            className="h-full overflow-y-auto no-scrollbar pr-1 space-y-4 pb-24"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
+            <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white relative overflow-hidden">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold">Total Balance</h2>
+                  <Wallet className="w-6 h-6 opacity-50" />
                 </div>
-                <div className="text-center">
-                  <p className="text-teal-100 text-[10px] font-medium uppercase font-bold">IDIA Token</p>
-                  <p className="text-xl font-black">{walletBalance?.idia_token_balance?.toFixed(2) || "0.00"}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-center">
+                    <p className="text-teal-100 text-[10px] font-medium uppercase font-bold">Stable USDC</p>
+                    <p className="text-xl font-black">${walletBalance?.usdc_balance?.toFixed(2) || "0.00"}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-teal-100 text-[10px] font-medium uppercase font-bold">IDIA Token</p>
+                    <p className="text-xl font-black">{walletBalance?.idia_token_balance?.toFixed(2) || "0.00"}</p>
+                  </div>
                 </div>
-              </div>
-              {!isProvisioned && (<div className="mt-4 pt-2 border-t border-white/20 text-center"><p className="text-[10px] text-teal-50 italic">Link a Sovereign Vault to enable liquidation</p></div>)}
-            </CardContent>
-          </Card>
+                {!isProvisioned && (
+                  <div className="mt-4 pt-2 border-t border-white/20 text-center">
+                    <p className="text-[10px] text-teal-50 italic">Link a Sovereign Vault to enable liquidation</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
+            {/* Elevated Sovereign Treasury Details */}
+            {hasWallet && wallet && (
+              <div className="space-y-4">
+                {/* Balances — ETH, IDIA, USDC */}
+                <div className="space-y-3">
+                  {/* ETH */}
+                  <div className="p-3 bg-secondary/30 rounded-lg border">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-muted-foreground">ETH (Gas)</p>
+                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={refreshBalances}>
+                        <RefreshCw className={`w-3 h-3 ${balancesLoading ? "animate-spin" : ""}`} />
+                      </Button>
+                    </div>
+                    {balancesLoading && !balances ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mt-1" />
+                    ) : (
+                      <p className="text-lg font-bold mt-1">
+                        {balances?.eth ? Number(balances.eth.balanceFormatted).toFixed(6) : "0.000000"}
+                        <span className="text-sm text-muted-foreground font-normal ml-1">ETH</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* IDIA Token */}
+                  <div className="p-3 bg-gradient-to-br from-teal-50 to-blue-50 dark:from-teal-950 dark:to-blue-950 rounded-lg border">
+                    <p className="text-xs text-muted-foreground">IDIA Token</p>
+                    {balancesLoading && !balances ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mt-1" />
+                    ) : (
+                      <p className="text-2xl font-bold mt-1">
+                        {balances?.idia ? Number(balances.idia.balanceFormatted).toFixed(2) : "0.00"}
+                        <span className="text-sm text-muted-foreground font-normal ml-1">IDIA</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* USDC */}
+                  <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 rounded-lg border">
+                    <div className="flex items-center justify-between">
+                      {/* FIXED: Removed the IS_TESTNET tag to reflect live mainnet state */}
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">USDC</p>
+                    </div>
+                    {balancesLoading && !balances ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mt-1" />
+                    ) : (
+                      <p className="text-2xl font-bold mt-1">
+                        ${balances?.usdc ? parseFloat(balances.usdc.balanceFormatted).toFixed(2) : "0.00"}
+                        <span className="text-sm text-muted-foreground font-normal ml-1">USDC</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Voting Power */}
+                {/* FIXED: Removed `parseFloat(votingPower) > 0` wrapper so 0 balances remain exposed */}
+                <div className="p-3 bg-secondary/30 rounded-lg border">
+                  <p className="text-xs text-muted-foreground">Voting Power</p>
+                  <p className="text-lg font-bold mt-1">
+                    {votingPower ? Number(votingPower).toFixed(0) : "0"}{" "}
+                    <span className="text-sm text-muted-foreground font-normal">votes</span>
+                  </p>
+                  {delegatee && delegatee !== "0x0000000000000000000000000000000000000000" && (
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Delegated to: {delegatee.slice(0, 8)}...{delegatee.slice(-6)}
+                    </p>
+                  )}
+                </div>
+
+                {/* Self-delegate button — only if has IDIA but no voting power */}
+                {balances?.idia &&
+                  parseFloat(balances.idia.balanceFormatted) > 0 &&
+                  (!votingPower || parseFloat(votingPower) === 0) && (
+                    <Button variant="outline" onClick={handleDelegateVotes} className="w-full">
+                      <Vote className="w-4 h-4 mr-2" />
+                      Activate Voting Power
+                    </Button>
+                  )}
+              </div>
+            )}
+          </div>
         </TabsContent>
 
         {/* ═══ TRANSACTIONS TAB ═══ */}
@@ -432,7 +551,9 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
                           </Badge>
                         </div>
                       </div>
-                      <div className={`font-semibold ${getTransactionColor(tx.amount)}`}>{formatAmount(tx.amount, tx.source)}</div>
+                      <div className={`font-semibold ${getTransactionColor(tx.amount)}`}>
+                        {formatAmount(tx.amount, tx.source)}
+                      </div>
                     </div>
                   );
                 })}
@@ -479,44 +600,120 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
 
         {/* ═══ WALLET TAB (was "Security") ═══ */}
         <TabsContent value="security" className="flex-1 min-h-0 overflow-hidden">
-          <div className="h-full overflow-y-auto touch-pan-y no-scrollbar pr-1 space-y-4" style={{ WebkitOverflowScrolling: "touch" }}>
-
-          {hasWallet && wallet ? (
-            <>
-              {/* ── Wallet Card ── */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2 text-base"><Wallet className="w-4 h-4 text-teal-600" />IDIA Wallet</CardTitle>
-                    {IS_TESTNET && (<Badge variant="secondary" className="bg-purple-100 text-purple-800 text-xs">Testnet</Badge>)}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Sync mismatch warning */}
-                  {globalWalletAddress && globalWalletAddress.toLowerCase() !== wallet.address.toLowerCase() && (
-                    <div className="p-3 rounded-lg border border-yellow-300 bg-yellow-50 dark:bg-yellow-950 space-y-2">
-                      <div className="flex items-start gap-2">
-                        <AlertTriangle className="w-4 h-4 text-yellow-700 dark:text-yellow-300 mt-0.5 shrink-0" />
-                        <div className="flex-1 text-xs text-yellow-900 dark:text-yellow-100">
-                          <p className="font-semibold mb-1">Account linked to a different wallet</p>
-                          <p>Tap below to use this IDIA wallet instead.</p>
-                          <p className="font-mono text-[10px] mt-2 break-all">Linked: {globalWalletAddress}</p>
-                          <p className="font-mono text-[10px] break-all">IDIA: {wallet.address}</p>
+          <div
+            className="h-full overflow-y-auto touch-pan-y no-scrollbar pr-1 space-y-4 pb-24"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
+            {hasWallet && wallet ? (
+              <>
+                {/* ── Wallet Card ── */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Wallet className="w-4 h-4 text-teal-600" />
+                        IDIA Wallet
+                      </CardTitle>
+                      {IS_TESTNET && (
+                        <Badge variant="secondary" className="bg-purple-100 text-purple-800 text-xs">
+                          Testnet
+                        </Badge>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Sync mismatch warning */}
+                    {globalWalletAddress && globalWalletAddress.toLowerCase() !== wallet.address.toLowerCase() && (
+                      <div className="p-3 rounded-lg border border-yellow-300 bg-yellow-50 dark:bg-yellow-950 space-y-2">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 text-yellow-700 dark:text-yellow-300 mt-0.5 shrink-0" />
+                          <div className="flex-1 text-xs text-yellow-900 dark:text-yellow-100">
+                            <p className="font-semibold mb-1">Account linked to a different wallet</p>
+                            <p>Tap below to use this IDIA wallet instead.</p>
+                            <p className="font-mono text-[10px] mt-2 break-all">Linked: {globalWalletAddress}</p>
+                            <p className="font-mono text-[10px] break-all">IDIA: {wallet.address}</p>
+                          </div>
                         </div>
+                        <Button
+                          size="sm"
+                          className="w-full bg-yellow-600 hover:bg-yellow-700 text-white"
+                          onClick={handleSyncIdiaWallet}
+                        >
+                          <Link2 className="w-3 h-3 mr-2" />
+                          Use IDIA Wallet for My Account
+                        </Button>
                       </div>
-                      <Button size="sm" className="w-full bg-yellow-600 hover:bg-yellow-700 text-white" onClick={handleSyncIdiaWallet}>
-                        <Link2 className="w-3 h-3 mr-2" />Use IDIA Wallet for My Account
+                    )}
+
+                    {/* Address */}
+                    <div className="p-3 bg-secondary/50 rounded-lg border">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs text-muted-foreground">Wallet Address</p>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0"
+                          onClick={() => navigator.clipboard.writeText(wallet.address)}
+                        >
+                          <Copy className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      <p className="font-mono text-xs break-all text-muted-foreground mb-2">{wallet.address}</p>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => {
+                          setSetupMode("view-seed");
+                          setIsSetupModalOpen(true);
+                        }}
+                      >
+                        <Shield className="w-4 h-4 mr-2" /> Reveal Recovery Phrase
                       </Button>
                     </div>
-                  )}
 
-                  {/* Address */}
-                  <div className="p-3 bg-secondary/50 rounded-lg border">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-xs text-muted-foreground">Wallet Address</p>
-                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => navigator.clipboard.writeText(wallet.address)}><Copy className="w-3 h-3" /></Button>
-                    </div>
-                    <p className="font-mono text-xs break-all text-muted-foreground mb-2">{wallet.address}</p>
+                    {/* Network selector — only visible in test builds */}
+                    {IS_TESTNET && (
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                          <Network className="w-3 h-3" /> Network
+                        </label>
+                        <select
+                          className="w-full p-2 border rounded-md text-sm bg-background"
+                          value={activeNetworkKey}
+                          onChange={(e) => switchNetwork(e.target.value)}
+                        >
+                          {availableNetworks.map(({ key, config }) => (
+                            <option key={key} value={key}>
+                              {config.name}
+                              {config.isTestnet ? " (Testnet)" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* ── USDC Payments (NFC + QR) ── */}
+                <PaymentTrigger />
+
+                {/* ── Request USDC Payment (only when payments enabled) ── */}
+                {USDC_PAYMENTS_ENABLED && (
+                  <Button variant="outline" onClick={() => setShowRequestPayment(true)} className="w-full">
+                    <QrCode className="w-4 h-4 mr-2" />
+                    Request USDC Payment
+                  </Button>
+                )}
+
+                {/* ── Wallet Management ── */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Shield className="w-4 h-4" />
+                      Wallet Management
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
                     <Button
                       variant="outline"
                       className="w-full"
@@ -525,133 +722,73 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
                         setIsSetupModalOpen(true);
                       }}
                     >
-                      <Shield className="w-4 h-4 mr-2" /> Reveal Recovery Phrase
+                      <Shield className="w-4 h-4 mr-2" />
+                      Reveal Recovery Phrase
                     </Button>
-                  </div>
-                  
-                  {/* Balances — ETH, IDIA, USDC */}
-                  <div className="space-y-3">
-                    {/* ETH */}
-                    <div className="p-3 bg-secondary/30 rounded-lg border">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-muted-foreground">ETH (Gas)</p>
-                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={refreshBalances}>
-                          <RefreshCw className={`w-3 h-3 ${balancesLoading ? "animate-spin" : ""}`} />
-                        </Button>
-                      </div>
-                      {balancesLoading && !balances ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mt-1" />
-                      ) : (
-                        <p className="text-lg font-bold mt-1">
-                          {balances?.eth ? Number(balances.eth.balanceFormatted).toFixed(6) : "0.000000"}
-                          <span className="text-sm text-muted-foreground font-normal ml-1">ETH</span>
-                        </p>
-                      )}
-                    </div>
-
-                    {/* IDIA Token */}
-                    <div className="p-3 bg-gradient-to-br from-teal-50 to-blue-50 dark:from-teal-950 dark:to-blue-950 rounded-lg border">
-                      <p className="text-xs text-muted-foreground">IDIA Token</p>
-                      {balancesLoading && !balances ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mt-1" />
-                      ) : (
-                        <p className="text-2xl font-bold mt-1">
-                          {balances?.idia ? Number(balances.idia.balanceFormatted).toFixed(2) : "0.00"}
-                          <span className="text-sm text-muted-foreground font-normal ml-1">IDIA</span>
-                        </p>
-                      )}
-                    </div>
-
-                    {/* USDC */}
-                    <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 rounded-lg border">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                          USDC {IS_TESTNET && <span className="text-purple-600">(Testnet)</span>}
-                        </p>
-                      </div>
-                      {balancesLoading && !balances ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mt-1" />
-                      ) : (
-                        <p className="text-2xl font-bold mt-1">
-                          ${balances?.usdc ? parseFloat(balances.usdc.balanceFormatted).toFixed(2) : "0.00"}
-                          <span className="text-sm text-muted-foreground font-normal ml-1">USDC</span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Voting Power */}
-                  {votingPower && parseFloat(votingPower) > 0 && (
-                    <div className="p-3 bg-secondary/30 rounded-lg border">
-                      <p className="text-xs text-muted-foreground">Voting Power</p>
-                      <p className="text-lg font-bold mt-1">{Number(votingPower).toFixed(0)} <span className="text-sm text-muted-foreground font-normal">votes</span></p>
-                      {delegatee && delegatee !== "0x0000000000000000000000000000000000000000" && (
-                        <p className="text-[10px] text-muted-foreground mt-1">Delegated to: {delegatee.slice(0, 8)}...{delegatee.slice(-6)}</p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Self-delegate button — only if has IDIA but no voting power */}
-                  {balances?.idia && parseFloat(balances.idia.balanceFormatted) > 0 && (!votingPower || parseFloat(votingPower) === 0) && (
-                    <Button variant="outline" onClick={handleDelegateVotes} className="w-full">
-                      <Vote className="w-4 h-4 mr-2" />Activate Voting Power
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        setSetupMode("import");
+                        setIsSetupModalOpen(true);
+                      }}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Import Different Wallet
                     </Button>
-                  )}
-
-                 {/* Network selector — only visible in test builds */}
-                  {IS_TESTNET && (
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-2 flex items-center gap-1"><Network className="w-3 h-3" /> Network</label>
-                      <select className="w-full p-2 border rounded-md text-sm bg-background" value={activeNetworkKey} onChange={(e) => switchNetwork(e.target.value)}>
-                        {availableNetworks.map(({ key, config }) => (
-                          <option key={key} value={key}>{config.name}{config.isTestnet ? " (Testnet)" : ""}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  
-                </CardContent>
-              </Card>
-
-              {/* ── USDC Payments (NFC + QR) ── */}
-              <PaymentTrigger />
-
-              {/* ── Request USDC Payment (only when payments enabled) ── */}
-              {USDC_PAYMENTS_ENABLED && (
-                <Button variant="outline" onClick={() => setShowRequestPayment(true)} className="w-full">
-                  <QrCode className="w-4 h-4 mr-2" />Request USDC Payment
-                </Button>
-              )}
-
-              {/* ── Wallet Management ── */}
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
               <Card>
-                <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Shield className="w-4 h-4" />Wallet Management</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  <Button variant="outline" className="w-full" onClick={() => { setSetupMode("view-seed"); setIsSetupModalOpen(true); }}>
-                    <Shield className="w-4 h-4 mr-2" />Reveal Recovery Phrase
-                  </Button>
-                  <Button variant="outline" className="w-full" onClick={() => { setSetupMode("import"); setIsSetupModalOpen(true); }}>
-                    <Download className="w-4 h-4 mr-2" />Import Different Wallet
-                  </Button>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Wallet className="w-5 h-5" />
+                    {globalWalletAddress ? "Upgrade Your Wallet" : "Set Up Your IDIA Wallet"}
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    {globalWalletAddress ? (
+                      <>
+                        Your account is linked to a previous wallet:
+                        <br />
+                        <code className="text-[10px]">
+                          {globalWalletAddress.slice(0, 8)}...{globalWalletAddress.slice(-6)}
+                        </code>
+                        <br />
+                        <br />
+                        Create or import an IDIA wallet to enable full features.
+                      </>
+                    ) : (
+                      "Create a new EVM wallet or restore from a 12-word seed phrase."
+                    )}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      onClick={() => {
+                        setSetupMode("create");
+                        setIsSetupModalOpen(true);
+                      }}
+                      className="bg-teal-500 hover:bg-teal-600"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create New
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSetupMode("import");
+                        setIsSetupModalOpen(true);
+                      }}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Import
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
-            </>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Wallet className="w-5 h-5" />{globalWalletAddress ? "Upgrade Your Wallet" : "Set Up Your IDIA Wallet"}</CardTitle>
-                <CardDescription className="text-xs">
-                  {globalWalletAddress ? (<>Your account is linked to a previous wallet:<br /><code className="text-[10px]">{globalWalletAddress.slice(0, 8)}...{globalWalletAddress.slice(-6)}</code><br /><br />Create or import an IDIA wallet to enable full features.</>) : ("Create a new EVM wallet or restore from a 12-word seed phrase.")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button onClick={() => { setSetupMode("create"); setIsSetupModalOpen(true); }} className="bg-teal-500 hover:bg-teal-600"><Plus className="w-4 h-4 mr-2" />Create New</Button>
-                  <Button variant="outline" onClick={() => { setSetupMode("import"); setIsSetupModalOpen(true); }}><Download className="w-4 h-4 mr-2" />Import</Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+            )}
           </div>
         </TabsContent>
       </Tabs>
@@ -698,7 +835,7 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
                 <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
                   <Hash size={12} /> Asset Rail
                 </div>
-                <p className="text-sm font-bold text-slate-800">{selectedTransaction?.source}</p> 
+                <p className="text-sm font-bold text-slate-800">{selectedTransaction?.source}</p>
               </div>
             </div>
           </div>
@@ -724,9 +861,9 @@ return () => window.removeEventListener("message", handleNativeAuthMessage);
         getSeedPhrase={handleGetSeedPhrase}
         walletAddress={displayAddress}
       />
-      <RequestPaymentQR 
-        isOpen={showRequestPayment} 
-        onClose={() => setShowRequestPayment(false)} 
+      <RequestPaymentQR
+        isOpen={showRequestPayment}
+        onClose={() => setShowRequestPayment(false)}
         walletAddress={displayAddress || ""} // FIXED: Added required prop
       />
     </div>
