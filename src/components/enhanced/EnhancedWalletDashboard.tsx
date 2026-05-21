@@ -473,7 +473,6 @@ const EnhancedWalletDashboard: React.FC = () => {
                   {/* USDC */}
                   <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 rounded-lg border">
                     <div className="flex items-center justify-between">
-                      {/* FIXED: Removed the IS_TESTNET tag to reflect live mainnet state */}
                       <p className="text-xs text-muted-foreground flex items-center gap-1">USDC</p>
                     </div>
                     {balancesLoading && !balances ? (
@@ -488,7 +487,6 @@ const EnhancedWalletDashboard: React.FC = () => {
                 </div>
 
                 {/* Voting Power */}
-                {/* FIXED: Removed `parseFloat(votingPower) > 0` wrapper so 0 balances remain exposed */}
                 <div className="p-3 bg-secondary/30 rounded-lg border">
                   <p className="text-xs text-muted-foreground">Voting Power</p>
                   <p className="text-lg font-bold mt-1">
