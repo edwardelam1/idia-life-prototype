@@ -71,7 +71,7 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
       if (!user) throw new Error("Authentication required.");
       console.log("[PROPOSAL_SUBMIT] AUTH_SUCCESS: User resolved.");
 
-      console.log("[PROPOSAL_SUBMIT] DB_INSERT_START: Committing approved active proposal to quadratic ledger...");
+      console.log("[PROPOSAL_SUBMIT] DB_INSERT_START: Committing approved active proposal to 1:1 vote ledger...");
       const { data: inserted, error: insertError } = await (supabase as any)
         .from("dao_proposals")
         .insert({
@@ -79,8 +79,8 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
           title: safeTitle,
           description: safeDescription,
           status: "active",
-          vote_type: "quadratic",
-          voting_modality: "quadratic",
+          vote_type: "simple",
+          voting_modality: "simple",
           lifecycle_phase: "active",
         })
         .select()

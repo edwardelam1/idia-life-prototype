@@ -2,227 +2,279 @@ import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
-import { Gavel, Loader2, Fingerprint, Activity } from "lucide-react";
+import { Gavel, Loader2, Fingerprint, CheckCircle2, ThumbsUp, ThumbsDown, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
-import { isNative } from "@/services/platform";
+import { stage } from "@/lib/stageLogger";
 
 interface Proposal {
   id: string;
   title: string;
   description: string;
   status: string;
+  proposer_id: string | null;
 }
 
-const calculateVoteCost = (n: number) => Math.pow(n, 2);
-
-// 1. Extracted Individual Proposal Card Component
-const ProposalCard: React.FC<{ proposal: Proposal; balance: number }> = ({ proposal, balance }) => {
-  const [voteWeight, setVoteWeight] = useState([1]);
+const ProposalCard: React.FC<{
+  proposal: Proposal;
+  balance: number;
+  currentUserId: string | null;
+  onChanged: () => void;
+}> = ({ proposal, balance, currentUserId, onChanged }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [hasVoted, setHasVoted] = useState<null | "for" | "against">(null);
+  const [voteCount, setVoteCount] = useState<number>(0);
+  const [loadingMeta, setLoadingMeta] = useState(true);
 
-  const handleCastVote = async () => {
-    const cost = calculateVoteCost(voteWeight[0]);
-    if (cost > balance) {
+  const isProposer = !!currentUserId && proposal.proposer_id === currentUserId;
+  const canWithdraw = isProposer && voteCount === 0 && hasVoted === null;
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const s = stage("PROPOSAL_CARD", "META_FETCH");
+      s.start({ id: proposal.id });
+      try {
+        const [{ data: votes }, mine] = await Promise.all([
+          (supabase as any).from("dao_votes").select("vote_type").eq("proposal_id", proposal.id),
+          currentUserId
+            ? (supabase as any)
+                .from("dao_votes")
+                .select("vote_type")
+                .eq("proposal_id", proposal.id)
+                .eq("user_id", currentUserId)
+                .maybeSingle()
+            : Promise.resolve({ data: null }),
+        ]);
+        if (!alive) return;
+        setVoteCount((votes || []).length);
+        setHasVoted(((mine as any)?.data?.vote_type as "for" | "against") ?? null);
+        s.ok();
+      } catch (e) {
+        s.fail(e);
+      } finally {
+        if (alive) setLoadingMeta(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [proposal.id, currentUserId]);
+
+  const handleCastVote = async (support: "for" | "against") => {
+    const s = stage("VOTE_CAST", support.toUpperCase());
+    s.start({ proposalId: proposal.id });
+    if (balance < 1) {
       toast({
         title: "Insufficient IDIA",
-        description: `This vote costs ${cost} IDIA. Your balance is ${balance}.`,
+        description: "1 IDIA is required to cast a sovereign vote.",
         variant: "destructive",
       });
+      s.fail("insufficient_balance");
       return;
     }
-
     setIsSubmitting(true);
-
     try {
-      console.log(`[VOTE_CAST] VERIFY: Auditing financial metrics for quadratic weight: ${voteWeight[0]}`);
-
-      console.log(`[VOTE_CAST] AUTH: Retrieving local sovereign identity.`);
       const {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
-      if (authError || !user) {
-        throw new Error("Sovereign authentication failed or identity not found.");
-      }
+      if (authError || !user) throw new Error("Sovereign authentication failed.");
 
-      console.log(`[VOTE_CAST] ACA_ANCHOR_START: Requesting hardware-backed biological anchor for vote mapping...`);
       const { hash, payload } = await generateACAHash(user.id, `proposal_vote_${proposal.id}`, [
         "GOVERNANCE_VOTE",
         "LEDGER_WRITE",
       ]);
-      console.log(`[VOTE_CAST] ACA_ANCHOR_END: Biological presence verified. SHA-256 Hash Generated: ${hash}`);
-
-      console.log(`[VOTE_CAST] NETWORK_START: Transmitting secure vote payload to Wyoming Operational Gateway.`);
 
       const { error: voteError } = await (supabase as any).from("dao_votes").insert({
         proposal_id: proposal.id,
         user_id: user.id,
-        vote_type: "for",
-        vote_weight: voteWeight[0],
-        credits_spent: cost,
+        vote_type: support,
+        vote_weight: 1,
+        credits_spent: 1,
         aca_hash_key: hash,
         aca_payload: payload,
       });
-
       if (voteError) {
         if (voteError.code === "23505") {
-          toast({
-            title: "Already Voted",
-            description: "Sovereign intent on this proposal is already recorded.",
-            variant: "destructive",
-          });
+          toast({ title: "Already Voted", description: "Intent already recorded.", variant: "destructive" });
+          setHasVoted(support);
           return;
         }
         throw voteError;
       }
 
-      // Burn IDIA tokens via wallet decrement (atomic)
       const { error: burnError } = await (supabase as any).rpc("increment_wallet_balance", {
         target_user_id: user.id,
-        increment_amount: -cost,
+        increment_amount: -1,
       });
+      if (burnError) console.warn("[VOTE_CAST] BURN_WARNING", burnError.message);
 
-      if (burnError) {
-        console.warn(`[VOTE_CAST] BURN_WARNING: Token burn failed but vote stands. ${burnError.message}`);
-      }
-
-      console.log(`[VOTE_CAST] NETWORK_END: Ledger entry committed. Intent synced for proposal ${proposal.id}.`);
+      setHasVoted(support);
+      setVoteCount((c) => c + 1);
       toast({
-        title: "Intent Cast Successfully",
-        description: `Secured via ACA Hash ${hash.substring(0, 8)}...`,
+        title: "Intent Cast",
+        description: `Recorded ${support.toUpperCase()} · ACA ${hash.substring(0, 8)}…`,
       });
-
-      setVoteWeight([1]);
-    } catch (error: any) {
-      console.error(`[VOTE_CAST] CRITICAL_FAILURE: Vote sequence halted. Reason: ${error.message}`);
-      toast({
-        title: "Submission Failed",
-        description: "The vote sequence was interrupted. Check logs for details.",
-        variant: "destructive",
-      });
+      onChanged();
+      s.ok();
+    } catch (e: any) {
+      s.fail(e);
+      toast({ title: "Submission Failed", description: e.message, variant: "destructive" });
     } finally {
       setIsSubmitting(false);
-      console.log(`[VOTE_CAST] END: Execution thread terminated.`);
     }
   };
+
+  const handleWithdraw = async () => {
+    const s = stage("PROPOSAL_WITHDRAW", "DELETE");
+    s.start({ id: proposal.id });
+    setIsWithdrawing(true);
+    try {
+      // Re-check votes immediately to avoid race
+      const { data: latest } = await (supabase as any)
+        .from("dao_votes")
+        .select("id")
+        .eq("proposal_id", proposal.id)
+        .limit(1);
+      if ((latest || []).length > 0) {
+        toast({
+          title: "Cannot withdraw",
+          description: "Votes have already been cast on this proposal.",
+          variant: "destructive",
+        });
+        onChanged();
+        s.fail("votes_present");
+        return;
+      }
+      const { error } = await (supabase as any).from("dao_proposals").delete().eq("id", proposal.id);
+      if (error) throw error;
+      toast({ title: "Proposal withdrawn", description: "Removed from the active ledger." });
+      onChanged();
+      s.ok();
+    } catch (e: any) {
+      s.fail(e);
+      toast({ title: "Withdraw failed", description: e.message, variant: "destructive" });
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
+
+  // ── Minimized view: user has already voted ─────────────────────────
+  if (hasVoted) {
+    return (
+      <Card className="border-teal-50 dark:bg-card dark:border-teal-900/40 shadow-sm rounded-2xl opacity-70">
+        <CardContent className="p-4 flex items-center gap-3">
+          <CheckCircle2 className="w-5 h-5 text-teal-600 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-slate-800 dark:text-foreground truncate">{proposal.title}</p>
+            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+              Vote cast · {hasVoted.toUpperCase()}
+            </p>
+          </div>
+          <Badge className="bg-teal-600 text-white text-[9px] font-black uppercase">Locked</Badge>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="border-teal-50 dark:bg-card dark:border-teal-900/40 shadow-sm rounded-3xl overflow-hidden transition-all hover:shadow-md">
       <CardContent className="p-5 space-y-4">
         <div className="space-y-2">
-          <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[9px] font-black uppercase tracking-wider">
-            {proposal.status}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[9px] font-black uppercase tracking-wider">
+              {proposal.status}
+            </Badge>
+            <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+              {voteCount} vote{voteCount === 1 ? "" : "s"}
+            </span>
+          </div>
           <h3 className="font-black text-lg leading-tight text-slate-800 dark:text-foreground">{proposal.title}</h3>
           <p className="text-xs text-muted-foreground leading-relaxed">{proposal.description}</p>
         </div>
 
-        <div className="p-4 bg-teal-50/50 dark:bg-teal-950/30 rounded-2xl border border-teal-100/50 dark:border-teal-900/50 space-y-4">
-          <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider">
-            <span className="text-teal-700 dark:text-teal-200 flex items-center gap-1">
-              <Activity size={12} /> Quadratic Weight
-            </span>
-            <span className="text-orange-600 dark:text-orange-300 bg-orange-100/50 dark:bg-orange-950/40 px-2 py-1 rounded-md">
-              Cost: {calculateVoteCost(voteWeight[0])} IDIA
-            </span>
-          </div>
-
-          <Slider
-            value={voteWeight}
-            onValueChange={setVoteWeight}
-            max={50}
-            min={1}
-            step={1}
-            disabled={isSubmitting}
-            className="cursor-pointer"
-          />
-
-          <div className="flex justify-between items-center pt-2">
-            <div className="flex items-baseline gap-1">
-              <p className="text-3xl font-black text-teal-800 dark:text-teal-200 tracking-tighter">{voteWeight[0]}</p>
-              <span className="text-[10px] font-bold text-teal-600/60 dark:text-teal-300/70 uppercase tracking-widest">
-                VOTES
-              </span>
-            </div>
-
+        <div className="p-4 bg-teal-50/50 dark:bg-teal-950/30 rounded-2xl border border-teal-100/50 dark:border-teal-900/50 space-y-3">
+          <p className="text-[10px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-200">
+            Cast Sovereign Vote · 1 IDIA
+          </p>
+          <div className="grid grid-cols-2 gap-2">
             <Button
-              onClick={handleCastVote}
-              disabled={isSubmitting}
-              className="bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[10px] px-6 rounded-full h-10 shadow-lg shadow-teal-900/10 transition-all"
+              onClick={() => handleCastVote("for")}
+              disabled={isSubmitting || isWithdrawing || loadingMeta}
+              className="h-11 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[10px] rounded-full"
             >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  VERIFYING...
-                </>
-              ) : (
-                <>
-                  <Fingerprint className="w-4 h-4 mr-2" />
-                  VOTE
-                </>
-              )}
+              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <><ThumbsUp className="w-3.5 h-3.5 mr-1.5" />Vote For</>}
+            </Button>
+            <Button
+              onClick={() => handleCastVote("against")}
+              disabled={isSubmitting || isWithdrawing || loadingMeta}
+              variant="outline"
+              className="h-11 font-black uppercase text-[10px] rounded-full border-slate-300 dark:border-slate-700"
+            >
+              <ThumbsDown className="w-3.5 h-3.5 mr-1.5" />Vote Against
             </Button>
           </div>
         </div>
+
+        {canWithdraw && (
+          <Button
+            onClick={handleWithdraw}
+            disabled={isWithdrawing}
+            variant="ghost"
+            size="sm"
+            className="w-full h-9 text-[10px] font-black uppercase tracking-widest text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-full"
+          >
+            {isWithdrawing ? (
+              <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Withdrawing…</>
+            ) : (
+              <><Trash2 className="w-3.5 h-3.5 mr-1.5" />Withdraw Proposal</>
+            )}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
 };
 
-// 2. The Main List Component
 const ActiveProposalsList: React.FC<{ balance: number; refreshTrigger?: number }> = ({
   balance,
   refreshTrigger = 0,
 }) => {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [innerRefresh, setInnerRefresh] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
-
     (async () => {
-      console.log("[ACTIVE_PROPOSALS] START: Initializing protocol fetch for active quadratic proposals.");
+      const s = stage("ACTIVE_PROPOSALS", "FETCH");
+      s.start();
       try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (isMounted) setUserId(user?.id ?? null);
+
         const { data, error } = await (supabase as any)
           .from("dao_proposals")
-          .select("*")
-          .eq("voting_modality", "quadratic")
+          .select("id, title, description, status, proposer_id")
           .order("created_at", { ascending: false });
-
-        if (error) {
-          throw error;
-        }
-
-        if (isMounted) {
-          console.log(
-            `[ACTIVE_PROPOSALS] SUCCESS: Retrieved ${data?.length || 0} active proposals from Wyoming Gateway.`,
-          );
-          setProposals(data || []);
-        }
+        if (error) throw error;
+        if (isMounted) setProposals(data || []);
+        s.ok({ count: data?.length });
       } catch (err: any) {
-        console.error(
-          `[ACTIVE_PROPOSALS] CRITICAL_FAILURE: Failed to query Wyoming operational data. Reason: ${err.message}`,
-        );
-        toast({
-          title: "Telemetry Stalled",
-          description: "Failed to retrieve active proposals from the ledger.",
-          variant: "destructive",
-        });
+        s.fail(err);
+        toast({ title: "Telemetry Stalled", description: err.message, variant: "destructive" });
       } finally {
-        if (isMounted) {
-          setLoading(false);
-          console.log("[ACTIVE_PROPOSALS] END: Fetch execution thread terminated.");
-        }
+        if (isMounted) setLoading(false);
       }
     })();
-
     return () => {
       isMounted = false;
     };
-  }, [refreshTrigger]);
+  }, [refreshTrigger, innerRefresh]);
 
   if (loading) {
     return (
@@ -247,7 +299,13 @@ const ActiveProposalsList: React.FC<{ balance: number; refreshTrigger?: number }
   return (
     <div className="space-y-5">
       {proposals.map((prop) => (
-        <ProposalCard key={prop.id} proposal={prop} balance={balance} />
+        <ProposalCard
+          key={prop.id}
+          proposal={prop}
+          balance={balance}
+          currentUserId={userId}
+          onChanged={() => setInnerRefresh((n) => n + 1)}
+        />
       ))}
     </div>
   );

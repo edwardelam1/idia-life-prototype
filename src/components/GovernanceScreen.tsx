@@ -96,7 +96,7 @@ const GovernanceScreen: React.FC = () => {
           <section className="space-y-3">
             <div className="flex items-center justify-between px-2">
               <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                <Gavel size={14} className="text-teal-600" /> Active Proposals · Quadratic
+                <Gavel size={14} className="text-teal-600" /> Active Proposals · 1:1 Vote
               </h2>
               <Button
                 size="sm"
