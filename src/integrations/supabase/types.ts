@@ -1759,6 +1759,7 @@ export type Database = {
           id: string
           proposal_id: string | null
           user_id: string | null
+          vote_type: string | null
           vote_weight: number
         }
         Insert: {
@@ -1769,6 +1770,7 @@ export type Database = {
           id?: string
           proposal_id?: string | null
           user_id?: string | null
+          vote_type?: string | null
           vote_weight: number
         }
         Update: {
@@ -1779,6 +1781,7 @@ export type Database = {
           id?: string
           proposal_id?: string | null
           user_id?: string | null
+          vote_type?: string | null
           vote_weight?: number
         }
         Relationships: [
@@ -8663,7 +8666,7 @@ export type Database = {
         Returns: undefined
       }
       increment_wallet_balance: {
-        Args: { increment_amount: number; target_user_id: string }
+        Args: { amount: number; target_user_id: string }
         Returns: undefined
       }
       increment_wallet_cash: {
