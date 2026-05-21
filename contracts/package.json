@@ -4,13 +4,7 @@
   "private": true,
   "scripts": {
     "compile": "hardhat compile",
-    "test": "hardhat test",
-    "deploy:base": "hardhat run scripts/deploy.ts --network base",
-    "deploy:baseSepolia": "hardhat run scripts/deploy.ts --network baseSepolia",
-    "authorize:base": "hardhat run scripts/authorize-minter.ts --network base",
-    "authorize:baseSepolia": "hardhat run scripts/authorize-minter.ts --network baseSepolia",
-    "verify:base": "hardhat verify --network base",
-    "verify:baseSepolia": "hardhat verify --network baseSepolia"
+    "test": "hardhat test"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
