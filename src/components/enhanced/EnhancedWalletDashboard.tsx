@@ -500,15 +500,13 @@ const EnhancedWalletDashboard: React.FC = () => {
                   )}
                 </div>
 
-                {/* Self-delegate button — only if has IDIA but no voting power */}
-                {balances?.idia &&
-                  parseFloat(balances.idia.balanceFormatted) > 0 &&
-                  (!votingPower || parseFloat(votingPower) === 0) && (
-                    <Button variant="outline" onClick={handleDelegateVotes} className="w-full">
-                      <Vote className="w-4 h-4 mr-2" />
-                      Activate Voting Power
-                    </Button>
-                  )}
+                {/* Self-delegate button — always visible so user can activate/refresh voting */}
+                <Button variant="outline" onClick={handleDelegateVotes} className="w-full">
+                  <Vote className="w-4 h-4 mr-2" />
+                  {delegatee && delegatee.toLowerCase() === wallet.address.toLowerCase()
+                    ? "Re-Delegate to Self"
+                    : "Activate Voting Power (Self-Delegate)"}
+                </Button>
               </div>
             )}
           </div>
