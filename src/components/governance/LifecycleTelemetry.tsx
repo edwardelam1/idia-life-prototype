@@ -61,25 +61,8 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
   const [forVotes, setForVotes] = useState<number>(0);
   const [againstVotes, setAgainstVotes] = useState<number>(0);
   const [loading, setLoading] = useState(false);
-  const [blockNumber, setBlockNumber] = useState<number | null>(null);
+  const [blockNumber] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (!proposal || proposal.lifecycle_phase === "draft") return;
-
-    (async () => {
-      try {
-        // Use your ethers provider/contract instance
-        const governor = new ethers.Contract(CONTRACT_ADDRESSES.governor, GOVERNOR_ABI, provider);
-        // Fetch the proposal event or use a state-mapping function
-        const event = await governor.queryFilter(governor.filters.ProposalCreated(proposal.id));
-        if (event.length > 0) {
-          setBlockNumber(event[0].blockNumber);
-        }
-      } catch (err) {
-        console.warn("[TELEMETRY] Block number resolution failed", err);
-      }
-    })();
-  }, [proposal]);
 
   useEffect(() => {
     if (!proposal) return;
