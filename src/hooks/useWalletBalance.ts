@@ -26,12 +26,19 @@ const BASE_NETWORK = ethers.Network.from(8453);
 
 // Minimal Human-Readable ABI for read-only operations via ethers
 const ERC20_BALANCE_ABI = ["function balanceOf(address account) view returns (uint256)"];
+const GOVERNANCE_READ_ABI = [
+  "function getVotes(address account) view returns (uint256)",
+  "function delegates(address account) view returns (address)",
+];
 
 export interface WalletBalance {
   usdc_balance: number;
   cash_balance: number;
   idia_token_balance: number;
   total_earned: number;
+  eth_balance: number;
+  voting_power: number;
+  delegatee: string | null;
 }
 
 const ZERO_FLOOR: WalletBalance = {
@@ -39,6 +46,9 @@ const ZERO_FLOOR: WalletBalance = {
   usdc_balance: 0,
   idia_token_balance: 0,
   total_earned: 0,
+  eth_balance: 0,
+  voting_power: 0,
+  delegatee: null,
 };
 
 // Purge any legacy persisted wallet state (no-persistence rule)
