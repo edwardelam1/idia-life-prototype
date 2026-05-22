@@ -169,11 +169,22 @@ const EnhancedWalletDashboard: React.FC = () => {
   };
 
   const handleDelegateVotes = async () => {
-    if (!wallet?.address) return;
+    // If the device doesn't hold the signing keys, prompt for recovery-phrase import.
+    if (!wallet?.address) {
+      toast({
+        title: "Recovery phrase needed",
+        description: "This device doesn't hold the keys for this wallet. Import your recovery phrase to delegate.",
+      });
+      setSetupMode("import");
+      setIsSetupModalOpen(true);
+      return;
+    }
     try {
       await delegateVotes(); // Self-delegate by default
-    } catch (e) {
+      toast({ title: "Voting power activated", description: "Self-delegation submitted on-chain." });
+    } catch (e: any) {
       console.error("Delegation failed:", e);
+      toast({ title: "Delegation failed", description: e?.message || "Try again.", variant: "destructive" });
     }
   };
 
