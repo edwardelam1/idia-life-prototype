@@ -89,6 +89,7 @@ export const useWalletBalance = () => {
 
       console.info(`⚙️ [DATA_APPLY_LOG] PAYLOAD:`, row);
       setBalance((prev) => ({
+        ...prev,
         cash_balance: Number(row.cash_balance) || 0,
         usdc_balance: prev.usdc_balance, // Isolate USDC to ethers fetching only
         idia_token_balance: Number(row.idia_token_balance) || 0,
