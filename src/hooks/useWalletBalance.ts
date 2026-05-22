@@ -26,12 +26,19 @@ const BASE_NETWORK = ethers.Network.from(8453);
 
 // Minimal Human-Readable ABI for read-only operations via ethers
 const ERC20_BALANCE_ABI = ["function balanceOf(address account) view returns (uint256)"];
+const GOVERNANCE_READ_ABI = [
+  "function getVotes(address account) view returns (uint256)",
+  "function delegates(address account) view returns (address)",
+];
 
 export interface WalletBalance {
   usdc_balance: number;
   cash_balance: number;
   idia_token_balance: number;
   total_earned: number;
+  eth_balance: number;
+  voting_power: number;
+  delegatee: string | null;
 }
 
 const ZERO_FLOOR: WalletBalance = {
@@ -39,6 +46,9 @@ const ZERO_FLOOR: WalletBalance = {
   usdc_balance: 0,
   idia_token_balance: 0,
   total_earned: 0,
+  eth_balance: 0,
+  voting_power: 0,
+  delegatee: null,
 };
 
 // Purge any legacy persisted wallet state (no-persistence rule)
@@ -79,6 +89,7 @@ export const useWalletBalance = () => {
 
       console.info(`⚙️ [DATA_APPLY_LOG] PAYLOAD:`, row);
       setBalance((prev) => ({
+        ...prev,
         cash_balance: Number(row.cash_balance) || 0,
         usdc_balance: prev.usdc_balance, // Isolate USDC to ethers fetching only
         idia_token_balance: Number(row.idia_token_balance) || 0,
@@ -144,6 +155,9 @@ export const useWalletBalance = () => {
       // 2. Fetch Global Vault Identity from Profiles
       console.log("🌐 [FETCH_BALANCE_LOG] ACTION: Querying profiles for global wallet_address.");
       let usdcBalance = 0;
+      let ethBalance = 0;
+      let votingPower = 0;
+      let delegatee: string | null = null;
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
@@ -152,9 +166,7 @@ export const useWalletBalance = () => {
         .maybeSingle();
 
       if (profileError) {
-        console.error("🚨 [FETCH_BALANCE_LOG] ERROR_START: Failed to query profile for wallet_address.");
         console.error("🚨 [FETCH_BALANCE_LOG] ERROR_DETAILS:", profileError.message);
-        console.error("🚨 [FETCH_BALANCE_LOG] ERROR_END: Profile query terminated.");
       }
 
       const walletAddress = profile?.wallet_address;
@@ -163,59 +175,51 @@ export const useWalletBalance = () => {
         console.log(`🌐 [FETCH_BALANCE_LOG] SUCCESS: Wallet identified: ${walletAddress}`);
         setUsdcProvisioned(true);
         setUsdcAddress(walletAddress);
-        console.log("🌐 [FETCH_BALANCE_LOG] ACTION: Initializing ethers JSON RPC provider for USDC hydration.");
 
         const sRpc = stage("WALLET_BALANCE", "RPC_HYDRATE");
         sRpc.start({ wallet: walletAddress, idia: IDIA_ADDRESS, usdc: USDC_ADDRESS });
         try {
-          // Live Base mainnet read via ethers — IDIA + USDC in parallel
-          const sConnect = stage("WALLET_BALANCE", "RPC_CONNECT");
-          sConnect.start({ rpc: BASE_RPC_URL });
           const provider = new ethers.JsonRpcProvider(BASE_RPC_URL, BASE_NETWORK, { staticNetwork: BASE_NETWORK });
           const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_BALANCE_ABI, provider);
-          const idiaContract = new ethers.Contract(IDIA_ADDRESS, ERC20_BALANCE_ABI, provider);
-          sConnect.ok();
+          const idiaErc20 = new ethers.Contract(IDIA_ADDRESS, ERC20_BALANCE_ABI, provider);
+          const idiaGov = new ethers.Contract(IDIA_ADDRESS, GOVERNANCE_READ_ABI, provider);
 
-          const sReadUsdc = stage("WALLET_BALANCE", "READ_USDC_BALANCE");
-          const sReadIdia = stage("WALLET_BALANCE", "READ_IDIA_BALANCE");
-          sReadUsdc.start();
-          sReadIdia.start();
-
-          const [rawUsdc, rawIdia] = await Promise.all([
-            usdcContract.balanceOf(walletAddress).then(
-              (v: bigint) => { sReadUsdc.ok({ raw: v.toString() }); return v; },
-              (e: unknown) => { sReadUsdc.fail(e); throw e; },
-            ),
-            idiaContract.balanceOf(walletAddress).then(
-              (v: bigint) => { sReadIdia.ok({ raw: v.toString() }); return v; },
-              (e: unknown) => { sReadIdia.fail(e); throw e; },
-            ),
+          const [rawUsdc, rawIdia, rawEth, rawVotes, rawDelegatee] = await Promise.all([
+            usdcContract.balanceOf(walletAddress).catch(() => 0n),
+            idiaErc20.balanceOf(walletAddress).catch(() => 0n),
+            provider.getBalance(walletAddress).catch(() => 0n),
+            idiaGov.getVotes(walletAddress).catch(() => 0n),
+            idiaGov.delegates(walletAddress).catch(() => null),
           ]);
 
           usdcBalance = Number(ethers.formatUnits(rawUsdc, 6));
-          tokenBalance = Number(ethers.formatEther(rawIdia)); // override DB with on-chain truth
+          tokenBalance = Number(ethers.formatEther(rawIdia));
+          ethBalance = Number(ethers.formatEther(rawEth));
+          votingPower = Number(ethers.formatEther(rawVotes));
+          delegatee = rawDelegatee && typeof rawDelegatee === "string" ? rawDelegatee : null;
 
-          console.log(`🌐 [FETCH_BALANCE_LOG] SUCCESS: USDC=$${usdcBalance} · IDIA=${tokenBalance} (on-chain)`);
-          sRpc.ok({ usdc: usdcBalance, idia: tokenBalance });
+          console.log(
+            `🌐 [FETCH_BALANCE_LOG] SUCCESS: USDC=$${usdcBalance} · IDIA=${tokenBalance} · ETH=${ethBalance} · Votes=${votingPower} · Delegatee=${delegatee}`,
+          );
+          sRpc.ok({ usdc: usdcBalance, idia: tokenBalance, eth: ethBalance, votes: votingPower });
         } catch (chainErr: any) {
           sRpc.fail(chainErr);
-          console.error("🚨 [FETCH_BALANCE_LOG] ERROR_START: Ethers smart contract read failed.");
           console.error("🚨 [FETCH_BALANCE_LOG] ERROR_DETAILS:", chainErr.message || String(chainErr));
-          console.error("🚨 [FETCH_BALANCE_LOG] ERROR_END: Ethers reading terminated.");
         }
       } else {
-        console.log(
-          "🌐 [FETCH_BALANCE_LOG] INFO: No valid sovereign wallet mapped in profiles. Bypassing ethers fetch.",
-        );
+        console.log("🌐 [FETCH_BALANCE_LOG] INFO: No sovereign wallet mapped. Bypassing chain fetch.");
         setUsdcProvisioned(false);
         setUsdcAddress(null);
       }
 
       setBalance({
         cash_balance: fiatBalance,
-        usdc_balance: usdcBalance, // Overrides db column with strict on-chain data
+        usdc_balance: usdcBalance,
         idia_token_balance: tokenBalance,
         total_earned: 0,
+        eth_balance: ethBalance,
+        voting_power: votingPower,
+        delegatee,
       });
 
       console.log("🌐 [FETCH_BALANCE_LOG] END: Wallet fetch routine completed successfully.");

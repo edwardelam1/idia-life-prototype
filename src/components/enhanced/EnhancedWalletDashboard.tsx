@@ -169,11 +169,22 @@ const EnhancedWalletDashboard: React.FC = () => {
   };
 
   const handleDelegateVotes = async () => {
-    if (!wallet?.address) return;
+    // If the device doesn't hold the signing keys, prompt for recovery-phrase import.
+    if (!wallet?.address) {
+      toast({
+        title: "Recovery phrase needed",
+        description: "This device doesn't hold the keys for this wallet. Import your recovery phrase to delegate.",
+      });
+      setSetupMode("import");
+      setIsSetupModalOpen(true);
+      return;
+    }
     try {
       await delegateVotes(); // Self-delegate by default
-    } catch (e) {
+      toast({ title: "Voting power activated", description: "Self-delegation submitted on-chain." });
+    } catch (e: any) {
       console.error("Delegation failed:", e);
+      toast({ title: "Delegation failed", description: e?.message || "Try again.", variant: "destructive" });
     }
   };
 
@@ -434,9 +445,35 @@ const EnhancedWalletDashboard: React.FC = () => {
               </CardContent>
             </Card>
 
-            {/* Elevated Sovereign Treasury Details */}
-            {hasWallet && wallet && (
+            {/* Elevated Sovereign Treasury Details — driven by displayAddress so
+                read-only / restored-on-another-device accounts still see ETH + voting */}
+            {displayAddress && (
               <div className="space-y-4">
+                {/* Banner when global wallet exists but device has no signing keys */}
+                {!wallet && globalWalletAddress && (
+                  <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-700 dark:text-amber-300 mt-0.5 shrink-0" />
+                    <div className="flex-1 text-xs text-amber-900 dark:text-amber-100">
+                      <p className="font-semibold mb-1">Wallet not on this device</p>
+                      <p className="mb-2">
+                        Balances are live and read-only. To sign transactions (delegate, send), import your recovery
+                        phrase.
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          setSetupMode("import");
+                          setIsSetupModalOpen(true);
+                        }}
+                      >
+                        <Download className="w-3 h-3 mr-1" /> Import Recovery Phrase
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Balances — ETH, IDIA, USDC */}
                 <div className="space-y-3">
                   {/* ETH */}
@@ -447,42 +484,34 @@ const EnhancedWalletDashboard: React.FC = () => {
                         <RefreshCw className={`w-3 h-3 ${balancesLoading ? "animate-spin" : ""}`} />
                       </Button>
                     </div>
-                    {balancesLoading && !balances ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mt-1" />
-                    ) : (
-                      <p className="text-lg font-bold mt-1">
-                        {balances?.eth ? Number(balances.eth.balanceFormatted).toFixed(6) : "0.000000"}
-                        <span className="text-sm text-muted-foreground font-normal ml-1">ETH</span>
-                      </p>
-                    )}
+                    <p className="text-lg font-bold mt-1">
+                      {balances?.eth
+                        ? Number(balances.eth.balanceFormatted).toFixed(6)
+                        : (walletBalance?.eth_balance ?? 0).toFixed(6)}
+                      <span className="text-sm text-muted-foreground font-normal ml-1">ETH</span>
+                    </p>
                   </div>
 
                   {/* IDIA Token */}
                   <div className="p-3 bg-gradient-to-br from-teal-50 to-blue-50 dark:from-teal-950 dark:to-blue-950 rounded-lg border">
                     <p className="text-xs text-muted-foreground">IDIA Token</p>
-                    {balancesLoading && !balances ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mt-1" />
-                    ) : (
-                      <p className="text-2xl font-bold mt-1">
-                        {balances?.idia ? Number(balances.idia.balanceFormatted).toFixed(2) : "0.00"}
-                        <span className="text-sm text-muted-foreground font-normal ml-1">IDIA</span>
-                      </p>
-                    )}
+                    <p className="text-2xl font-bold mt-1">
+                      {balances?.idia
+                        ? Number(balances.idia.balanceFormatted).toFixed(2)
+                        : (walletBalance?.idia_token_balance ?? 0).toFixed(2)}
+                      <span className="text-sm text-muted-foreground font-normal ml-1">IDIA</span>
+                    </p>
                   </div>
 
                   {/* USDC */}
                   <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 rounded-lg border">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">USDC</p>
-                    </div>
-                    {balancesLoading && !balances ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mt-1" />
-                    ) : (
-                      <p className="text-2xl font-bold mt-1">
-                        ${balances?.usdc ? parseFloat(balances.usdc.balanceFormatted).toFixed(2) : "0.00"}
-                        <span className="text-sm text-muted-foreground font-normal ml-1">USDC</span>
-                      </p>
-                    )}
+                    <p className="text-xs text-muted-foreground">USDC</p>
+                    <p className="text-2xl font-bold mt-1">
+                      ${balances?.usdc
+                        ? parseFloat(balances.usdc.balanceFormatted).toFixed(2)
+                        : (walletBalance?.usdc_balance ?? 0).toFixed(2)}
+                      <span className="text-sm text-muted-foreground font-normal ml-1">USDC</span>
+                    </p>
                   </div>
                 </div>
 
@@ -490,22 +519,35 @@ const EnhancedWalletDashboard: React.FC = () => {
                 <div className="p-3 bg-secondary/30 rounded-lg border">
                   <p className="text-xs text-muted-foreground">Voting Power</p>
                   <p className="text-lg font-bold mt-1">
-                    {votingPower ? Number(votingPower).toFixed(0) : "0"}{" "}
+                    {(() => {
+                      const vp = votingPower ?? walletBalance?.voting_power ?? 0;
+                      return Number(vp).toFixed(0);
+                    })()}{" "}
                     <span className="text-sm text-muted-foreground font-normal">votes</span>
                   </p>
-                  {delegatee && delegatee !== "0x0000000000000000000000000000000000000000" && (
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      Delegated to: {delegatee.slice(0, 8)}...{delegatee.slice(-6)}
-                    </p>
-                  )}
+                  {(() => {
+                    const d = delegatee ?? walletBalance?.delegatee ?? null;
+                    if (d && d !== "0x0000000000000000000000000000000000000000") {
+                      return (
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Delegated to: {d.slice(0, 8)}...{d.slice(-6)}
+                        </p>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
 
-                {/* Self-delegate button — always visible so user can activate/refresh voting */}
+                {/* Self-delegate — always visible; opens import modal if no local keys */}
                 <Button variant="outline" onClick={handleDelegateVotes} className="w-full">
                   <Vote className="w-4 h-4 mr-2" />
-                  {delegatee && delegatee.toLowerCase() === wallet.address.toLowerCase()
-                    ? "Re-Delegate to Self"
-                    : "Activate Voting Power (Self-Delegate)"}
+                  {(() => {
+                    const d = (delegatee ?? walletBalance?.delegatee ?? "").toLowerCase();
+                    const me = (wallet?.address ?? displayAddress ?? "").toLowerCase();
+                    return d && me && d === me
+                      ? "Re-Delegate to Self"
+                      : "Activate Voting Power (Self-Delegate)";
+                  })()}
                 </Button>
               </div>
             )}
