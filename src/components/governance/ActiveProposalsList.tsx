@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Gavel, Loader2, Fingerprint, CheckCircle2, ThumbsUp, ThumbsDown, Trash2 } from "lucide-react";
+import { Gavel, Loader2, CheckCircle2, ThumbsUp, ThumbsDown, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
@@ -19,9 +19,10 @@ interface Proposal {
 const ProposalCard: React.FC<{
   proposal: Proposal;
   balance: number;
+  votingPower: number | string;
   currentUserId: string | null;
   onChanged: () => void;
-}> = ({ proposal, balance, currentUserId, onChanged }) => {
+}> = ({ proposal, balance, votingPower, currentUserId, onChanged }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [hasVoted, setHasVoted] = useState<null | "for" | "against">(null);
@@ -66,6 +67,18 @@ const ProposalCard: React.FC<{
   const handleCastVote = async (support: "for" | "against") => {
     const s = stage("VOTE_CAST", support.toUpperCase());
     s.start({ proposalId: proposal.id });
+
+    // 1. Enforcement of Sovereign Delegation (Added as requested)
+    if (!votingPower || parseFloat(votingPower.toString()) < 1) {
+      toast({
+        title: "Action Required",
+        description: "You must Activate Voting Power before casting a vote.",
+        variant: "destructive",
+      });
+      s.fail("insufficient_voting_power");
+      return;
+    }
+
     if (balance < 1) {
       toast({
         title: "Insufficient IDIA",
@@ -108,7 +121,7 @@ const ProposalCard: React.FC<{
 
       const { error: burnError } = await (supabase as any).rpc("increment_wallet_balance", {
         target_user_id: user.id,
-        increment_amount: -1,
+        amount: -1,
       });
       if (burnError) console.warn("[VOTE_CAST] BURN_WARNING", burnError.message);
 
@@ -206,7 +219,14 @@ const ProposalCard: React.FC<{
               disabled={isSubmitting || isWithdrawing || loadingMeta}
               className="h-11 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[10px] rounded-full"
             >
-              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <><ThumbsUp className="w-3.5 h-3.5 mr-1.5" />Vote For</>}
+              {isSubmitting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <ThumbsUp className="w-3.5 h-3.5 mr-1.5" />
+                  Vote For
+                </>
+              )}
             </Button>
             <Button
               onClick={() => handleCastVote("against")}
@@ -214,7 +234,8 @@ const ProposalCard: React.FC<{
               variant="outline"
               className="h-11 font-black uppercase text-[10px] rounded-full border-slate-300 dark:border-slate-700"
             >
-              <ThumbsDown className="w-3.5 h-3.5 mr-1.5" />Vote Against
+              <ThumbsDown className="w-3.5 h-3.5 mr-1.5" />
+              Vote Against
             </Button>
           </div>
         </div>
@@ -228,9 +249,15 @@ const ProposalCard: React.FC<{
             className="w-full h-9 text-[10px] font-black uppercase tracking-widest text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-full"
           >
             {isWithdrawing ? (
-              <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Withdrawing…</>
+              <>
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                Withdrawing…
+              </>
             ) : (
-              <><Trash2 className="w-3.5 h-3.5 mr-1.5" />Withdraw Proposal</>
+              <>
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                Withdraw Proposal
+              </>
             )}
           </Button>
         )}
@@ -239,8 +266,9 @@ const ProposalCard: React.FC<{
   );
 };
 
-const ActiveProposalsList: React.FC<{ balance: number; refreshTrigger?: number }> = ({
+const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | string; refreshTrigger?: number }> = ({
   balance,
+  votingPower,
   refreshTrigger = 0,
 }) => {
   const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -254,7 +282,9 @@ const ActiveProposalsList: React.FC<{ balance: number; refreshTrigger?: number }
       const s = stage("ACTIVE_PROPOSALS", "FETCH");
       s.start();
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
         if (isMounted) setUserId(user?.id ?? null);
 
         const { data, error } = await (supabase as any)
@@ -303,6 +333,7 @@ const ActiveProposalsList: React.FC<{ balance: number; refreshTrigger?: number }
           key={prop.id}
           proposal={prop}
           balance={balance}
+          votingPower={votingPower}
           currentUserId={userId}
           onChanged={() => setInnerRefresh((n) => n + 1)}
         />
