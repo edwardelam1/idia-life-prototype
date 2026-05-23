@@ -85,40 +85,30 @@ const CommitteesList: React.FC = () => {
   const [resignTarget, setResignTarget] = useState<CommitteeMeta | null>(null);
   const [actionBusyId, setActionBusyId] = useState<string | null>(null);
 
-  const fetchLedgerState = async () => {
-    console.log("[COMMITTEES_LIST] START: Hydrating live registry metrics.");
-    try {
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
+  // 1. Fetch Hats + Applications in one sweep
+      const [hatsRes, appsRes] = await Promise.all([
+        (supabase as any).from("dao_hats").select("hat_type, user_id, eligibility_status, veto_window_end, revoked_at").is("revoked_at", null),
+        (supabase as any).from("committee_applications").select("id, committee_id, status, sponsor_count").eq("user_id", user.id)
+      ]);
 
-      if (sessionError || !session) {
-        console.warn("[AUTH_CHECK] No active session found.");
-        setIsLoadingLedger(false);
-        return;
-      }
-
-      const user = session.user;
-
-      // 1. Live active officer counts
-      const { data: hatsData, error: hatsError } = await (supabase as any)
-        .from("dao_hats")
-        .select("hat_type, user_id, eligibility_status, revoked_at")
-        .eq("eligibility_status", "active")
-        .is("revoked_at", null);
-
-      if (hatsError) throw hatsError;
-
+      const hatMap: Record<string, any> = {};
       const counts: Record<string, number> = {};
       const myHats = new Set<string>();
-      hatsData?.forEach((hat: any) => {
-        counts[hat.hat_type] = (counts[hat.hat_type] || 0) + 1;
-        if (user && hat.user_id === user.id) myHats.add(hat.hat_type);
+
+      hatsRes.data?.forEach((h: any) => {
+        counts[h.hat_type] = (counts[h.hat_type] || 0) + 1;
+        if (h.eligibility_status === 'active' && h.user_id === user.id) myHats.add(h.hat_type);
+        hatMap[h.hat_type] = h;
       });
+
+      const appMap: Record<string, any> = {};
+      appsRes.data?.forEach((a: any) => appMap[a.committee_id] = a);
+
       setOfficerCounts(counts);
       setUserActiveHats(myHats);
-
+      setUserHats(hatMap);
+      setUserApplications(appMap);
+  
       // 2. Current user's pending/approved applications
       if (user) {
         const { data: appsData, error: appsError } = await (supabase as any)
