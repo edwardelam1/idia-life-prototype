@@ -1,38 +1,87 @@
-## Root cause
+## Ascension Path — Onboarding Hook + Fiduciary Cooling-Off
 
-Your account has a **global wallet address** synced to Supabase (`0xc490…8c33`, visible in the console logs as `[HYDRATION_LOG] END: Successfully hydrated global state`), but the device has **no local wallet loaded** in secure storage. Concretely:
+A 3-stage Security-Gated Lifecycle for committee officers, layered onto the existing `committee_applications` + `dao_hats` flow without breaking the current Tophat override or the live-hydrated `CommitteesList`.
 
-- `useWalletBalance` reads USDC/IDIA from the chain using the global address → that's why "Stable USDC 3.24" and "IDIA Token 700.00" render correctly.
-- `useWallet` returns `wallet = null` because there is no seed phrase in this device's secure storage.
-- In `EnhancedWalletDashboard.tsx` the entire ETH card, Voting Power card, and the new Self-Delegate button live inside `{hasWallet && wallet && ( … )}` (line 438). With `wallet === null`, that whole block never mounts — so the changes from the previous turn are present in the source but invisible in the UI.
+### Stage model
 
-That's why refreshing the preview, hard-reloading, and republishing all show the same thing: the code is shipped, the gate just never opens on this device.
+```text
+Prospect → Pending Audit → Conditional (pending_veto, 24h) → Active Officer
+                              ↘ Extended (pending_veto +24h, complex_investigation)
+                              ↘ Vetoed (revoked_at + veto_aca)
+```
 
-## Plan
+### 1. Database changes (single migration)
 
-1. **Decouple ETH + Voting Power + Self-Delegate from local-wallet presence.**  
-   Use `displayAddress` (already defined as `globalWalletAddress || localAddress`) as the source of truth so the UI renders for any account that has a synced wallet, including read-only / restored-on-another-device cases.
+`dao_hats` additions:
+- `veto_window_end TIMESTAMPTZ` — null for legacy/active, set when hat minted in `pending_veto`
+- `veto_extended BOOLEAN DEFAULT false` — true after one 24h extension
+- `veto_extended_at TIMESTAMPTZ`
+- `veto_reason TEXT`
+- `veto_aca_hash TEXT`, `veto_aca_payload JSONB`
+- `provisioned_by UUID` — who approved (peer sponsor or tophat)
+- Extend `eligibility_status` enum/check with `pending_veto`, `vetoed`
 
-2. **Add a lightweight read-only ETH balance fetch** in `useWalletBalance` (or a small sibling hook) that calls `provider.getBalance(displayAddress)` against the Base Mainnet RPC already used for USDC/IDIA. Surface it as `balance.eth_balance` so the ETH (Gas) tile reads from the same hydration path as USDC/IDIA. No local key material required.
+`committee_applications` additions:
+- `sponsor_count INT DEFAULT 0`
+- `risk_score NUMERIC` — populated by Edge Function (KYC/Sybil heuristics)
+- `risk_flags JSONB` — array of detector hits
 
-3. **Reuse the existing on-chain voting-power read** (Governor `getVotes(address)`) against `displayAddress` so the Voting Power tile and the "Activate Voting Power (Self-Delegate)" button render whenever there's an IDIA balance, regardless of whether the device holds the seed.
+New table `committee_application_sponsorships`:
+- `application_id UUID FK`, `sponsor_user_id UUID`, `sponsor_aca_hash TEXT`, `created_at`
+- Unique `(application_id, sponsor_user_id)`
+- RLS: insert only by authenticated user who holds a Level 1 hat for that committee; read by applicant + active officers of that committee + tophat
 
-4. **Gate only the *signing* action, not the display.**  
-   - Display ETH, Voting Power, delegatee, and the self-delegate button whenever `displayAddress` exists.
-   - If `wallet` (local signer) is missing when the user taps "Activate Voting Power", show an inline prompt: *"This device doesn't hold the keys for this wallet. Import your recovery phrase to delegate."* with a button that opens the existing `WalletSetupModal` in `import` mode.
+RLS:
+- `dao_hats` updates restricted: only tophat can write `veto_*` columns; auto-promotion uses a `SECURITY DEFINER` function.
 
-5. **Add a small "Wallet not on this device" banner** above the ETH tile when `globalWalletAddress` is set but `wallet` is null, with a one-tap "Import Recovery Phrase" CTA. This explains *why* signing is disabled while still showing the live balances.
+New SQL functions:
+- `sponsor_application(_application_id uuid)` — checks `has_hat(auth.uid(), committee.id)`, inserts sponsorship row, increments `sponsor_count`. When count ≥ 2 → calls `provision_pending_veto_hat(...)`.
+- `provision_pending_veto_hat(_user uuid, _hat_type text, _provisioner uuid)` — inserts `dao_hats` row with `eligibility_status='pending_veto'`, `veto_window_end = now() + interval '24 hours'`.
+- `auto_promote_pending_veto()` — flips expired `pending_veto` (and not extended-still-open) rows to `active`. Called by pg_cron every minute and lazily on read.
+- `veto_hat(_hat_id, _reason, _aca_hash, _aca_payload)` — tophat-only; sets `eligibility_status='vetoed'`, `revoked_at=now()`.
+- `extend_veto(_hat_id, _reason)` — tophat-only; requires `veto_extended=false`; pushes `veto_window_end += 24h`, sets `veto_extended=true`.
 
-6. **No backend / schema changes.** No edge-function or migration work. Pure frontend + one read-only RPC call.
+Pg_cron job to invoke `auto_promote_pending_veto()` each minute.
 
-## Files to touch
+### 2. Edge Functions
 
-- `src/components/enhanced/EnhancedWalletDashboard.tsx` — move ETH / Voting Power / self-delegate out of the `hasWallet && wallet` gate; add the import-prompt banner; route the self-delegate button through a guard.
-- `src/hooks/useWalletBalance.ts` — add `eth_balance` to the on-chain hydration call.
-- `src/services/walletService.ts` *(read-only addition)* — add a `getVotesFor(address)` helper that works without a loaded signer, so Voting Power can render for the global address.
+- **`ascension-risk-scan`** (invoked on application insert via trigger → `net.http_post`): runs KYC/Sybil heuristics, writes `risk_score` + `risk_flags`.
+- **`ascension-provision-hat`** (replaces inline insert in `handleSubmission` for non-tophat sponsor-reaches-2 path): calls `relay-governance-action` (mint Hat on-chain in `pending_veto`), then writes `dao_hats` row. Service-role; enforces sponsor count ≥ 2 OR caller has tophat.
+- **`ascension-veto`**: tophat-only; calls `revokeHat` via `relay-governance-action`, runs `veto_hat()` SQL with generated Veto ACA payload.
+- **`ascension-auto-promote`**: HTTP entry that wraps `auto_promote_pending_veto()` (idempotent backup to pg_cron). Called lazily by UI when a user opens the dashboard with an expired conditional hat.
 
-## Out of scope
+### 3. UI changes
 
-- No changes to governance contracts, proposals, or the migration approved last turn.
-- No changes to USDC/IDIA balance logic — already working.
-- No PII or profile schema changes.
+**`src/components/governance/CommitteesList.tsx`** — extend existing card states:
+- New state `conditional`: when the user holds a `pending_veto` hat → badge "Conditional Ascension · Veto window ends in Xh Ym" with disabled execution affordances.
+- Render `sponsor_count / 2` chip on pending applications.
+- "Sponsor this Ascension" button visible when current user holds a Level 1 hat for that committee AND viewing the Compliance Queue, calls `sponsor_application` RPC (with ACA hash for `committee_sponsor_<id>`).
+- Keep existing tophat override path; it now mints directly as `active` (skips veto window).
+
+**New `src/components/governance/ComplianceQueue.tsx`** (mounted in `GovernanceScreen` for tophat holders, with a smaller "My Ascension Status" view for everyone):
+- Lists all `pending_veto` hats with countdown, `risk_score`, `risk_flags`, sponsor list.
+- Buttons: **Veto** (opens reason modal → calls `ascension-veto`), **Extend Veto +24h** (disabled if already extended), **Allow to Promote Now** (tophat-only).
+- High-alert red border when `risk_score` exceeds threshold.
+
+**New `src/components/governance/AscensionStatusCard.tsx`** — surfaced on the user's own row:
+- "Conditional Ascension" pill, live countdown, link to resignation ACA hash, explanation that voting/treasury actions are blocked until promotion.
+
+**Gating downstream actions**: in `ActiveProposalsList`, `ProposalForm`, and `relay-governance-action` callers, treat only `eligibility_status='active'` hats as conferring rights. `pending_veto` is read-only.
+
+### 4. Files touched
+
+- `supabase/migrations/<new>.sql` (schema, RPCs, cron, RLS)
+- `supabase/functions/ascension-risk-scan/index.ts` (new)
+- `supabase/functions/ascension-provision-hat/index.ts` (new)
+- `supabase/functions/ascension-veto/index.ts` (new)
+- `supabase/functions/ascension-auto-promote/index.ts` (new)
+- `src/components/governance/CommitteesList.tsx` (sponsor button, conditional badge, count chip)
+- `src/components/governance/ComplianceQueue.tsx` (new)
+- `src/components/governance/AscensionStatusCard.tsx` (new)
+- `src/components/GovernanceScreen.tsx` (mount ComplianceQueue + AscensionStatusCard)
+- `src/components/governance/HatsWardrobe.tsx` (render `pending_veto` as a distinct "Conditional" state next to active/grayed/severed)
+- `src/components/governance/ActiveProposalsList.tsx` / `ProposalForm.tsx` (gate on `active`, not just hat presence)
+
+### Open question
+
+Do you want the **Extend Veto** to require a written `veto_reason` (stored + hashed into a new ACA) every time, or only on the first extension? My recommendation: require it on extension to keep the audit trail bulletproof for the Delaware MSA defense.
