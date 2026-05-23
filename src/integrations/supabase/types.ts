@@ -1157,6 +1157,38 @@ export type Database = {
           },
         ]
       }
+      committee_application_sponsorships: {
+        Row: {
+          application_id: string
+          created_at: string | null
+          id: string
+          sponsor_aca_hash: string
+          sponsor_user_id: string
+        }
+        Insert: {
+          application_id: string
+          created_at?: string | null
+          id?: string
+          sponsor_aca_hash: string
+          sponsor_user_id: string
+        }
+        Update: {
+          application_id?: string
+          created_at?: string | null
+          id?: string
+          sponsor_aca_hash?: string
+          sponsor_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "committee_application_sponsorships_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "committee_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       committee_applications: {
         Row: {
           aca_hash_key: string
@@ -1164,6 +1196,9 @@ export type Database = {
           committee_id: string
           created_at: string | null
           id: string
+          risk_flags: Json | null
+          risk_score: number | null
+          sponsor_count: number | null
           statement_of_competence: string
           status: string
           user_id: string
@@ -1174,6 +1209,9 @@ export type Database = {
           committee_id: string
           created_at?: string | null
           id?: string
+          risk_flags?: Json | null
+          risk_score?: number | null
+          sponsor_count?: number | null
           statement_of_competence: string
           status?: string
           user_id: string
@@ -1184,6 +1222,9 @@ export type Database = {
           committee_id?: string
           created_at?: string | null
           id?: string
+          risk_flags?: Json | null
+          risk_score?: number | null
+          sponsor_count?: number | null
           statement_of_competence?: string
           status?: string
           user_id?: string
@@ -1548,8 +1589,15 @@ export type Database = {
           granted_at: string
           hat_type: string
           id: string
+          provisioned_by: string | null
           revoked_at: string | null
           user_id: string
+          veto_aca_hash: string | null
+          veto_aca_payload: Json | null
+          veto_extended: boolean | null
+          veto_extended_at: string | null
+          veto_reason: string | null
+          veto_window_end: string | null
         }
         Insert: {
           created_at?: string | null
@@ -1557,8 +1605,15 @@ export type Database = {
           granted_at?: string
           hat_type: string
           id?: string
+          provisioned_by?: string | null
           revoked_at?: string | null
           user_id: string
+          veto_aca_hash?: string | null
+          veto_aca_payload?: Json | null
+          veto_extended?: boolean | null
+          veto_extended_at?: string | null
+          veto_reason?: string | null
+          veto_window_end?: string | null
         }
         Update: {
           created_at?: string | null
@@ -1566,8 +1621,15 @@ export type Database = {
           granted_at?: string
           hat_type?: string
           id?: string
+          provisioned_by?: string | null
           revoked_at?: string | null
           user_id?: string
+          veto_aca_hash?: string | null
+          veto_aca_payload?: Json | null
+          veto_extended?: boolean | null
+          veto_extended_at?: string | null
+          veto_reason?: string | null
+          veto_window_end?: string | null
         }
         Relationships: []
       }
@@ -8532,6 +8594,7 @@ export type Database = {
         }
         Returns: number
       }
+      auto_promote_pending_veto: { Args: never; Returns: undefined }
       calculate_business_health_index: {
         Args: { p_business_id: string; p_location_id?: string }
         Returns: number
