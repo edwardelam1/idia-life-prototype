@@ -23,6 +23,8 @@ import {
   Clock,
   RotateCcw,
   LogOut,
+  UserPlus,
+  Users,
   ShieldCheck,
 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
@@ -70,12 +72,12 @@ const CommitteesList: React.FC = () => {
   const [msaAcknowledged, setMsaAcknowledged] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Live Ledger States
-  const [officerCounts, setOfficerCounts] = useState<Record<string, number>>({});
-  // Map committee_id -> { applicationId, status } for the current user
-  const [userApplications, setUserApplications] = useState<Record<string, { id: string; status: string }>>({});
-  // Set of hat_type values where the current user holds an active hat
+  // Map committee_id -> { id, status, sponsor_count } for the current user
+  const [userApplications, setUserApplications] = useState<Record<string, any>>({});
+  // Map hat_type -> { eligibility_status, veto_window_end }
+  const [userHats, setUserHats] = useState<Record<string, any>>({});
   const [userActiveHats, setUserActiveHats] = useState<Set<string>>(new Set());
+  // Set of hat_type values where the current user holds an active hat
   const [isLoadingLedger, setIsLoadingLedger] = useState(true);
 
   // Confirm dialog state for revoke + resign
