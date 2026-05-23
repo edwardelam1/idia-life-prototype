@@ -145,14 +145,7 @@ const CommitteesList: React.FC = () => {
 
   const handleSubmission = async () => {
     console.log(`[COMMITTEE_APPLICATION] START: Initializing Level 1 Ascension sequence for ${selectedCommittee?.id}.`);
-    if (!isNative()) {
-      toast({
-        title: "Native Device Required",
-        description: "Committee bonding requires Secure Enclave attestation. Please use the iOS or Android app.",
-        variant: "destructive",
-      });
-      return;
-    }
+
     setIsProcessing(true);
 
     try {
