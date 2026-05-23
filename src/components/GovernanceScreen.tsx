@@ -106,7 +106,7 @@ const GovernanceScreen: React.FC = () => {
                 <Plus size={12} className="mr-1" /> Submit Proposal
               </Button>
             </div>
-            <ActiveProposalsList balance={idiaBalance} refreshTrigger={refreshKey} />
+            <ActiveProposalsList balance={idiaBalance} votingPower={balance.voting_power ?? 0} refreshTrigger={refreshKey} />
           </section>
 
           <section className="space-y-3">
