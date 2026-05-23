@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { ShieldCheck, Loader2, Activity, AlertTriangle } from "lucide-react";
+import { Activity, Loader2, Zap, AlertOctagon, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
@@ -21,75 +21,78 @@ const dotColor = (s: string) =>
       : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)] animate-pulse";
 
 const textColor = (s: string) =>
-  s === "meeting" ? "text-emerald-700 dark:text-emerald-300" : s === "warning" ? "text-amber-700 dark:text-amber-300" : "text-red-700 dark:text-red-300";
+  s === "meeting" 
+    ? "text-emerald-700 dark:text-emerald-300" 
+    : s === "warning" 
+      ? "text-amber-700 dark:text-amber-300" 
+      : "text-red-700 dark:text-red-300";
+
+const statusLabel = (s: string) =>
+  s === "meeting" ? "Optimal" : s === "warning" ? "Latency Drift" : "SLA Breach";
 
 const MSAComplianceCard: React.FC = () => {
   const [items, setItems] = useState<MSA[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  useEffect(() => {
-    let isMounted = true;
+  const fetchMetrics = async (showToast: boolean = false) => {
+    if (showToast) setIsRefreshing(true);
+    console.log("[NETWORK_TELEMETRY] START: Syncing Oracle performance metrics.");
+    try {
+      const { data, error } = await (supabase as any)
+        .from("dao_msa_metrics")
+        .select("*")
+        .order("measured_at", { ascending: false });
 
-    const fetchMetrics = async () => {
-      console.log("[MSA_COMPLIANCE] START: Syncing Delaware MSA telemetry.");
-      try {
-        const { data, error } = await supabase
-          .from("dao_msa_metrics" as any)
-          .select("*")
-          .order("measured_at", { ascending: false });
+      if (error) throw error;
 
-        if (error) throw error;
-
-        if (isMounted) {
-          console.log(`[MSA_COMPLIANCE] SUCCESS: Retrieved ${data?.length || 0} active SLA matrices.`);
-          setItems((data as any) || []);
-        }
-      } catch (err: any) {
-        console.error(`[MSA_COMPLIANCE] CRITICAL_FAILURE: Telemetry sync stalled. Reason: ${err.message}`);
+      console.log(`[NETWORK_TELEMETRY] SUCCESS: Retrieved ${data?.length || 0} telemetry streams.`);
+      setItems(data || []);
+    } catch (err: any) {
+      console.error(`[NETWORK_TELEMETRY] CRITICAL_FAILURE: Sync stalled. Reason: ${err.message}`);
+      if (showToast) {
         toast({
-          title: "MSA Sync Failed",
-          description: "Could not retrieve legal compliance telemetry.",
+          title: "Telemetry Sync Failed",
+          description: "Could not retrieve live network performance data.",
           variant: "destructive",
         });
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-          console.log("[MSA_COMPLIANCE] END: Sync execution thread terminated.");
-        }
       }
-    };
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+      console.log("[NETWORK_TELEMETRY] END: Sync thread terminated.");
+    }
+  };
 
-    // Initial Fetch
+  useEffect(() => {
     fetchMetrics();
 
     // Establish Real-Time Socket Connection
-    console.log("[MSA_COMPLIANCE] SOCKET_START: Establishing real-time connection to Delaware Registry.");
+    console.log("[NETWORK_TELEMETRY] SOCKET_START: Establishing real-time connection to Oracle.");
     const ch = supabase
       .channel("msa_metrics_telemetry")
-      .on("postgres_changes" as any, { event: "*", schema: "public", table: "dao_msa_metrics" }, (payload) => {
-        console.log("[MSA_COMPLIANCE] SOCKET_EVENT: Real-time MSA mutation detected. Re-evaluating SLAs...", payload);
-        fetchMetrics();
-      })
+      .on(
+        "postgres_changes" as any, 
+        { event: "*", schema: "public", table: "dao_msa_metrics" }, 
+        (payload) => {
+          console.log("[NETWORK_TELEMETRY] SOCKET_EVENT: Mutation detected. Refreshing...");
+          fetchMetrics();
+        }
+      )
       .subscribe((status) => {
-        console.log(`[MSA_COMPLIANCE] SOCKET_STATUS: Registry socket state -> ${status}`);
+        console.log(`[NETWORK_TELEMETRY] SOCKET_STATUS: Oracle socket state -> ${status}`);
       });
 
     return () => {
-      isMounted = false;
-      console.log("[MSA_COMPLIANCE] SOCKET_CLOSE: Tearing down real-time connection.");
+      console.log("[NETWORK_TELEMETRY] SOCKET_CLOSE: Tearing down connection.");
       supabase.removeChannel(ch);
     };
   }, []);
 
   if (isLoading) {
     return (
-      <Card className="rounded-3xl border-teal-50 dark:bg-card dark:border-teal-900/40 shadow-sm overflow-hidden">
-        <CardContent className="p-8 flex flex-col items-center justify-center space-y-3">
-          <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
-          <p className="text-[9px] font-black uppercase tracking-widest text-teal-700/50">
-            Auditing Fiduciary Telemetry...
-          </p>
-        </CardContent>
+      <Card className="rounded-3xl border-teal-50 dark:bg-card dark:border-teal-900/40 shadow-sm overflow-hidden min-h-[200px] flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
       </Card>
     );
   }
@@ -99,20 +102,21 @@ const MSAComplianceCard: React.FC = () => {
       <CardContent className="p-5 space-y-4">
         <div className="flex items-center justify-between border-b border-teal-50/50 dark:border-teal-900/40 pb-3">
           <h3 className="text-[10px] font-black uppercase tracking-widest text-teal-800 dark:text-teal-200 flex items-center gap-2">
-            <ShieldCheck size={14} className="text-teal-600 dark:text-teal-300" />
-            Delaware MSA · SLA Compliance
+            <Zap size={14} className="text-teal-600 dark:text-teal-300" />
+            Oracle Telemetry · Global Hub Egress
           </h3>
-          {items.some((i) => i.status === "breach") && (
-            <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-100">
-              <AlertTriangle size={10} /> Active Breach
-            </div>
-          )}
+          <button 
+            onClick={() => fetchMetrics(true)}
+            className="text-teal-600 hover:text-teal-800 transition-colors"
+          >
+            <RefreshCw size={12} className={cn(isRefreshing && "animate-spin")} />
+          </button>
         </div>
 
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-6 opacity-40 space-y-2">
             <Activity className="w-8 h-8 text-slate-400" />
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Awaiting Oracle Telemetry</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Awaiting Oracle Handshake</p>
           </div>
         ) : (
           <div className="space-y-2.5">
@@ -135,19 +139,21 @@ const MSAComplianceCard: React.FC = () => {
                   <div className="space-y-0.5">
                     <span className={cn("text-xs font-bold block", textColor(m.status))}>{m.sla_name}</span>
                     <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground block">
-                      Status: {m.status}
+                      Status: {statusLabel(m.status)}
                     </span>
                   </div>
                 </div>
 
                 <div className="text-right">
                   <div className="text-sm font-black tracking-tighter text-slate-700 dark:text-foreground">
-                    {m.current_value ?? "—"}{" "}
+                    {m.current_value?.toFixed(1) ?? "—"}
                     <span className="text-[10px] text-slate-400 dark:text-muted-foreground font-medium tracking-normal">
-                      / {m.target_value ?? "—"}
+                      {" "}ms / SLA: {m.target_value ?? "—"}
                     </span>
                   </div>
-                  <div className="text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-muted-foreground">Oracle Metric</div>
+                  <div className="text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-muted-foreground">
+                    Live Oracle Feed
+                  </div>
                 </div>
               </div>
             ))}
