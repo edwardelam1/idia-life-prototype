@@ -54,21 +54,29 @@ const ComplianceQueue: React.FC = () => {
   const handleVeto = async () => {
     if (!vetoTarget) return;
     setActionBusyId(vetoTarget.id);
-    console.log("[COMPLIANCE_QUEUE] BEGIN: Veto execution for hat:", vetoTarget.id);
+    console.log("[COMPLIANCE_QUEUE] BEGIN: Veto execution via Edge Function for hat:", vetoTarget.id);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { hash, payload } = await generateACAHash(user!.id, `veto_${vetoTarget.id}`, ["VETO_ACTION", "LEDGER_WRITE"]);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const { hash, payload } = await generateACAHash(user!.id, `veto_${vetoTarget.id}`, [
+        "VETO_ACTION",
+        "LEDGER_WRITE",
+      ]);
 
-      const { error } = await supabase.from("dao_hats").update({
-        eligibility_status: "vetoed",
-        veto_reason: reason,
-        veto_aca_hash: hash,
-        veto_aca_payload: payload
-      }).eq("id", vetoTarget.id);
+      const { error } = await supabase.functions.invoke("ascension-veto", {
+        body: {
+          hat_id: vetoTarget.id,
+          veto_reason: reason,
+          aca_hash: hash,
+          aca_payload: payload,
+        },
+      });
 
       if (error) throw error;
       toast({ title: "Veto Executed Successfully" });
       setVetoTarget(null);
+      setReason(""); // Clear the reason for the next action
       fetchQueue();
     } catch (e: any) {
       console.error("[COMPLIANCE_QUEUE] CRITICAL_STALL: Veto execution failed", e);
@@ -84,19 +92,24 @@ const ComplianceQueue: React.FC = () => {
     setActionBusyId(extendTarget.id);
     console.log("[COMPLIANCE_QUEUE] BEGIN: Veto extension for hat:", extendTarget.id);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       const { hash, payload } = await generateACAHash(user!.id, `extend_${extendTarget.id}`, ["VETO_EXTENSION"]);
-      
+
       // Extend window by 24h
       const newEnd = new Date(new Date(extendTarget.veto_window_end).getTime() + 24 * 60 * 60 * 1000).toISOString();
-      
-      const { error } = await supabase.from("dao_hats").update({
-        veto_window_end: newEnd,
-        veto_extended: true,
-        veto_extended_at: new Date().toISOString(),
-        veto_aca_hash: hash,
-        veto_aca_payload: payload
-      }).eq("id", extendTarget.id);
+
+      const { error } = await supabase
+        .from("dao_hats")
+        .update({
+          veto_window_end: newEnd,
+          veto_extended: true,
+          veto_extended_at: new Date().toISOString(),
+          veto_aca_hash: hash,
+          veto_aca_payload: payload,
+        })
+        .eq("id", extendTarget.id);
 
       if (error) throw error;
       toast({ title: "Veto Window Extended" });
@@ -111,26 +124,45 @@ const ComplianceQueue: React.FC = () => {
     }
   };
 
-  if (isLoading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-teal-600" /></div>;
+  if (isLoading)
+    return (
+      <div className="p-8 flex justify-center">
+        <Loader2 className="animate-spin text-teal-600" />
+      </div>
+    );
 
   return (
     <div className="space-y-4">
       <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Compliance Queue</h2>
-      {items.length === 0 && <p className="text-xs text-muted-foreground p-4 bg-muted/20 rounded">No pending actions detected.</p>}
-      
+      {items.length === 0 && (
+        <p className="text-xs text-muted-foreground p-4 bg-muted/20 rounded">No pending actions detected.</p>
+      )}
+
       {items.map((item) => (
         <Card key={item.id} className="border-amber-200 bg-amber-50/30">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-mono text-muted-foreground">ID: {item.id}</p>
               <p className="text-sm font-bold capitalize">{item.hat_type}</p>
-              <p className="text-[10px] text-amber-700 font-medium">Expires: {new Date(item.veto_window_end).toLocaleString()}</p>
+              <p className="text-[10px] text-amber-700 font-medium">
+                Expires: {new Date(item.veto_window_end).toLocaleString()}
+              </p>
             </div>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => setExtendTarget(item)} disabled={actionBusyId === item.id}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setExtendTarget(item)}
+                disabled={actionBusyId === item.id}
+              >
                 <CalendarClock className="w-3 h-3 mr-1" /> Extend
               </Button>
-              <Button size="sm" variant="destructive" onClick={() => setVetoTarget(item)} disabled={actionBusyId === item.id}>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setVetoTarget(item)}
+                disabled={actionBusyId === item.id}
+              >
                 <XCircle className="w-3 h-3 mr-1" /> Veto
               </Button>
             </div>
@@ -141,10 +173,18 @@ const ComplianceQueue: React.FC = () => {
       {/* Veto Dialog */}
       <Dialog open={!!vetoTarget} onOpenChange={(o) => !o && setVetoTarget(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Execute Veto</DialogTitle></DialogHeader>
-          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Justification for veto..." />
+          <DialogHeader>
+            <DialogTitle>Execute Veto</DialogTitle>
+          </DialogHeader>
+          <Textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Justification for veto..."
+          />
           <DialogFooter>
-            <Button variant="destructive" onClick={handleVeto} disabled={actionBusyId === vetoTarget?.id}>Confirm Veto</Button>
+            <Button variant="destructive" onClick={handleVeto} disabled={actionBusyId === vetoTarget?.id}>
+              Confirm Veto
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
