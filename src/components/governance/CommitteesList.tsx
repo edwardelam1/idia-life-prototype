@@ -86,11 +86,21 @@ const CommitteesList: React.FC = () => {
   const fetchLedgerState = async () => {
     console.log("[COMMITTEES_LIST] START: Hydrating live registry metrics.");
     try {
+      // 1. Verify active session explicitly for the mobile wrapper
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      // 1. Live active officer counts
+      if (sessionError || !session) {
+        console.warn("[AUTH_CHECK] No active session found.");
+        setIsLoadingLedger(false);
+        return;
+      }
+
+      const user = session.user;
+
+      // 2. Live active officer counts
       const { data: hatsData, error: hatsError } = await (supabase as any)
         .from("dao_hats")
         .select("hat_type, user_id, eligibility_status, revoked_at")
@@ -108,7 +118,7 @@ const CommitteesList: React.FC = () => {
       setOfficerCounts(counts);
       setUserActiveHats(myHats);
 
-      // 2. Current user's pending/approved applications
+      // 3. Current user's pending/approved applications
       if (user) {
         const { data: appsData, error: appsError } = await (supabase as any)
           .from("committee_applications")
@@ -134,6 +144,9 @@ const CommitteesList: React.FC = () => {
 
   useEffect(() => {
     fetchLedgerState();
+    // Auto-sync interval prevents UI from getting stuck when database changes
+    const interval = setInterval(fetchLedgerState, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleApplyClick = (committee: CommitteeMeta) => {
