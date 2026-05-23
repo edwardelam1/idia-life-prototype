@@ -184,7 +184,26 @@ const EnhancedWalletDashboard: React.FC = () => {
       toast({ title: "Voting power activated", description: "Self-delegation submitted on-chain." });
     } catch (e: any) {
       console.error("Delegation failed:", e);
-      toast({ title: "Delegation failed", description: e?.message || "Try again.", variant: "destructive" });
+      const code = e?.code || e?.info?.error?.code;
+      const msg = (e?.message || "").toLowerCase();
+      const isNoGas =
+        code === "INSUFFICIENT_FUNDS" ||
+        code === -32003 ||
+        msg.includes("insufficient funds");
+      if (isNoGas) {
+        toast({
+          title: "Not enough ETH for gas",
+          description:
+            "Self-delegation is an on-chain transaction on Base and needs a small amount of ETH to pay gas. Add ETH on Base to this wallet, then try again.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Delegation failed",
+          description: e?.shortMessage || e?.message || "Try again.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
