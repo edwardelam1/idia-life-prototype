@@ -86,7 +86,6 @@ const CommitteesList: React.FC = () => {
   const fetchLedgerState = async () => {
     console.log("[COMMITTEES_LIST] START: Hydrating live registry metrics.");
     try {
-      // 1. Verify active session explicitly for the mobile wrapper
       const {
         data: { session },
         error: sessionError,
@@ -100,7 +99,7 @@ const CommitteesList: React.FC = () => {
 
       const user = session.user;
 
-      // 2. Live active officer counts
+      // 1. Live active officer counts
       const { data: hatsData, error: hatsError } = await (supabase as any)
         .from("dao_hats")
         .select("hat_type, user_id, eligibility_status, revoked_at")
@@ -118,7 +117,7 @@ const CommitteesList: React.FC = () => {
       setOfficerCounts(counts);
       setUserActiveHats(myHats);
 
-      // 3. Current user's pending/approved applications
+      // 2. Current user's pending/approved applications
       if (user) {
         const { data: appsData, error: appsError } = await (supabase as any)
           .from("committee_applications")
@@ -144,7 +143,6 @@ const CommitteesList: React.FC = () => {
 
   useEffect(() => {
     fetchLedgerState();
-    // Auto-sync interval prevents UI from getting stuck when database changes
     const interval = setInterval(fetchLedgerState, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -158,7 +156,6 @@ const CommitteesList: React.FC = () => {
 
   const handleSubmission = async () => {
     console.log(`[COMMITTEE_APPLICATION] START: Initializing Level 1 Ascension sequence for ${selectedCommittee?.id}.`);
-
     setIsProcessing(true);
 
     try {
@@ -185,30 +182,66 @@ const CommitteesList: React.FC = () => {
       } = await supabase.auth.getUser();
       if (authError || !user) throw new Error("Authentication failure prior to ACA generation.");
 
-      const { hash, payload } = await generateACAHash(user.id, `committee_join_${selectedCommittee?.id}`, [
+      // NATIVELY READ TOPHAT ROLE
+      const isTophat = userActiveHats.has("tophat");
+      const actionIdentifier = isTophat
+        ? `committee_auto_join_${selectedCommittee?.id}`
+        : `committee_join_${selectedCommittee?.id}`;
+
+      const { hash, payload } = await generateACAHash(user.id, actionIdentifier, [
         "DELAWARE_MSA_BONDING",
         "LEDGER_WRITE",
+        ...(isTophat ? ["TOPHAT_OVERRIDE"] : []),
       ]);
 
-      const { error: ledgerError } = await (supabase as any).from("committee_applications").insert({
-        user_id: user.id,
-        committee_id: selectedCommittee?.id,
-        statement_of_competence: statement,
-        aca_hash_key: hash,
-        aca_payload: payload,
-        status: "pending",
-      });
-      if (ledgerError) throw ledgerError;
+      if (isTophat) {
+        // TOPHAT OVERRIDE: Automatically approve application and provision the hat
+        console.log(`[COMMITTEE_APPLICATION] Tophat override detected. Auto-provisioning ${selectedCommittee?.id}.`);
 
-      toast({
-        title: "Application Committed",
-        description: `Identity anchored to ${selectedCommittee?.name} with ACA Hash: ${hash.substring(0, 8)}...`,
-      });
+        const { error: appError } = await (supabase as any).from("committee_applications").insert({
+          user_id: user.id,
+          committee_id: selectedCommittee?.id,
+          statement_of_competence: statement,
+          aca_hash_key: hash,
+          aca_payload: payload,
+          status: "approved",
+        });
+        if (appError) throw appError;
+
+        const { error: hatError } = await (supabase as any).from("dao_hats").insert({
+          user_id: user.id,
+          hat_type: selectedCommittee?.id,
+          eligibility_status: "active",
+        });
+        if (hatError) throw hatError;
+
+        toast({
+          title: "Tophat Override Authorized",
+          description: `Auto-provisioned ${selectedCommittee?.name} hat. ACA Hash: ${hash.substring(0, 8)}...`,
+        });
+      } else {
+        // STANDARD FLOW: Submit for audit
+        const { error: ledgerError } = await (supabase as any).from("committee_applications").insert({
+          user_id: user.id,
+          committee_id: selectedCommittee?.id,
+          statement_of_competence: statement,
+          aca_hash_key: hash,
+          aca_payload: payload,
+          status: "pending",
+        });
+        if (ledgerError) throw ledgerError;
+
+        toast({
+          title: "Application Committed",
+          description: `Identity anchored to ${selectedCommittee?.name} with ACA Hash: ${hash.substring(0, 8)}...`,
+        });
+      }
 
       fetchLedgerState();
       setSelectedCommittee(null);
     } catch (error: any) {
       console.error(`[COMMITTEE_APPLICATION] CRITICAL_FAILURE: ${error.message}`);
+      toast({ title: "Ascension Failed", description: error.message, variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }
@@ -216,7 +249,6 @@ const CommitteesList: React.FC = () => {
 
   const handleRevokeRequest = async (committee: CommitteeMeta) => {
     console.log(`[COMMITTEE_REVOKE] START: Withdrawing pending application for ${committee.id}.`);
-    // ACA gate temporarily disabled — will re-enable once Secure Enclave capture is fixed.
     const app = userApplications[committee.id];
     if (!app || app.status !== "pending") {
       toast({ title: "No Pending Application", description: "Nothing to withdraw.", variant: "destructive" });
@@ -260,7 +292,6 @@ const CommitteesList: React.FC = () => {
 
   const handleRemoveMembership = async (committee: CommitteeMeta) => {
     console.log(`[COMMITTEE_RESIGN] START: Revoking active hat ${committee.id}.`);
-    // ACA gate temporarily disabled — will re-enable once Secure Enclave capture is fixed.
     setActionBusyId(committee.id);
     try {
       const {
@@ -286,7 +317,6 @@ const CommitteesList: React.FC = () => {
         .eq("eligibility_status", "active")
         .is("revoked_at", null);
 
-      // If the optional columns don't exist, retry minimally without them.
       if (error && (error.message?.includes("revocation_aca_hash") || error.message?.includes("column"))) {
         const retry = await (supabase as any)
           .from("dao_hats")
