@@ -28,7 +28,7 @@ const CommitteeWorkspace: React.FC = () => {
       if (!user) throw new Error("Unauthenticated workspace access attempt.");
 
       // 1. Fetch user's active hats
-      const { data: hats, error: hatsError } = await supabase
+      const { data: hats, error: hatsError } = await (supabase as any)
         .from("dao_hats")
         .select("hat_type")
         .eq("user_id", user.id)
@@ -47,7 +47,7 @@ const CommitteeWorkspace: React.FC = () => {
 
       // 2. Fetch proposals for the active committee
       if (currentCommittee) {
-        const { data: propsData, error: propsError } = await supabase
+        const { data: propsData, error: propsError } = await (supabase as any)
           .from("proposals")
           .select("*")
           .eq("committee_id", currentCommittee)
@@ -73,6 +73,22 @@ const CommitteeWorkspace: React.FC = () => {
     return () => clearInterval(interval);
   }, [selectedCommittee]);
 
+  const handleRouteToVote = (proposalId: string) => {
+    console.log(`[ROUTING] BEGIN: Transitioning to Voting Engine for proposal: ${proposalId}`);
+    try {
+      if (!proposalId) throw new Error("Missing proposal ID for routing.");
+      
+      // UNIVERSAL FALLBACK:
+      window.location.href = `/governance/vote/${proposalId}`;
+      
+    } catch (error: any) {
+      console.error(`[ROUTING] CRITICAL_STALL: Navigation to Voting Engine failed.`, error.message);
+      toast({ title: "Routing Failed", description: error.message, variant: "destructive" });
+    } finally {
+      console.log(`[ROUTING] END: Navigation sequence triggered.`);
+    }
+  };
+
   const handleCreateProposal = async () => {
     if (!draftTitle.trim() || !draftBody.trim()) {
       toast({ title: "Validation Failed", description: "Title and body are required.", variant: "destructive" });
@@ -90,12 +106,12 @@ const CommitteeWorkspace: React.FC = () => {
       const actionIdentifier = `propose_${selectedCommittee}_${Date.now()}`;
       const { hash, payload } = await generateACAHash(user.id, actionIdentifier, ["PROPOSAL_DRAFTING", "LEDGER_WRITE"]);
 
-      const { error } = await supabase.from("proposals").insert({
+      const { error } = await (supabase as any).from("proposals").insert({
         committee_id: selectedCommittee,
         author_id: user.id,
         title: draftTitle,
         description: draftBody,
-        status: "active_vote", // Or 'draft' depending on your voting engine's entry requirement
+        status: "active_vote", 
         aca_hash_key: hash,
         aca_payload: payload
       });
@@ -177,8 +193,12 @@ const CommitteeWorkspace: React.FC = () => {
                     <span className="text-[10px] font-black uppercase tracking-wider px-2 py-1 bg-slate-100 rounded-full">
                       {prop.status}
                     </span>
-                    {/* THIS IS THE BRIDGE: When clicked, route the user to the specific Voting Engine view for this proposal */}
-                    <Button variant="ghost" size="sm">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => handleRouteToVote(prop.id)}
+                      className="hover:bg-teal-50 hover:text-teal-700"
+                    >
                       Enter Vote <ChevronRight className="w-4 h-4 ml-1" />
                     </Button>
                   </div>
