@@ -77,6 +77,8 @@ const CommitteesList: React.FC = () => {
   // Map hat_type -> { eligibility_status, veto_window_end }
   const [userHats, setUserHats] = useState<Record<string, any>>({});
   const [userActiveHats, setUserActiveHats] = useState<Set<string>>(new Set());
+  // ADD THIS LINE
+  const [officerCounts, setOfficerCounts] = useState<Record<string, number>>({});
   // Set of hat_type values where the current user holds an active hat
   const [isLoadingLedger, setIsLoadingLedger] = useState(true);
 
@@ -86,6 +88,13 @@ const CommitteesList: React.FC = () => {
   const [actionBusyId, setActionBusyId] = useState<string | null>(null);
 
   // 1. Fetch Hats + Applications in one sweep
+      const fetchLedgerState = async () => {
+    console.log("[COMMITTEES_LIST] START: Hydrating live registry metrics.");
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setIsLoadingLedger(false); return; }
+
+      // 1. Fetch Hats + Applications in one sweep
       const [hatsRes, appsRes] = await Promise.all([
         (supabase as any).from("dao_hats").select("hat_type, user_id, eligibility_status, veto_window_end, revoked_at").is("revoked_at", null),
         (supabase as any).from("committee_applications").select("id, committee_id, status, sponsor_count").eq("user_id", user.id)
@@ -123,7 +132,6 @@ const CommitteesList: React.FC = () => {
           map[a.committee_id] = { id: a.id, status: a.status };
         });
         setUserApplications(map);
-      }
 
       console.log("[COMMITTEES_LIST] SUCCESS: Registry metrics synced.");
     } catch (error: any) {
