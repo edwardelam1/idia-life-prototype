@@ -159,7 +159,7 @@ class WalletService {
   private wallet: ethers.HDNodeWallet | null = null;
   private activeNetwork: string = DEFAULT_NETWORK;
   private mnemonic: string | null = null;
-
+  
   // ── Wallet Lifecycle ──────────────────────────────────────────
 
   async hasWallet(): Promise<boolean> {
@@ -474,7 +474,18 @@ class WalletService {
       };
     } catch (e) { console.error('Estimate failed:', e); return null; }
   }
-
+  // Add this method to the WalletService class in walletService.ts
+public getConnectedSigner(networkKey?: string): ethers.Wallet {
+  console.log('[START] Wallet: getConnectedSigner');
+  try {
+    const signer = this.getSigner(networkKey);
+    console.log('[END] Wallet: getConnectedSigner complete');
+    return signer;
+  } catch (e) {
+    console.error('[ERROR] Wallet: getConnectedSigner failed', e);
+    throw e;
+  }
+}
   async sendTransaction(req: TxRequest): Promise<TxResult> {
     if (!this.wallet) throw new Error('No wallet');
     if (!ethers.isAddress(req.to)) throw new Error('Invalid recipient address');
