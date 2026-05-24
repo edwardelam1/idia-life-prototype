@@ -14,36 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      aca_consent_artifacts: {
-        Row: {
-          created_at: string | null
-          expires_at: string | null
-          hash: string
-          id: string
-          metadata: Json | null
-          status: string
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          expires_at?: string | null
-          hash: string
-          id?: string
-          metadata?: Json | null
-          status?: string
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          expires_at?: string | null
-          hash?: string
-          id?: string
-          metadata?: Json | null
-          status?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
       account_conversion_requests: {
         Row: {
           address_city: string | null
@@ -8594,7 +8564,7 @@ export type Database = {
         }
         Returns: number
       }
-      auto_promote_pending_veto: { Args: never; Returns: undefined }
+      auto_promote_pending_veto: { Args: never; Returns: number }
       calculate_business_health_index: {
         Args: { p_business_id: string; p_location_id?: string }
         Returns: number
@@ -8873,6 +8843,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      provision_pending_veto_hat: {
+        Args: { _hat_type: string; _provisioner: string; _target_user: string }
+        Returns: string
+      }
+      refresh_application_sponsor_count: {
+        Args: { _application_id: string }
+        Returns: number
+      }
       revoke_employee: {
         Args: { _employee_id: string }
         Returns: {
@@ -8953,6 +8931,10 @@ export type Database = {
             }
             Returns: Json
           }
+      sponsor_application: {
+        Args: { _application_id: string; _sponsor_aca_hash: string }
+        Returns: Json
+      }
       submit_variance_correction: {
         Args: {
           _corrective_action: string
