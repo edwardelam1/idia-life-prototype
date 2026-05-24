@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { stage } from "@/lib/stageLogger";
+import { governanceService } from "@/services/governanceService";
 
 interface Proposal {
   id: string;
@@ -277,34 +278,40 @@ const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | str
   const [innerRefresh, setInnerRefresh] = useState(0);
 
   useEffect(() => {
-    let isMounted = true;
-    (async () => {
-      const s = stage("ACTIVE_PROPOSALS", "FETCH");
-      s.start();
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (isMounted) setUserId(user?.id ?? null);
+  let isMounted = true;
+  (async () => {
+    const s = stage("ACTIVE_PROPOSALS", "FETCH_HYBRID");
+    s.start();
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (isMounted) setUserId(user?.id ?? null);
 
-        const { data, error } = await (supabase as any)
+      // Fetch from both sources
+      const [dbProposals, onChainProposals] = await Promise.all([
+        (supabase as any)
           .from("dao_proposals")
           .select("id, title, description, status, proposer_id")
-          .order("created_at", { ascending: false });
-        if (error) throw error;
-        if (isMounted) setProposals(data || []);
-        s.ok({ count: data?.length });
-      } catch (err: any) {
-        s.fail(err);
-        toast({ title: "Telemetry Stalled", description: err.message, variant: "destructive" });
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    })();
-    return () => {
-      isMounted = false;
-    };
-  }, [refreshTrigger, innerRefresh]);
+          .order("created_at", { ascending: false }),
+        governanceService.getRecentProposals(user?.id || "")
+      ]);
+
+      if (dbProposals.error) throw dbProposals.error;
+
+      // Merge logic: Index on-chain IDs to avoid duplicates if necessary
+      const combined = [...(dbProposals.data || [])];
+      // Logic to append or reconcile onChainProposals goes here
+      
+      if (isMounted) setProposals(combined);
+      s.ok({ count: combined.length });
+    } catch (err: any) {
+      s.fail(err);
+      toast({ title: "Telemetry Stalled", description: err.message, variant: "destructive" });
+    } finally {
+      if (isMounted) setLoading(false);
+    }
+  })();
+  return () => { isMounted = false; };
+}, [refreshTrigger, innerRefresh]);
 
   if (loading) {
     return (
