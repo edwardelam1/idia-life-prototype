@@ -349,115 +349,122 @@ const CommitteesList: React.FC = () => {
     );
   }
 
+  const ascensionLevel = getAscensionLevel(userActiveHats);
+
   return (
     <div className="space-y-4">
       <div className="px-2">
         <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-          <Scale size={14} className="text-teal-600" /> Delaware Registry · Level 1 Ascension
+          <Scale size={14} className="text-teal-600" /> 
+          Delaware Registry · {ascensionLevel === 3 ? "Stewardship Matrix" : ascensionLevel === 2 ? "Oversight Matrix" : "Level 1 Ascension"}
         </h2>
         <p className="text-xs text-muted-foreground mt-1">
-          Select a committee to submit your Statement of Competence and bond your identity to the protocol's fiduciary
-          oversight matrix.
+          {ascensionLevel === 3 
+            ? "Select a committee to execute a Tophat Override and provision an active hat instantly."
+            : "Select a committee to submit your Statement of Competence and bond your identity to the protocol's fiduciary oversight matrix."}
         </p>
       </div>
 
       <div className="grid gap-4">
-        {(() => {
-          const ascensionLevel = getAscensionLevel(userActiveHats);
-          return COMMITTEES_META.map((committee) => {
-            const Icon = committee.icon;
-            const activeMembers = officerCounts[committee.id] || 0;
-            const app = userApplications[committee.id];
-            // L3 Protocol Stewards (tophat) have universal authority over every committee.
-            const isActiveMember = userActiveHats.has(committee.id) || ascensionLevel === 3;
-            const isPending = !!app && app.status === "pending";
-            const busy = actionBusyId === committee.id;
+        {COMMITTEES_META.map((committee) => {
+          const Icon = committee.icon;
+          const activeMembers = officerCounts[committee.id] || 0;
+          const app = userApplications[committee.id];
+          
+          // L3 Protocol Stewards (tophat) have universal authority over every committee.
+          const isActiveMember = userActiveHats.has(committee.id) || ascensionLevel === 3;
+          const isPending = !!app && app.status === "pending";
+          const busy = actionBusyId === committee.id;
 
-            return (
-              <Card
-                key={committee.id}
-                className="overflow-hidden border-teal-100 dark:bg-card dark:border-teal-900/40 shadow-sm transition-all hover:shadow-md"
-              >
-                <CardContent className="p-0">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-4">
-                    <div className="flex items-start gap-4">
-                      <div className="p-3 bg-teal-50 dark:bg-teal-950/40 rounded-xl">
-                        <Icon className="w-6 h-6 text-teal-700 dark:text-teal-300" />
-                      </div>
-                      <div className="space-y-1">
-                        <h3 className="font-bold text-sm text-foreground">{committee.name}</h3>
-                        <p className="text-xs text-muted-foreground line-clamp-2 sm:line-clamp-none max-w-sm">
-                          {committee.description}
-                        </p>
-                        <div className="flex items-center gap-2 mt-2 flex-wrap">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-orange-500 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/30 px-2 py-0.5 rounded-full">
-                            {activeMembers} Active Officer{activeMembers === 1 ? "" : "s"}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground font-medium">{committee.pathway}</span>
-                        </div>
+          // Compute the dynamic pathway text
+          const pathwayText = ascensionLevel === 3 
+            ? `Tophat Override to the ${committee.hatName}`
+            : ascensionLevel === 2
+            ? `Oversight of the ${committee.hatName}`
+            : `Level 1 pathway to the ${committee.hatName}`;
+            
+          return (
+            <Card
+              key={committee.id}
+              className="overflow-hidden border-teal-100 dark:bg-card dark:border-teal-900/40 shadow-sm transition-all hover:shadow-md"
+            >
+              <CardContent className="p-0">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-4">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 bg-teal-50 dark:bg-teal-950/40 rounded-xl">
+                      <Icon className="w-6 h-6 text-teal-700 dark:text-teal-300" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="font-bold text-sm text-foreground">{committee.name}</h3>
+                      <p className="text-xs text-muted-foreground line-clamp-2 sm:line-clamp-none max-w-sm">
+                        {committee.description}
+                      </p>
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-orange-500 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/30 px-2 py-0.5 rounded-full">
+                          {activeMembers} Active Officer{activeMembers === 1 ? "" : "s"}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground font-medium">{pathwayText}</span>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
-                      {isActiveMember ? (
-                        <>
-                          <div
-                            className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${LEVEL_BADGE_CLASS[ascensionLevel || 1]}`}
-                          >
-                            <ShieldCheck className="w-3 h-3" /> {LEVEL_LABEL[ascensionLevel || 1]}
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={busy}
-                            onClick={() => setResignTarget(committee)}
-                            className="w-full sm:w-auto border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-800"
-                          >
-                            {busy ? (
-                              <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
-                            ) : (
-                              <LogOut className="w-3 h-3 mr-1.5" />
-                            )}
-                            Remove Membership
-                          </Button>
-                        </>
-                      ) : isPending ? (
-                        <>
-                          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-900/50">
-                            <Clock className="w-3 h-3" /> Pending Audit
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={busy}
-                            onClick={() => setRevokeTarget(committee)}
-                            className="w-full sm:w-auto border-orange-200 dark:border-orange-900/50 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/30 hover:text-orange-800"
-                          >
-                            {busy ? (
-                              <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
-                            ) : (
-                              <RotateCcw className="w-3 h-3 mr-1.5" />
-                            )}
-                            Revoke Request
-                          </Button>
-                        </>
-                      ) : (
+                  <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
+                    {isActiveMember ? (
+                      <>
+                        <div className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${LEVEL_BADGE_CLASS[ascensionLevel || 1]}`}>
+                          <ShieldCheck className="w-3 h-3" /> {LEVEL_LABEL[ascensionLevel || 1]}
+                        </div>
                         <Button
                           variant="outline"
                           size="sm"
-                          className="w-full sm:w-auto border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-200 hover:bg-teal-50 dark:hover:bg-teal-950/40"
-                          onClick={() => handleApplyClick(committee)}
+                          disabled={busy}
+                          onClick={() => setResignTarget(committee)}
+                          className="w-full sm:w-auto border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-800"
                         >
-                          Apply to Join <ChevronRight className="w-4 h-4 ml-1 opacity-50" />
+                          {busy ? (
+                            <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                          ) : (
+                            <LogOut className="w-3 h-3 mr-1.5" />
+                          )}
+                          Remove Membership
                         </Button>
-                      )}
-                    </div>
+                      </>
+                    ) : isPending ? (
+                      <>
+                        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-900/50">
+                          <Clock className="w-3 h-3" /> Pending Audit
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => setRevokeTarget(committee)}
+                          className="w-full sm:w-auto border-orange-200 dark:border-orange-900/50 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/30 hover:text-orange-800"
+                        >
+                          {busy ? (
+                            <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                          ) : (
+                            <RotateCcw className="w-3 h-3 mr-1.5" />
+                          )}
+                          Revoke Request
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full sm:w-auto border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-200 hover:bg-teal-50 dark:hover:bg-teal-950/40"
+                        onClick={() => handleApplyClick(committee)}
+                      >
+                        Apply to Join <ChevronRight className="w-4 h-4 ml-1 opacity-50" />
+                      </Button>
+                    )}
                   </div>
-                </CardContent>
-              </Card>
-            );
-          });
-        })()}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {/* Apply dialog */}
