@@ -88,7 +88,7 @@ export async function storePaymentACA(aca: PaymentACA): Promise<boolean> {
   try {
     const expiresAt = new Date((aca.timestamp + 600) * 1000).toISOString(); // 10 min expiry
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('aca_consent_artifacts')
       .insert({
         hash: aca.hash,
@@ -125,7 +125,7 @@ export async function storePaymentACA(aca: PaymentACA): Promise<boolean> {
  */
 export async function markACAConsumed(acaHash: string, txHash: string): Promise<void> {
   try {
-    await supabase
+    await (supabase as any)
       .from('aca_consent_artifacts')
       .update({
         status: 'consumed',
