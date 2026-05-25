@@ -31,6 +31,7 @@ import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { isNative } from "@/services/platform";
+import { getAscensionLevel, LEVEL_LABEL, LEVEL_BADGE_CLASS } from "@/utils/governanceGate";
 
 // We keep the structural UI metadata static, but all metrics are hydrated live.
 const COMMITTEES_META = [
@@ -361,11 +362,14 @@ const CommitteesList: React.FC = () => {
       </div>
 
       <div className="grid gap-4">
-        {COMMITTEES_META.map((committee) => {
+        {(() => {
+          const ascensionLevel = getAscensionLevel(userActiveHats);
+          return COMMITTEES_META.map((committee) => {
           const Icon = committee.icon;
           const activeMembers = officerCounts[committee.id] || 0;
           const app = userApplications[committee.id];
-          const isActiveMember = userActiveHats.has(committee.id);
+          // L3 Protocol Stewards (tophat) have universal authority over every committee.
+          const isActiveMember = userActiveHats.has(committee.id) || ascensionLevel === 3;
           const isPending = !!app && app.status === "pending";
           const busy = actionBusyId === committee.id;
 
@@ -397,8 +401,8 @@ const CommitteesList: React.FC = () => {
                   <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
                     {isActiveMember ? (
                       <>
-                        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 px-2.5 py-1 rounded-full border border-emerald-100 dark:border-emerald-900/50">
-                          <ShieldCheck className="w-3 h-3" /> Active Officer
+                        <div className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${LEVEL_BADGE_CLASS[ascensionLevel || 1]}`}>
+                          <ShieldCheck className="w-3 h-3" /> {LEVEL_LABEL[ascensionLevel || 1]}
                         </div>
                         <Button
                           variant="outline"
@@ -450,7 +454,8 @@ const CommitteesList: React.FC = () => {
               </CardContent>
             </Card>
           );
-        })}
+        });
+        })()}
       </div>
 
       {/* Apply dialog */}
