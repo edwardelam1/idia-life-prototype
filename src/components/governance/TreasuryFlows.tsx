@@ -15,6 +15,20 @@ interface Flow {
   recorded_at: string;
 }
 
+// Strip any UUID substrings from counterparty labels so we never leak a user GUID
+// in the public Atomic Settlements feed. The on-ledger record is unchanged.
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+const sanitizeCounterparty = (label: string | null, fallback: string): string => {
+  if (!label) return fallback;
+  const cleaned = label
+    .replace(UUID_RE, "")
+    .replace(/\(\s*\)/g, "")
+    .replace(/\[\s*\]/g, "")
+    .replace(/[:\s\-–—]+$/g, "")
+    .trim();
+  return cleaned.length ? cleaned : "Contributor Yield";
+};
+
 const TreasuryFlows: React.FC = () => {
   const [flows, setFlows] = useState<Flow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -190,7 +204,7 @@ const TreasuryFlows: React.FC = () => {
                       {f.direction === "in" ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />}
                     </div>
                     <div className="space-y-0.5">
-                      <span className="text-xs font-bold text-slate-800 dark:text-foreground block">{f.counterparty_label || f.asset}</span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-foreground block">{sanitizeCounterparty(f.counterparty_label, f.asset)}</span>
                       <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-muted-foreground block">
                         {new Date(f.recorded_at).toLocaleDateString()}
                       </span>
