@@ -6,19 +6,26 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, ShieldAlert, ShieldCheck, Clock, CheckCircle, XCircle, CalendarClock } from "lucide-react";
+import { Loader2, XCircle, CalendarClock, ShieldCheck } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
+import {
+  getAscensionLevel,
+  canPerformAction,
+  LEVEL_LABEL,
+  LEVEL_BADGE_CLASS,
+  type AscensionLevel,
+} from "@/utils/governanceGate";
 
 const ComplianceQueue: React.FC = () => {
   const [items, setItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [actionBusyId, setActionBusyId] = useState<string | null>(null);
+  const [level, setLevel] = useState<AscensionLevel>(0);
 
   // Modal States
   const [vetoTarget, setVetoTarget] = useState<any | null>(null);
@@ -28,6 +35,22 @@ const ComplianceQueue: React.FC = () => {
   const fetchQueue = async () => {
     console.log("[COMPLIANCE_QUEUE] BEGIN: Fetching pending_veto telemetry.");
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      // Hydrate viewer's ascension level from active hats
+      if (user) {
+        const { data: hats } = await (supabase as any)
+          .from("dao_hats")
+          .select("hat_type")
+          .eq("user_id", user.id)
+          .eq("eligibility_status", "active")
+          .is("revoked_at", null);
+        const set = new Set<string>((hats || []).map((h: any) => h.hat_type));
+        setLevel(getAscensionLevel(set));
+      }
+
       const { data, error } = await supabase
         .from("dao_hats")
         .select("*")
@@ -41,7 +64,6 @@ const ComplianceQueue: React.FC = () => {
       console.error("[COMPLIANCE_QUEUE] CRITICAL_STALL: Fetch failed", e);
     } finally {
       setIsLoading(false);
-      console.log("[COMPLIANCE_QUEUE] END: Telemetry sync.");
     }
   };
 
@@ -53,8 +75,15 @@ const ComplianceQueue: React.FC = () => {
 
   const handleVeto = async () => {
     if (!vetoTarget) return;
+    if (!canPerformAction(level, 3)) {
+      toast({
+        title: "Insufficient Authority",
+        description: "Veto requires Level 3 Ascension (Protocol Steward).",
+        variant: "destructive",
+      });
+      return;
+    }
     setActionBusyId(vetoTarget.id);
-    console.log("[COMPLIANCE_QUEUE] BEGIN: Veto execution via Edge Function for hat:", vetoTarget.id);
     try {
       const {
         data: { user },
@@ -76,31 +105,35 @@ const ComplianceQueue: React.FC = () => {
       if (error) throw error;
       toast({ title: "Veto Executed Successfully" });
       setVetoTarget(null);
-      setReason(""); // Clear the reason for the next action
+      setReason("");
       fetchQueue();
     } catch (e: any) {
       console.error("[COMPLIANCE_QUEUE] CRITICAL_STALL: Veto execution failed", e);
       toast({ title: "Veto Failed", description: e.message, variant: "destructive" });
     } finally {
       setActionBusyId(null);
-      console.log("[COMPLIANCE_QUEUE] END: Veto execution complete.");
     }
   };
 
-  const handleExtend = async () => {
-    if (!extendTarget) return;
-    setActionBusyId(extendTarget.id);
-    console.log("[COMPLIANCE_QUEUE] BEGIN: Veto extension for hat:", extendTarget.id);
+  const handleExtend = async (target: any) => {
+    if (!canPerformAction(level, 2)) {
+      toast({
+        title: "Insufficient Authority",
+        description: "Extending the veto window requires Level 2 (Oversight Chair).",
+        variant: "destructive",
+      });
+      return;
+    }
+    setActionBusyId(target.id);
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      const { hash, payload } = await generateACAHash(user!.id, `extend_${extendTarget.id}`, ["VETO_EXTENSION"]);
+      const { hash, payload } = await generateACAHash(user!.id, `extend_${target.id}`, ["VETO_EXTENSION"]);
 
-      // Extend window by 24h
-      const newEnd = new Date(new Date(extendTarget.veto_window_end).getTime() + 24 * 60 * 60 * 1000).toISOString();
+      const newEnd = new Date(new Date(target.veto_window_end).getTime() + 24 * 60 * 60 * 1000).toISOString();
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("dao_hats")
         .update({
           veto_window_end: newEnd,
@@ -109,7 +142,7 @@ const ComplianceQueue: React.FC = () => {
           veto_aca_hash: hash,
           veto_aca_payload: payload,
         })
-        .eq("id", extendTarget.id);
+        .eq("id", target.id);
 
       if (error) throw error;
       toast({ title: "Veto Window Extended" });
@@ -117,10 +150,41 @@ const ComplianceQueue: React.FC = () => {
       fetchQueue();
     } catch (e: any) {
       console.error("[COMPLIANCE_QUEUE] CRITICAL_STALL: Extension failed", e);
-      toast({ title: "Extension Failed", variant: "destructive" });
+      toast({ title: "Extension Failed", description: e.message, variant: "destructive" });
     } finally {
       setActionBusyId(null);
-      console.log("[COMPLIANCE_QUEUE] END: Extension complete.");
+    }
+  };
+
+  const handlePromote = async (hat: any) => {
+    if (!canPerformAction(level, 3)) {
+      toast({
+        title: "Insufficient Authority",
+        description: "Stewardship override requires Level 3 (Protocol Steward).",
+        variant: "destructive",
+      });
+      return;
+    }
+    setActionBusyId(hat.id);
+    console.log("[COMPLIANCE_QUEUE] BEGIN: Stewardship promotion for:", hat.id);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const { hash, payload } = await generateACAHash(user!.id, `promote_${hat.id}`, ["TOPHAT_PROMOTE"]);
+
+      const { error } = await supabase.functions.invoke("ascension-promote", {
+        body: { hat_id: hat.id, aca_hash: hash, aca_payload: payload },
+      });
+
+      if (error) throw error;
+      toast({ title: "Stewardship Override Successful" });
+      fetchQueue();
+    } catch (e: any) {
+      console.error("[COMPLIANCE_QUEUE] STALL: Promotion failed", e);
+      toast({ title: "Promotion Failed", description: e.message, variant: "destructive" });
+    } finally {
+      setActionBusyId(null);
     }
   };
 
@@ -133,14 +197,21 @@ const ComplianceQueue: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Compliance Queue</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Compliance Queue</h2>
+        <div
+          className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${LEVEL_BADGE_CLASS[level]}`}
+        >
+          <ShieldCheck className="w-3 h-3" /> {LEVEL_LABEL[level]}
+        </div>
+      </div>
       {items.length === 0 && (
         <p className="text-xs text-muted-foreground p-4 bg-muted/20 rounded">No pending actions detected.</p>
       )}
 
       {items.map((item) => (
         <Card key={item.id} className="border-amber-200 bg-amber-50/30">
-          <CardContent className="p-4 flex items-center justify-between">
+          <CardContent className="p-4 flex items-center justify-between gap-3 flex-wrap">
             <div>
               <p className="text-xs font-mono text-muted-foreground">ID: {item.id}</p>
               <p className="text-sm font-bold capitalize">{item.hat_type}</p>
@@ -148,23 +219,37 @@ const ComplianceQueue: React.FC = () => {
                 Expires: {new Date(item.veto_window_end).toLocaleString()}
               </p>
             </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setExtendTarget(item)}
-                disabled={actionBusyId === item.id}
-              >
-                <CalendarClock className="w-3 h-3 mr-1" /> Extend
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => setVetoTarget(item)}
-                disabled={actionBusyId === item.id}
-              >
-                <XCircle className="w-3 h-3 mr-1" /> Veto
-              </Button>
+            <div className="flex gap-2 flex-wrap">
+              {canPerformAction(level, 2) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setExtendTarget(item)}
+                  disabled={actionBusyId === item.id}
+                >
+                  <CalendarClock className="w-3 h-3 mr-1" /> Extend
+                </Button>
+              )}
+              {canPerformAction(level, 3) && (
+                <>
+                  <Button
+                    size="sm"
+                    onClick={() => handlePromote(item)}
+                    disabled={actionBusyId === item.id}
+                    className="bg-purple-100 hover:bg-purple-200 text-purple-900 border border-purple-200"
+                  >
+                    <ShieldCheck className="w-3 h-3 mr-1" /> Promote
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => setVetoTarget(item)}
+                    disabled={actionBusyId === item.id}
+                  >
+                    <XCircle className="w-3 h-3 mr-1" /> Veto
+                  </Button>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -184,6 +269,24 @@ const ComplianceQueue: React.FC = () => {
           <DialogFooter>
             <Button variant="destructive" onClick={handleVeto} disabled={actionBusyId === vetoTarget?.id}>
               Confirm Veto
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Extend Dialog */}
+      <Dialog open={!!extendTarget} onOpenChange={(o) => !o && setExtendTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Extend Veto Window (+24h)</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Confirm extension for hat <span className="font-mono">{extendTarget?.id?.slice(0, 8)}…</span>. This is
+            recorded immutably to the audit trail.
+          </p>
+          <DialogFooter>
+            <Button onClick={() => extendTarget && handleExtend(extendTarget)} disabled={actionBusyId === extendTarget?.id}>
+              Confirm Extension
             </Button>
           </DialogFooter>
         </DialogContent>
