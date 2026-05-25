@@ -2278,6 +2278,7 @@ export type Database = {
           intent_type: string | null
           liability_token_hash: string | null
           manifest_hashes: string[] | null
+          metadata: Json | null
           on_chain_status: string | null
           on_chain_tx_hash: string | null
           pseudo_user_id: string | null
@@ -2311,6 +2312,7 @@ export type Database = {
           intent_type?: string | null
           liability_token_hash?: string | null
           manifest_hashes?: string[] | null
+          metadata?: Json | null
           on_chain_status?: string | null
           on_chain_tx_hash?: string | null
           pseudo_user_id?: string | null
@@ -2344,6 +2346,7 @@ export type Database = {
           intent_type?: string | null
           liability_token_hash?: string | null
           manifest_hashes?: string[] | null
+          metadata?: Json | null
           on_chain_status?: string | null
           on_chain_tx_hash?: string | null
           pseudo_user_id?: string | null
@@ -3518,6 +3521,27 @@ export type Database = {
           chain_id?: number
           last_block?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      intent_discovery_sessions: {
+        Row: {
+          history: Json | null
+          resolved_sub_module_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          history?: Json | null
+          resolved_sub_module_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          history?: Json | null
+          resolved_sub_module_id?: string | null
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
