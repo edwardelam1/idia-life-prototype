@@ -247,18 +247,7 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
 
 const LifecycleTelemetry: React.FC = () => {
   const [items, setItems] = useState<ProposalLite[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [selected, setSelected] = useState<ProposalLite | null>(null);
-
-  // Added missing state definitions to LifecycleTelemetry to resolve TypeScript errors
-  const [forVotes, setForVotes] = useState<number>(0);
-  const [againstVotes, setAgainstVotes] = useState<number>(0);
-  const [liveQuorum, setLiveQuorum] = useState<number>(0);
-  const [loading, setLoading] = useState(false);
-  const [deadlineState, setDeadlineState] = useState({
-    label: "Syncing...",
-    tone: "none" as "live" | "ended" | "none",
-  });
 
   useEffect(() => {
     supabase
@@ -268,7 +257,7 @@ const LifecycleTelemetry: React.FC = () => {
       .limit(50)
       .then(({ data }) => {
         if (data) {
-          // Cast the DB response to the ProposalLite shape required by interface
+          // Fixed TS2345: Explicitly casting the lifecycle_phase string to the allowed union type
           setItems(
             (data as any[]).map((item) => ({
               ...item,
