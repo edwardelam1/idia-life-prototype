@@ -298,7 +298,16 @@ const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | str
       if (dbProposals.error) throw dbProposals.error;
 
       // Merge logic: Index on-chain IDs to avoid duplicates if necessary
-      const combined = [...(dbProposals.data || [])];
+      const combined = [
+  ...(dbProposals.data || []),
+  ...onChainProposals.map(p => ({
+    id: p.proposalId,
+    title: p.description.split('\n')[0], // Extract title from description if needed
+    description: p.description,
+    status: p.stateName,
+    proposer_id: p.proposer
+  }))
+];
       // Logic to append or reconcile onChainProposals goes here
       
       if (isMounted) setProposals(combined);
