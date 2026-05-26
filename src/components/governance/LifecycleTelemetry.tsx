@@ -18,7 +18,7 @@ interface ProposalLite {
   created_at: string;
   end_date: string | null;
   quorum_threshold: number | null;
-  on_chain_block?: number;
+  on_chain_block?: number | null;
 }
 
 const PHASE_META = {
@@ -61,91 +61,86 @@ const formatRemaining = (endIso: string | null): { label: string; tone: "live" |
 const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => void }> = ({ proposal, onClose }) => {
   const [forVotes, setForVotes] = useState<number>(0);
   const [againstVotes, setAgainstVotes] = useState<number>(0);
-  const [loading, setLoading] = useState(false);
-  const [blockNumber] = useState<number | null>(null);
   const [liveQuorum, setLiveQuorum] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
 
+  // Directly mapping the DB value, eliminating the dead state hook
+  const blockNumber = proposal?.on_chain_block || null;
 
   useEffect(() => {
     if (!proposal) return;
     let alive = true;
     setLoading(true);
-    const s = stage("LIFECYCLE_DETAIL", "TALLY");
-    s.start({ id: proposal.id, message: "[START] Initiating vote tally fetch sequence." });
-    const q = stage("LIFECYCLE_DETAIL", "QUORUM_FETCH");
-    q.start({ message: "[START] Querying on-chain Governor for live quorum." });
+    
+    const sTally = stage("LIFECYCLE_DETAIL", "TALLY");
+    sTally.start({ id: proposal.id, message: "[START] Initiating vote tally fetch." });
+
+    const sQuorum = stage("LIFECYCLE_DETAIL", "QUORUM_FETCH");
+    sQuorum.start({ message: "[START] Fetching dynamic on-chain quorum." });
+
     (async () => {
       try {
-        const [votesRes, quorumRes] = await Promise.allSettled([
-          (supabase as any)
-            .from("dao_votes")
-            .select("vote_type, vote_weight")
-            .eq("proposal_id", proposal.id),
-          governanceService.getCurrentQuorum(),
-        ]);
+        // 1. Fetch Votes (Weight aggregated instead of row counts)
+        const { data, error } = await (supabase as any)
+          .from("dao_votes")
+          .select("vote_type, vote_weight")
+          .eq("proposal_id", proposal.id);
 
-        if (votesRes.status === "rejected") {
-          s.fail({ message: "[ERROR] Supabase query for dao_votes failed.", error: votesRes.reason });
-          throw votesRes.reason;
-        }
-        const { data, error } = votesRes.value as any;
         if (error) {
-          s.fail({ message: "[ERROR] Supabase query for dao_votes failed.", error });
+          sTally.fail({ message: "[ERROR] Supabase query failed.", error });
           throw error;
         }
+
+        // 2. Fetch Live Quorum from Contract
+        let fetchedQuorum = proposal.quorum_threshold ?? 1000;
+        try {
+          const qStr = await governanceService.getCurrentQuorum();
+          fetchedQuorum = Number(qStr);
+          sQuorum.ok({ message: "[SUCCESS] Dynamic quorum resolved.", value: fetchedQuorum });
+        } catch (qErr) {
+          sQuorum.fail({ message: "[WARN] Quorum fetch stalled, using fallback.", error: qErr });
+        }
+
         if (!alive) {
-          s.ok({ message: "[ABORT] Component unmounted during fetch, discarding state update." });
+          sTally.ok({ message: "[ABORT] Component unmounted." });
           return;
         }
-        const rows = (data || []) as { vote_type: string; vote_weight: number | string | null }[];
-        const sumWeight = (type: string) =>
-          rows
-            .filter((r) => r.vote_type === type)
-            .reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0);
+
+        const rows = (data || []) as { vote_type: string; vote_weight?: number }[];
+        
+        const sumWeight = (type: string) => 
+          rows.filter((r) => r.vote_type === type)
+              .reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0);
+
         const talliedFor = sumWeight("for");
         const talliedAgainst = sumWeight("against");
+
         setForVotes(talliedFor);
         setAgainstVotes(talliedAgainst);
-        s.ok({
-          message: "[SUCCESS] Tally computation complete.",
-          for: talliedFor,
-          against: talliedAgainst,
-          totalParticipation: talliedFor + talliedAgainst,
+        setLiveQuorum(fetchedQuorum);
+        
+        sTally.ok({ 
+          message: "[SUCCESS] Tally computation complete.", 
+          for: talliedFor, 
+          against: talliedAgainst 
         });
 
-        if (quorumRes.status === "fulfilled") {
-          const parsed = Number(quorumRes.value);
-          if (alive && Number.isFinite(parsed)) {
-            setLiveQuorum(parsed);
-            q.ok({ message: "[SUCCESS] On-chain quorum resolved.", quorum: parsed });
-          } else {
-            q.fail({ message: "[FAIL] On-chain quorum returned non-numeric value.", value: quorumRes.value });
-          }
-        } else {
-          q.fail({ message: "[FAIL] Governor quorum RPC rejected.", error: quorumRes.reason });
-        }
       } catch (e) {
-        s.fail({ message: "[FATAL] Unexpected error in tally execution.", error: e });
+        sTally.fail({ message: "[FATAL] Unexpected error in tally.", error: e });
       } finally {
-        if (alive) {
-          setLoading(false);
-          s.ok({ message: "[END] Vote tally fetch sequence cleanly finalized." });
-          q.ok({ message: "[END] Quorum fetch sequence cleanly finalized." });
-        }
+        if (alive) setLoading(false);
       }
     })();
-    return () => {
-      alive = false;
-    };
-  }, [proposal?.id]);
+    return () => { alive = false; };
+  }, [proposal?.id, proposal?.quorum_threshold]);
 
-  const quorum = liveQuorum ?? proposal?.quorum_threshold ?? null;
+  const activeQuorum = liveQuorum ?? proposal?.quorum_threshold ?? 1000;
   const totalVotes = forVotes + againstVotes;
-  const pct = useMemo(
-    () => (quorum && quorum > 0 ? Math.min(100, (totalVotes / quorum) * 100) : 0),
-    [totalVotes, quorum],
-  );
-
+  const pct = useMemo(() => {
+    if (activeQuorum === 0) return 0;
+    return Math.min(100, (totalVotes / activeQuorum) * 100);
+  }, [totalVotes, activeQuorum]);
+  
   const remaining = formatRemaining(proposal?.end_date ?? null);
   const meta = proposal ? PHASE_META[proposal.lifecycle_phase] || PHASE_META.draft : null;
 
@@ -184,7 +179,7 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
                     Quorum Progress
                   </span>
                   <span className="text-[10px] font-black tracking-widest text-teal-700 dark:text-teal-200">
-                    {loading ? "…" : `${totalVotes} / ${quorum ?? "…"}`} ({pct.toFixed(1)}%)
+                    {loading ? "…" : `${totalVotes} / ${activeQuorum}`} ({pct.toFixed(1)}%)
                   </span>
                 </div>
                 <Progress value={pct} className="h-2" />
@@ -229,9 +224,11 @@ const LifecycleTelemetry: React.FC = () => {
       try {
         const { data, error } = await (supabase
           .from("dao_proposals" as any)
-          .select("id, title, description, lifecycle_phase, status, created_at, end_date, quorum_threshold")
+          // FIXED: on_chain_block is now explicitly selected from the database
+          .select("id, title, description, lifecycle_phase, status, created_at, end_date, quorum_threshold, on_chain_block")
           .order("created_at", { ascending: false })
-          .limit(8) as any);
+          .limit(50) as any); // FIXED: Increased limit so older proposals aren't hidden
+          
         if (error) throw error;
         if (isMounted) setItems((data as any) || []);
         s.ok({ count: data?.length });
@@ -275,7 +272,7 @@ const LifecycleTelemetry: React.FC = () => {
 
   return (
     <>
-      <div className="space-y-3">
+      <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
         {items.map((it) => {
           const meta = PHASE_META[it.lifecycle_phase] || PHASE_META.draft;
           return (
