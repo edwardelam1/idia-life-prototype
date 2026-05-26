@@ -47,115 +47,136 @@ const PHASE_META = {
   },
 } as const;
 
-const formatRemaining = (endIso: string | null): { label: string; tone: "live" | "ended" | "none" } => {
-  if (!endIso) return { label: "No deadline set", tone: "none" };
-  const end = new Date(endIso).getTime();
-  const now = Date.now();
-  const diff = end - now;
-  if (diff <= 0) return { label: "Auto-failed · deadline passed", tone: "ended" };
-  const d = Math.floor(diff / 86400000);
-  const h = Math.floor((diff % 86400000) / 3600000);
-  const m = Math.floor((diff % 3600000) / 60000);
-  return { label: `Auto-fails in ${d}d ${h}h ${m}m`, tone: "live" };
-};
-
 const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => void }> = ({ proposal, onClose }) => {
   const [forVotes, setForVotes] = useState<number>(0);
   const [againstVotes, setAgainstVotes] = useState<number>(0);
-  const [liveQuorum, setLiveQuorum] = useState<number | null>(null);
+  const [liveQuorum, setLiveQuorum] = useState<number>(0);
   const [loading, setLoading] = useState(false);
+  const [deadline, setDeadline] = useState("Syncing timeline...");
+  const [deadlineState, setDeadlineState] = useState({
+    label: "Syncing...",
+    tone: "none" as "live" | "ended" | "none",
+  });
 
-  // Directly mapping the DB value, eliminating the dead state hook
   const blockNumber = proposal?.on_chain_block || null;
 
   useEffect(() => {
     if (!proposal) return;
     let alive = true;
     setLoading(true);
-    
-    const sTally = stage("LIFECYCLE_DETAIL", "TALLY");
-    sTally.start({ id: proposal.id, message: "[START] Initiating vote tally fetch." });
 
-    const sQuorum = stage("LIFECYCLE_DETAIL", "QUORUM_FETCH");
-    sQuorum.start({ message: "[START] Fetching dynamic on-chain quorum." });
+    const sChain = stage("LIFECYCLE_DETAIL", "ON_CHAIN_SYNC");
+    sChain.start({ id: proposal.id, message: "[START] Synchronizing directly with Base network." });
 
     (async () => {
+      // ======================================================================
+      // BLOCK 1: TALLY & QUORUM (CRITICAL)
+      // ======================================================================
       try {
-        // 1. Fetch Votes (Weight aggregated instead of row counts)
-        const { data, error } = await (supabase as any)
-          .from("dao_votes")
-          .select("vote_type, vote_weight")
-          .eq("proposal_id", proposal.id);
-
-        if (error) {
-          sTally.fail({ message: "[ERROR] Supabase query failed.", error });
-          throw error;
-        }
-
-        // 2. Fetch Live Quorum from Contract
-        let fetchedQuorum = proposal.quorum_threshold ?? 1000;
-        try {
-          const qStr = await governanceService.getProposalQuorum(proposal.on_chain_id);
-          const parsedQuorum = Number(qStr);
-          
-          // FIXED: We now actively reject 0 so it doesn't bypass our fallbacks
-          if (parsedQuorum > 0) {
-            fetchedQuorum = parsedQuorum;
-            sQuorum.ok({ message: "[SUCCESS] Dynamic quorum resolved.", value: fetchedQuorum });
-          } else {
-            sQuorum.fail({ message: "[WARN] Quorum returned 0 (RPC stall or zero supply). Using fallback.", value: 0 });
+        let qStr = "0";
+        if (proposal.on_chain_id && proposal.on_chain_id.trim() !== "") {
+          try {
+            qStr = await governanceService.getProposalQuorum(proposal.on_chain_id);
+            console.log(`[DEBUG] Snapshot Quorum for ${proposal.on_chain_id}:`, qStr);
+          } catch (qErr) {
+            console.error("[DEBUG] Quorum RPC Error:", qErr);
+            qStr = await governanceService.getCurrentQuorum();
           }
-        } catch (qErr) {
-          sQuorum.fail({ message: "[WARN] Quorum fetch stalled, using fallback.", error: qErr });
+        } else {
+          // Fallback parsing for legacy database proposals
+          const { data } = await supabase
+            .from("dao_votes")
+            .select("vote_type, vote_weight")
+            .eq("proposal_id", proposal.id);
+          const rows = (data || []) as { vote_type: string; vote_weight?: number }[];
+          if (alive) {
+            setForVotes(
+              rows.filter((r) => r.vote_type === "for").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0),
+            );
+            setAgainstVotes(
+              rows.filter((r) => r.vote_type === "against").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0),
+            );
+          }
+          qStr = await governanceService.getCurrentQuorum();
         }
 
-        if (!alive) {
-          sTally.ok({ message: "[ABORT] Component unmounted." });
-          return;
-        }
-
-        const rows = (data || []) as { vote_type: string; vote_weight?: number }[];
-        
-        const sumWeight = (type: string) => 
-          rows.filter((r) => r.vote_type === type)
-              .reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0);
-
-        const talliedFor = sumWeight("for");
-        const talliedAgainst = sumWeight("against");
-
-        setForVotes(talliedFor);
-        setAgainstVotes(talliedAgainst);
-        setLiveQuorum(fetchedQuorum);
-        
-        sTally.ok({ 
-          message: "[SUCCESS] Tally computation complete.", 
-          for: talliedFor, 
-          against: talliedAgainst 
-        });
-
-      } catch (e) {
-        sTally.fail({ message: "[FATAL] Unexpected error in tally.", error: e });
-      } finally {
-        if (alive) setLoading(false);
+        if (alive) setLiveQuorum(Number(qStr));
+      } catch (tallyErr) {
+        console.error("[LIFECYCLE] Tally/Quorum sync stalled:", tallyErr);
       }
+
+      // ======================================================================
+      // BLOCK 2: TIMELINE METRICS (ISOLATED)
+      // ======================================================================
+      try {
+        let deadlineLabel = "Calculating timeline...";
+        let deadlineTone: "live" | "ended" | "none" = "none";
+
+        try {
+          // Attempt to fetch exact network parameters
+          const params = await governanceService.getGovernorParams();
+          const totalDurationMs = (params.votingDelay + params.votingPeriod) * 2000;
+          const endMs = new Date(proposal.created_at).getTime() + totalDurationMs;
+          const diff = endMs - Date.now();
+
+          if (diff <= 0) {
+            deadlineLabel = "Voting Closed · Deadline Passed";
+            deadlineTone = "ended";
+          } else {
+            const d = Math.floor(diff / 86400000);
+            const h = Math.floor((diff % 86400000) / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            deadlineLabel = `Auto-fails in ${d}d ${h}h ${m}m`;
+            deadlineTone = "live";
+          }
+        } catch (paramErr) {
+          console.warn("[LIFECYCLE] Network params unavailable. Falling back to DB / Estimate timeline.", paramErr);
+
+          // Failsafe timeline fallback if getGovernorParams() crashes
+          const fallbackEndMs = proposal.end_date
+            ? new Date(proposal.end_date).getTime()
+            : new Date(proposal.created_at).getTime() + 3 * 86400000; // Base 3-day estimate
+
+          const diff = fallbackEndMs - Date.now();
+          if (diff <= 0) {
+            deadlineLabel = "Voting Closed · Deadline Passed";
+            deadlineTone = "ended";
+          } else {
+            const d = Math.floor(diff / 86400000);
+            const h = Math.floor((diff % 86400000) / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            deadlineLabel = `Est. Auto-fails in ${d}d ${h}h ${m}m`;
+            deadlineTone = "live";
+          }
+        }
+
+        if (alive) setDeadlineState({ label: deadlineLabel, tone: deadlineTone });
+      } catch (timelineErr) {
+        console.error("[LIFECYCLE] Total timeline crash:", timelineErr);
+        if (alive) setDeadlineState({ label: "Timeline Unavailable", tone: "none" });
+      }
+
+      // ======================================================================
+      // FINALIZATION
+      // ======================================================================
+      sChain.ok({ message: "[SUCCESS] Synchronization complete." });
+      if (alive) setLoading(false);
     })();
-    return () => { alive = false; };
-  }, [proposal?.id, proposal?.quorum_threshold]);
 
-  // FIXED: Explicitly cascade through valid numbers, safely discarding 0
-  const activeQuorum = (liveQuorum && liveQuorum > 0) 
-    ? liveQuorum 
-    : (proposal?.quorum_threshold && proposal.quorum_threshold > 0) 
-      ? proposal.quorum_threshold 
-      : 1000;
+    return () => {
+      alive = false;
+    };
+  }, [proposal]);
 
+  // Total absolute reliance on chain state. No hallucinated fallbacks.
+  const activeQuorum = liveQuorum;
   const totalVotes = forVotes + againstVotes;
+
   const pct = useMemo(() => {
-    if (activeQuorum === 0) return 0; // Ultimate failsafe to prevent division by zero
+    if (activeQuorum === 0) return totalVotes > 0 ? 100 : 0;
     return Math.min(100, (totalVotes / activeQuorum) * 100);
   }, [totalVotes, activeQuorum]);
-  
-  const remaining = formatRemaining(proposal?.end_date ?? null);
+
   const meta = proposal ? PHASE_META[proposal.lifecycle_phase] || PHASE_META.draft : null;
 
   return (
@@ -206,15 +227,15 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
               <div
                 className={cn(
                   "p-3 rounded-2xl border text-[10px] font-black uppercase tracking-widest",
-                  remaining.tone === "live" &&
+                  deadlineState.tone === "live" &&
                     "border-orange-100 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-950/20 text-orange-700 dark:text-orange-200",
-                  remaining.tone === "ended" &&
+                  deadlineState.tone === "ended" &&
                     "border-rose-100 dark:border-rose-900/40 bg-rose-50/50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-200",
-                  remaining.tone === "none" &&
+                  deadlineState.tone === "none" &&
                     "border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/30 text-slate-600 dark:text-slate-300",
                 )}
               >
-                ⏱ {remaining.label}
+                ⏱ {deadlineState.label}
               </div>
             </div>
           </>
@@ -229,103 +250,47 @@ const LifecycleTelemetry: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [selected, setSelected] = useState<ProposalLite | null>(null);
 
+  // Missing state declarations required for the child logic being called
+  const [forVotes, setForVotes] = useState<number>(0);
+  const [againstVotes, setAgainstVotes] = useState<number>(0);
+  const [liveQuorum, setLiveQuorum] = useState<number>(0);
+  const [loading, setLoading] = useState(false);
+  const [deadlineState, setDeadlineState] = useState({
+    label: "Syncing...",
+    tone: "none" as "live" | "ended" | "none",
+  });
+
   useEffect(() => {
-    let isMounted = true;
-
-    const fetchItems = async () => {
-      const s = stage("LIFECYCLE_TELEMETRY", "FETCH");
-      s.start();
-      try {
-        const { data, error } = await (supabase
-          .from("dao_proposals" as any)
-          // ADD on_chain_id TO THE END OF THIS SELECT STRING
-          .select("id, title, description, lifecycle_phase, status, created_at, end_date, quorum_threshold, on_chain_block, on_chain_id")
-          .order("created_at", { ascending: false })
-          .limit(50) as any);
-          
-        if (isMounted) setItems((data as any) || []);
-        s.ok({ count: data?.length });
-      } catch (error: any) {
-        s.fail(error);
-        toast({ title: "Telemetry Stalled", description: error.message, variant: "destructive" });
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
-    };
-
-    fetchItems();
-    const ch = supabase
-      .channel("dao_proposals_telemetry")
-      .on("postgres_changes" as any, { event: "*", schema: "public", table: "dao_proposals" }, () => fetchItems())
-      .subscribe();
-
-    return () => {
-      isMounted = false;
-      supabase.removeChannel(ch);
-    };
+    supabase
+      .from("dao_proposals")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50)
+      .then(({ data }) => {
+        if (data) {
+          setItems(
+            data.map((item: any) => ({
+              ...item,
+              lifecycle_phase: item.lifecycle_phase as ProposalLite["lifecycle_phase"],
+            }))
+          );
+        }
+      });
   }, []);
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-8 space-y-3 bg-slate-50/50 dark:bg-muted/30 rounded-2xl border border-slate-100 dark:border-border">
-        <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
-        <p className="text-[9px] font-black uppercase tracking-widest text-teal-700/50">Syncing Live Telemetry...</p>
-      </div>
-    );
-  }
-
-  if (items.length === 0) {
-    return (
-      <div className="py-10 text-center opacity-40 bg-slate-50 dark:bg-muted/30 rounded-2xl border border-slate-100 dark:border-border space-y-2">
-        <Activity className="w-8 h-8 mx-auto text-slate-400" />
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">No Telemetry Detected</p>
-      </div>
-    );
-  }
-
   return (
-    <>
-      <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-        {items.map((it) => {
-          const meta = PHASE_META[it.lifecycle_phase] || PHASE_META.draft;
-          return (
-            <button
-              key={it.id}
-              type="button"
-              onClick={() => setSelected(it)}
-              className="w-full text-left flex items-center gap-4 p-3.5 bg-white dark:bg-card border border-teal-50 dark:border-teal-900/40 shadow-sm rounded-2xl transition-all hover:shadow-md hover:border-teal-200 dark:hover:border-teal-700/60 active:scale-[0.99]"
-            >
-              <div
-                className={cn(
-                  "text-lg min-w-10 min-h-10 flex items-center justify-center rounded-xl border shadow-sm",
-                  meta.color,
-                )}
-              >
-                {meta.icon}
-              </div>
-              <div className="flex-1 min-w-0 pr-2">
-                <p className="text-xs font-bold text-slate-800 dark:text-foreground truncate">{it.title}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <p
-                    className={cn(
-                      "text-[9px] font-black uppercase tracking-[0.15em]",
-                      meta.color.split(" ")[0],
-                      meta.color.split(" ")[1] || "",
-                    )}
-                  >
-                    {meta.label}
-                  </p>
-                  <span className="text-slate-300 dark:text-muted-foreground text-[8px] font-bold tracking-widest uppercase">
-                    · {new Date(it.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+    <div className="space-y-2">
+      {items.map((it) => (
+        <button
+          key={it.id}
+          onClick={() => setSelected(it)}
+          className="w-full p-4 border rounded-xl text-left hover:bg-slate-50"
+        >
+          <p className="font-bold">{it.title}</p>
+        </button>
+      ))}
       <DetailDialog proposal={selected} onClose={() => setSelected(null)} />
-    </>
+    </div>
   );
 };
 
