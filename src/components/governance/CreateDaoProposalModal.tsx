@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { governanceService } from "@/services/governanceService";
 import { toast } from "@/hooks/use-toast";
 
 interface Props {
