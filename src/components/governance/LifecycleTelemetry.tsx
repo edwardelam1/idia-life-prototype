@@ -255,53 +255,55 @@ const LifecycleTelemetry: React.FC = () => {
     setLoading(true);
 
     const sChain = stage("LIFECYCLE_DETAIL", "ON_CHAIN_SYNC");
-    sChain.start({ id: proposal.id, message: "[START] Synchronizing directly with Base network." });
+    sChain.start({ id: proposal.id, message: "[START] Synchronizing proposal metrics." });
 
     (async () => {
       try {
-        // 1. TALLY & QUORUM
-        if (proposal.on_chain_id && proposal.on_chain_id.trim() !== "") {
-          const [state, qStr] = await Promise.all([
-            governanceService.getProposalState(proposal.on_chain_id),
-            governanceService.getProposalQuorum(proposal.on_chain_id)
-          ]);
-
-          if (alive) {
-            setForVotes(Number(state.forVotes));
-            setAgainstVotes(Number(state.againstVotes));
-            setLiveQuorum(Number(qStr));
+        // --- BLOCK 1: TALLY & QUORUM ---
+        console.log(`[START] Syncing Tally for ${proposal.id}`);
+        try {
+          if (proposal.on_chain_id) {
+            const qStr = await governanceService.getProposalQuorum(proposal.on_chain_id);
+            const qNum = Number(qStr);
+            if (alive) setLiveQuorum(qNum);
+          } else {
+            const { data } = await supabase.from("dao_votes").select("vote_type, vote_weight").eq("proposal_id", proposal.id);
+            const rows = (data || []) as { vote_type: string; vote_weight?: number }[];
+            if (alive) {
+              setForVotes(rows.filter((r) => r.vote_type === "for").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0));
+              setAgainstVotes(rows.filter((r) => r.vote_type === "against").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0));
+            }
           }
-        } else {
-          // Off-chain DB fallback
-          const { data } = await supabase
-            .from("dao_votes")
-            .select("vote_type, vote_weight")
-            .eq("proposal_id", proposal.id);
-            
-          const rows = (data || []) as { vote_type: string; vote_weight?: number }[];
-          if (alive) {
-            setForVotes(rows.filter((r) => r.vote_type === "for").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0));
-            setAgainstVotes(rows.filter((r) => r.vote_type === "against").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0));
-            setLiveQuorum(0);
-          }
+        } catch (err) {
+          console.error("[ERROR] Quorum sync failed:", err);
         }
+        console.log(`[END] Syncing Tally for ${proposal.id}`);
 
-        // 2. TIMELINE
+        // --- BLOCK 2: TIMELINE ---
+        console.log(`[START] Syncing Timeline for ${proposal.id}`);
         try {
           const params = await governanceService.getGovernorParams();
           const totalDurationMs = (params.votingDelay + params.votingPeriod) * 2000;
           const endMs = new Date(proposal.created_at).getTime() + totalDurationMs;
           const diff = endMs - Date.now();
+
           if (alive) {
-            setDeadline(diff <= 0 ? "Voting Closed" : `Ends in ${Math.floor(diff / 86400000)}d ${Math.floor((diff % 86400000) / 3600000)}h`);
+            if (diff <= 0) setDeadlineState({ label: "Voting Closed", tone: "ended" });
+            else {
+              const d = Math.floor(diff / 86400000);
+              const h = Math.floor((diff % 86400000) / 3600000);
+              setDeadlineState({ label: `Auto-fails in ${d}d ${h}h`, tone: "live" });
+            }
           }
         } catch (err) {
-          if (alive) setDeadline("Timeline Unavailable");
+          console.warn("[WARN] Timeline param fetch failed, using fallback.");
+          setDeadlineState({ label: "Timeline Unavailable", tone: "none" });
         }
+        console.log(`[END] Syncing Timeline for ${proposal.id}`);
 
         sChain.ok({ message: "[SUCCESS] Synchronization complete." });
       } catch (err) {
-        console.error("Sync Error:", err);
+        console.error("[CRITICAL] Sync Failure:", err);
         sChain.fail(err);
       } finally {
         if (alive) setLoading(false);
@@ -312,26 +314,57 @@ const LifecycleTelemetry: React.FC = () => {
   }, [proposal]);
 
   const totalVotes = forVotes + againstVotes;
-  const pct = useMemo(() => (liveQuorum > 0 ? Math.min(100, (totalVotes / liveQuorum) * 100) : 0), [totalVotes, liveQuorum]);
-  const meta = proposal ? PHASE_META[proposal.lifecycle_phase] : PHASE_META.draft;
+  const pct = useMemo(() => (liveQuorum === 0 ? 0 : Math.min(100, (totalVotes / liveQuorum) * 100)), [totalVotes, liveQuorum]);
+  const meta = proposal ? PHASE_META[proposal.lifecycle_phase] || PHASE_META.draft : null;
 
   return (
     <Dialog open={!!proposal} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <Badge className={cn("w-fit", meta.color)}>{meta.icon} {meta.label}</Badge>
-          <DialogTitle>{proposal?.title}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="flex justify-between text-sm">
-            <span>Progress: {totalVotes} / {liveQuorum} votes</span>
-            <span>{pct.toFixed(1)}%</span>
-          </div>
-          <Progress value={pct} />
-          <div className="text-sm">⏱ {deadline}</div>
-        </div>
+      <DialogContent className="sm:max-w-md rounded-3xl">
+        {proposal && (
+          <>
+            <DialogHeader>
+              <div className="flex items-center gap-2 mb-1">
+                {meta && <Badge className={cn("text-[9px] font-black uppercase tracking-widest border", meta.color)}>{meta.icon} {meta.label}</Badge>}
+              </div>
+              <DialogTitle className="font-black text-lg">{proposal.title}</DialogTitle>
+              <DialogDescription className="text-xs">{proposal.description || "No description provided."}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div className="p-4 rounded-2xl border bg-teal-50/40 space-y-2">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-[10px] font-black uppercase text-teal-700">Quorum Progress</span>
+                  <span className="text-[10px] font-black">{loading ? "..." : `${totalVotes} / ${liveQuorum}`} ({pct.toFixed(1)}%)</span>
+                </div>
+                <Progress value={pct} className="h-2" />
+              </div>
+              <div className={cn("p-3 rounded-2xl border text-[10px] font-black uppercase tracking-widest", deadlineState.tone === "live" ? "bg-orange-50/50" : "bg-slate-50")}>
+                ⏱ {deadlineState.label}
+              </div>
+            </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
+  );
+};
+
+export const LifecycleTelemetry: React.FC = () => {
+  const [items, setItems] = useState<ProposalLite[]>([]);
+  const [selected, setSelected] = useState<ProposalLite | null>(null);
+
+  useEffect(() => {
+    supabase.from("dao_proposals").select("*").order("created_at", { ascending: false }).limit(50).then(({ data }) => setItems(data || []));
+  }, []);
+
+  return (
+    <div className="space-y-2">
+      {items.map((it) => (
+        <button key={it.id} onClick={() => setSelected(it)} className="w-full p-4 border rounded-xl text-left hover:bg-slate-50">
+          <p className="font-bold">{it.title}</p>
+        </button>
+      ))}
+      <ProposalDetailModal proposal={selected} onClose={() => setSelected(null)} />
+    </div>
   );
 };
 
