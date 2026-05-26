@@ -53,10 +53,6 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
   const [liveQuorum, setLiveQuorum] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [deadline, setDeadline] = useState("Syncing timeline...");
-  const [deadlineState, setDeadlineState] = useState<{ label: string; tone: "live" | "ended" | "none" }>({
-    label: "Syncing block timeline...",
-    tone: "none",
-  });
 
   const blockNumber = proposal?.on_chain_block || null;
 
