@@ -261,34 +261,101 @@ const LifecycleTelemetry: React.FC = () => {
   });
 
   useEffect(() => {
-    supabase
-      .from("dao_proposals")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(50)
-      .then(({ data }) => {
-        if (data) {
-          setItems(
-            data.map((item: any) => ({
-              ...item,
-              lifecycle_phase: item.lifecycle_phase as ProposalLite["lifecycle_phase"],
-            }))
-          );
-        }
-      });
+    let isMounted = true;
+
+    const fetchItems = async () => {
+      const s = stage("LIFECYCLE_TELEMETRY", "FETCH");
+      s.start();
+      try {
+        const { data, error } = await (supabase
+          .from("dao_proposals" as any)
+          // ADD on_chain_id TO THE END OF THIS SELECT STRING
+          .select("id, title, description, lifecycle_phase, status, created_at, end_date, quorum_threshold, on_chain_block, on_chain_id")
+          .order("created_at", { ascending: false })
+          .limit(50) as any);
+          
+        if (isMounted) setItems((data as any) || []);
+        s.ok({ count: data?.length });
+      } catch (error: any) {
+        s.fail(error);
+        toast({ title: "Telemetry Stalled", description: error.message, variant: "destructive" });
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    fetchItems();
+    const ch = supabase
+      .channel("dao_proposals_telemetry")
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "dao_proposals" }, () => fetchItems())
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(ch);
+    };
   }, []);
 
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-8 space-y-3 bg-slate-50/50 dark:bg-muted/30 rounded-2xl border border-slate-100 dark:border-border">
+        <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
+        <p className="text-[9px] font-black uppercase tracking-widest text-teal-700/50">Syncing Live Telemetry...</p>
+      </div>
+    );
+  }
+
+  
+  if (items.length === 0) {
+    return (
+      <div className="py-10 text-center opacity-40 bg-slate-50 dark:bg-muted/30 rounded-2xl border border-slate-100 dark:border-border space-y-2">
+        <Activity className="w-8 h-8 mx-auto text-slate-400" />
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">No Telemetry Detected</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-2">
-      {items.map((it) => (
-        <button
-          key={it.id}
-          onClick={() => setSelected(it)}
-          className="w-full p-4 border rounded-xl text-left hover:bg-slate-50"
-        >
-          <p className="font-bold">{it.title}</p>
-        </button>
-      ))}
+    <>
+      <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+        {items.map((it) => {
+          const meta = PHASE_META[it.lifecycle_phase] || PHASE_META.draft;
+          return (
+            <button
+              key={it.id}
+              type="button"
+              onClick={() => setSelected(it)}
+              className="w-full text-left flex items-center gap-4 p-3.5 bg-white dark:bg-card border border-teal-50 dark:border-teal-900/40 shadow-sm rounded-2xl transition-all hover:shadow-md hover:border-teal-200 dark:hover:border-teal-700/60 active:scale-[0.99]"
+            >
+              <div
+                className={cn(
+                  "text-lg min-w-10 min-h-10 flex items-center justify-center rounded-xl border shadow-sm",
+                  meta.color,
+                )}
+              >
+                {meta.icon}
+              </div>
+              <div className="flex-1 min-w-0 pr-2">
+                <p className="text-xs font-bold text-slate-800 dark:text-foreground truncate">{it.title}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <p
+                    className={cn(
+                      "text-[9px] font-black uppercase tracking-[0.15em]",
+                      meta.color.split(" ")[0],
+                      meta.color.split(" ")[1] || "",
+                    )}
+                  >
+                    {meta.label}
+                  </p>
+                  <span className="text-slate-300 dark:text-muted-foreground text-[8px] font-bold tracking-widest uppercase">
+                    · {new Date(it.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
       <DetailDialog proposal={selected} onClose={() => setSelected(null)} />
     </div>
   );
