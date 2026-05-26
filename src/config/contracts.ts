@@ -164,14 +164,14 @@ export const LIABILITY_RECEIPT_ABI = [
 ];
 
 export const PROPOSAL_STATES = [
-  "Pending", 
-  "Active", 
-  "Canceled", 
-  "Defeated", 
-  "Succeeded", 
-  "Queued", 
-  "Expired", 
-  "Executed"
+  "Pending",
+  "Active",
+  "Canceled",
+  "Defeated",
+  "Succeeded",
+  "Queued",
+  "Expired",
+  "Executed",
 ];
 
 export const BLOCKS_PER_DAY = 43200; // 86400 seconds / 2 seconds per block
