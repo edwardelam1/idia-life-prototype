@@ -69,23 +69,43 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
     let alive = true;
     setLoading(true);
     const s = stage("LIFECYCLE_DETAIL", "TALLY");
-    s.start({ id: proposal.id });
+    s.start({ id: proposal.id, message: "[START] Initiating vote tally fetch sequence." });
     (async () => {
       try {
         const { data, error } = await (supabase as any)
           .from("dao_votes")
-          .select("vote_type")
+          .select("vote_type, vote_weight")
           .eq("proposal_id", proposal.id);
-        if (error) throw error;
-        if (!alive) return;
-        const rows = (data || []) as { vote_type: string }[];
-        setForVotes(rows.filter((r) => r.vote_type === "for").length);
-        setAgainstVotes(rows.filter((r) => r.vote_type === "against").length);
-        s.ok();
+        if (error) {
+          s.fail({ message: "[ERROR] Supabase query for dao_votes failed.", error });
+          throw error;
+        }
+        if (!alive) {
+          s.ok({ message: "[ABORT] Component unmounted during fetch, discarding state update." });
+          return;
+        }
+        const rows = (data || []) as { vote_type: string; vote_weight: number | string | null }[];
+        const sumWeight = (type: string) =>
+          rows
+            .filter((r) => r.vote_type === type)
+            .reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0);
+        const talliedFor = sumWeight("for");
+        const talliedAgainst = sumWeight("against");
+        setForVotes(talliedFor);
+        setAgainstVotes(talliedAgainst);
+        s.ok({
+          message: "[SUCCESS] Tally computation complete.",
+          for: talliedFor,
+          against: talliedAgainst,
+          totalParticipation: talliedFor + talliedAgainst,
+        });
       } catch (e) {
-        s.fail(e);
+        s.fail({ message: "[FATAL] Unexpected error in tally execution.", error: e });
       } finally {
-        if (alive) setLoading(false);
+        if (alive) {
+          setLoading(false);
+          s.ok({ message: "[END] Vote tally fetch sequence cleanly finalized." });
+        }
       }
     })();
     return () => {
@@ -94,7 +114,9 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
   }, [proposal?.id]);
 
   const quorum = proposal?.quorum_threshold ?? 1000;
-  const pct = useMemo(() => Math.min(100, (forVotes / Math.max(1, quorum)) * 100), [forVotes, quorum]);
+  const totalVotes = forVotes + againstVotes;
+  const pct = useMemo(() => Math.min(100, (totalVotes / Math.max(1, quorum)) * 100), [totalVotes, quorum]);
+
   const remaining = formatRemaining(proposal?.end_date ?? null);
   const meta = proposal ? PHASE_META[proposal.lifecycle_phase] || PHASE_META.draft : null;
 
