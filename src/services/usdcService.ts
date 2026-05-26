@@ -2,16 +2,7 @@
  * USDC Payment Service for IDIA Life
  *
  * Handles gasless USDC payments via EIP-3009 transferWithAuthorization.
- * Now includes ACA (Auditable Consent Artifact) generation and tracking
- * for every payment transaction.
- *
- * Flow:
- *   1. Generate ACA hash on device (consent proof)
- *   2. Store ACA in Supabase (before payment — proves prior consent)
- *   3. Sign EIP-3009 authorization (off-chain, gasless)
- *   4. Submit signed auth + ACA hash to backend relay
- *   5. Relay executes on-chain, records tx hash + ACA hash together
- *   6. Mark ACA as consumed
+ * Uses acaGenerator.ts for all Auditable Consent Artifacts.
  */
 
 import { ethers } from 'ethers';
@@ -22,12 +13,7 @@ import {
   USDC_MAX_PAYMENT,
   type PaymentRequest,
 } from '@/config/usdc';
-import {
-  generatePaymentACA,
-  storePaymentACA,
-  markACAConsumed,
-  type PaymentACA,
-} from '@/utils/paymentACA';
+import { generateACAHash } from "../utils/acaGenerator";
 import { supabase } from '@/integrations/supabase/client';
 
 // ─── Minimal ERC-20 ABI ─────────────────────────────────────────────
@@ -69,24 +55,44 @@ export interface PaymentResult {
   network: string;
 }
 
-// ─── Provider ────────────────────────────────────────────────────────
+// ─── Database Helpers ────────────────────────────────────────────────
+
+async function storePaymentACA(aca: { hash: string; payload: any }) {
+  console.log(`[USDCService] BEGIN: storePaymentACA for hash: ${aca.hash}`);
+  try {
+    const { error } = await supabase.from('user_aca_records').insert({
+      platform_guid: aca.payload.platform_guid,
+      aca_hash_key: aca.hash,
+      source_id: aca.payload.source_id,
+      consent_scope: aca.payload.consent_scope,
+      created_at: aca.payload.timestamp,
+    });
+    
+    if (error) throw error;
+    console.log(`[USDCService] END: storePaymentACA successful`);
+    return true;
+  } catch (e) {
+    console.error('[USDCService] CRITICAL: Failed to store ACA:', e);
+    return false;
+  }
+}
+
+async function markACAConsumed(hash: string, txHash: string) {
+  // Note: Based on your current schema, there is no 'consumed_at' or 'tx_hash' column.
+  // If these are required for auditability, please add them to the user_aca_records table.
+  // Assuming tracking is done via existing logic for now.
+  console.log(`[USDCService] BEGIN: markACAConsumed for hash: ${hash}`);
+  console.log(`[USDCService] NOTE: Schema update required to track tx_hash for ${hash}`);
+  
+  // Placeholder for when columns are added to user_aca_records
+  console.log(`[USDCService] END: markACAConsumed (No-Op: Schema adjustment needed)`);
+}
+
+// ─── Provider & Signing ──────────────────────────────────────────────
 
 function getProvider(): ethers.JsonRpcProvider {
   return new ethers.JsonRpcProvider(USDC_CONFIG.rpcUrl);
 }
-
-// ─── Balance ─────────────────────────────────────────────────────────
-
-export async function getUSDCBalance(address: string): Promise<USDCBalance | null> {
-  try {
-    const provider = getProvider();
-    const usdc = new ethers.Contract(USDC_CONFIG.usdcAddress, ERC20_BALANCE_ABI, provider);
-    const raw: bigint = await usdc.balanceOf(address);
-    return { raw: raw.toString(), formatted: ethers.formatUnits(raw, USDC_CONFIG.usdcDecimals), decimals: USDC_CONFIG.usdcDecimals };
-  } catch (e) { console.error('[USDCService] Balance fetch failed:', e); return null; }
-}
-
-// ─── EIP-3009 Signing ────────────────────────────────────────────────
 
 function buildEIP712TypedData(from: string, to: string, value: bigint, validAfter: number, validBefore: number, nonce: string) {
   return {
@@ -108,6 +114,15 @@ function buildEIP712TypedData(from: string, to: string, value: bigint, validAfte
     },
     message: { from, to, value: value.toString(), validAfter, validBefore, nonce },
   };
+}
+
+export async function getUSDCBalance(address: string): Promise<USDCBalance | null> {
+  try {
+    const provider = getProvider();
+    const usdc = new ethers.Contract(USDC_CONFIG.usdcAddress, ERC20_BALANCE_ABI, provider);
+    const raw: bigint = await usdc.balanceOf(address);
+    return { raw: raw.toString(), formatted: ethers.formatUnits(raw, USDC_CONFIG.usdcDecimals), decimals: USDC_CONFIG.usdcDecimals };
+  } catch (e) { console.error('[USDCService] Balance fetch failed:', e); return null; }
 }
 
 export async function signTransferAuthorization(
@@ -181,15 +196,6 @@ async function submitToRelay(
 
 // ─── Full Payment Flow (with ACA) ───────────────────────────────────
 
-/**
- * Execute a full USDC payment with ACA tracking.
- *
- * 1. Generate ACA hash on device (consent proof)
- * 2. Store ACA in database (proves consent existed before payment)
- * 3. Sign EIP-3009 authorization
- * 4. Submit to relay with ACA hash
- * 5. Mark ACA as consumed on success
- */
 export async function executePayment(
   wallet: ethers.HDNodeWallet,
   paymentRequest: PaymentRequest,
@@ -198,25 +204,20 @@ export async function executePayment(
   const amount = amountOverride || paymentRequest.amount;
   if (!amount) throw new Error('Amount is required for this payment');
 
-  const amountRaw = ethers.parseUnits(amount, USDC_CONFIG.usdcDecimals).toString();
-
-  // Step 1: Generate ACA on device
+  // Step 1: Generate ACA on device via hardware anchor
   console.log(`[USDCService] Generating ACA for ${amount} USDC → ${paymentRequest.recipient}`);
-  const aca: PaymentACA = generatePaymentACA(wallet.address, paymentRequest.recipient, amountRaw);
+  const aca = await generateACAHash(wallet.address, paymentRequest.recipient, ["PAYMENT_TRANSACTION"]);
   console.log(`[USDCService] ACA generated: ${aca.hash.slice(0, 16)}...`);
 
   // Step 2: Store ACA in Supabase (before payment)
   const stored = await storePaymentACA(aca);
-  if (stored) {
-    console.log(`[USDCService] ACA stored in aca_consent_artifacts`);
-  } else {
+  if (!stored) {
     console.warn(`[USDCService] ACA storage failed — continuing with payment (hash still sent to relay)`);
   }
 
   // Step 3: Sign EIP-3009 authorization
   console.log(`[USDCService] Signing authorization...`);
   const authorization = await signTransferAuthorization(wallet, paymentRequest.recipient, amount);
-  console.log(`[USDCService] Authorization signed. Nonce: ${authorization.nonce.slice(0, 10)}...`);
 
   // Step 4: Submit to relay with ACA hash
   const result = await submitToRelay(
@@ -230,7 +231,7 @@ export async function executePayment(
   // Step 5: Mark ACA as consumed on success
   if (result.success && result.txHash) {
     await markACAConsumed(aca.hash, result.txHash);
-    console.log(`[USDCService] Payment complete. Tx: ${result.txHash} | ACA: ${aca.hash.slice(0, 16)}...`);
+    console.log(`[USDCService] Payment complete. Tx: ${result.txHash}`);
   } else {
     console.error(`[USDCService] Payment failed: ${result.error}`);
   }
