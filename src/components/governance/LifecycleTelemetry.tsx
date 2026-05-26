@@ -71,16 +71,18 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
       // ======================================================================
       // BLOCK 1: TALLY & QUORUM (CRITICAL)
       // ======================================================================
-      try {
-        let qStr = "0";
-
-        // Check if the proposal successfully logged an on_chain_id
-        if (proposal.on_chain_id && proposal.on_chain_id.trim() !== "") {
-          const state = await governanceService.getProposalState(proposal.on_chain_id);
-          if (alive) {
-            setForVotes(Number(state.forVotes));
-            setAgainstVotes(Number(state.againstVotes));
-          }
+      // Replace your existing quorum logic with this debug-heavy version:
+try {
+  const qStr = await governanceService.getProposalQuorum(proposal.on_chain_id);
+  const qNum = Number(qStr);
+  
+  // LOG THE RAW TRUTH
+  console.log(`[DEBUG] Snapshot Quorum for ${proposal.on_chain_id}:`, qNum);
+  
+  if (alive) setLiveQuorum(qNum);
+} catch (qErr) {
+  console.error("[DEBUG] Quorum RPC Error:", qErr);
+}
           qStr = await governanceService.getProposalQuorum(proposal.on_chain_id);
         } else {
           // Fallback parsing for legacy database proposals
