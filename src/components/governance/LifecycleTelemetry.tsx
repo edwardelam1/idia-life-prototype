@@ -70,32 +70,40 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
 
     (async () => {
       // BLOCK 1: TALLY & QUORUM
-      // We no longer rely on getGovernorParams() to avoid interface crashes.
       try {
         let qStr = "0";
         if (proposal.on_chain_id && proposal.on_chain_id.trim() !== "") {
+          console.log(`[QUORUM_DEBUG] Fetching On-Chain Quorum for ProposalID: ${proposal.on_chain_id}`);
           qStr = await governanceService.getProposalQuorum(proposal.on_chain_id);
+          console.log(`[QUORUM_DEBUG] Raw RPC Result received: ${qStr}`);
         } else {
+          console.log(`[QUORUM_DEBUG] No on_chain_id. Falling back to Supabase votes.`);
           const { data } = await supabase
             .from("dao_votes")
             .select("vote_type, vote_weight")
             .eq("proposal_id", proposal.id);
           const rows = (data || []) as { vote_type: string; vote_weight?: number }[];
           if (alive) {
-            setForVotes(rows.filter((r) => r.vote_type === "for").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0));
-            setAgainstVotes(rows.filter((r) => r.vote_type === "against").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0));
+            const f = rows.filter((r) => r.vote_type === "for").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0);
+            const a = rows.filter((r) => r.vote_type === "against").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0);
+            setForVotes(f);
+            setAgainstVotes(a);
+            console.log(`[QUORUM_DEBUG] Calculated local votes: For=${f}, Against=${a}`);
           }
           qStr = await governanceService.getCurrentQuorum();
+          console.log(`[QUORUM_DEBUG] Current Quorum fallback returned: ${qStr}`);
         }
 
-        if (alive) setLiveQuorum(Number(qStr));
+        if (alive) {
+          console.log(`[QUORUM_DEBUG] Setting state liveQuorum: ${Number(qStr)}`);
+          setLiveQuorum(Number(qStr));
+        }
       } catch (tallyErr) {
         console.error("[LIFECYCLE] Quorum sync failed:", tallyErr);
       }
 
-      // BLOCK 2: TIMELINE (Simplified to use base-layer constants only)
+      // BLOCK 2: TIMELINE
       try {
-        // Fallback to static block estimations to prevent Interface crashes
         const SECONDS_PER_BLOCK = 2; 
         const VOTING_DELAY_BLOCKS = 43200;
         const VOTING_PERIOD_BLOCKS = 302400;
