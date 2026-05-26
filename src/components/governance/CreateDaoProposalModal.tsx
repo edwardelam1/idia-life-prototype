@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { governanceService } from "@/services/governanceService";
 import { toast } from "@/hooks/use-toast";
 
 interface Props {
@@ -71,6 +72,25 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
       if (!user) throw new Error("Authentication required.");
       console.log("[PROPOSAL_SUBMIT] AUTH_SUCCESS: User resolved.");
 
+      // ─── ON-CHAIN EXECUTION BLOCK ──────────────────────────────────────
+      console.log("[PROPOSAL_SUBMIT] CHAIN_START: Requesting wallet signature and broadcasting to Governor contract...");
+      let txHash = "";
+      let onChainProposalId = "";
+      try {
+        const chainResult = await governanceService.propose(
+          `# ${safeTitle}\n\n${safeDescription}`,
+        );
+        txHash = chainResult.hash;
+        onChainProposalId = chainResult.proposalId || "";
+        console.log(
+          `[PROPOSAL_SUBMIT] CHAIN_SUCCESS: Transaction broadcasted. Hash: ${txHash} | On-chain ID: ${onChainProposalId}`,
+        );
+      } catch (chainError: any) {
+        console.error("[PROPOSAL_SUBMIT] CHAIN_FAIL: Transaction reverted or rejected by wallet.", chainError);
+        throw new Error(`Blockchain execution failed: ${chainError?.reason || chainError?.message || "unknown"}`);
+      }
+      // ───────────────────────────────────────────────────────────────────
+
       console.log("[PROPOSAL_SUBMIT] DB_INSERT_START: Committing approved active proposal to 1:1 vote ledger...");
       const { data: inserted, error: insertError } = await (supabase as any)
         .from("dao_proposals")
@@ -82,10 +102,15 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
           vote_type: "simple",
           voting_modality: "simple",
           lifecycle_phase: "active",
+          // on_chain_id: onChainProposalId,
+          // tx_hash: txHash,
         })
         .select()
         .single();
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error("[PROPOSAL_SUBMIT] DB_INSERT_FAIL: Supabase rejection.", insertError);
+        throw insertError;
+      }
       console.log("[PROPOSAL_SUBMIT] DB_INSERT_SUCCESS: Row committed safely.", inserted?.id);
 
       if (TEMP_DISABLE_AI_VALIDATION) {
@@ -93,8 +118,8 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
       }
 
       toast({
-        title: "Proposal submitted!",
-        description: "Approved for testing and added to Active Proposals.",
+        title: "Proposal live on-chain!",
+        description: "Successfully broadcasted to the IDIA Governor.",
       });
 
       resetForm();

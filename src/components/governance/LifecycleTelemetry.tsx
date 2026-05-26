@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { stage } from "@/lib/stageLogger";
+import { governanceService } from "@/services/governanceService";
 
 interface ProposalLite {
   id: string;
@@ -62,6 +63,7 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
   const [againstVotes, setAgainstVotes] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [blockNumber] = useState<number | null>(null);
+  const [liveQuorum, setLiveQuorum] = useState<number | null>(null);
 
 
   useEffect(() => {
@@ -70,12 +72,23 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
     setLoading(true);
     const s = stage("LIFECYCLE_DETAIL", "TALLY");
     s.start({ id: proposal.id, message: "[START] Initiating vote tally fetch sequence." });
+    const q = stage("LIFECYCLE_DETAIL", "QUORUM_FETCH");
+    q.start({ message: "[START] Querying on-chain Governor for live quorum." });
     (async () => {
       try {
-        const { data, error } = await (supabase as any)
-          .from("dao_votes")
-          .select("vote_type, vote_weight")
-          .eq("proposal_id", proposal.id);
+        const [votesRes, quorumRes] = await Promise.allSettled([
+          (supabase as any)
+            .from("dao_votes")
+            .select("vote_type, vote_weight")
+            .eq("proposal_id", proposal.id),
+          governanceService.getCurrentQuorum(),
+        ]);
+
+        if (votesRes.status === "rejected") {
+          s.fail({ message: "[ERROR] Supabase query for dao_votes failed.", error: votesRes.reason });
+          throw votesRes.reason;
+        }
+        const { data, error } = votesRes.value as any;
         if (error) {
           s.fail({ message: "[ERROR] Supabase query for dao_votes failed.", error });
           throw error;
@@ -99,12 +112,25 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
           against: talliedAgainst,
           totalParticipation: talliedFor + talliedAgainst,
         });
+
+        if (quorumRes.status === "fulfilled") {
+          const parsed = Number(quorumRes.value);
+          if (alive && Number.isFinite(parsed)) {
+            setLiveQuorum(parsed);
+            q.ok({ message: "[SUCCESS] On-chain quorum resolved.", quorum: parsed });
+          } else {
+            q.fail({ message: "[FAIL] On-chain quorum returned non-numeric value.", value: quorumRes.value });
+          }
+        } else {
+          q.fail({ message: "[FAIL] Governor quorum RPC rejected.", error: quorumRes.reason });
+        }
       } catch (e) {
         s.fail({ message: "[FATAL] Unexpected error in tally execution.", error: e });
       } finally {
         if (alive) {
           setLoading(false);
           s.ok({ message: "[END] Vote tally fetch sequence cleanly finalized." });
+          q.ok({ message: "[END] Quorum fetch sequence cleanly finalized." });
         }
       }
     })();
@@ -113,9 +139,12 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
     };
   }, [proposal?.id]);
 
-  const quorum = proposal?.quorum_threshold ?? 1000;
+  const quorum = liveQuorum ?? proposal?.quorum_threshold ?? null;
   const totalVotes = forVotes + againstVotes;
-  const pct = useMemo(() => Math.min(100, (totalVotes / Math.max(1, quorum)) * 100), [totalVotes, quorum]);
+  const pct = useMemo(
+    () => (quorum && quorum > 0 ? Math.min(100, (totalVotes / quorum) * 100) : 0),
+    [totalVotes, quorum],
+  );
 
   const remaining = formatRemaining(proposal?.end_date ?? null);
   const meta = proposal ? PHASE_META[proposal.lifecycle_phase] || PHASE_META.draft : null;
@@ -155,7 +184,7 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
                     Quorum Progress
                   </span>
                   <span className="text-[10px] font-black tracking-widest text-teal-700 dark:text-teal-200">
-                    {loading ? "…" : `${totalVotes} / ${quorum}`} ({pct.toFixed(1)}%)
+                    {loading ? "…" : `${totalVotes} / ${quorum ?? "…"}`} ({pct.toFixed(1)}%)
                   </span>
                 </div>
                 <Progress value={pct} className="h-2" />
