@@ -155,7 +155,7 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
                     Quorum Progress
                   </span>
                   <span className="text-[10px] font-black tracking-widest text-teal-700 dark:text-teal-200">
-                    {loading ? "…" : `${forVotes} / ${quorum}`} ({pct.toFixed(1)}%)
+                    {loading ? "…" : `${totalVotes} / ${quorum}`} ({pct.toFixed(1)}%)
                   </span>
                 </div>
                 <Progress value={pct} className="h-2" />
