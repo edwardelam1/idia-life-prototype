@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { stage } from "@/lib/stageLogger";
 import { governanceService } from "@/services/governanceService";
+import { ethers } from "ethers";
 
 interface ProposalLite {
   id: string;
@@ -52,14 +53,11 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
   const [againstVotes, setAgainstVotes] = useState<number>(0);
   const [liveQuorum, setLiveQuorum] = useState<number>(0);
   const [loading, setLoading] = useState(false);
-  const [deadline, setDeadline] = useState("Syncing timeline...");
   const [deadlineState, setDeadlineState] = useState({
     label: "Syncing...",
     tone: "none" as "live" | "ended" | "none",
   });
-// Inside the async function within DetailDialog's useEffect:
-console.log("[DIAGNOSTIC] governanceService structure:", Object.keys(governanceService));
-console.log("[DIAGNOSTIC] Checking governanceService.getGovernorParams:", typeof governanceService.getGovernorParams);
+
   const blockNumber = proposal?.on_chain_block || null;
 
   useEffect(() => {
@@ -71,108 +69,63 @@ console.log("[DIAGNOSTIC] Checking governanceService.getGovernorParams:", typeof
     sChain.start({ id: proposal.id, message: "[START] Synchronizing directly with Base network." });
 
     (async () => {
-      // ======================================================================
-      // BLOCK 1: TALLY & QUORUM (CRITICAL)
-      // ======================================================================
+      // BLOCK 1: TALLY & QUORUM
+      // We no longer rely on getGovernorParams() to avoid interface crashes.
       try {
         let qStr = "0";
         if (proposal.on_chain_id && proposal.on_chain_id.trim() !== "") {
-          try {
-            qStr = await governanceService.getProposalQuorum(proposal.on_chain_id);
-            console.log(`[DEBUG] Snapshot Quorum for ${proposal.on_chain_id}:`, qStr);
-          } catch (qErr) {
-            console.error("[DEBUG] Quorum RPC Error:", qErr);
-            qStr = await governanceService.getCurrentQuorum();
-          }
+          qStr = await governanceService.getProposalQuorum(proposal.on_chain_id);
         } else {
-          // Fallback parsing for legacy database proposals
           const { data } = await supabase
             .from("dao_votes")
             .select("vote_type, vote_weight")
             .eq("proposal_id", proposal.id);
           const rows = (data || []) as { vote_type: string; vote_weight?: number }[];
           if (alive) {
-            setForVotes(
-              rows.filter((r) => r.vote_type === "for").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0),
-            );
-            setAgainstVotes(
-              rows.filter((r) => r.vote_type === "against").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0),
-            );
+            setForVotes(rows.filter((r) => r.vote_type === "for").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0));
+            setAgainstVotes(rows.filter((r) => r.vote_type === "against").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0));
           }
           qStr = await governanceService.getCurrentQuorum();
         }
 
         if (alive) setLiveQuorum(Number(qStr));
       } catch (tallyErr) {
-        console.error("[LIFECYCLE] Tally/Quorum sync stalled:", tallyErr);
+        console.error("[LIFECYCLE] Quorum sync failed:", tallyErr);
       }
 
-      // ======================================================================
-      // BLOCK 2: TIMELINE METRICS (ISOLATED)
-      // ======================================================================
+      // BLOCK 2: TIMELINE (Simplified to use base-layer constants only)
       try {
-        let deadlineLabel = "Calculating timeline...";
-        let deadlineTone: "live" | "ended" | "none" = "none";
+        // Fallback to static block estimations to prevent Interface crashes
+        const SECONDS_PER_BLOCK = 2; 
+        const VOTING_DELAY_BLOCKS = 43200;
+        const VOTING_PERIOD_BLOCKS = 302400;
+        
+        const totalDurationSec = (VOTING_DELAY_BLOCKS + VOTING_PERIOD_BLOCKS) * SECONDS_PER_BLOCK;
+        const endMs = new Date(proposal.created_at).getTime() + (totalDurationSec * 1000);
+        const diff = endMs - Date.now();
 
-        try {
-          // Attempt to fetch exact network parameters
-          console.log("[DIAGNOSTIC] Attempting getGovernorParams...");
-          const params = await governanceService.getGovernorParams();
-          console.log("[DIAGNOSTIC] GovernorParams Success:", params);
-          const totalDurationMs = (params.votingDelay + params.votingPeriod) * 2000;
-          const endMs = new Date(proposal.created_at).getTime() + totalDurationMs;
-          const diff = endMs - Date.now();
-
+        if (alive) {
           if (diff <= 0) {
-            deadlineLabel = "Voting Closed · Deadline Passed";
-            deadlineTone = "ended";
+            setDeadlineState({ label: "Voting Closed · Deadline Passed", tone: "ended" });
           } else {
             const d = Math.floor(diff / 86400000);
             const h = Math.floor((diff % 86400000) / 3600000);
             const m = Math.floor((diff % 3600000) / 60000);
-            deadlineLabel = `Auto-fails in ${d}d ${h}h ${m}m`;
-            deadlineTone = "live";
-          }
-        } catch (paramErr) {
-  console.error("[DIAGNOSTIC] CRITICAL FAILURE in getGovernorParams:", paramErr);
-
-          // Failsafe timeline fallback if getGovernorParams() crashes
-          const fallbackEndMs = proposal.end_date
-            ? new Date(proposal.end_date).getTime()
-            : new Date(proposal.created_at).getTime() + 3 * 86400000; // Base 3-day estimate
-
-          const diff = fallbackEndMs - Date.now();
-          if (diff <= 0) {
-            deadlineLabel = "Voting Closed · Deadline Passed";
-            deadlineTone = "ended";
-          } else {
-            const d = Math.floor(diff / 86400000);
-            const h = Math.floor((diff % 86400000) / 3600000);
-            const m = Math.floor((diff % 3600000) / 60000);
-            deadlineLabel = `Est. Auto-fails in ${d}d ${h}h ${m}m`;
-            deadlineTone = "live";
+            setDeadlineState({ label: `Auto-fails in ${d}d ${h}h ${m}m`, tone: "live" });
           }
         }
-
-        if (alive) setDeadlineState({ label: deadlineLabel, tone: deadlineTone });
       } catch (timelineErr) {
-        console.error("[LIFECYCLE] Total timeline crash:", timelineErr);
+        console.error("[LIFECYCLE] Timeline calculation failed:", timelineErr);
         if (alive) setDeadlineState({ label: "Timeline Unavailable", tone: "none" });
       }
 
-      // ======================================================================
-      // FINALIZATION
-      // ======================================================================
       sChain.ok({ message: "[SUCCESS] Synchronization complete." });
       if (alive) setLoading(false);
     })();
 
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [proposal]);
 
-  // Total absolute reliance on chain state. No hallucinated fallbacks.
   const activeQuorum = liveQuorum;
   const totalVotes = forVotes + againstVotes;
 
@@ -251,18 +204,7 @@ console.log("[DIAGNOSTIC] Checking governanceService.getGovernorParams:", typeof
 
 const LifecycleTelemetry: React.FC = () => {
   const [items, setItems] = useState<ProposalLite[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [selected, setSelected] = useState<ProposalLite | null>(null);
-
-  // Added missing state definitions to fix TS errors in LifecycleTelemetry
-  const [forVotes, setForVotes] = useState<number>(0);
-  const [againstVotes, setAgainstVotes] = useState<number>(0);
-  const [liveQuorum, setLiveQuorum] = useState<number>(0);
-  const [loading, setLoading] = useState(false);
-  const [deadlineState, setDeadlineState] = useState({
-    label: "Syncing...",
-    tone: "none" as "live" | "ended" | "none",
-  });
 
   useEffect(() => {
     supabase
@@ -272,7 +214,6 @@ const LifecycleTelemetry: React.FC = () => {
       .limit(50)
       .then(({ data }) => {
         if (data) {
-          // Fixed TS2345: Explicitly mapping to cast lifecycle_phase
           setItems(
             (data as any[]).map((item) => ({
               ...item,
