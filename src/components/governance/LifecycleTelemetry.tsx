@@ -47,115 +47,97 @@ const PHASE_META = {
   },
 } as const;
 
-const formatRemaining = (endIso: string | null): { label: string; tone: "live" | "ended" | "none" } => {
-  if (!endIso) return { label: "No deadline set", tone: "none" };
-  const end = new Date(endIso).getTime();
-  const now = Date.now();
-  const diff = end - now;
-  if (diff <= 0) return { label: "Auto-failed · deadline passed", tone: "ended" };
-  const d = Math.floor(diff / 86400000);
-  const h = Math.floor((diff % 86400000) / 3600000);
-  const m = Math.floor((diff % 3600000) / 60000);
-  return { label: `Auto-fails in ${d}d ${h}h ${m}m`, tone: "live" };
-};
-
 const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => void }> = ({ proposal, onClose }) => {
   const [forVotes, setForVotes] = useState<number>(0);
   const [againstVotes, setAgainstVotes] = useState<number>(0);
-  const [liveQuorum, setLiveQuorum] = useState<number | null>(null);
+  const [liveQuorum, setLiveQuorum] = useState<number>(0);
   const [loading, setLoading] = useState(false);
+  const [deadlineState, setDeadlineState] = useState<{ label: string; tone: "live" | "ended" | "none" }>({
+    label: "Syncing block timeline...",
+    tone: "none",
+  });
 
-  // Directly mapping the DB value, eliminating the dead state hook
   const blockNumber = proposal?.on_chain_block || null;
 
   useEffect(() => {
     if (!proposal) return;
     let alive = true;
     setLoading(true);
-    
-    const sTally = stage("LIFECYCLE_DETAIL", "TALLY");
-    sTally.start({ id: proposal.id, message: "[START] Initiating vote tally fetch." });
 
-    const sQuorum = stage("LIFECYCLE_DETAIL", "QUORUM_FETCH");
-    sQuorum.start({ message: "[START] Fetching dynamic on-chain quorum." });
+    const sChain = stage("LIFECYCLE_DETAIL", "ON_CHAIN_SYNC");
+    sChain.start({ id: proposal.id, message: "[START] Bypassing database. Syncing directly with Base network." });
 
     (async () => {
       try {
-        // 1. Fetch Votes (Weight aggregated instead of row counts)
-        const { data, error } = await (supabase as any)
-          .from("dao_votes")
-          .select("vote_type, vote_weight")
-          .eq("proposal_id", proposal.id);
+        // 1. Fetch exact governance timing parameters from contract
+        const params = await governanceService.getGovernorParams();
 
-        if (error) {
-          sTally.fail({ message: "[ERROR] Supabase query failed.", error });
-          throw error;
+        // 2. Mathematically calculate deadline (Base block time = 2 seconds)
+        const totalDurationMs = (params.votingDelay + params.votingPeriod) * 2000;
+        const endMs = new Date(proposal.created_at).getTime() + totalDurationMs;
+        const diff = endMs - Date.now();
+
+        if (diff <= 0) {
+          if (alive) setDeadlineState({ label: "Voting Closed · Deadline Passed", tone: "ended" });
+        } else {
+          const d = Math.floor(diff / 86400000);
+          const h = Math.floor((diff % 86400000) / 3600000);
+          const m = Math.floor((diff % 3600000) / 60000);
+          if (alive) setDeadlineState({ label: `Auto-fails in ${d}d ${h}h ${m}m`, tone: "live" });
         }
 
-        // 2. Fetch Live Quorum from Contract
-        let fetchedQuorum = proposal.quorum_threshold ?? 1000;
-        try {
-          const qStr = await governanceService.getProposalQuorum(proposal.on_chain_id);
-          const parsedQuorum = Number(qStr);
-          
-          // FIXED: We now actively reject 0 so it doesn't bypass our fallbacks
-          if (parsedQuorum > 0) {
-            fetchedQuorum = parsedQuorum;
-            sQuorum.ok({ message: "[SUCCESS] Dynamic quorum resolved.", value: fetchedQuorum });
-          } else {
-            sQuorum.fail({ message: "[WARN] Quorum returned 0 (RPC stall or zero supply). Using fallback.", value: 0 });
+        // 3. Fetch exact quorum and vote states (NO FALLBACKS ALLOWED)
+        let qStr = "0";
+
+        if (proposal.on_chain_id && proposal.on_chain_id.trim() !== "") {
+          const state = await governanceService.getProposalState(proposal.on_chain_id);
+          if (alive) {
+            setForVotes(Number(state.forVotes));
+            setAgainstVotes(Number(state.againstVotes));
           }
-        } catch (qErr) {
-          sQuorum.fail({ message: "[WARN] Quorum fetch stalled, using fallback.", error: qErr });
+          qStr = await governanceService.getProposalQuorum(proposal.on_chain_id);
+        } else {
+          // Fallback parsing for proposals where event extraction failed
+          const { data } = await supabase
+            .from("dao_votes")
+            .select("vote_type, vote_weight")
+            .eq("proposal_id", proposal.id);
+          const rows = (data || []) as { vote_type: string; vote_weight?: number }[];
+          if (alive) {
+            setForVotes(
+              rows.filter((r) => r.vote_type === "for").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0),
+            );
+            setAgainstVotes(
+              rows.filter((r) => r.vote_type === "against").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0),
+            );
+          }
+          qStr = await governanceService.getCurrentQuorum();
         }
 
-        if (!alive) {
-          sTally.ok({ message: "[ABORT] Component unmounted." });
-          return;
-        }
+        // Set exactly what the network returns. If it's 0, it's 0.
+        if (alive) setLiveQuorum(Number(qStr));
 
-        const rows = (data || []) as { vote_type: string; vote_weight?: number }[];
-        
-        const sumWeight = (type: string) => 
-          rows.filter((r) => r.vote_type === type)
-              .reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0);
-
-        const talliedFor = sumWeight("for");
-        const talliedAgainst = sumWeight("against");
-
-        setForVotes(talliedFor);
-        setAgainstVotes(talliedAgainst);
-        setLiveQuorum(fetchedQuorum);
-        
-        sTally.ok({ 
-          message: "[SUCCESS] Tally computation complete.", 
-          for: talliedFor, 
-          against: talliedAgainst 
-        });
-
+        sChain.ok({ message: "[SUCCESS] Chain state perfectly mirrored." });
       } catch (e) {
-        sTally.fail({ message: "[FATAL] Unexpected error in tally.", error: e });
+        sChain.fail({ message: "[FATAL] On-chain sync stalled.", error: e });
       } finally {
         if (alive) setLoading(false);
       }
     })();
-    return () => { alive = false; };
-  }, [proposal?.id, proposal?.quorum_threshold]);
+    return () => {
+      alive = false;
+    };
+  }, [proposal]);
 
-  // FIXED: Explicitly cascade through valid numbers, safely discarding 0
-  const activeQuorum = (liveQuorum && liveQuorum > 0) 
-    ? liveQuorum 
-    : (proposal?.quorum_threshold && proposal.quorum_threshold > 0) 
-      ? proposal.quorum_threshold 
-      : 1000;
-
+  // Total absolute reliance on chain state.
+  const activeQuorum = liveQuorum;
   const totalVotes = forVotes + againstVotes;
+
   const pct = useMemo(() => {
-    if (activeQuorum === 0) return 0; // Ultimate failsafe to prevent division by zero
+    if (activeQuorum === 0) return totalVotes > 0 ? 100 : 0;
     return Math.min(100, (totalVotes / activeQuorum) * 100);
   }, [totalVotes, activeQuorum]);
-  
-  const remaining = formatRemaining(proposal?.end_date ?? null);
+
   const meta = proposal ? PHASE_META[proposal.lifecycle_phase] || PHASE_META.draft : null;
 
   return (
@@ -206,15 +188,15 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
               <div
                 className={cn(
                   "p-3 rounded-2xl border text-[10px] font-black uppercase tracking-widest",
-                  remaining.tone === "live" &&
+                  deadlineState.tone === "live" &&
                     "border-orange-100 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-950/20 text-orange-700 dark:text-orange-200",
-                  remaining.tone === "ended" &&
+                  deadlineState.tone === "ended" &&
                     "border-rose-100 dark:border-rose-900/40 bg-rose-50/50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-200",
-                  remaining.tone === "none" &&
+                  deadlineState.tone === "none" &&
                     "border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/30 text-slate-600 dark:text-slate-300",
                 )}
               >
-                ⏱ {remaining.label}
+                ⏱ {deadlineState.label}
               </div>
             </div>
           </>
@@ -238,11 +220,13 @@ const LifecycleTelemetry: React.FC = () => {
       try {
         const { data, error } = await (supabase
           .from("dao_proposals" as any)
-          // ADD on_chain_id TO THE END OF THIS SELECT STRING
-          .select("id, title, description, lifecycle_phase, status, created_at, end_date, quorum_threshold, on_chain_block, on_chain_id")
+          .select(
+            "id, title, description, lifecycle_phase, status, created_at, end_date, quorum_threshold, on_chain_block, on_chain_id",
+          )
           .order("created_at", { ascending: false })
           .limit(50) as any);
-          
+
+        if (error) throw error;
         if (isMounted) setItems((data as any) || []);
         s.ok({ count: data?.length });
       } catch (error: any) {
