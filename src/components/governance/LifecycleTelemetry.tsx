@@ -95,8 +95,15 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
         let fetchedQuorum = proposal.quorum_threshold ?? 1000;
         try {
           const qStr = await governanceService.getCurrentQuorum();
-          fetchedQuorum = Number(qStr);
-          sQuorum.ok({ message: "[SUCCESS] Dynamic quorum resolved.", value: fetchedQuorum });
+          const parsedQuorum = Number(qStr);
+          
+          // FIXED: We now actively reject 0 so it doesn't bypass our fallbacks
+          if (parsedQuorum > 0) {
+            fetchedQuorum = parsedQuorum;
+            sQuorum.ok({ message: "[SUCCESS] Dynamic quorum resolved.", value: fetchedQuorum });
+          } else {
+            sQuorum.fail({ message: "[WARN] Quorum returned 0 (RPC stall or zero supply). Using fallback.", value: 0 });
+          }
         } catch (qErr) {
           sQuorum.fail({ message: "[WARN] Quorum fetch stalled, using fallback.", error: qErr });
         }
@@ -134,10 +141,16 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
     return () => { alive = false; };
   }, [proposal?.id, proposal?.quorum_threshold]);
 
-  const activeQuorum = liveQuorum ?? proposal?.quorum_threshold ?? 1000;
+  // FIXED: Explicitly cascade through valid numbers, safely discarding 0
+  const activeQuorum = (liveQuorum && liveQuorum > 0) 
+    ? liveQuorum 
+    : (proposal?.quorum_threshold && proposal.quorum_threshold > 0) 
+      ? proposal.quorum_threshold 
+      : 1000;
+
   const totalVotes = forVotes + againstVotes;
   const pct = useMemo(() => {
-    if (activeQuorum === 0) return 0;
+    if (activeQuorum === 0) return 0; // Ultimate failsafe to prevent division by zero
     return Math.min(100, (totalVotes / activeQuorum) * 100);
   }, [totalVotes, activeQuorum]);
   
