@@ -53,6 +53,10 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
   const [liveQuorum, setLiveQuorum] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [deadline, setDeadline] = useState("Syncing timeline...");
+  const [deadlineState, setDeadlineState] = useState({
+    label: "Syncing...",
+    tone: "none" as "live" | "ended" | "none",
+  });
 
   const blockNumber = proposal?.on_chain_block || null;
 
@@ -68,19 +72,16 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
       // ======================================================================
       // BLOCK 1: TALLY & QUORUM (CRITICAL)
       // ======================================================================
-      // Replace your existing quorum logic with this debug-heavy version:
-try {
-  const qStr = await governanceService.getProposalQuorum(proposal.on_chain_id);
-  const qNum = Number(qStr);
-  
-  // LOG THE RAW TRUTH
-  console.log(`[DEBUG] Snapshot Quorum for ${proposal.on_chain_id}:`, qNum);
-  
-  if (alive) setLiveQuorum(qNum);
-} catch (qErr) {
-  console.error("[DEBUG] Quorum RPC Error:", qErr);
-}
-          qStr = await governanceService.getProposalQuorum(proposal.on_chain_id);
+      try {
+        let qStr = "0";
+        if (proposal.on_chain_id && proposal.on_chain_id.trim() !== "") {
+          try {
+            qStr = await governanceService.getProposalQuorum(proposal.on_chain_id);
+            console.log(`[DEBUG] Snapshot Quorum for ${proposal.on_chain_id}:`, qStr);
+          } catch (qErr) {
+            console.error("[DEBUG] Quorum RPC Error:", qErr);
+            qStr = await governanceService.getCurrentQuorum();
+          }
         } else {
           // Fallback parsing for legacy database proposals
           const { data } = await supabase
@@ -250,41 +251,48 @@ const LifecycleTelemetry: React.FC = () => {
   const [selected, setSelected] = useState<ProposalLite | null>(null);
 
   useEffect(() => {
-    if (!proposal) return;
+    if (!selected) return; // Keep the original signature logic
     let alive = true;
     setLoading(true);
 
     const sChain = stage("LIFECYCLE_DETAIL", "ON_CHAIN_SYNC");
-    sChain.start({ id: proposal.id, message: "[START] Synchronizing proposal metrics." });
+    sChain.start({ id: selected.id, message: "[START] Synchronizing proposal metrics." });
 
     (async () => {
       try {
         // --- BLOCK 1: TALLY & QUORUM ---
-        console.log(`[START] Syncing Tally for ${proposal.id}`);
+        console.log(`[START] Syncing Tally for ${selected.id}`);
         try {
-          if (proposal.on_chain_id) {
-            const qStr = await governanceService.getProposalQuorum(proposal.on_chain_id);
+          if (selected.on_chain_id) {
+            const qStr = await governanceService.getProposalQuorum(selected.on_chain_id);
             const qNum = Number(qStr);
             if (alive) setLiveQuorum(qNum);
           } else {
-            const { data } = await supabase.from("dao_votes").select("vote_type, vote_weight").eq("proposal_id", proposal.id);
+            const { data } = await supabase
+              .from("dao_votes")
+              .select("vote_type, vote_weight")
+              .eq("proposal_id", selected.id);
             const rows = (data || []) as { vote_type: string; vote_weight?: number }[];
             if (alive) {
-              setForVotes(rows.filter((r) => r.vote_type === "for").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0));
-              setAgainstVotes(rows.filter((r) => r.vote_type === "against").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0));
+              setForVotes(
+                rows.filter((r) => r.vote_type === "for").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0),
+              );
+              setAgainstVotes(
+                rows.filter((r) => r.vote_type === "against").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0),
+              );
             }
           }
         } catch (err) {
           console.error("[ERROR] Quorum sync failed:", err);
         }
-        console.log(`[END] Syncing Tally for ${proposal.id}`);
+        console.log(`[END] Syncing Tally for ${selected.id}`);
 
         // --- BLOCK 2: TIMELINE ---
-        console.log(`[START] Syncing Timeline for ${proposal.id}`);
+        console.log(`[START] Syncing Timeline for ${selected.id}`);
         try {
           const params = await governanceService.getGovernorParams();
           const totalDurationMs = (params.votingDelay + params.votingPeriod) * 2000;
-          const endMs = new Date(proposal.created_at).getTime() + totalDurationMs;
+          const endMs = new Date(selected.created_at).getTime() + totalDurationMs;
           const diff = endMs - Date.now();
 
           if (alive) {
@@ -299,7 +307,7 @@ const LifecycleTelemetry: React.FC = () => {
           console.warn("[WARN] Timeline param fetch failed, using fallback.");
           setDeadlineState({ label: "Timeline Unavailable", tone: "none" });
         }
-        console.log(`[END] Syncing Timeline for ${proposal.id}`);
+        console.log(`[END] Syncing Timeline for ${selected.id}`);
 
         sChain.ok({ message: "[SUCCESS] Synchronization complete." });
       } catch (err) {
@@ -310,34 +318,52 @@ const LifecycleTelemetry: React.FC = () => {
       }
     })();
 
-    return () => { alive = false; };
-  }, [proposal]);
+    return () => {
+      alive = false;
+    };
+  }, [selected]);
 
   const totalVotes = forVotes + againstVotes;
-  const pct = useMemo(() => (liveQuorum === 0 ? 0 : Math.min(100, (totalVotes / liveQuorum) * 100)), [totalVotes, liveQuorum]);
-  const meta = proposal ? PHASE_META[proposal.lifecycle_phase] || PHASE_META.draft : null;
+  const pct = useMemo(
+    () => (liveQuorum === 0 ? 0 : Math.min(100, (totalVotes / liveQuorum) * 100)),
+    [totalVotes, liveQuorum],
+  );
+  const meta = selected ? PHASE_META[selected.lifecycle_phase] || PHASE_META.draft : null;
 
   return (
-    <Dialog open={!!proposal} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
       <DialogContent className="sm:max-w-md rounded-3xl">
-        {proposal && (
+        {selected && (
           <>
             <DialogHeader>
               <div className="flex items-center gap-2 mb-1">
-                {meta && <Badge className={cn("text-[9px] font-black uppercase tracking-widest border", meta.color)}>{meta.icon} {meta.label}</Badge>}
+                {meta && (
+                  <Badge className={cn("text-[9px] font-black uppercase tracking-widest border", meta.color)}>
+                    {meta.icon} {meta.label}
+                  </Badge>
+                )}
               </div>
-              <DialogTitle className="font-black text-lg">{proposal.title}</DialogTitle>
-              <DialogDescription className="text-xs">{proposal.description || "No description provided."}</DialogDescription>
+              <DialogTitle className="font-black text-lg">{selected.title}</DialogTitle>
+              <DialogDescription className="text-xs">
+                {selected.description || "No description provided."}
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <div className="p-4 rounded-2xl border bg-teal-50/40 space-y-2">
                 <div className="flex justify-between items-baseline">
                   <span className="text-[10px] font-black uppercase text-teal-700">Quorum Progress</span>
-                  <span className="text-[10px] font-black">{loading ? "..." : `${totalVotes} / ${liveQuorum}`} ({pct.toFixed(1)}%)</span>
+                  <span className="text-[10px] font-black">
+                    {loading ? "..." : `${totalVotes} / ${liveQuorum}`} ({pct.toFixed(1)}%)
+                  </span>
                 </div>
                 <Progress value={pct} className="h-2" />
               </div>
-              <div className={cn("p-3 rounded-2xl border text-[10px] font-black uppercase tracking-widest", deadlineState.tone === "live" ? "bg-orange-50/50" : "bg-slate-50")}>
+              <div
+                className={cn(
+                  "p-3 rounded-2xl border text-[10px] font-black uppercase tracking-widest",
+                  deadlineState.tone === "live" ? "bg-orange-50/50" : "bg-slate-50",
+                )}
+              >
                 ⏱ {deadlineState.label}
               </div>
             </div>
@@ -348,38 +374,27 @@ const LifecycleTelemetry: React.FC = () => {
   );
 };
 
-export const LifecycleTelemetry: React.FC = () => {
-  const [items, setItems] = useState<ProposalLite[]>([]);
-  const [selected, setSelected] = useState<ProposalLite | null>(null);
-
-  useEffect(() => {
-    supabase.from("dao_proposals").select("*").order("created_at", { ascending: false }).limit(50).then(({ data }) => setItems(data || []));
-  }, []);
-
-  return (
-    <div className="space-y-2">
-      {items.map((it) => (
-        <button key={it.id} onClick={() => setSelected(it)} className="w-full p-4 border rounded-xl text-left hover:bg-slate-50">
-          <p className="font-bold">{it.title}</p>
-        </button>
-      ))}
-      <ProposalDetailModal proposal={selected} onClose={() => setSelected(null)} />
-    </div>
-  );
-};
-
 const LifecycleTelemetry: React.FC = () => {
   const [items, setItems] = useState<ProposalLite[]>([]);
   const [selected, setSelected] = useState<ProposalLite | null>(null);
 
   useEffect(() => {
-    supabase.from("dao_proposals").select("*").order("created_at", { ascending: false }).limit(50).then(({ data }) => setItems(data || []));
+    supabase
+      .from("dao_proposals")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50)
+      .then(({ data }) => setItems(data || []));
   }, []);
 
   return (
     <div className="space-y-2">
       {items.map((it) => (
-        <button key={it.id} onClick={() => setSelected(it)} className="w-full p-4 border rounded-xl text-left hover:bg-slate-50">
+        <button
+          key={it.id}
+          onClick={() => setSelected(it)}
+          className="w-full p-4 border rounded-xl text-left hover:bg-slate-50"
+        >
           <p className="font-bold">{it.title}</p>
         </button>
       ))}
