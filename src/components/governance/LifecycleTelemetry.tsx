@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { stage } from "@/lib/stageLogger";
+import { governanceService } from "@/services/governanceService";
 
 interface ProposalLite {
   id: string;
