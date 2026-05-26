@@ -19,6 +19,7 @@ interface ProposalLite {
   end_date: string | null;
   quorum_threshold: number | null;
   on_chain_block?: number | null;
+  on_chain_id?: string | null;
 }
 
 const PHASE_META = {
@@ -94,7 +95,7 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
         // 2. Fetch Live Quorum from Contract
         let fetchedQuorum = proposal.quorum_threshold ?? 1000;
         try {
-          const qStr = await governanceService.getCurrentQuorum();
+          const qStr = await governanceService.getProposalQuorum(proposal.on_chain_id);
           const parsedQuorum = Number(qStr);
           
           // FIXED: We now actively reject 0 so it doesn't bypass our fallbacks
@@ -237,12 +238,11 @@ const LifecycleTelemetry: React.FC = () => {
       try {
         const { data, error } = await (supabase
           .from("dao_proposals" as any)
-          // FIXED: on_chain_block is now explicitly selected from the database
-          .select("id, title, description, lifecycle_phase, status, created_at, end_date, quorum_threshold, on_chain_block")
+          // ADD on_chain_id TO THE END OF THIS SELECT STRING
+          .select("id, title, description, lifecycle_phase, status, created_at, end_date, quorum_threshold, on_chain_block, on_chain_id")
           .order("created_at", { ascending: false })
-          .limit(50) as any); // FIXED: Increased limit so older proposals aren't hidden
+          .limit(50) as any);
           
-        if (error) throw error;
         if (isMounted) setItems((data as any) || []);
         s.ok({ count: data?.length });
       } catch (error: any) {

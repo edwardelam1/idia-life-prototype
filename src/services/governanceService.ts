@@ -118,6 +118,23 @@ class GovernanceService {
     }
   }
 
+  // ── Read: Exact Proposal Quorum ───────────────────────────
+
+  async getProposalQuorum(proposalId: string): Promise<string> {
+    const gov = this.getGovernorReadOnly();
+    try {
+      // 1. Fetch the exact block where the voting power snapshot was taken
+      const snapshotBlock = await gov.proposalSnapshot(proposalId);
+      
+      // 2. Query the exact 4% math evaluated at that historical block
+      const quorum = await gov.quorum(snapshotBlock);
+      return ethers.formatEther(quorum);
+    } catch (error) {
+      console.error(`[GovernanceService] Quorum fetch failed for proposal ${proposalId}:`, error);
+      return '0';
+    }
+  }
+
   // ── Read: Delegation info ─────────────────────────────────
 
   async getDelegationInfo(address: string): Promise<{
