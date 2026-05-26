@@ -254,15 +254,18 @@ const LifecycleTelemetry: React.FC = () => {
     let alive = true;
     setLoading(true);
 
+    const sChain = stage("LIFECYCLE_DETAIL", "ON_CHAIN_SYNC");
+    sChain.start({ id: proposal.id, message: "[START] Synchronizing directly with Base network." });
+
     (async () => {
       try {
-        // 1. Fetch Tally & Quorum directly from the Governor contract
+        // 1. TALLY & QUORUM
         if (proposal.on_chain_id && proposal.on_chain_id.trim() !== "") {
           const [state, qStr] = await Promise.all([
             governanceService.getProposalState(proposal.on_chain_id),
             governanceService.getProposalQuorum(proposal.on_chain_id)
           ]);
-          
+
           if (alive) {
             setForVotes(Number(state.forVotes));
             setAgainstVotes(Number(state.againstVotes));
@@ -270,7 +273,11 @@ const LifecycleTelemetry: React.FC = () => {
           }
         } else {
           // Off-chain DB fallback
-          const { data } = await supabase.from("dao_votes").select("vote_type, vote_weight").eq("proposal_id", proposal.id);
+          const { data } = await supabase
+            .from("dao_votes")
+            .select("vote_type, vote_weight")
+            .eq("proposal_id", proposal.id);
+            
           const rows = (data || []) as { vote_type: string; vote_weight?: number }[];
           if (alive) {
             setForVotes(rows.filter((r) => r.vote_type === "for").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0));
@@ -279,21 +286,28 @@ const LifecycleTelemetry: React.FC = () => {
           }
         }
 
-        // 2. Fetch Timeline
-        const params = await governanceService.getGovernorParams();
-        const totalDurationMs = (params.votingDelay + params.votingPeriod) * 2000;
-        const endMs = new Date(proposal.created_at).getTime() + totalDurationMs;
-        const diff = endMs - Date.now();
-        
-        if (alive) {
-          setDeadline(diff <= 0 ? "Voting Closed" : `Ends in ${Math.floor(diff / 86400000)}d ${Math.floor((diff % 86400000) / 3600000)}h`);
+        // 2. TIMELINE
+        try {
+          const params = await governanceService.getGovernorParams();
+          const totalDurationMs = (params.votingDelay + params.votingPeriod) * 2000;
+          const endMs = new Date(proposal.created_at).getTime() + totalDurationMs;
+          const diff = endMs - Date.now();
+          if (alive) {
+            setDeadline(diff <= 0 ? "Voting Closed" : `Ends in ${Math.floor(diff / 86400000)}d ${Math.floor((diff % 86400000) / 3600000)}h`);
+          }
+        } catch (err) {
+          if (alive) setDeadline("Timeline Unavailable");
         }
+
+        sChain.ok({ message: "[SUCCESS] Synchronization complete." });
       } catch (err) {
         console.error("Sync Error:", err);
+        sChain.fail(err);
       } finally {
         if (alive) setLoading(false);
       }
     })();
+
     return () => { alive = false; };
   }, [proposal]);
 
