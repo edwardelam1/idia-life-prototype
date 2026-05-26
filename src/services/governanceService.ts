@@ -109,21 +109,37 @@ class GovernanceService {
     };
   }
   
-  // ── Read: Current quorum requirement ──────────────────────
-
-  async getCurrentQuorum(): Promise<string> {
-    const gov = this.getGovernorReadOnly();
-    const provider = this.getProvider();
-    
-    try {
-      const blockNumber = await provider.getBlockNumber();
-      const quorum = await gov.quorum(blockNumber - 1);
-      return ethers.formatEther(quorum);
-    } catch (e) {
-      console.warn("[GovernanceService] getCurrentQuorum failed", e);
-      return '0';
-    }
+  // Add this method to GovernanceService to replace the failing direct calls
+private async callRaw(methodName: string, params: any[] = []): Promise<any> {
+  const iface = new ethers.Interface(GOVERNOR_ABI);
+  const data = iface.encodeFunctionData(methodName, params);
+  const provider = this.getProvider();
+  
+  try {
+    const result = await provider.call({
+      to: PROTOCOL.governor,
+      data: data
+    });
+    return iface.decodeFunctionResult(methodName, result)[0];
+  } catch (e) {
+    console.error(`[GovernanceService] Raw call error for ${methodName}:`, e);
+    return null;
   }
+}
+
+// Update getCurrentQuorum to use the new raw caller
+async getCurrentQuorum(): Promise<string> {
+  const provider = this.getProvider();
+  try {
+    const blockNumber = await provider.getBlockNumber();
+    // Bypassing contract object:
+    const quorum = await this.callRaw("quorum", [blockNumber - 1]);
+    return quorum ? ethers.formatEther(quorum) : '0';
+  } catch (e) {
+    console.warn("[GovernanceService] getCurrentQuorum failed", e);
+    return '0';
+  }
+}
 
   // ── Read: Exact Proposal Quorum ───────────────────────────
 
