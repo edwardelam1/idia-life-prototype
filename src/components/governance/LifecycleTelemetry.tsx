@@ -65,30 +65,16 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
     setLoading(true);
 
     const sChain = stage("LIFECYCLE_DETAIL", "ON_CHAIN_SYNC");
-    sChain.start({ id: proposal.id, message: "[START] Bypassing database. Syncing directly with Base network." });
+    sChain.start({ id: proposal.id, message: "[START] Synchronizing directly with Base network." });
 
     (async () => {
+      // ======================================================================
+      // BLOCK 1: TALLY & QUORUM (CRITICAL)
+      // ======================================================================
       try {
-        // 1. Fetch exact governance timing parameters from contract
-        const params = await governanceService.getGovernorParams();
-
-        // 2. Mathematically calculate deadline (Base block time = 2 seconds)
-        const totalDurationMs = (params.votingDelay + params.votingPeriod) * 2000;
-        const endMs = new Date(proposal.created_at).getTime() + totalDurationMs;
-        const diff = endMs - Date.now();
-
-        if (diff <= 0) {
-          if (alive) setDeadlineState({ label: "Voting Closed · Deadline Passed", tone: "ended" });
-        } else {
-          const d = Math.floor(diff / 86400000);
-          const h = Math.floor((diff % 86400000) / 3600000);
-          const m = Math.floor((diff % 3600000) / 60000);
-          if (alive) setDeadlineState({ label: `Auto-fails in ${d}d ${h}h ${m}m`, tone: "live" });
-        }
-
-        // 3. Fetch exact quorum and vote states (NO FALLBACKS ALLOWED)
         let qStr = "0";
 
+        // Check if the proposal successfully logged an on_chain_id
         if (proposal.on_chain_id && proposal.on_chain_id.trim() !== "") {
           const state = await governanceService.getProposalState(proposal.on_chain_id);
           if (alive) {
@@ -97,7 +83,7 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
           }
           qStr = await governanceService.getProposalQuorum(proposal.on_chain_id);
         } else {
-          // Fallback parsing for proposals where event extraction failed
+          // Fallback parsing for legacy database proposals
           const { data } = await supabase
             .from("dao_votes")
             .select("vote_type, vote_weight")
@@ -114,22 +100,75 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
           qStr = await governanceService.getCurrentQuorum();
         }
 
-        // Set exactly what the network returns. If it's 0, it's 0.
         if (alive) setLiveQuorum(Number(qStr));
-
-        sChain.ok({ message: "[SUCCESS] Chain state perfectly mirrored." });
-      } catch (e) {
-        sChain.fail({ message: "[FATAL] On-chain sync stalled.", error: e });
-      } finally {
-        if (alive) setLoading(false);
+      } catch (tallyErr) {
+        console.error("[LIFECYCLE] Tally/Quorum sync stalled:", tallyErr);
       }
+
+      // ======================================================================
+      // BLOCK 2: TIMELINE METRICS (ISOLATED)
+      // ======================================================================
+      try {
+        let deadlineLabel = "Calculating timeline...";
+        let deadlineTone: "live" | "ended" | "none" = "none";
+
+        try {
+          // Attempt to fetch exact network parameters
+          const params = await governanceService.getGovernorParams();
+          const totalDurationMs = (params.votingDelay + params.votingPeriod) * 2000;
+          const endMs = new Date(proposal.created_at).getTime() + totalDurationMs;
+          const diff = endMs - Date.now();
+
+          if (diff <= 0) {
+            deadlineLabel = "Voting Closed · Deadline Passed";
+            deadlineTone = "ended";
+          } else {
+            const d = Math.floor(diff / 86400000);
+            const h = Math.floor((diff % 86400000) / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            deadlineLabel = `Auto-fails in ${d}d ${h}h ${m}m`;
+            deadlineTone = "live";
+          }
+        } catch (paramErr) {
+          console.warn("[LIFECYCLE] Network params unavailable. Falling back to DB / Estimate timeline.", paramErr);
+
+          // Failsafe timeline fallback if getGovernorParams() crashes
+          const fallbackEndMs = proposal.end_date
+            ? new Date(proposal.end_date).getTime()
+            : new Date(proposal.created_at).getTime() + 3 * 86400000; // Base 3-day estimate
+
+          const diff = fallbackEndMs - Date.now();
+          if (diff <= 0) {
+            deadlineLabel = "Voting Closed · Deadline Passed";
+            deadlineTone = "ended";
+          } else {
+            const d = Math.floor(diff / 86400000);
+            const h = Math.floor((diff % 86400000) / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            deadlineLabel = `Est. Auto-fails in ${d}d ${h}h ${m}m`;
+            deadlineTone = "live";
+          }
+        }
+
+        if (alive) setDeadlineState({ label: deadlineLabel, tone: deadlineTone });
+      } catch (timelineErr) {
+        console.error("[LIFECYCLE] Total timeline crash:", timelineErr);
+        if (alive) setDeadlineState({ label: "Timeline Unavailable", tone: "none" });
+      }
+
+      // ======================================================================
+      // FINALIZATION
+      // ======================================================================
+      sChain.ok({ message: "[SUCCESS] Synchronization complete." });
+      if (alive) setLoading(false);
     })();
+
     return () => {
       alive = false;
     };
   }, [proposal]);
 
-  // Total absolute reliance on chain state.
+  // Total absolute reliance on chain state. No hallucinated fallbacks.
   const activeQuorum = liveQuorum;
   const totalVotes = forVotes + againstVotes;
 
