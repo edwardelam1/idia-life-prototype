@@ -72,48 +72,39 @@ class GovernanceService {
   async getGovernorParams(): Promise<GovernorParams> {
     const gov = this.getGovernorReadOnly();
     
-    // Decoupled calls to prevent individual contract method crashes from aborting the whole sync
-    const [
-      votingDelay, votingPeriod, proposalThreshold,
-      minVotingDelay, maxVotingDelay,
-      minVotingPeriod, maxVotingPeriod,
-      isPaused,
-    ] = await Promise.all([
-      gov.votingDelay(),
-      gov.votingPeriod(),
-      gov.proposalThreshold(),
-      gov.minVotingDelay(),
-      gov.maxVotingDelay(),
-      gov.minVotingPeriod(),
-      gov.maxVotingPeriod(),
-      gov.proposalsPaused(),
-    ]);
-
-    // Defensively handle quorum methods which may not exist on your specific contract deployment
+    // Explicit, independent resolution to prevent individual contract method crashes
+    let votingDelay = 0;
+    let votingPeriod = 0;
+    let proposalThreshold = 0n;
     let quorumNumerator = 0;
     let quorumDenominator = 1;
+    let minVotingDelay = 0;
+    let maxVotingDelay = 0;
+    let minVotingPeriod = 0;
+    let maxVotingPeriod = 0;
+    let isPaused = false;
 
-    try {
-      if (typeof gov.quorumNumerator === 'function') {
-        quorumNumerator = Number(await gov.quorumNumerator());
-      }
-      if (typeof gov['QUORUM_DENOMINATOR'] === 'function') {
-        quorumDenominator = Number(await gov['QUORUM_DENOMINATOR']());
-      }
-    } catch (e) {
-      console.warn("[GovernanceService] Quorum numerator/denominator methods unavailable on contract.");
-    }
+    try { votingDelay = Number(await gov.votingDelay()); } catch (e) { console.warn("[GovernanceService] votingDelay missing"); }
+    try { votingPeriod = Number(await gov.votingPeriod()); } catch (e) { console.warn("[GovernanceService] votingPeriod missing"); }
+    try { proposalThreshold = await gov.proposalThreshold(); } catch (e) { console.warn("[GovernanceService] proposalThreshold missing"); }
+    try { quorumNumerator = Number(await gov.quorumNumerator()); } catch (e) { console.warn("[GovernanceService] quorumNumerator missing"); }
+    try { quorumDenominator = Number(await gov['QUORUM_DENOMINATOR']()); } catch (e) { console.warn("[GovernanceService] QUORUM_DENOMINATOR missing"); }
+    try { minVotingDelay = Number(await gov.minVotingDelay()); } catch (e) { console.warn("[GovernanceService] minVotingDelay missing"); }
+    try { maxVotingDelay = Number(await gov.maxVotingDelay()); } catch (e) { console.warn("[GovernanceService] maxVotingDelay missing"); }
+    try { minVotingPeriod = Number(await gov.minVotingPeriod()); } catch (e) { console.warn("[GovernanceService] minVotingPeriod missing"); }
+    try { maxVotingPeriod = Number(await gov.maxVotingPeriod()); } catch (e) { console.warn("[GovernanceService] maxVotingPeriod missing"); }
+    try { isPaused = await gov.proposalsPaused(); } catch (e) { console.warn("[GovernanceService] proposalsPaused missing"); }
 
     return {
-      votingDelay: Number(votingDelay),
-      votingPeriod: Number(votingPeriod),
+      votingDelay,
+      votingPeriod,
       proposalThreshold: ethers.formatEther(proposalThreshold),
       quorumNumerator,
       quorumDenominator,
-      minVotingDelay: Number(minVotingDelay),
-      maxVotingDelay: Number(maxVotingDelay),
-      minVotingPeriod: Number(minVotingPeriod),
-      maxVotingPeriod: Number(maxVotingPeriod),
+      minVotingDelay,
+      maxVotingDelay,
+      minVotingPeriod,
+      maxVotingPeriod,
       isPaused,
     };
   }
@@ -123,13 +114,13 @@ class GovernanceService {
   async getCurrentQuorum(): Promise<string> {
     const gov = this.getGovernorReadOnly();
     const provider = this.getProvider();
-    const blockNumber = await provider.getBlockNumber();
+    
     try {
-      // Some versions of Governor use quorum(blockNumber), others use quorum(timestamp)
-      // or simply don't have a public quorum function.
+      const blockNumber = await provider.getBlockNumber();
       const quorum = await gov.quorum(blockNumber - 1);
       return ethers.formatEther(quorum);
-    } catch {
+    } catch (e) {
+      console.warn("[GovernanceService] getCurrentQuorum failed", e);
       return '0';
     }
   }
@@ -139,10 +130,9 @@ class GovernanceService {
   async getProposalQuorum(proposalId: string): Promise<string> {
     const gov = this.getGovernorReadOnly();
     try {
-      // 1. Fetch the exact block where the voting power snapshot was taken
       const snapshotBlock = await gov.proposalSnapshot(proposalId);
+      if (Number(snapshotBlock) === 0) return '0';
       
-      // 2. Query the exact quorum evaluated at that historical block
       const quorum = await gov.quorum(snapshotBlock);
       return ethers.formatEther(quorum);
     } catch (error) {
@@ -162,9 +152,9 @@ class GovernanceService {
   }> {
     const token = this.getTokenReadOnly();
     const [balance, votes, delegatee] = await Promise.all([
-      token.balanceOf(address),
-      token.getVotes(address),
-      token.delegates(address),
+      token.balanceOf(address).catch(() => 0n),
+      token.getVotes(address).catch(() => 0n),
+      token.delegates(address).catch(() => ethers.ZeroAddress),
     ]);
 
     const isDelegated = delegatee !== ethers.ZeroAddress;
@@ -196,6 +186,8 @@ class GovernanceService {
 
     const totalBlocks = currentBlock - startBlock;
     const chunks = Math.ceil(totalBlocks / GovernanceService.MAX_LOG_RANGE);
+    
+    console.log(`[GovernanceService] Scanning ${totalBlocks} blocks in ${chunks} chunks (${startBlock} → ${currentBlock}) on ${PROTOCOL.governor}`);
 
     let allLogs: ethers.Log[] = [];
 
@@ -212,12 +204,15 @@ class GovernanceService {
         });
 
         if (logs.length > 0) {
+          console.log(`[GovernanceService] Chunk ${i + 1}/${chunks}: found ${logs.length} events (blocks ${chunkFrom}-${chunkTo})`);
           allLogs = allLogs.concat(logs);
         }
       } catch (e: any) {
         console.warn(`[GovernanceService] Chunk ${i + 1}/${chunks} failed: ${e.message}`);
       }
     }
+
+    console.log(`[GovernanceService] Total ProposalCreated events found: ${allLogs.length}`);
 
     if (allLogs.length === 0) {
       return [];
@@ -240,7 +235,7 @@ class GovernanceService {
         const description = parsed.args[8];
 
         const [state, votesResult, hasVoted] = await Promise.all([
-          gov.state(proposalId),
+          gov.state(proposalId).catch(() => 0),
           gov.proposalVotes(proposalId).catch(() => [0n, 0n, 0n]),
           address ? gov.hasVoted(proposalId, address).catch(() => false) : false,
         ]);
@@ -269,6 +264,8 @@ class GovernanceService {
     return proposals.reverse();
   }
 
+  // ── Read: Single proposal state ───────────────────────────
+
   async getProposalState(proposalId: string): Promise<{
     state: number;
     stateName: string;
@@ -278,8 +275,8 @@ class GovernanceService {
   }> {
     const gov = this.getGovernorReadOnly();
     const [state, votes] = await Promise.all([
-      gov.state(proposalId),
-      gov.proposalVotes(proposalId),
+      gov.state(proposalId).catch(() => 0),
+      gov.proposalVotes(proposalId).catch(() => [0n, 0n, 0n]),
     ]);
 
     return {
@@ -290,6 +287,8 @@ class GovernanceService {
       abstainVotes: ethers.formatEther(votes[2]),
     };
   }
+
+  // ── Write: Create proposal ───────────────────────────────
 
   async propose(
     description: string,
@@ -313,6 +312,8 @@ class GovernanceService {
 
     return { hash: tx.hash, proposalId };
   }
+
+  // ── Write: Create proposal with custom timing ─────────────
 
   async proposeWithTiming(
     description: string,
@@ -340,6 +341,8 @@ class GovernanceService {
     return { hash: tx.hash, proposalId };
   }
 
+  // ── Write: Cast vote ──────────────────────────────────────
+
   async castVote(
     proposalId: string,
     support: 0 | 1 | 2,
@@ -357,6 +360,8 @@ class GovernanceService {
     await tx.wait();
     return { hash: tx.hash };
   }
+
+  // ── Write: Delegate ───────────────────────────────────────
 
   async delegate(delegatee: string): Promise<{ hash: string }> {
     const signer = walletService.getConnectedSigner();
@@ -378,18 +383,24 @@ class GovernanceService {
     return this.delegate(ethers.ZeroAddress);
   }
 
+  // ── Helpers ───────────────────────────────────────────────
+
   private extractProposalIdFromReceipt(receipt: ethers.TransactionReceipt): string | undefined {
     try {
       const govInterface = new ethers.Interface(GOVERNOR_ABI);
       for (const log of receipt.logs) {
         try {
           const parsed = govInterface.parseLog({ topics: log.topics as string[], data: log.data });
+          console.log("[DEBUG_TX_LOGS] Event Parsed:", parsed?.name);
           if (parsed?.name === 'ProposalCreated') {
+            console.log("[DEBUG_TX_LOGS] ProposalCreated Arg0:", parsed.args[0].toString());
             return parsed.args[0].toString();
           }
         } catch { /* not our event */ }
       }
-    } catch { /* parse failed */ }
+    } catch (e) {
+      console.error("[DEBUG_TX_LOGS] Parse failed:", e);
+    }
     return undefined;
   }
 }
