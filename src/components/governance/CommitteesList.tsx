@@ -355,11 +355,16 @@ const CommitteesList: React.FC = () => {
     <div className="space-y-4">
       <div className="px-2">
         <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-          <Scale size={14} className="text-teal-600" /> 
-          Delaware Registry · {ascensionLevel === 3 ? "Stewardship Matrix" : ascensionLevel === 2 ? "Oversight Matrix" : "Level 1 Ascension"}
+          <Scale size={14} className="text-teal-600" />
+          Delaware Registry ·{" "}
+          {ascensionLevel === 3
+            ? "Stewardship Matrix"
+            : ascensionLevel === 2
+              ? "Oversight Matrix"
+              : "Level 1 Ascension"}
         </h2>
         <p className="text-xs text-muted-foreground mt-1">
-          {ascensionLevel === 3 
+          {ascensionLevel === 3
             ? "Select a committee to execute a Tophat Override and provision an active hat instantly."
             : "Select a committee to submit your Statement of Competence and bond your identity to the protocol's fiduciary oversight matrix."}
         </p>
@@ -370,19 +375,20 @@ const CommitteesList: React.FC = () => {
           const Icon = committee.icon;
           const activeMembers = officerCounts[committee.id] || 0;
           const app = userApplications[committee.id];
-          
+
           // L3 Protocol Stewards (tophat) have universal authority over every committee.
           const isActiveMember = userActiveHats.has(committee.id) || ascensionLevel === 3;
           const isPending = !!app && app.status === "pending";
           const busy = actionBusyId === committee.id;
 
           // Compute the dynamic pathway text
-          const pathwayText = ascensionLevel === 3 
-            ? `Tophat Override to the ${committee.hatName}`
-            : ascensionLevel === 2
-            ? `Oversight of the ${committee.hatName}`
-            : `Level 1 pathway to the ${committee.hatName}`;
-            
+          const pathwayText =
+            ascensionLevel === 3
+              ? `Tophat Override to the ${committee.hatName}`
+              : ascensionLevel === 2
+                ? `Oversight of the ${committee.hatName}`
+                : `Level 1 pathway to the ${committee.hatName}`;
+
           return (
             <Card
               key={committee.id}
@@ -411,7 +417,9 @@ const CommitteesList: React.FC = () => {
                   <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
                     {isActiveMember ? (
                       <>
-                        <div className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${LEVEL_BADGE_CLASS[ascensionLevel || 1]}`}>
+                        <div
+                          className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${LEVEL_BADGE_CLASS[ascensionLevel || 1]}`}
+                        >
                           <ShieldCheck className="w-3 h-3" /> {LEVEL_LABEL[ascensionLevel || 1]}
                         </div>
                         <Button
@@ -552,7 +560,7 @@ const CommitteesList: React.FC = () => {
             </DialogTitle>
             <DialogDescription>
               Withdraw your pending application to <strong className="text-foreground">{revokeTarget?.name}</strong>.
-              Your fiduciary ACA bond will be released and you may re-apply later.
+              Your fiduciary bond will be released and you may re-apply later.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-col sm:flex-row gap-2">
