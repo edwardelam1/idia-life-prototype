@@ -118,8 +118,8 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
       }
 
       toast({
-        title: "Proposal submitted!",
-        description: "Approved for testing and added to Active Proposals.",
+        title: "Proposal live on-chain!",
+        description: "Successfully broadcasted to the IDIA Governor.",
       });
 
       resetForm();
