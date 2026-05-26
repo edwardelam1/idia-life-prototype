@@ -57,7 +57,9 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
     label: "Syncing...",
     tone: "none" as "live" | "ended" | "none",
   });
-
+// Inside the async function within DetailDialog's useEffect:
+console.log("[DIAGNOSTIC] governanceService structure:", Object.keys(governanceService));
+console.log("[DIAGNOSTIC] Checking governanceService.getGovernorParams:", typeof governanceService.getGovernorParams);
   const blockNumber = proposal?.on_chain_block || null;
 
   useEffect(() => {
@@ -114,7 +116,9 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
 
         try {
           // Attempt to fetch exact network parameters
+          console.log("[DIAGNOSTIC] Attempting getGovernorParams...");
           const params = await governanceService.getGovernorParams();
+          console.log("[DIAGNOSTIC] GovernorParams Success:", params);
           const totalDurationMs = (params.votingDelay + params.votingPeriod) * 2000;
           const endMs = new Date(proposal.created_at).getTime() + totalDurationMs;
           const diff = endMs - Date.now();
@@ -130,7 +134,7 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
             deadlineTone = "live";
           }
         } catch (paramErr) {
-          console.warn("[LIFECYCLE] Network params unavailable. Falling back to DB / Estimate timeline.", paramErr);
+  console.error("[DIAGNOSTIC] CRITICAL FAILURE in getGovernorParams:", paramErr);
 
           // Failsafe timeline fallback if getGovernorParams() crashes
           const fallbackEndMs = proposal.end_date
