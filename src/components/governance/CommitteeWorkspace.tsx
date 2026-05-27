@@ -46,8 +46,10 @@ const CommitteeWorkspace: React.FC = () => {
         .is("revoked_at", null);
 
       if (hatsError) throw hatsError;
-      
+
       setActiveHats(hats || []);
+      const hatSet = new Set<string>((hats || []).map((h: any) => h.hat_type));
+      setAscensionLevel(getAscensionLevel(hatSet));
       
       // Auto-select the first committee if none is selected
       const currentCommittee = selectedCommittee || (hats && hats.length > 0 ? hats[0].hat_type : null);
