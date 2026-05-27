@@ -157,12 +157,11 @@ const ComplianceQueue: React.FC = () => {
   };
 
   const handlePromote = async (hat: any) => {
-    if (!canPerformAction(level, 3)) {
-      toast({
-        title: "Insufficient Authority",
-        description: "Stewardship override requires Level 3 (Protocol Steward).",
-        variant: "destructive",
-      });
+    try {
+      authorizeGovernanceAction(level, 3, `TOPHAT_OVERRIDE:${hat.id}`);
+    } catch (e) {
+      const userMsg = e instanceof IndemnityViolation ? e.userMessage : "Insufficient clearance.";
+      toast({ title: "Insufficient Authority", description: userMsg, variant: "destructive" });
       return;
     }
     setActionBusyId(hat.id);
