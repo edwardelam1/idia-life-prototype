@@ -375,6 +375,11 @@ const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | str
 
   return (
     <div className="space-y-5">
+      <div className="px-2">
+        <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+          Clearance · {LEVEL_LABEL[ascensionLevel]}
+        </span>
+      </div>
       {proposals.map((prop) => (
         <ProposalCard
           key={prop.id}
@@ -382,6 +387,7 @@ const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | str
           balance={balance}
           votingPower={votingPower}
           currentUserId={userId}
+          ascensionLevel={ascensionLevel}
           onChanged={() => setInnerRefresh((n) => n + 1)}
         />
       ))}
