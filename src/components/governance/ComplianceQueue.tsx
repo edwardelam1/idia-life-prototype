@@ -14,8 +14,10 @@ import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
 import {
-  getAscensionLevel,
+  authorizeGovernanceAction,
   canPerformAction,
+  getAscensionLevel,
+  IndemnityViolation,
   LEVEL_LABEL,
   LEVEL_BADGE_CLASS,
   type AscensionLevel,
