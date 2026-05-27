@@ -293,6 +293,7 @@ const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | str
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+  const [ascensionLevel, setAscensionLevel] = useState<AscensionLevel>(0);
   const [innerRefresh, setInnerRefresh] = useState(0);
 
   useEffect(() => {
