@@ -8,6 +8,15 @@ import { Loader2, PenTool, FileText, ChevronRight, AlertCircle } from "lucide-re
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
+import {
+  authorizeGovernanceAction,
+  getAscensionLevel,
+  IndemnityViolation,
+  LEVEL_BADGE_CLASS,
+  LEVEL_LABEL,
+  type AscensionLevel,
+} from "@/utils/governanceGate";
+import { stage } from "@/lib/stageLogger";
 
 const CommitteeWorkspace: React.FC = () => {
   const [activeHats, setActiveHats] = useState<any[]>([]);
