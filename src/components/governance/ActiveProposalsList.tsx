@@ -75,7 +75,17 @@ const ProposalCard: React.FC<{
 
   const handleCastVote = async (support: "for" | "against") => {
     const s = stage("VOTE_CAST", support.toUpperCase());
-    s.start({ proposalId: proposal.id });
+    s.start({ proposalId: proposal.id, level: ascensionLevel });
+
+    // 0. Indemnity gate — Level 1 (Fiduciary Officer) required
+    try {
+      authorizeGovernanceAction(ascensionLevel, 1, `GOVERNANCE_VOTE:${proposal.id}`);
+    } catch (e) {
+      const userMsg = e instanceof IndemnityViolation ? e.userMessage : "Insufficient clearance.";
+      toast({ title: "Clearance Required", description: userMsg, variant: "destructive" });
+      s.fail(e);
+      return;
+    }
 
     // 1. Enforcement of Sovereign Delegation (Added as requested)
     if (!votingPower || parseFloat(votingPower.toString()) < 1) {
