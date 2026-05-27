@@ -453,7 +453,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                   </div>
                   <div className="text-center">
                     <p className="text-teal-100 text-[10px] font-medium uppercase font-bold">IDIA Token</p>
-                    <p className="text-xl font-black">{walletBalance?.idia_token_balance?.toFixed(2) || "0.00"}</p>
+                    <p className="text-xl font-black">{(walletBalance?.idia_token_balance ?? 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</p>
                   </div>
                 </div>
                 {!isProvisioned && (
@@ -515,9 +515,10 @@ const EnhancedWalletDashboard: React.FC = () => {
                   <div className="p-3 bg-gradient-to-br from-teal-50 to-blue-50 dark:from-teal-950 dark:to-blue-950 rounded-lg border">
                     <p className="text-xs text-muted-foreground">IDIA Token</p>
                     <p className="text-2xl font-bold mt-1">
-                      {balances?.idia
-                        ? Number(balances.idia.balanceFormatted).toFixed(2)
-                        : (walletBalance?.idia_token_balance ?? 0).toFixed(2)}
+                      {(balances?.idia
+                        ? Number(balances.idia.balanceFormatted)
+                        : (walletBalance?.idia_token_balance ?? 0)
+                      ).toLocaleString(undefined, { maximumFractionDigits: 4 })}
                       <span className="text-sm text-muted-foreground font-normal ml-1">IDIA</span>
                     </p>
                   </div>

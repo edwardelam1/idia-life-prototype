@@ -136,6 +136,7 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
 
   const activeQuorum = liveQuorum;
   const totalVotes = forVotes + againstVotes;
+  console.log(`[QUORUM_DEBUG] Final activeQuorum applied: ${activeQuorum}`);
 
   const pct = useMemo(() => {
     if (activeQuorum === 0) return totalVotes > 0 ? 100 : 0;
