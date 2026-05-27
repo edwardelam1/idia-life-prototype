@@ -8,6 +8,13 @@ import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { stage } from "@/lib/stageLogger";
 import { governanceService } from "@/services/governanceService";
+import {
+  authorizeGovernanceAction,
+  getAscensionLevel,
+  IndemnityViolation,
+  LEVEL_LABEL,
+  type AscensionLevel,
+} from "@/utils/governanceGate";
 
 interface Proposal {
   id: string;
