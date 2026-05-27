@@ -29,8 +29,9 @@ const ProposalCard: React.FC<{
   balance: number;
   votingPower: number | string;
   currentUserId: string | null;
+  ascensionLevel: AscensionLevel;
   onChanged: () => void;
-}> = ({ proposal, balance, votingPower, currentUserId, onChanged }) => {
+}> = ({ proposal, balance, votingPower, currentUserId, ascensionLevel, onChanged }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [hasVoted, setHasVoted] = useState<null | "for" | "against">(null);
