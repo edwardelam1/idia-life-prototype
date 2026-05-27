@@ -107,9 +107,20 @@ const CommitteeWorkspace: React.FC = () => {
       return;
     }
 
+    const s = stage("COMMITTEE_PROPOSE", "DRAFT_SUBMIT");
+    s.start({ committee: selectedCommittee, level: ascensionLevel });
+
+    // 0. Indemnity gate — Level 1 (Fiduciary Officer) required to draft motions
+    try {
+      authorizeGovernanceAction(ascensionLevel, 1, `PROPOSE_MOTION:${selectedCommittee}`);
+    } catch (e) {
+      const userMsg = e instanceof IndemnityViolation ? e.userMessage : "Insufficient clearance.";
+      toast({ title: "Clearance Required", description: userMsg, variant: "destructive" });
+      s.fail(e);
+      return;
+    }
+
     setIsSubmitting(true);
-    console.log(`[COMMITTEE_WORKSPACE] BEGIN: Executing proposal draft for committee: ${selectedCommittee}`);
-    
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Authentication lost.");
@@ -123,7 +134,7 @@ const CommitteeWorkspace: React.FC = () => {
         author_id: user.id,
         title: draftTitle,
         description: draftBody,
-        status: "active_vote", 
+        status: "active_vote",
         aca_hash_key: hash,
         aca_payload: payload
       });
@@ -135,12 +146,12 @@ const CommitteeWorkspace: React.FC = () => {
       setDraftTitle("");
       setDraftBody("");
       fetchWorkspaceData();
+      s.ok({ aca: hash.substring(0, 8) });
     } catch (error: any) {
-      console.error("[COMMITTEE_WORKSPACE] CRITICAL_STALL: Proposal submission failed:", error.message);
+      s.fail(error);
       toast({ title: "Submission Failed", description: error.message, variant: "destructive" });
     } finally {
       setIsSubmitting(false);
-      console.log("[COMMITTEE_WORKSPACE] END: Proposal draft execution.");
     }
   };
 
