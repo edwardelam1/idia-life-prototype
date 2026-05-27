@@ -110,7 +110,7 @@ const PendingActionsCarousel: React.FC<PendingActionsCarouselProps> = ({ escrowT
     console.log(`[VETO_ACTION] START: Initializing Negative Consent sequence for action: ${actionId}`);
     if (!isNative()) {
       toast({
-        title: "Native Device Required",
+        title: "Mobile Device Required",
         description: "Veto actions require Secure Enclave attestation. Please use the iOS or Android app.",
         variant: "destructive",
       });
@@ -136,7 +136,7 @@ const PendingActionsCarousel: React.FC<PendingActionsCarouselProps> = ({ escrowT
       console.log(`[VETO_ACTION] ACA_ANCHOR_END: Biological presence verified. SHA-256 Hash Generated: ${hash}`);
 
       console.log(`[VETO_ACTION] NETWORK_START: Transmitting secure veto payload to Wyoming Operational Gateway.`);
-      
+
       // FIX: Cast supabase to any to prevent 'never' type inference errors
       const { error: ledgerError } = await (supabase as any).from("dao_vetoes").insert({
         action_id: actionId,
