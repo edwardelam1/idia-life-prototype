@@ -187,7 +187,7 @@ const WalletDashboard = () => {
             </div>
             <div className="text-center">
               <p className="text-teal-100 text-xs font-medium">IDIA Token</p>
-              <p className="text-xl font-bold">{balance.idia_token_balance.toFixed(2)}</p>
+              <p className="text-xl font-bold">{balance.idia_token_balance.toLocaleString(undefined, { maximumFractionDigits: 4 })}</p>
             </div>
           </div>
         </CardContent>

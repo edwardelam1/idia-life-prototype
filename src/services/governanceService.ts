@@ -127,17 +127,50 @@ private async callRaw(methodName: string, params: any[] = []): Promise<any> {
   }
 }
 
-// Update getCurrentQuorum to use the new raw caller
+// Computes quorum as numerator * totalSupply / denominator, matching the Governor's internal math.
+private async computeQuorumFromSupply(): Promise<bigint | null> {
+  try {
+    const provider = this.getProvider();
+    const TOKEN_ABI = [
+      "function totalSupply() view returns (uint256)",
+    ];
+    const token = new ethers.Contract(PROTOCOL.idiaToken, TOKEN_ABI, provider);
+
+    const [numeratorRaw, denominatorRaw, supply] = await Promise.all([
+      this.callRaw("quorumNumerator", []).catch(() => null),
+      this.callRaw("QUORUM_DENOMINATOR", []).catch(() => null),
+      token.totalSupply().catch(() => 0n),
+    ]);
+
+    const numerator = numeratorRaw != null ? BigInt(numeratorRaw) : 4n;
+    const denominator = denominatorRaw != null ? BigInt(denominatorRaw) : 100n;
+
+    if (supply === 0n || denominator === 0n) return null;
+    const q = (BigInt(supply) * numerator) / denominator;
+    console.log(`[QUORUM_FALLBACK] supply=${supply} num=${numerator} den=${denominator} → quorum=${q}`);
+    return q;
+  } catch (e) {
+    console.warn("[QUORUM_FALLBACK] computeQuorumFromSupply failed", e);
+    return null;
+  }
+}
+
+// Update getCurrentQuorum to use the new raw caller, with deterministic fallback.
 async getCurrentQuorum(): Promise<string> {
   const provider = this.getProvider();
   try {
     const blockNumber = await provider.getBlockNumber();
-    // Bypassing contract object:
     const quorum = await this.callRaw("quorum", [blockNumber - 1]);
-    return quorum ? ethers.formatEther(quorum) : '0';
+    if (quorum && BigInt(quorum) > 0n) {
+      return ethers.formatEther(quorum);
+    }
+    console.warn("[QUORUM_FALLBACK] Governor.quorum() returned 0 — computing from totalSupply");
+    const computed = await this.computeQuorumFromSupply();
+    return computed ? ethers.formatEther(computed) : '0';
   } catch (e) {
     console.warn("[GovernanceService] getCurrentQuorum failed", e);
-    return '0';
+    const computed = await this.computeQuorumFromSupply();
+    return computed ? ethers.formatEther(computed) : '0';
   }
 }
 
@@ -147,13 +180,21 @@ async getCurrentQuorum(): Promise<string> {
     const gov = this.getGovernorReadOnly();
     try {
       const snapshotBlock = await gov.proposalSnapshot(proposalId);
-      if (Number(snapshotBlock) === 0) return '0';
-      
+      if (Number(snapshotBlock) === 0) {
+        const computed = await this.computeQuorumFromSupply();
+        return computed ? ethers.formatEther(computed) : '0';
+      }
+
       const quorum = await gov.quorum(snapshotBlock);
-      return ethers.formatEther(quorum);
+      if (BigInt(quorum) > 0n) return ethers.formatEther(quorum);
+
+      console.warn(`[QUORUM_FALLBACK] proposal ${proposalId} quorum=0 — falling back to supply math`);
+      const computed = await this.computeQuorumFromSupply();
+      return computed ? ethers.formatEther(computed) : '0';
     } catch (error) {
       console.error(`[GovernanceService] Quorum fetch failed for proposal ${proposalId}:`, error);
-      return '0';
+      const computed = await this.computeQuorumFromSupply();
+      return computed ? ethers.formatEther(computed) : '0';
     }
   }
 

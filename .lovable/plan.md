@@ -1,39 +1,46 @@
-# Plan: Live Quorum Telemetry + On-Chain Proposal Submission
+# Fix 1 — IDIA Balance Precision Mismatch
 
-## 1. Dynamic Quorum in `LifecycleTelemetry.tsx`
+**Root cause:** `WalletDashboard.tsx` and `EnhancedWalletDashboard.tsx` render `idia_token_balance.toFixed(2)`, which rounds `0.998` to `"1.00"`. `GovernanceScreen.tsx` uses `toLocaleString(undefined, { maximumFractionDigits: 4 })`, which correctly shows `"0.998"`.
 
-Currently `quorum = proposal?.quorum_threshold ?? 1000` — a static DB column with a hardcoded `1000` fallback. The real quorum lives on the `IDIAGovernor` contract and changes with token supply / governor params.
+**Change (presentation-only):**
+- `src/components/WalletDashboard.tsx` (line 190) — replace `balance.idia_token_balance.toFixed(2)` with `balance.idia_token_balance.toLocaleString(undefined, { maximumFractionDigits: 4 })`.
+- `src/components/enhanced/EnhancedWalletDashboard.tsx` (lines 456 and 520) — same replacement, preserving the existing `?? 0` / fallback guards.
 
-**Changes to `src/components/governance/LifecycleTelemetry.tsx` (DetailDialog only):**
+No data layer or hook changes.
 
-- Add a `const [quorum, setQuorum] = useState<number | null>(null)` state.
-- Inside the existing tally `useEffect`, after the Supabase fetch, fire `governanceService.getCurrentQuorum()` in parallel and set the result (parsed as `Number`).
-- Wrap the call in its own stage tracer: `stage("LIFECYCLE_DETAIL", "QUORUM_FETCH")` with `[START]`, `[SUCCESS]` (value), `[FAIL]`, `[END]` markers.
-- Fallback order for display: live on-chain value → `proposal.quorum_threshold` → `"…"` (never the static `1000`).
-- Header shows `{totalVotes} / {quorum ?? "…"}`. Progress bar uses `0` when quorum is still loading to avoid divide-by-zero.
-- No DB migration; no change to the outer list query.
+---
 
-## 2. On-Chain Proposal Submission in `CreateDaoProposalModal.tsx`
+# Fix 2 — Quorum Progress Shows `0/0`
 
-Apply the user-provided patch verbatim:
+**Root cause:** In `LifecycleTelemetry.tsx`'s `DetailDialog`, when a proposal has no `on_chain_id` (the common case right now), it falls back to `governanceService.getCurrentQuorum()`. That method calls `Governor.quorum(blockNumber - 1)`, which on the live Governor returns `0` because the past-total-supply checkpoint at that block is 0 (the IDIA token's voting checkpoint history is sparse). The UI then shows `0 / 0`.
 
-- Import `governanceService` from `@/services/governanceService`.
-- In `handleSubmit`, between `AUTH_SUCCESS` and `DB_INSERT_START`, add the **CHAIN execution block**:
-  - Call `governanceService.propose(\`# ${safeTitle}\n\n${safeDescription}\`)`.
-  - Capture `hash` and `proposalId`.
-  - Wrap in inner try/catch that rethrows a wallet-friendly error message (`chainError.reason || chainError.message`).
-  - Log `[PROPOSAL_SUBMIT] CHAIN_START` / `CHAIN_SUCCESS` / `CHAIN_FAIL`.
-- DB insert remains unchanged (no new columns written — `on_chain_id` / `tx_hash` stay commented out since the schema does not yet have them).
-- Toast text updated to "Proposal live on-chain!".
-- `TEMP_DISABLE_AI_VALIDATION` constant left intact (still skips AI validator).
+**Change:** Compute the live quorum deterministically from `quorumNumerator()` × current `totalSupply()` ÷ `QUORUM_DENOMINATOR`, which is what the Governor uses internally and will always reflect the real threshold.
+
+### `src/services/governanceService.ts`
+Replace the body of `getCurrentQuorum()` with:
+
+1. Call `quorum(blockNumber - 1)` first (preserves existing behavior when checkpoints exist).
+2. If the result is `0`, compute fallback:
+   - `numerator = await callRaw("quorumNumerator", [])` (no-arg overload)
+   - `denominator = await callRaw("QUORUM_DENOMINATOR", [])` (defaults to `100` if missing)
+   - `totalSupply = await IDIA_TOKEN.totalSupply()` via a read-only ERC20 contract on `PROTOCOL.idiaToken`
+   - Return `ethers.formatEther((totalSupply * numerator) / denominator)`
+3. Wrap each step in try/catch with `[QUORUM_FALLBACK]` log markers; final fallback is `'0'`.
+
+Also apply the same numerator × supply ÷ denominator fallback inside `getProposalQuorum()` when `gov.quorum(snapshotBlock)` returns `0`, so detail dialogs for proposals that *do* have an `on_chain_id` also recover gracefully.
+
+### `src/components/governance/LifecycleTelemetry.tsx`
+No structural change. `liveQuorum` now receives a non-zero value, and the existing display (`{totalVotes} / {activeQuorum}`) and `pct` math will render correctly. Add one log line `[QUORUM_DEBUG] Final activeQuorum applied: ${activeQuorum}` for confirmation.
+
+---
 
 ## Out of Scope
-
-- No new DB columns for `tx_hash` / `on_chain_id` (can be a follow-up).
-- No changes to `governanceRelay` (correctly bypassed — proposing requires the user's signed tx to prove `proposalThreshold`).
-- No changes to vote tally logic (already weight-aware).
+- No DB migration.
+- No changes to vote-tally weighting, `propose`, or relayer paths.
+- No new `governanceService` methods beyond editing the two read functions above.
 
 ## Files Touched
-
-- `src/components/governance/LifecycleTelemetry.tsx`
-- `src/components/governance/CreateDaoProposalModal.tsx`
+- `src/components/WalletDashboard.tsx`
+- `src/components/enhanced/EnhancedWalletDashboard.tsx`
+- `src/services/governanceService.ts`
+- `src/components/governance/LifecycleTelemetry.tsx` (one log line)
