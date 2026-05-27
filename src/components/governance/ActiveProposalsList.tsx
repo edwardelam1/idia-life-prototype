@@ -74,21 +74,28 @@ const ProposalCard: React.FC<{
   }, [proposal.id, currentUserId]);
 
   const handleCastVote = async (support: "for" | "against") => {
+    console.log(`[BEGIN] handleCastVote execution started | Proposal: ${proposal.id} | Intent: ${support}`);
     const s = stage("VOTE_CAST", support.toUpperCase());
     s.start({ proposalId: proposal.id, level: ascensionLevel });
 
     // 0. Indemnity gate — Level 1 (Fiduciary Officer) required
     try {
+      console.log(`[PROCESS] Validating Indemnity Gate for Ascension Level: ${ascensionLevel}`);
       authorizeGovernanceAction(ascensionLevel, 1, `GOVERNANCE_VOTE:${proposal.id}`);
     } catch (e) {
       const userMsg = e instanceof IndemnityViolation ? e.userMessage : "Insufficient clearance.";
+      console.error(`[STALL DETECTED] Indemnity Violation: ${userMsg}`);
       toast({ title: "Clearance Required", description: userMsg, variant: "destructive" });
       s.fail(e);
       return;
     }
 
+    const numericVotingPower = parseFloat(votingPower?.toString() || "0");
+    console.log(`[PROCESS] Parsed Sovereign Voting Power: ${numericVotingPower}`);
+
     // 1. Enforcement of Sovereign Delegation (Added as requested)
-    if (!votingPower || parseFloat(votingPower.toString()) < 1) {
+    if (!votingPower || numericVotingPower < 1) {
+      console.error(`[STALL DETECTED] Insufficient voting power. Detected: ${numericVotingPower}`);
       toast({
         title: "Action Required",
         description: "You must Activate Voting Power before casting a vote.",
@@ -99,6 +106,7 @@ const ProposalCard: React.FC<{
     }
 
     if (balance < 1) {
+      console.error(`[STALL DETECTED] Insufficient IDIA balance. Balance: ${balance}`);
       toast({
         title: "Insufficient IDIA",
         description: "1 IDIA is required to cast a sovereign vote.",
@@ -107,37 +115,49 @@ const ProposalCard: React.FC<{
       s.fail("insufficient_balance");
       return;
     }
+
     setIsSubmitting(true);
     try {
+      console.log(`[PROCESS] Fetching Supabase Auth User...`);
       const {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
-      if (authError || !user) throw new Error("Sovereign authentication failed.");
+      if (authError || !user) {
+        console.error(`[STALL DETECTED] Sovereign authentication failed: ${authError?.message}`);
+        throw new Error("Sovereign authentication failed.");
+      }
 
+      console.log(`[PROCESS] Generating ACA Hash for Ledger Write...`);
       const { hash, payload } = await generateACAHash(user.id, `proposal_vote_${proposal.id}`, [
         "GOVERNANCE_VOTE",
         "LEDGER_WRITE",
       ]);
+      console.log(`[PROCESS] ACA Hash Generated: ${hash.substring(0, 8)}...`);
 
+      console.log(`[PROCESS] Inserting Vote into Supabase with weight: ${numericVotingPower}`);
       const { error: voteError } = await (supabase as any).from("dao_votes").insert({
         proposal_id: proposal.id,
         user_id: user.id,
         vote_type: support,
-        vote_weight: 1,
+        vote_weight: numericVotingPower,
         credits_spent: 1,
         aca_hash_key: hash,
         aca_payload: payload,
       });
+
       if (voteError) {
         if (voteError.code === "23505") {
+          console.warn(`[WARNING] Duplicate Vote Detected (Code 23505). Intent already recorded.`);
           toast({ title: "Already Voted", description: "Intent already recorded.", variant: "destructive" });
           setHasVoted(support);
           return;
         }
+        console.error(`[STALL DETECTED] Supabase Insert Error: ${voteError.message}`);
         throw voteError;
       }
 
+      console.log(`[PROCESS] Executing wallet balance burn RPC...`);
       const { error: burnError } = await (supabase as any).rpc("increment_wallet_balance", {
         target_user_id: user.id,
         amount: -1,
@@ -148,11 +168,13 @@ const ProposalCard: React.FC<{
       setVoteCount((c) => c + 1);
       toast({
         title: "Intent Cast",
-        description: `Recorded ${support.toUpperCase()} · ACA ${hash.substring(0, 8)}…`,
+        description: `Recorded ${support.toUpperCase()} with ${numericVotingPower} weight · ACA ${hash.substring(0, 8)}…`,
       });
       onChanged();
       s.ok();
+      console.log(`[END] handleCastVote execution completed successfully.`);
     } catch (e: any) {
+      console.error(`[STALL DETECTED] Unhandled Exception during voting: ${e.message}`);
       s.fail(e);
       toast({ title: "Submission Failed", description: e.message, variant: "destructive" });
     } finally {
@@ -230,7 +252,7 @@ const ProposalCard: React.FC<{
 
         <div className="p-4 bg-teal-50/50 dark:bg-teal-950/30 rounded-2xl border border-teal-100/50 dark:border-teal-900/50 space-y-3">
           <p className="text-[10px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-200">
-            Cast Sovereign Vote · 1 IDIA
+            Cast Sovereign Vote · {votingPower ? Number(votingPower).toLocaleString() : 0} IDIAX
           </p>
           <div className="grid grid-cols-2 gap-2">
             <Button
@@ -297,61 +319,65 @@ const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | str
   const [innerRefresh, setInnerRefresh] = useState(0);
 
   useEffect(() => {
-  let isMounted = true;
-  (async () => {
-    const s = stage("ACTIVE_PROPOSALS", "FETCH_HYBRID");
-    s.start();
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (isMounted) setUserId(user?.id ?? null);
+    let isMounted = true;
+    (async () => {
+      const s = stage("ACTIVE_PROPOSALS", "FETCH_HYBRID");
+      s.start();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (isMounted) setUserId(user?.id ?? null);
 
-      // Hydrate viewer's ascension level from active hats
-      if (user && isMounted) {
-        const { data: hats } = await (supabase as any)
-          .from("dao_hats")
-          .select("hat_type")
-          .eq("user_id", user.id)
-          .eq("eligibility_status", "active")
-          .is("revoked_at", null);
-        const hatSet = new Set<string>((hats || []).map((h: any) => h.hat_type));
-        if (isMounted) setAscensionLevel(getAscensionLevel(hatSet));
+        // Hydrate viewer's ascension level from active hats
+        if (user && isMounted) {
+          const { data: hats } = await (supabase as any)
+            .from("dao_hats")
+            .select("hat_type")
+            .eq("user_id", user.id)
+            .eq("eligibility_status", "active")
+            .is("revoked_at", null);
+          const hatSet = new Set<string>((hats || []).map((h: any) => h.hat_type));
+          if (isMounted) setAscensionLevel(getAscensionLevel(hatSet));
+        }
+
+        // Fetch from both sources
+        const [dbProposals, onChainProposals] = await Promise.all([
+          (supabase as any)
+            .from("dao_proposals")
+            .select("id, title, description, status, proposer_id")
+            .order("created_at", { ascending: false }),
+          governanceService.getRecentProposals(user?.id || ""),
+        ]);
+
+        if (dbProposals.error) throw dbProposals.error;
+
+        // Merge logic: Index on-chain IDs to avoid duplicates if necessary
+        const combined = [
+          ...(dbProposals.data || []),
+          ...onChainProposals.map((p) => ({
+            id: p.proposalId,
+            title: p.description.split("\n")[0], // Extract title from description if needed
+            description: p.description,
+            status: p.stateName,
+            proposer_id: p.proposer,
+          })),
+        ];
+        // Logic to append or reconcile onChainProposals goes here
+
+        if (isMounted) setProposals(combined);
+        s.ok({ count: combined.length });
+      } catch (err: any) {
+        s.fail(err);
+        toast({ title: "Telemetry Stalled", description: err.message, variant: "destructive" });
+      } finally {
+        if (isMounted) setLoading(false);
       }
-
-      // Fetch from both sources
-      const [dbProposals, onChainProposals] = await Promise.all([
-        (supabase as any)
-          .from("dao_proposals")
-          .select("id, title, description, status, proposer_id")
-          .order("created_at", { ascending: false }),
-        governanceService.getRecentProposals(user?.id || "")
-      ]);
-
-      if (dbProposals.error) throw dbProposals.error;
-
-      // Merge logic: Index on-chain IDs to avoid duplicates if necessary
-      const combined = [
-  ...(dbProposals.data || []),
-  ...onChainProposals.map(p => ({
-    id: p.proposalId,
-    title: p.description.split('\n')[0], // Extract title from description if needed
-    description: p.description,
-    status: p.stateName,
-    proposer_id: p.proposer
-  }))
-];
-      // Logic to append or reconcile onChainProposals goes here
-      
-      if (isMounted) setProposals(combined);
-      s.ok({ count: combined.length });
-    } catch (err: any) {
-      s.fail(err);
-      toast({ title: "Telemetry Stalled", description: err.message, variant: "destructive" });
-    } finally {
-      if (isMounted) setLoading(false);
-    }
-  })();
-  return () => { isMounted = false; };
-}, [refreshTrigger, innerRefresh]);
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [refreshTrigger, innerRefresh]);
 
   if (loading) {
     return (
