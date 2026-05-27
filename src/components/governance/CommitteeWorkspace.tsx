@@ -175,7 +175,12 @@ const CommitteeWorkspace: React.FC = () => {
     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
       {/* Sidebar: Active Hats */}
       <div className="md:col-span-1 space-y-2">
-        <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Your Committees</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Your Committees</h2>
+          <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${LEVEL_BADGE_CLASS[ascensionLevel]}`}>
+            L{ascensionLevel}
+          </span>
+        </div>
         {activeHats.map((hat) => (
           <Button
             key={hat.hat_type}
@@ -186,6 +191,7 @@ const CommitteeWorkspace: React.FC = () => {
             {hat.hat_type.replace('_', ' ')}
           </Button>
         ))}
+        <p className="text-[9px] text-muted-foreground pt-2">Clearance · {LEVEL_LABEL[ascensionLevel]}</p>
       </div>
 
       {/* Main Area: Proposal Ledger */}
@@ -194,7 +200,13 @@ const CommitteeWorkspace: React.FC = () => {
           <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">
             {selectedCommittee?.replace('_', ' ')} Ledger
           </h2>
-          <Button size="sm" className="bg-teal-700 hover:bg-teal-800" onClick={() => setIsDrafting(true)}>
+          <Button
+            size="sm"
+            className="bg-teal-700 hover:bg-teal-800"
+            onClick={() => setIsDrafting(true)}
+            disabled={ascensionLevel < 1}
+            title={ascensionLevel < 1 ? "Level 1 (Fiduciary Officer) required" : undefined}
+          >
             <PenTool className="w-4 h-4 mr-2" /> New Motion
           </Button>
         </div>
