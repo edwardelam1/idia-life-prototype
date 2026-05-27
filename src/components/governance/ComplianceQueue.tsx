@@ -194,6 +194,22 @@ const ComplianceQueue: React.FC = () => {
       </div>
     );
 
+  // Top-level visibility gate — VIEW_COMPLIANCE_QUEUE requires Level 2+
+  if (!canPerformAction(level, 2)) {
+    console.warn(`[COMPLIANCE_QUEUE] Access denied · Level ${level} (${LEVEL_LABEL[level]}) below required L2.`);
+    return (
+      <Card className="border-red-100 bg-red-50/50">
+        <CardContent className="flex flex-col items-center justify-center p-8 text-center space-y-2">
+          <ShieldCheck className="w-8 h-8 text-red-500 mb-2" />
+          <h3 className="font-bold text-red-900">Restricted · Oversight Chair Required</h3>
+          <p className="text-xs text-red-700 max-w-md">
+            The Compliance Queue is gated to Level 2+ (Oversight Chair). Your current clearance: {LEVEL_LABEL[level]}.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
