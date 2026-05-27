@@ -20,6 +20,7 @@ import { stage } from "@/lib/stageLogger";
 
 const CommitteeWorkspace: React.FC = () => {
   const [activeHats, setActiveHats] = useState<any[]>([]);
+  const [ascensionLevel, setAscensionLevel] = useState<AscensionLevel>(0);
   const [selectedCommittee, setSelectedCommittee] = useState<string | null>(null);
   const [proposals, setProposals] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
