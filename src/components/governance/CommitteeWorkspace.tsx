@@ -8,9 +8,19 @@ import { Loader2, PenTool, FileText, ChevronRight, AlertCircle } from "lucide-re
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
+import {
+  authorizeGovernanceAction,
+  getAscensionLevel,
+  IndemnityViolation,
+  LEVEL_BADGE_CLASS,
+  LEVEL_LABEL,
+  type AscensionLevel,
+} from "@/utils/governanceGate";
+import { stage } from "@/lib/stageLogger";
 
 const CommitteeWorkspace: React.FC = () => {
   const [activeHats, setActiveHats] = useState<any[]>([]);
+  const [ascensionLevel, setAscensionLevel] = useState<AscensionLevel>(0);
   const [selectedCommittee, setSelectedCommittee] = useState<string | null>(null);
   const [proposals, setProposals] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,8 +46,10 @@ const CommitteeWorkspace: React.FC = () => {
         .is("revoked_at", null);
 
       if (hatsError) throw hatsError;
-      
+
       setActiveHats(hats || []);
+      const hatSet = new Set<string>((hats || []).map((h: any) => h.hat_type));
+      setAscensionLevel(getAscensionLevel(hatSet));
       
       // Auto-select the first committee if none is selected
       const currentCommittee = selectedCommittee || (hats && hats.length > 0 ? hats[0].hat_type : null);
@@ -95,9 +107,20 @@ const CommitteeWorkspace: React.FC = () => {
       return;
     }
 
+    const s = stage("COMMITTEE_PROPOSE", "DRAFT_SUBMIT");
+    s.start({ committee: selectedCommittee, level: ascensionLevel });
+
+    // 0. Indemnity gate — Level 1 (Fiduciary Officer) required to draft motions
+    try {
+      authorizeGovernanceAction(ascensionLevel, 1, `PROPOSE_MOTION:${selectedCommittee}`);
+    } catch (e) {
+      const userMsg = e instanceof IndemnityViolation ? e.userMessage : "Insufficient clearance.";
+      toast({ title: "Clearance Required", description: userMsg, variant: "destructive" });
+      s.fail(e);
+      return;
+    }
+
     setIsSubmitting(true);
-    console.log(`[COMMITTEE_WORKSPACE] BEGIN: Executing proposal draft for committee: ${selectedCommittee}`);
-    
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Authentication lost.");
@@ -111,7 +134,7 @@ const CommitteeWorkspace: React.FC = () => {
         author_id: user.id,
         title: draftTitle,
         description: draftBody,
-        status: "active_vote", 
+        status: "active_vote",
         aca_hash_key: hash,
         aca_payload: payload
       });
@@ -123,12 +146,12 @@ const CommitteeWorkspace: React.FC = () => {
       setDraftTitle("");
       setDraftBody("");
       fetchWorkspaceData();
+      s.ok({ aca: hash.substring(0, 8) });
     } catch (error: any) {
-      console.error("[COMMITTEE_WORKSPACE] CRITICAL_STALL: Proposal submission failed:", error.message);
+      s.fail(error);
       toast({ title: "Submission Failed", description: error.message, variant: "destructive" });
     } finally {
       setIsSubmitting(false);
-      console.log("[COMMITTEE_WORKSPACE] END: Proposal draft execution.");
     }
   };
 
@@ -152,7 +175,12 @@ const CommitteeWorkspace: React.FC = () => {
     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
       {/* Sidebar: Active Hats */}
       <div className="md:col-span-1 space-y-2">
-        <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Your Committees</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Your Committees</h2>
+          <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${LEVEL_BADGE_CLASS[ascensionLevel]}`}>
+            L{ascensionLevel}
+          </span>
+        </div>
         {activeHats.map((hat) => (
           <Button
             key={hat.hat_type}
@@ -163,6 +191,7 @@ const CommitteeWorkspace: React.FC = () => {
             {hat.hat_type.replace('_', ' ')}
           </Button>
         ))}
+        <p className="text-[9px] text-muted-foreground pt-2">Clearance · {LEVEL_LABEL[ascensionLevel]}</p>
       </div>
 
       {/* Main Area: Proposal Ledger */}
@@ -171,7 +200,13 @@ const CommitteeWorkspace: React.FC = () => {
           <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">
             {selectedCommittee?.replace('_', ' ')} Ledger
           </h2>
-          <Button size="sm" className="bg-teal-700 hover:bg-teal-800" onClick={() => setIsDrafting(true)}>
+          <Button
+            size="sm"
+            className="bg-teal-700 hover:bg-teal-800"
+            onClick={() => setIsDrafting(true)}
+            disabled={ascensionLevel < 1}
+            title={ascensionLevel < 1 ? "Level 1 (Fiduciary Officer) required" : undefined}
+          >
             <PenTool className="w-4 h-4 mr-2" /> New Motion
           </Button>
         </div>

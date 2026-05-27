@@ -14,8 +14,10 @@ import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
 import {
-  getAscensionLevel,
+  authorizeGovernanceAction,
   canPerformAction,
+  getAscensionLevel,
+  IndemnityViolation,
   LEVEL_LABEL,
   LEVEL_BADGE_CLASS,
   type AscensionLevel,
@@ -75,12 +77,11 @@ const ComplianceQueue: React.FC = () => {
 
   const handleVeto = async () => {
     if (!vetoTarget) return;
-    if (!canPerformAction(level, 3)) {
-      toast({
-        title: "Insufficient Authority",
-        description: "Veto requires Level 3 Ascension (Protocol Steward).",
-        variant: "destructive",
-      });
+    try {
+      authorizeGovernanceAction(level, 3, `VETO_COMMITTEE_APPLICATION:${vetoTarget.id}`);
+    } catch (e) {
+      const userMsg = e instanceof IndemnityViolation ? e.userMessage : "Insufficient clearance.";
+      toast({ title: "Insufficient Authority", description: userMsg, variant: "destructive" });
       return;
     }
     setActionBusyId(vetoTarget.id);
@@ -116,12 +117,11 @@ const ComplianceQueue: React.FC = () => {
   };
 
   const handleExtend = async (target: any) => {
-    if (!canPerformAction(level, 2)) {
-      toast({
-        title: "Insufficient Authority",
-        description: "Extending the veto window requires Level 2 (Oversight Chair).",
-        variant: "destructive",
-      });
+    try {
+      authorizeGovernanceAction(level, 2, `EXTEND_VETO_WINDOW:${target.id}`);
+    } catch (e) {
+      const userMsg = e instanceof IndemnityViolation ? e.userMessage : "Insufficient clearance.";
+      toast({ title: "Insufficient Authority", description: userMsg, variant: "destructive" });
       return;
     }
     setActionBusyId(target.id);
@@ -157,12 +157,11 @@ const ComplianceQueue: React.FC = () => {
   };
 
   const handlePromote = async (hat: any) => {
-    if (!canPerformAction(level, 3)) {
-      toast({
-        title: "Insufficient Authority",
-        description: "Stewardship override requires Level 3 (Protocol Steward).",
-        variant: "destructive",
-      });
+    try {
+      authorizeGovernanceAction(level, 3, `TOPHAT_OVERRIDE:${hat.id}`);
+    } catch (e) {
+      const userMsg = e instanceof IndemnityViolation ? e.userMessage : "Insufficient clearance.";
+      toast({ title: "Insufficient Authority", description: userMsg, variant: "destructive" });
       return;
     }
     setActionBusyId(hat.id);
@@ -194,6 +193,22 @@ const ComplianceQueue: React.FC = () => {
         <Loader2 className="animate-spin text-teal-600" />
       </div>
     );
+
+  // Top-level visibility gate — VIEW_COMPLIANCE_QUEUE requires Level 2+
+  if (!canPerformAction(level, 2)) {
+    console.warn(`[COMPLIANCE_QUEUE] Access denied · Level ${level} (${LEVEL_LABEL[level]}) below required L2.`);
+    return (
+      <Card className="border-red-100 bg-red-50/50">
+        <CardContent className="flex flex-col items-center justify-center p-8 text-center space-y-2">
+          <ShieldCheck className="w-8 h-8 text-red-500 mb-2" />
+          <h3 className="font-bold text-red-900">Restricted · Oversight Chair Required</h3>
+          <p className="text-xs text-red-700 max-w-md">
+            The Compliance Queue is gated to Level 2+ (Oversight Chair). Your current clearance: {LEVEL_LABEL[level]}.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-4">

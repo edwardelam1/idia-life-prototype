@@ -33,3 +33,53 @@ export const canPerformAction = (
   userLevel: AscensionLevel,
   required: AscensionLevel,
 ): boolean => userLevel >= required;
+
+/**
+ * Single source of truth for action → required level mapping.
+ * Mirrors the Indemnified Governance Matrix.
+ */
+export const ACTION_REQUIRED_LEVEL = {
+  VIEW_COMPLIANCE_QUEUE: 2,
+  PROPOSE_MOTION: 1,
+  SUBMIT_PROPOSAL: 1,
+  GOVERNANCE_VOTE: 1,
+  EXTEND_VETO_WINDOW: 2,
+  VETO_COMMITTEE_APPLICATION: 3,
+  TOPHAT_OVERRIDE: 3,
+  AUTO_PROMOTE: 3,
+} as const satisfies Record<string, AscensionLevel>;
+
+export type GovernanceAction = keyof typeof ACTION_REQUIRED_LEVEL;
+
+/**
+ * Explicit indemnity gate. Throws an `[INDEMNITY_VIOLATION]` error when the
+ * caller's level is insufficient. The thrown error carries a sanitized
+ * `userMessage` for UI display, while the full granular context (level +
+ * action) is emitted via console.error for stage/audit log ingestion.
+ *
+ * Contextual Toast Strategy:
+ *   - Log: full level + action + required clearance
+ *   - UI:  generic "Insufficient clearance for this action"
+ */
+export class IndemnityViolation extends Error {
+  userMessage: string;
+  constructor(message: string, userMessage: string) {
+    super(message);
+    this.name = "IndemnityViolation";
+    this.userMessage = userMessage;
+  }
+}
+
+export const authorizeGovernanceAction = (
+  userLevel: AscensionLevel,
+  requiredLevel: AscensionLevel,
+  actionContext: string,
+): true => {
+  if (userLevel < requiredLevel) {
+    const fullMsg = `[INDEMNITY_VIOLATION] Role Level ${userLevel} (${LEVEL_LABEL[userLevel]}) lacks clearance for ${actionContext}. Required: Level ${requiredLevel} (${LEVEL_LABEL[requiredLevel]}).`;
+    console.error(fullMsg);
+    const userMsg = `Insufficient clearance. ${LEVEL_LABEL[requiredLevel]} required.`;
+    throw new IndemnityViolation(fullMsg, userMsg);
+  }
+  return true;
+};

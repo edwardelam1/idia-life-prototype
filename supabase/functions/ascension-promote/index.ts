@@ -85,6 +85,25 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+    // Tophat indemnity: ACA hash must be a real SHA-256 (64 hex chars), not a stub
+    if (!/^[a-f0-9]{64}$/i.test(aca_hash)) {
+      console.error("[ASCENSION_PROMOTE] INDEMNITY_VIOLATION: Tophat override rejected — malformed ACA hash", {
+        caller: callerId,
+        hat_id,
+        aca_hash_len: aca_hash.length,
+      });
+      return new Response(
+        JSON.stringify({ error: "Invalid ACA hash — Tophat overrides require a verified SHA-256 attestation." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    // Audit anchor: every L3 Tophat action must be visible in the log trail
+    console.log("[ASCENSION_PROMOTE] TOPHAT_OVERRIDE_ANCHOR", {
+      caller: callerId,
+      hat_id,
+      aca_hash: aca_hash.substring(0, 12) + "…",
+      scopes: aca_payload?.consent_scope,
+    });
 
     // Best-effort ACA artifact write — table may not exist in every env
     try {

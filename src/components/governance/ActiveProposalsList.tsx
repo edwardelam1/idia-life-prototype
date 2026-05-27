@@ -8,6 +8,13 @@ import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { stage } from "@/lib/stageLogger";
 import { governanceService } from "@/services/governanceService";
+import {
+  authorizeGovernanceAction,
+  getAscensionLevel,
+  IndemnityViolation,
+  LEVEL_LABEL,
+  type AscensionLevel,
+} from "@/utils/governanceGate";
 
 interface Proposal {
   id: string;
@@ -22,8 +29,9 @@ const ProposalCard: React.FC<{
   balance: number;
   votingPower: number | string;
   currentUserId: string | null;
+  ascensionLevel: AscensionLevel;
   onChanged: () => void;
-}> = ({ proposal, balance, votingPower, currentUserId, onChanged }) => {
+}> = ({ proposal, balance, votingPower, currentUserId, ascensionLevel, onChanged }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [hasVoted, setHasVoted] = useState<null | "for" | "against">(null);
@@ -67,7 +75,17 @@ const ProposalCard: React.FC<{
 
   const handleCastVote = async (support: "for" | "against") => {
     const s = stage("VOTE_CAST", support.toUpperCase());
-    s.start({ proposalId: proposal.id });
+    s.start({ proposalId: proposal.id, level: ascensionLevel });
+
+    // 0. Indemnity gate — Level 1 (Fiduciary Officer) required
+    try {
+      authorizeGovernanceAction(ascensionLevel, 1, `GOVERNANCE_VOTE:${proposal.id}`);
+    } catch (e) {
+      const userMsg = e instanceof IndemnityViolation ? e.userMessage : "Insufficient clearance.";
+      toast({ title: "Clearance Required", description: userMsg, variant: "destructive" });
+      s.fail(e);
+      return;
+    }
 
     // 1. Enforcement of Sovereign Delegation (Added as requested)
     if (!votingPower || parseFloat(votingPower.toString()) < 1) {
@@ -275,6 +293,7 @@ const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | str
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+  const [ascensionLevel, setAscensionLevel] = useState<AscensionLevel>(0);
   const [innerRefresh, setInnerRefresh] = useState(0);
 
   useEffect(() => {
@@ -285,6 +304,18 @@ const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | str
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (isMounted) setUserId(user?.id ?? null);
+
+      // Hydrate viewer's ascension level from active hats
+      if (user && isMounted) {
+        const { data: hats } = await (supabase as any)
+          .from("dao_hats")
+          .select("hat_type")
+          .eq("user_id", user.id)
+          .eq("eligibility_status", "active")
+          .is("revoked_at", null);
+        const hatSet = new Set<string>((hats || []).map((h: any) => h.hat_type));
+        if (isMounted) setAscensionLevel(getAscensionLevel(hatSet));
+      }
 
       // Fetch from both sources
       const [dbProposals, onChainProposals] = await Promise.all([
@@ -344,6 +375,11 @@ const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | str
 
   return (
     <div className="space-y-5">
+      <div className="px-2">
+        <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+          Clearance · {LEVEL_LABEL[ascensionLevel]}
+        </span>
+      </div>
       {proposals.map((prop) => (
         <ProposalCard
           key={prop.id}
@@ -351,6 +387,7 @@ const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | str
           balance={balance}
           votingPower={votingPower}
           currentUserId={userId}
+          ascensionLevel={ascensionLevel}
           onChanged={() => setInnerRefresh((n) => n + 1)}
         />
       ))}
