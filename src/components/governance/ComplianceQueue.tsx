@@ -77,12 +77,11 @@ const ComplianceQueue: React.FC = () => {
 
   const handleVeto = async () => {
     if (!vetoTarget) return;
-    if (!canPerformAction(level, 3)) {
-      toast({
-        title: "Insufficient Authority",
-        description: "Veto requires Level 3 Ascension (Protocol Steward).",
-        variant: "destructive",
-      });
+    try {
+      authorizeGovernanceAction(level, 3, `VETO_COMMITTEE_APPLICATION:${vetoTarget.id}`);
+    } catch (e) {
+      const userMsg = e instanceof IndemnityViolation ? e.userMessage : "Insufficient clearance.";
+      toast({ title: "Insufficient Authority", description: userMsg, variant: "destructive" });
       return;
     }
     setActionBusyId(vetoTarget.id);
