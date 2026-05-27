@@ -305,6 +305,18 @@ const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | str
       const { data: { user } } = await supabase.auth.getUser();
       if (isMounted) setUserId(user?.id ?? null);
 
+      // Hydrate viewer's ascension level from active hats
+      if (user && isMounted) {
+        const { data: hats } = await (supabase as any)
+          .from("dao_hats")
+          .select("hat_type")
+          .eq("user_id", user.id)
+          .eq("eligibility_status", "active")
+          .is("revoked_at", null);
+        const hatSet = new Set<string>((hats || []).map((h: any) => h.hat_type));
+        if (isMounted) setAscensionLevel(getAscensionLevel(hatSet));
+      }
+
       // Fetch from both sources
       const [dbProposals, onChainProposals] = await Promise.all([
         (supabase as any)
