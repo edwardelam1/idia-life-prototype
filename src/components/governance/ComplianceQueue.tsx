@@ -117,12 +117,11 @@ const ComplianceQueue: React.FC = () => {
   };
 
   const handleExtend = async (target: any) => {
-    if (!canPerformAction(level, 2)) {
-      toast({
-        title: "Insufficient Authority",
-        description: "Extending the veto window requires Level 2 (Oversight Chair).",
-        variant: "destructive",
-      });
+    try {
+      authorizeGovernanceAction(level, 2, `EXTEND_VETO_WINDOW:${target.id}`);
+    } catch (e) {
+      const userMsg = e instanceof IndemnityViolation ? e.userMessage : "Insufficient clearance.";
+      toast({ title: "Insufficient Authority", description: userMsg, variant: "destructive" });
       return;
     }
     setActionBusyId(target.id);
