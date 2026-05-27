@@ -1685,10 +1685,13 @@ export type Database = {
           end_date: string | null
           id: string
           lifecycle_phase: string | null
+          on_chain_block: number | null
+          on_chain_id: string | null
           proposer_id: string | null
           quorum_threshold: number | null
           status: string | null
           title: string
+          tx_hash: string | null
           vote_type: string | null
           voting_modality: string | null
         }
@@ -1698,10 +1701,13 @@ export type Database = {
           end_date?: string | null
           id?: string
           lifecycle_phase?: string | null
+          on_chain_block?: number | null
+          on_chain_id?: string | null
           proposer_id?: string | null
           quorum_threshold?: number | null
           status?: string | null
           title: string
+          tx_hash?: string | null
           vote_type?: string | null
           voting_modality?: string | null
         }
@@ -1711,10 +1717,13 @@ export type Database = {
           end_date?: string | null
           id?: string
           lifecycle_phase?: string | null
+          on_chain_block?: number | null
+          on_chain_id?: string | null
           proposer_id?: string | null
           quorum_threshold?: number | null
           status?: string | null
           title?: string
+          tx_hash?: string | null
           vote_type?: string | null
           voting_modality?: string | null
         }
@@ -7535,28 +7544,34 @@ export type Database = {
           aca_hash_key: string
           consent_scope: string[]
           consent_type: string | null
+          consumed_at: string | null
           created_at: string | null
           id: string
           platform_guid: string
           source_id: string
+          tx_hash: string | null
         }
         Insert: {
           aca_hash_key: string
           consent_scope?: string[]
           consent_type?: string | null
+          consumed_at?: string | null
           created_at?: string | null
           id?: string
           platform_guid: string
           source_id?: string
+          tx_hash?: string | null
         }
         Update: {
           aca_hash_key?: string
           consent_scope?: string[]
           consent_type?: string | null
+          consumed_at?: string | null
           created_at?: string | null
           id?: string
           platform_guid?: string
           source_id?: string
+          tx_hash?: string | null
         }
         Relationships: [
           {
