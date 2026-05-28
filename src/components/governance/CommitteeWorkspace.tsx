@@ -285,6 +285,13 @@ const CommitteeWorkspace: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <MotionThread
+        proposal={openProposal}
+        open={!!openProposal}
+        onClose={() => setOpenProposal(null)}
+        onChanged={fetchWorkspaceData}
+      />
     </div>
   );
 };
