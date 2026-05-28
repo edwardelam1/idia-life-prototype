@@ -46,6 +46,7 @@ const HAT_META: Record<HatType, { label: string; icon: React.ElementType; desc: 
 const HatsWardrobe: React.FC = () => {
   const [hats, setHats] = useState<Hat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isManualOpen, setIsManualOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
