@@ -1,25 +1,12 @@
-## Problem
-
-On the Governance screen, the "Manual" button in `HatsWardrobe.tsx` is currently an `<a download>` that triggers a PDF download (or on some browsers, a full-page navigation away from Gov with no way back). Users want it to pop open an in-app viewer with a Close button — the same UX as the Terms of Service / Welcome Manual gate.
-
 ## Plan
 
-1. **Create `src/components/governance/ManualViewerModal.tsx`**
-   - Full-screen fixed overlay (mirrors `WelcomeManualGate` styling: `fixed inset-0 z-[200] bg-background/95 backdrop-blur-xl`, rounded card, safe-area padding).
-   - Renders the same 11 `/legal/duna-manual-pages/page-XX.jpg` images and "Open in new tab" fallback.
-   - Header: "IDIA Data DUNA — Welcome Manual" with `ScrollText` icon and a top-right Close (X) button.
-   - Footer: "Download PDF" link + secondary "Close" button.
-   - No ACA hashing, no acknowledgement — this is a read-only reference viewer.
+Replace the Terms of Service document with the user-uploaded fresh copy.
 
-2. **Update `src/components/governance/HatsWardrobe.tsx`**
-   - Replace the `<a href download>` Manual chip with a `<button>` that flips local `isManualOpen` state.
-   - Render `<ManualViewerModal open={isManualOpen} onClose={...} />` at the bottom of the component.
-   - Keep the existing chip styling.
+### Steps
+1. Replace `public/legal/IDIA_Protocol_Terms_of_Service.pdf` with the new uploaded PDF (13 pages, up from 12).
+2. Regenerate `public/legal/tos-pages/page-01.jpg` … `page-13.jpg` from the new PDF using `pdftoppm` (delete old page-01..12 and rewrite all 13). Use the same JPG format/quality as existing pages.
+3. Update `src/pages/TermsOfService.tsx` line 106: change `{ length: 12 }` → `{ length: 13 }` so the new last page renders.
 
-## Out of scope
-- `WelcomeManualGate` (first-visit acknowledgement) stays as-is.
-- No changes to routing, no new page.
-
-## Files
-- new: `src/components/governance/ManualViewerModal.tsx`
-- edit: `src/components/governance/HatsWardrobe.tsx`
+### Notes
+- No version bump or ACA logic change requested — keeping `tos_version: "v1"`. (Tell me if you want it bumped to v2 so previously-accepted users are re-prompted.)
+- No other references to the page count found.
