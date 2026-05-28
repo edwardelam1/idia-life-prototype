@@ -3,6 +3,7 @@ import { Crown, ShieldAlert, Code2, Scale, HeartHandshake, Loader2, FileDown } f
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import ManualViewerModal from "./ManualViewerModal";
 
 type HatType = "tophat" | "security_council" | "product_xr" | "legal_defense" | "sociorelational";
 type Eligibility = "active" | "grayed" | "severed";
@@ -45,6 +46,7 @@ const HAT_META: Record<HatType, { label: string; icon: React.ElementType; desc: 
 const HatsWardrobe: React.FC = () => {
   const [hats, setHats] = useState<Hat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isManualOpen, setIsManualOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -121,15 +123,15 @@ const HatsWardrobe: React.FC = () => {
         <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
           Hats Wardrobe · Role Authority
         </h3>
-        <a
-          href="/legal/IDIA_Data_DUNA_Welcome_Manual.pdf"
-          download
-          title="Download IDIA DUNA Welcome Manual"
+        <button
+          type="button"
+          onClick={() => setIsManualOpen(true)}
+          title="Open IDIA DUNA Welcome Manual"
           className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest text-[hsl(178,42%,32%)] dark:text-teal-200 bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/50 transition-colors border border-teal-200 dark:border-teal-800"
         >
           <FileDown size={11} />
           Manual
-        </a>
+        </button>
       </div>
 
       <div className="flex gap-3 overflow-x-auto pb-2 px-1 scrollbar-hide">
@@ -183,6 +185,8 @@ const HatsWardrobe: React.FC = () => {
           );
         })}
       </div>
+
+      <ManualViewerModal open={isManualOpen} onClose={() => setIsManualOpen(false)} />
     </div>
   );
 };
