@@ -13,7 +13,22 @@ interface Hat {
   id: string;
   hat_type: HatType;
   eligibility_status: Eligibility;
+  last_attested_at: string | null;
+  granted_at: string | null;
 }
+
+// Mirror dao-hat-eligibility thresholds: grayed at 365d, severed at 395d.
+// Surface the Attest CTA only when the hat is within 30 days of going grayed.
+const ATTEST_WARNING_DAYS = 335;
+
+const needsAttestation = (hat: Hat): boolean => {
+  if (hat.eligibility_status === "grayed") return true;
+  if (hat.eligibility_status !== "active") return false;
+  const anchor = hat.last_attested_at || hat.granted_at;
+  if (!anchor) return false;
+  const ageDays = (Date.now() - new Date(anchor).getTime()) / 86_400_000;
+  return ageDays > ATTEST_WARNING_DAYS;
+};
 
 // Aligned precisely with Governance Manual Section 5.1
 const HAT_META: Record<HatType, { label: string; icon: React.ElementType; desc: string }> = {
@@ -70,7 +85,7 @@ const HatsWardrobe: React.FC = () => {
         console.log(`[HATS_WARDROBE] NETWORK: Querying dao_hats ledger for user ${user.id}.`);
         const { data, error } = await supabase
           .from("dao_hats" as any)
-          .select("id, hat_type, eligibility_status")
+          .select("id, hat_type, eligibility_status, last_attested_at, granted_at")
           .eq("user_id", user.id)
           .is("revoked_at", null);
 
@@ -185,11 +200,11 @@ const HatsWardrobe: React.FC = () => {
                 {meta.label}
               </div>
 
-              {wearer && (active || grayed) && (
+              {wearer && needsAttestation(wearer) && (
                 <button
                   type="button"
                   onClick={() => setReattestTarget({ id: wearer.id, label: meta.label, grayed })}
-                  title={grayed ? "Restore authority — re-attest service" : "Re-attest service"}
+                  title={grayed ? "Restore authority — re-attest service" : "Re-attest service before authority grays"}
                   className={cn(
                     "mt-1.5 inline-flex items-center justify-center gap-0.5 w-full px-1 py-0.5 rounded-full text-[7px] font-black uppercase tracking-widest border transition-colors",
                     grayed
