@@ -351,25 +351,26 @@ const DataDashboard = () => {
           <TabsTrigger value="audit" className="text-[11px] px-1">Transactions</TabsTrigger>
         </TabsList>
 
-        <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white mt-4">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center space-x-2 mb-1">
-                  <p className="text-teal-100">USDC</p>
-                </div>
-                <p className="text-3xl font-bold">
+        <Card className="bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] text-white border-none shadow-xl rounded-[2.5rem] overflow-hidden mt-4">
+          <CardContent className="p-7">
+            <div className="flex justify-between items-start">
+              <div className="space-y-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60">
+                  USDC Balance
+                </p>
+                <h2 className="text-4xl font-black">
                   ${balanceLoading ? "0.00" : balance.usdc_balance.toFixed(2)}
-                </p>
-                <p className="text-sm text-teal-100 mt-1">
-                  {connections.length > 0
-                    ? "USDC balance from connected sources"
-                    : "Connect data sources to start earning USDC"}
-                </p>
+                </h2>
               </div>
-              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-                <DollarSign className="w-8 h-8" />
-              </div>
+              <DollarSign className="w-10 h-10 text-orange-400 drop-shadow-lg" />
+            </div>
+            <div className="mt-6 flex items-center gap-2 border-t border-white/10 pt-4">
+              <span className={`w-1.5 h-1.5 rounded-full ${connections.length > 0 ? "bg-emerald-400 animate-pulse" : "bg-orange-400"}`} />
+              <span className="text-[9px] font-black uppercase tracking-widest text-teal-50">
+                {connections.length > 0
+                  ? "Earning from connected sources"
+                  : "Connect data sources to earn"}
+              </span>
             </div>
           </CardContent>
         </Card>
