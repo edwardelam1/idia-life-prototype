@@ -103,7 +103,7 @@ const TermsOfService = () => {
           className="flex-1 overflow-y-auto bg-muted/20"
         >
           <div className="flex flex-col items-center gap-4 py-4 px-3 bg-muted/20">
-            {Array.from({ length: 12 }, (_, i) => {
+            {Array.from({ length: 13 }, (_, i) => {
               const n = String(i + 1).padStart(2, "0");
               return (
                 <img
