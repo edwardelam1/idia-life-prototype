@@ -61,7 +61,7 @@ const COMMITTEES_META = [
     name: "Product & XR Architecture",
     icon: Code,
     description: "Enforces the 'Glossy/Glass' aesthetic and reviews spatial computing manifestations.",
-    hatName: "💻 Product/XR Hat",
+    hatName: "💻 Prod/XR Hat",
   },
 ];
 
