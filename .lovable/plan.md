@@ -1,36 +1,42 @@
-## Fix: Conditional Attest/Restore Button Visibility in HatsWardrobe
+## Summary
+Restyle the top banner cards in **WalletDashboard.tsx** and **DataDashboard.tsx** to match the visual language of the Governance page's IDIA Governance Token card (source of truth).
 
-### Problem
-The HatsWardrobe component currently renders an "Attest" button on **every** active hat, and a "Restore" button on every grayed hat. The user wants the button to appear **only when re-attestation is actually needed**.
+## Source of Truth (GovernanceScreen.tsx)
+The top card uses these exact design tokens:
+- **Gradient:** `bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)]`
+- **Shape:** `rounded-[2.5rem]` (40px), `border-none`, `shadow-xl`, `overflow-hidden`
+- **Padding:** `p-7`
+- **Label text:** `text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60`
+- **Value text:** `text-4xl font-black`
+- **Layout:** flex row with label/value on left, icon on right, plus an optional bottom link strip with `border-t border-white/10 pt-4`
 
-### Root Cause
-The eligibility sweep (`dao-hat-eligibility` edge function) transitions hats:
-- `active` → `grayed` after **365 days** without attestation
-- `grayed` → `severed` after **395 days** without attestation
+## Changes
 
-Currently the UI shows the "Attest" button for all `active` hats regardless of how recently they were attested, creating noise for fresh hats.
+### 1. WalletDashboard.tsx — "Your Balances" banner
+**Current:** `bg-gradient-to-r from-teal-500 to-cyan-600 text-white overflow-hidden` with `p-4`, default Card radius, no shadow, `text-lg font-bold` label, grid layout.
+**Target:** Match Governance card style.
+- Swap gradient to `from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)]`
+- Add `rounded-[2.5rem] border-none shadow-xl`
+- Increase padding to `p-7`
+- Restructure layout: left side with label + two values, right side with a wallet/shield icon
+- Update label to `text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60`
+- Update USDC value to `text-4xl font-black`
+- Update IDIA value to smaller sub-line under the main value (or keep both prominent)
+- Add bottom strip showing chain/network status (reuses existing logic)
 
-### Changes
+### 2. DataDashboard.tsx — USDC banner
+**Current:** `bg-gradient-to-r from-teal-500 to-cyan-600 text-white` with `p-4`, default radius, `text-3xl font-bold`, icon inside a `w-16 h-16 bg-white/20 rounded-full` on the right.
+**Target:** Match Governance card style.
+- Swap gradient to `from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)]`
+- Add `rounded-[2.5rem] border-none shadow-xl`
+- Increase padding to `p-7`
+- Update label to `text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60`
+- Update USDC value to `text-4xl font-black`
+- Keep right-side DollarSign icon but style it like Governance's ShieldCheck (no circle bg, just icon with drop shadow)
+- Add bottom strip (optional: sync status or connected sources count)
 
-1. **Update query in `HatsWardrobe.tsx`**
-   - Expand the `select()` to include `last_attested_at` and `granted_at` so the component can compute hat age.
-
-2. **Add `needsAttestation()` helper**
-   - `grayed` → always `true` (Restore is always applicable)
-   - `active` → `true` only when the hat is within **30 days of the 365-day gray threshold** (i.e. `ageDays > 335`). Otherwise hide.
-   - `severed` / `pending_veto` → `false`
-
-3. **Update `Hat` interface**
-   - Add `last_attested_at?: string` and `granted_at?: string` fields.
-
-4. **Conditionally render button**
-   - Change the existing `wearer && (active || grayed)` guard to `wearer && needsAttention(...)` so the button only renders when applicable.
-
-### Files Modified
-- `src/components/governance/HatsWardrobe.tsx` — query expansion, helper, conditional render
-
-### Acceptance Criteria
-- Freshly granted / recently attested active hats do NOT show an "Attest" button.
-- Active hats approaching the 365-day threshold (>335 days since last attestation) DO show "Attest".
-- Grayed hats always show "Restore".
-- No UI or behavior changes for severed / unowned hat slots.
+## Technical Details
+- Both changes are purely presentational — no logic, state, or data-fetching changes.
+- The `useWalletBalance` hook already provides `balance.usdc_balance` and `balance.idia_token_balance` to both pages.
+- No new dependencies needed.
+- Files affected: `src/components/WalletDashboard.tsx`, `src/components/DataDashboard.tsx`
