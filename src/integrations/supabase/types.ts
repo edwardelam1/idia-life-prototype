@@ -1559,6 +1559,7 @@ export type Database = {
           granted_at: string
           hat_type: string
           id: string
+          last_attested_at: string | null
           provisioned_by: string | null
           revoked_at: string | null
           user_id: string
@@ -1575,6 +1576,7 @@ export type Database = {
           granted_at?: string
           hat_type: string
           id?: string
+          last_attested_at?: string | null
           provisioned_by?: string | null
           revoked_at?: string | null
           user_id: string
@@ -1591,6 +1593,7 @@ export type Database = {
           granted_at?: string
           hat_type?: string
           id?: string
+          last_attested_at?: string | null
           provisioned_by?: string | null
           revoked_at?: string | null
           user_id?: string
@@ -1684,9 +1687,12 @@ export type Database = {
           aca_payload: Json | null
           author_id: string | null
           committee_id: string | null
+          committee_quorum_required: number | null
           created_at: string | null
           description: string | null
           end_date: string | null
+          escalated_at: string | null
+          escalated_by: string | null
           id: string
           lifecycle_phase: string | null
           on_chain_block: number | null
@@ -1704,9 +1710,12 @@ export type Database = {
           aca_payload?: Json | null
           author_id?: string | null
           committee_id?: string | null
+          committee_quorum_required?: number | null
           created_at?: string | null
           description?: string | null
           end_date?: string | null
+          escalated_at?: string | null
+          escalated_by?: string | null
           id?: string
           lifecycle_phase?: string | null
           on_chain_block?: number | null
@@ -1724,9 +1733,12 @@ export type Database = {
           aca_payload?: Json | null
           author_id?: string | null
           committee_id?: string | null
+          committee_quorum_required?: number | null
           created_at?: string | null
           description?: string | null
           end_date?: string | null
+          escalated_at?: string | null
+          escalated_by?: string | null
           id?: string
           lifecycle_phase?: string | null
           on_chain_block?: number | null
@@ -3314,33 +3326,130 @@ export type Database = {
       }
       governance_ledger: {
         Row: {
+          aca_hash_key: string | null
+          action_type: string | null
+          actor_id: string | null
           amount: number
           created_at: string | null
           description: string | null
           id: string
+          metadata: Json | null
           on_chain_tx_hash: string | null
+          target_id: string | null
+          target_table: string | null
           transaction_type: string
           user_id: string
         }
         Insert: {
+          aca_hash_key?: string | null
+          action_type?: string | null
+          actor_id?: string | null
           amount: number
           created_at?: string | null
           description?: string | null
           id?: string
+          metadata?: Json | null
           on_chain_tx_hash?: string | null
+          target_id?: string | null
+          target_table?: string | null
           transaction_type: string
           user_id: string
         }
         Update: {
+          aca_hash_key?: string | null
+          action_type?: string | null
+          actor_id?: string | null
           amount?: number
           created_at?: string | null
           description?: string | null
           id?: string
+          metadata?: Json | null
           on_chain_tx_hash?: string | null
+          target_id?: string | null
+          target_table?: string | null
           transaction_type?: string
           user_id?: string
         }
         Relationships: []
+      }
+      hat_recall_petitions: {
+        Row: {
+          aca_hash_key: string
+          closed_at: string | null
+          id: string
+          opened_at: string
+          petitioner_id: string
+          reason: string
+          signature_count: number
+          status: string
+          target_hat_id: string
+          threshold: number
+        }
+        Insert: {
+          aca_hash_key: string
+          closed_at?: string | null
+          id?: string
+          opened_at?: string
+          petitioner_id: string
+          reason: string
+          signature_count?: number
+          status?: string
+          target_hat_id: string
+          threshold?: number
+        }
+        Update: {
+          aca_hash_key?: string
+          closed_at?: string | null
+          id?: string
+          opened_at?: string
+          petitioner_id?: string
+          reason?: string
+          signature_count?: number
+          status?: string
+          target_hat_id?: string
+          threshold?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hat_recall_petitions_target_hat_id_fkey"
+            columns: ["target_hat_id"]
+            isOneToOne: false
+            referencedRelation: "dao_hats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hat_recall_signatures: {
+        Row: {
+          aca_hash_key: string
+          created_at: string
+          id: string
+          petition_id: string
+          signer_id: string
+        }
+        Insert: {
+          aca_hash_key: string
+          created_at?: string
+          id?: string
+          petition_id: string
+          signer_id: string
+        }
+        Update: {
+          aca_hash_key?: string
+          created_at?: string
+          id?: string
+          petition_id?: string
+          signer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hat_recall_signatures_petition_id_fkey"
+            columns: ["petition_id"]
+            isOneToOne: false
+            referencedRelation: "hat_recall_petitions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       health_metrics: {
         Row: {
@@ -5510,6 +5619,92 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proposal_comments: {
+        Row: {
+          aca_hash_key: string
+          author_id: string
+          body: string
+          created_at: string
+          edited_at: string | null
+          id: string
+          parent_id: string | null
+          proposal_id: string
+          redacted_at: string | null
+        }
+        Insert: {
+          aca_hash_key: string
+          author_id: string
+          body: string
+          created_at?: string
+          edited_at?: string | null
+          id?: string
+          parent_id?: string | null
+          proposal_id: string
+          redacted_at?: string | null
+        }
+        Update: {
+          aca_hash_key?: string
+          author_id?: string
+          body?: string
+          created_at?: string
+          edited_at?: string | null
+          id?: string
+          parent_id?: string | null
+          proposal_id?: string
+          redacted_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposal_comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "proposal_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposal_comments_proposal_id_fkey"
+            columns: ["proposal_id"]
+            isOneToOne: false
+            referencedRelation: "dao_proposals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proposal_signatures: {
+        Row: {
+          aca_hash_key: string
+          created_at: string
+          id: string
+          proposal_id: string
+          signature_type: string
+          signer_id: string
+        }
+        Insert: {
+          aca_hash_key: string
+          created_at?: string
+          id?: string
+          proposal_id: string
+          signature_type: string
+          signer_id: string
+        }
+        Update: {
+          aca_hash_key?: string
+          created_at?: string
+          id?: string
+          proposal_id?: string
+          signature_type?: string
+          signer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposal_signatures_proposal_id_fkey"
+            columns: ["proposal_id"]
+            isOneToOne: false
+            referencedRelation: "dao_proposals"
             referencedColumns: ["id"]
           },
         ]

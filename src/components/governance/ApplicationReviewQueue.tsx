@@ -3,10 +3,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { ShieldCheck, CheckCircle2, XCircle, Loader2, Inbox } from "lucide-react";
+import { ShieldCheck, CheckCircle2, XCircle, Loader2, Inbox, Handshake } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
+import { recordACA } from "@/utils/acaLedger";
 import { stage } from "@/lib/stageLogger";
 import { getAscensionLevel, type AscensionLevel } from "@/utils/governanceGate";
 
@@ -132,6 +133,33 @@ const ApplicationReviewQueue: React.FC = () => {
     }
   };
 
+  const handleEndorse = async (app: PendingApplication) => {
+    setBusyId(app.id);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { hash, payload } = await generateACAHash(user.id, `sponsor_${app.id}`, [
+        "APPLICATION_ENDORSE", "SPONSORSHIP",
+      ]);
+      const { error } = await (supabase as any).from("committee_application_sponsorships").insert({
+        application_id: app.id,
+        sponsor_user_id: user.id,
+        sponsor_aca_hash: hash,
+      });
+      if (error) throw error;
+      await recordACA({
+        userId: user.id, sourceId: "GOV_APPLICATION_ENDORSE",
+        consentType: "APPLICATION_ENDORSE_V1", hash, payload,
+      });
+      toast({ title: "Endorsement recorded", description: `ACA ${hash.substring(0, 8)}…` });
+      fetchState();
+    } catch (e: any) {
+      toast({ title: "Endorse failed", description: e.message, variant: "destructive" });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-6">
@@ -191,7 +219,16 @@ const ApplicationReviewQueue: React.FC = () => {
                   disabled={busyId === app.id}
                 />
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    onClick={() => handleEndorse(app)}
+                    disabled={busyId === app.id}
+                    variant="outline"
+                    className="h-10 font-black uppercase text-[10px] rounded-full border-teal-300 text-teal-700 hover:bg-teal-50 dark:hover:bg-teal-950/30"
+                  >
+                    <Handshake className="w-3.5 h-3.5 mr-1.5" />
+                    Endorse
+                  </Button>
                   <Button
                     onClick={() => handleApprove(app)}
                     disabled={busyId === app.id}

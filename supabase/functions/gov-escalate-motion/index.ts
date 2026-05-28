@@ -1,5 +1,9 @@
-// ascension-reject — L2/L3 reviewer rejects a pending committee application.
+// gov-escalate-motion — Bring a committee-passed draft motion to the DAO-wide floor.
+// Requires: caller is L2+ (oversight_chair OR tophat), motion is in 'draft' phase,
+// and signature_count(endorse) >= committee_quorum_required.
+
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { recordACA } from "../_shared/recordACA.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,7 +49,7 @@ Deno.serve(async (req) => {
       .in("hat_type", ["tophat", "oversight_chair"]);
     if (!callerHats || callerHats.length === 0) {
       return new Response(
-        JSON.stringify({ error: "Insufficient authority — Oversight Chair (L2) or Protocol Steward (L3) required" }),
+        JSON.stringify({ error: "Insufficient authority — Oversight Chair (L2) or Steward (L3) required" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -56,9 +60,9 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const { application_id, reason, aca_hash, aca_payload } = body || {};
-    if (typeof application_id !== "string" || typeof aca_hash !== "string" || !aca_payload) {
-      return new Response(JSON.stringify({ error: "Missing required fields" }), {
+    const { proposal_id, aca_hash, aca_payload } = body || {};
+    if (typeof proposal_id !== "string" || typeof aca_hash !== "string" || !aca_payload) {
+      return new Response(JSON.stringify({ error: "Missing: proposal_id, aca_hash, aca_payload" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -68,11 +72,49 @@ Deno.serve(async (req) => {
       });
     }
 
+    const { data: prop, error: propErr } = await admin
+      .from("dao_proposals")
+      .select("id, committee_id, lifecycle_phase, committee_quorum_required")
+      .eq("id", proposal_id)
+      .maybeSingle();
+    if (propErr || !prop) {
+      return new Response(JSON.stringify({ error: "Proposal not found" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (prop.lifecycle_phase !== "draft") {
+      return new Response(JSON.stringify({ error: `Cannot escalate; phase is ${prop.lifecycle_phase}` }), {
+        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { count: endorseCount } = await admin
+      .from("proposal_signatures")
+      .select("*", { count: "exact", head: true })
+      .eq("proposal_id", proposal_id)
+      .eq("signature_type", "endorse");
+
+    const required = prop.committee_quorum_required ?? 3;
+    if ((endorseCount ?? 0) < required) {
+      return new Response(
+        JSON.stringify({ error: `Committee quorum not met: ${endorseCount}/${required} endorsements` }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const nowIso = new Date().toISOString();
+    const endIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const { error: updErr } = await admin
-      .from("committee_applications")
-      .update({ status: "rejected" })
-      .eq("id", application_id)
-      .eq("status", "pending");
+      .from("dao_proposals")
+      .update({
+        lifecycle_phase: "active_vote",
+        status: "active",
+        escalated_at: nowIso,
+        escalated_by: callerId,
+        end_date: endIso,
+      })
+      .eq("id", proposal_id)
+      .eq("lifecycle_phase", "draft");
     if (updErr) {
       return new Response(JSON.stringify({ error: updErr.message }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -80,24 +122,23 @@ Deno.serve(async (req) => {
     }
 
     try {
-      const { recordACA } = await import("../_shared/recordACA.ts");
       await recordACA(admin, {
         userId: callerId,
-        sourceId: "GOV_APPLICATION_REJECT",
-        consentType: "APPLICATION_REJECT_V1",
+        sourceId: "GOV_MOTION_ESCALATE",
+        consentType: "MOTION_ESCALATE_V1",
         hash: aca_hash,
         payload: aca_payload,
       });
     } catch (e) {
-      console.warn("[ASCENSION_REJECT] ACA mirror skipped:", (e as Error).message);
+      console.warn("[GOV_ESCALATE_MOTION] ACA mirror skipped:", (e as Error).message);
     }
 
-    console.log("[ASCENSION_REJECT] OK", { caller: callerId, application_id });
-    return new Response(JSON.stringify({ ok: true }), {
+    console.log("[GOV_ESCALATE_MOTION] OK", { caller: callerId, proposal_id });
+    return new Response(JSON.stringify({ ok: true, proposal_id, vote_ends_at: endIso }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
-    console.error("[ASCENSION_REJECT] FATAL", e);
+    console.error("[GOV_ESCALATE_MOTION] FATAL", e);
     return new Response(JSON.stringify({ error: e?.message || "Internal error" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
