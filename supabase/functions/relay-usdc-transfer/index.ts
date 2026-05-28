@@ -143,16 +143,20 @@ serve(async (req) => {
       console.error(`[relay] transactions insert failed: ${txErr.message}`);
     }
 
-    // If ACA hash was provided, mark it consumed in aca_consent_artifacts
+    // Stamp the ACA mirror row with settlement reference. The row itself was
+    // INSERTed client-side via acaLedger.ts before relay submission; we only
+    // patch tx_hash + consumed_at here. The deleted aca_consent_artifacts
+    // table is intentionally NOT touched.
     if (aca_hash) {
       try {
-        await supabaseAdmin
-          .from("aca_consent_artifacts")
-          .update({ status: "consumed" })
-          .eq("hash", aca_hash);
-        console.log(`[relay] ACA ${aca_hash.slice(0, 16)}... marked consumed`);
+        const { error: acaErr } = await supabaseAdmin
+          .from("user_aca_records")
+          .update({ tx_hash: tx.hash, consumed_at: new Date().toISOString() })
+          .eq("aca_hash_key", aca_hash);
+        if (acaErr) throw acaErr;
+        console.log(`[relay] ACA ${aca_hash.slice(0, 16)}... stamped (tx + consumed_at)`);
       } catch (acaErr: any) {
-        console.error(`[relay] ACA update failed: ${acaErr.message}`);
+        console.error(`[relay] ACA stamp failed (non-fatal): ${acaErr.message}`);
       }
     }
 
