@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Loader2, PenTool, FileText, ChevronRight, AlertCircle } from "lucide-react";
+import { Loader2, PenTool, FileText, ChevronRight, AlertCircle, MessageSquare } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
+import { recordACA } from "@/utils/acaLedger";
 import {
   authorizeGovernanceAction,
   getAscensionLevel,
@@ -17,6 +18,7 @@ import {
   type AscensionLevel,
 } from "@/utils/governanceGate";
 import { stage } from "@/lib/stageLogger";
+import MotionThread from "./MotionThread";
 
 const CommitteeWorkspace: React.FC = () => {
   const [activeHats, setActiveHats] = useState<any[]>([]);
@@ -30,6 +32,9 @@ const CommitteeWorkspace: React.FC = () => {
   const [draftTitle, setDraftTitle] = useState("");
   const [draftBody, setDraftBody] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Thread drawer
+  const [openProposal, setOpenProposal] = useState<any | null>(null);
 
   const fetchWorkspaceData = async () => {
     console.log("[COMMITTEE_WORKSPACE] BEGIN: Hydrating officer workspace telemetry.");
@@ -86,20 +91,8 @@ const CommitteeWorkspace: React.FC = () => {
     return () => clearInterval(interval);
   }, [selectedCommittee]);
 
-  const handleRouteToVote = (proposalId: string) => {
-    console.log(`[ROUTING] BEGIN: Transitioning to Voting Engine for proposal: ${proposalId}`);
-    try {
-      if (!proposalId) throw new Error("Missing proposal ID for routing.");
-      
-      // UNIVERSAL FALLBACK:
-      window.location.href = `/governance/vote/${proposalId}`;
-      
-    } catch (error: any) {
-      console.error(`[ROUTING] CRITICAL_STALL: Navigation to Voting Engine failed.`, error.message);
-      toast({ title: "Routing Failed", description: error.message, variant: "destructive" });
-    } finally {
-      console.log(`[ROUTING] END: Navigation sequence triggered.`);
-    }
+  const handleOpenThread = (prop: any) => {
+    setOpenProposal(prop);
   };
 
   const handleCreateProposal = async () => {
@@ -126,26 +119,31 @@ const CommitteeWorkspace: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Authentication lost.");
 
-      // Generate the cryptographically secure ACA hash anchoring the proposal text to the user's identity
       const actionIdentifier = `propose_${selectedCommittee}_${Date.now()}`;
-      const { hash, payload } = await generateACAHash(user.id, actionIdentifier, ["PROPOSAL_DRAFTING", "LEDGER_WRITE"]);
+      const { hash, payload } = await generateACAHash(user.id, actionIdentifier, ["MOTION_DRAFT", "LEDGER_WRITE"]);
 
       const { error } = await (supabase as any).from("dao_proposals").insert({
         committee_id: selectedCommittee,
-        author_id: user.id,
         proposer_id: user.id,
         title: draftTitle,
         description: draftBody,
-        status: "active",
-        lifecycle_phase: "active_vote",
+        status: "draft",
+        lifecycle_phase: "draft",
         aca_hash_key: hash,
         aca_payload: payload,
       });
 
-
       if (error) throw error;
 
-      toast({ title: "Proposal Anchored", description: "Your motion is now live on the ledger." });
+      // Strict ACA mirror — required for every governance touchpoint
+      await recordACA({
+        userId: user.id,
+        sourceId: "GOV_MOTION_DRAFT",
+        consentType: "MOTION_DRAFT_V1",
+        hash, payload,
+      });
+
+      toast({ title: "Motion Drafted", description: "Awaiting committee endorsements." });
       setIsDrafting(false);
       setDraftTitle("");
       setDraftBody("");
@@ -222,23 +220,23 @@ const CommitteeWorkspace: React.FC = () => {
             </div>
           ) : (
             proposals.map((prop) => (
-              <Card key={prop.id} className="hover:border-teal-300 transition-colors cursor-pointer">
+              <Card key={prop.id} className="hover:border-teal-300 transition-colors cursor-pointer" onClick={() => handleOpenThread(prop)}>
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="space-y-1">
                     <h3 className="font-bold text-sm">{prop.title}</h3>
-                    <p className="text-[10px] text-muted-foreground font-mono">ACA Hash: {prop.aca_hash_key?.substring(0, 12)}...</p>
+                    <p className="text-[10px] text-muted-foreground font-mono">ACA: {prop.aca_hash_key?.substring(0, 12)}…</p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-1 bg-slate-100 rounded-full">
-                      {prop.status}
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-1 bg-slate-100 dark:bg-muted/30 rounded-full">
+                      {prop.lifecycle_phase || prop.status}
                     </span>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => handleRouteToVote(prop.id)}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); handleOpenThread(prop); }}
                       className="hover:bg-teal-50 hover:text-teal-700"
                     >
-                      Enter Vote <ChevronRight className="w-4 h-4 ml-1" />
+                      <MessageSquare className="w-3.5 h-3.5 mr-1" /> Open <ChevronRight className="w-4 h-4 ml-1" />
                     </Button>
                   </div>
                 </CardContent>
