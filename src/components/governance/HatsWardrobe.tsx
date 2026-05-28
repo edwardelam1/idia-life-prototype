@@ -48,6 +48,8 @@ const HatsWardrobe: React.FC = () => {
   const [hats, setHats] = useState<Hat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isManualOpen, setIsManualOpen] = useState(false);
+  const [reattestTarget, setReattestTarget] = useState<{ id: string; label: string; grayed: boolean } | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
