@@ -185,6 +185,8 @@ const HatsWardrobe: React.FC = () => {
           );
         })}
       </div>
+
+      <ManualViewerModal open={isManualOpen} onClose={() => setIsManualOpen(false)} />
     </div>
   );
 };
