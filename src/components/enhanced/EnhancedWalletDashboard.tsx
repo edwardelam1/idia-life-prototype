@@ -440,27 +440,27 @@ const EnhancedWalletDashboard: React.FC = () => {
             className="h-full overflow-y-auto no-scrollbar pr-1 space-y-4 pb-24"
             style={{ WebkitOverflowScrolling: "touch" }}
           >
-            <Card className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white relative overflow-hidden">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold">Total Balance</h2>
-                  <Wallet className="w-6 h-6 opacity-50" />
+            <Card className="bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] text-white border-none shadow-xl rounded-[2.5rem] overflow-hidden">
+              <CardContent className="p-7">
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60">
+                      Total Balance
+                    </p>
+                    <h2 className="text-4xl font-black">
+                      ${walletBalance?.usdc_balance?.toFixed(2) || "0.00"}{" "}
+                      <span className="text-sm font-medium text-teal-100/40">USDC</span>
+                    </h2>
+                  </div>
+                  <Wallet className="w-10 h-10 text-orange-400 drop-shadow-lg" />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="text-center">
-                    <p className="text-teal-100 text-[10px] font-medium uppercase font-bold">Stable USDC</p>
-                    <p className="text-xl font-black">${walletBalance?.usdc_balance?.toFixed(2) || "0.00"}</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-teal-100 text-[10px] font-medium uppercase font-bold">IDIA Token</p>
-                    <p className="text-xl font-black">{(walletBalance?.idia_token_balance ?? 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</p>
-                  </div>
+                <div className="mt-6 flex items-center gap-2 border-t border-white/10 pt-4">
+                  <span className={`w-1.5 h-1.5 rounded-full ${isProvisioned ? "bg-emerald-400 animate-pulse" : "bg-orange-400"}`} />
+                  <span className="text-[9px] font-black uppercase tracking-widest text-teal-50">
+                    IDIA · {(walletBalance?.idia_token_balance ?? 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                    {!isProvisioned && " · Link vault to liquidate"}
+                  </span>
                 </div>
-                {!isProvisioned && (
-                  <div className="mt-4 pt-2 border-t border-white/20 text-center">
-                    <p className="text-[10px] text-teal-50 italic">Link a Sovereign Vault to enable liquidation</p>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
