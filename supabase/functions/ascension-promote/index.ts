@@ -105,15 +105,18 @@ Deno.serve(async (req) => {
       scopes: aca_payload?.consent_scope,
     });
 
-    // Best-effort ACA artifact write — table may not exist in every env
+    // Mirror caller's ACA into user_aca_records (strict insert).
     try {
-      await admin.from("aca_consent_artifacts" as any).insert({
+      const { recordACA } = await import("../_shared/recordACA.ts");
+      await recordACA(admin, {
+        userId: callerId,
+        sourceId: "GOV_HAT_PROMOTE",
+        consentType: "TOPHAT_PROMOTE_V1",
         hash: aca_hash,
-        status: "consumed",
-        metadata: { type: "TOPHAT_PROMOTE", caller_id: callerId, hat_id, payload: aca_payload },
+        payload: aca_payload,
       });
     } catch (e) {
-      console.warn("[ASCENSION_PROMOTE] ACA artifact write skipped:", (e as Error).message);
+      console.warn("[ASCENSION_PROMOTE] ACA mirror skipped:", (e as Error).message);
     }
 
     // Promote the target hat. Use a best-effort update — extra columns

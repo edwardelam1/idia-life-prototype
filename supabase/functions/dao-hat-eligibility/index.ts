@@ -62,14 +62,16 @@ serve(async (req) => {
 
     const { data: hats, error } = await supabase
       .from("dao_hats")
-      .select("id,user_id,hat_type,eligibility_status,granted_at")
+      .select("id,user_id,hat_type,eligibility_status,granted_at,last_attested_at")
       .is("revoked_at", null);
     if (error) throw error;
 
     let grayed = 0,
       severed = 0;
     for (const h of hats ?? []) {
-      const ageDays = (Date.now() - new Date(h.granted_at).getTime()) / 86400_000;
+      // Renewal flow: age is measured from last_attested_at (falls back to granted_at)
+      const anchor = new Date(h.last_attested_at || h.granted_at).getTime();
+      const ageDays = (Date.now() - anchor) / 86400_000;
       let next = h.eligibility_status;
       if (ageDays > 395) next = "severed";
       else if (ageDays > 365) next = "grayed";

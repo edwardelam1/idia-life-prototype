@@ -80,19 +80,16 @@ Deno.serve(async (req) => {
     }
 
     try {
-      await admin.from("aca_consent_artifacts" as any).insert({
+      const { recordACA } = await import("../_shared/recordACA.ts");
+      await recordACA(admin, {
+        userId: callerId,
+        sourceId: "GOV_APPLICATION_REJECT",
+        consentType: "APPLICATION_REJECT_V1",
         hash: aca_hash,
-        status: "consumed",
-        metadata: {
-          type: "APPLICATION_REJECT",
-          caller_id: callerId,
-          application_id,
-          reason: reason || null,
-          payload: aca_payload,
-        },
+        payload: aca_payload,
       });
     } catch (e) {
-      console.warn("[ASCENSION_REJECT] ACA artifact write skipped:", (e as Error).message);
+      console.warn("[ASCENSION_REJECT] ACA mirror skipped:", (e as Error).message);
     }
 
     console.log("[ASCENSION_REJECT] OK", { caller: callerId, application_id });
