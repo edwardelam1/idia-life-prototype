@@ -98,7 +98,7 @@ const HatsWardrobe: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [refreshKey]);
 
   const allTypes: HatType[] = ["tophat", "security_council", "product_xr", "legal_defense", "sociorelational"];
 
