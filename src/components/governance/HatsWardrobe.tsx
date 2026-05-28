@@ -184,12 +184,39 @@ const HatsWardrobe: React.FC = () => {
               >
                 {meta.label}
               </div>
+
+              {wearer && (active || grayed) && (
+                <button
+                  type="button"
+                  onClick={() => setReattestTarget({ id: wearer.id, label: meta.label, grayed })}
+                  title={grayed ? "Restore authority — re-attest service" : "Re-attest service"}
+                  className={cn(
+                    "mt-1.5 inline-flex items-center justify-center gap-0.5 w-full px-1 py-0.5 rounded-full text-[7px] font-black uppercase tracking-widest border transition-colors",
+                    grayed
+                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 hover:bg-amber-500/25"
+                      : "bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800 hover:bg-teal-500/20",
+                  )}
+                >
+                  <ShieldCheck size={8} />
+                  {grayed ? "Restore" : "Attest"}
+                </button>
+              )}
             </div>
           );
         })}
       </div>
 
       <ManualViewerModal open={isManualOpen} onClose={() => setIsManualOpen(false)} />
+      {reattestTarget && (
+        <ReattestDialog
+          hatId={reattestTarget.id}
+          hatLabel={reattestTarget.label}
+          isGrayed={reattestTarget.grayed}
+          open={!!reattestTarget}
+          onClose={() => setReattestTarget(null)}
+          onReattested={() => setRefreshKey((k) => k + 1)}
+        />
+      )}
     </div>
   );
 };
