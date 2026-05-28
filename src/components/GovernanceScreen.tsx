@@ -12,6 +12,7 @@ import LifecycleTelemetry from "./governance/LifecycleTelemetry";
 import MSAComplianceCard from "./governance/MSAComplianceCard";
 import TreasuryFlows from "./governance/TreasuryFlows";
 import CommitteesList from "./governance/CommitteesList";
+import ApplicationReviewQueue from "./governance/ApplicationReviewQueue";
 import WelcomeManualGate from "./governance/WelcomeManualGate";
 import CreateDaoProposalModal from "./governance/CreateDaoProposalModal";
 import { PROTOCOL, ACTIVE_DEPLOYMENT } from "@/config/contracts";
@@ -120,6 +121,7 @@ const GovernanceScreen: React.FC = () => {
         <div className="space-y-5">
           <MSAComplianceCard />
           <TreasuryFlows />
+          <ApplicationReviewQueue />
           <CommitteesList />
         </div>
       )}
