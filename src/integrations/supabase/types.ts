@@ -1680,6 +1680,10 @@ export type Database = {
       }
       dao_proposals: {
         Row: {
+          aca_hash_key: string | null
+          aca_payload: Json | null
+          author_id: string | null
+          committee_id: string | null
           created_at: string | null
           description: string | null
           end_date: string | null
@@ -1696,6 +1700,10 @@ export type Database = {
           voting_modality: string | null
         }
         Insert: {
+          aca_hash_key?: string | null
+          aca_payload?: Json | null
+          author_id?: string | null
+          committee_id?: string | null
           created_at?: string | null
           description?: string | null
           end_date?: string | null
@@ -1712,6 +1720,10 @@ export type Database = {
           voting_modality?: string | null
         }
         Update: {
+          aca_hash_key?: string | null
+          aca_payload?: Json | null
+          author_id?: string | null
+          committee_id?: string | null
           created_at?: string | null
           description?: string | null
           end_date?: string | null

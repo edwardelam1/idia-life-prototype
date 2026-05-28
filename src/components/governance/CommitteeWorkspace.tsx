@@ -60,7 +60,7 @@ const CommitteeWorkspace: React.FC = () => {
       // 2. Fetch proposals for the active committee
       if (currentCommittee) {
         const { data: propsData, error: propsError } = await (supabase as any)
-          .from("proposals")
+          .from("dao_proposals")
           .select("*")
           .eq("committee_id", currentCommittee)
           .order("created_at", { ascending: false });
@@ -68,6 +68,7 @@ const CommitteeWorkspace: React.FC = () => {
         if (propsError) throw propsError;
         setProposals(propsData || []);
       }
+
 
       console.log("[COMMITTEE_WORKSPACE] SUCCESS: Workspace hydrated.");
     } catch (error: any) {
@@ -129,15 +130,18 @@ const CommitteeWorkspace: React.FC = () => {
       const actionIdentifier = `propose_${selectedCommittee}_${Date.now()}`;
       const { hash, payload } = await generateACAHash(user.id, actionIdentifier, ["PROPOSAL_DRAFTING", "LEDGER_WRITE"]);
 
-      const { error } = await (supabase as any).from("proposals").insert({
+      const { error } = await (supabase as any).from("dao_proposals").insert({
         committee_id: selectedCommittee,
         author_id: user.id,
+        proposer_id: user.id,
         title: draftTitle,
         description: draftBody,
-        status: "active_vote",
+        status: "active",
+        lifecycle_phase: "active_vote",
         aca_hash_key: hash,
-        aca_payload: payload
+        aca_payload: payload,
       });
+
 
       if (error) throw error;
 

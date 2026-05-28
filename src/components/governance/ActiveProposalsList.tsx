@@ -22,7 +22,9 @@ interface Proposal {
   description: string;
   status: string;
   proposer_id: string | null;
+  on_chain_id?: string | null;
 }
+
 
 const ProposalCard: React.FC<{
   proposal: Proposal;
@@ -156,6 +158,30 @@ const ProposalCard: React.FC<{
         console.error(`[STALL DETECTED] Supabase Insert Error: ${voteError.message}`);
         throw voteError;
       }
+
+      // On-chain bridge: when the proposal is anchored to the Governor, also
+      // cast the vote on-chain so the ledger and chain stay in sync. Off-chain
+      // proposals (no on_chain_id) remain Supabase-only.
+      if (proposal.on_chain_id) {
+        try {
+          console.log(`[PROCESS] Bridging vote to on-chain Governor proposal ${proposal.on_chain_id}`);
+          const chainSupport = support === "for" ? 1 : 0;
+          const { hash: txHash } = await governanceService.castVote(
+            proposal.on_chain_id,
+            chainSupport as 0 | 1,
+            `ACA:${hash.substring(0, 12)}`,
+          );
+          console.log(`[PROCESS] On-chain vote tx: ${txHash}`);
+        } catch (chainErr: any) {
+          console.error(`[VOTE_CAST] ON_CHAIN_BRIDGE_FAILED`, chainErr?.message);
+          toast({
+            title: "On-chain bridge failed",
+            description: chainErr?.message || "Off-chain intent recorded; on-chain vote not submitted.",
+            variant: "destructive",
+          });
+        }
+      }
+
 
       console.log(`[PROCESS] Executing wallet balance burn RPC...`);
       const { error: burnError } = await (supabase as any).rpc("increment_wallet_balance", {
