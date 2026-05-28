@@ -14,6 +14,7 @@ import {
   type PaymentRequest,
 } from '@/config/usdc';
 import { generateACAHash } from "../utils/acaGenerator";
+import { recordACA } from "../utils/acaLedger";
 import { supabase } from '@/integrations/supabase/client';
 
 // ─── Minimal ERC-20 ABI ─────────────────────────────────────────────
