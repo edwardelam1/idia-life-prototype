@@ -24,7 +24,7 @@ interface Props {
 }
 
 // TEMP: testing — AI validation gate bypassed entirely.
-const TEMP_DISABLE_AI_VALIDATION = true;
+const TEMP_DISABLE_AI_VALIDATION = false;
 
 const CATEGORIES: { value: string; label: string }[] = [
   { value: "data-policy", label: "Data Policy" },
@@ -124,6 +124,21 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
 
       if (TEMP_DISABLE_AI_VALIDATION) {
         console.log("[PROPOSAL_SUBMIT] VALIDATION_SKIPPED: Testing mode bypass active. No edge validator invoked.");
+      } else if (inserted?.id) {
+        try {
+          console.log("[PROPOSAL_SUBMIT] VALIDATION_INVOKE: calling validate-proposal");
+          const { error: vErr } = await supabase.functions.invoke("validate-proposal", {
+            body: {
+              proposalId: inserted.id,
+              title: safeTitle,
+              description: safeDescription,
+              category: "governance",
+            },
+          });
+          if (vErr) console.warn("[PROPOSAL_SUBMIT] VALIDATION_WARN", vErr.message);
+        } catch (vErr: any) {
+          console.warn("[PROPOSAL_SUBMIT] VALIDATION_WARN_CATCH", vErr?.message);
+        }
       }
 
       toast({
