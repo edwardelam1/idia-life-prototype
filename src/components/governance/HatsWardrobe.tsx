@@ -3,6 +3,7 @@ import { Crown, ShieldAlert, Code2, Scale, HeartHandshake, Loader2, FileDown } f
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import ManualViewerModal from "./ManualViewerModal";
 
 type HatType = "tophat" | "security_council" | "product_xr" | "legal_defense" | "sociorelational";
 type Eligibility = "active" | "grayed" | "severed";
