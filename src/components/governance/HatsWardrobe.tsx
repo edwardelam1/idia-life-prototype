@@ -43,7 +43,7 @@ const HAT_META: Record<HatType, { label: string; icon: React.ElementType; desc: 
     desc: "Monitors threats; can pause the system during a verified attack.",
   },
   product_xr: {
-    label: "Product/XR",
+    label: "Prod/XR",
     icon: Code2,
     desc: "Sign-off authority on visual and functional app updates.",
   },
@@ -187,14 +187,22 @@ const HatsWardrobe: React.FC = () => {
               <Icon
                 className={cn(
                   "w-5 h-5 mx-auto mb-1 transition-colors",
-                  active ? "text-orange-500 drop-shadow-sm" : grayed ? "text-amber-600 dark:text-amber-400" : "text-slate-400 dark:text-muted-foreground",
+                  active
+                    ? "text-orange-500 drop-shadow-sm"
+                    : grayed
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-slate-400 dark:text-muted-foreground",
                 )}
               />
 
               <div
                 className={cn(
                   "text-[8px] font-black uppercase tracking-wider transition-colors",
-                  active ? "text-teal-800 dark:text-teal-200" : grayed ? "text-amber-800 dark:text-amber-300" : "text-slate-400 dark:text-muted-foreground",
+                  active
+                    ? "text-teal-800 dark:text-teal-200"
+                    : grayed
+                      ? "text-amber-800 dark:text-amber-300"
+                      : "text-slate-400 dark:text-muted-foreground",
                 )}
               >
                 {meta.label}
