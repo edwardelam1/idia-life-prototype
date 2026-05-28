@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { Crown, ShieldAlert, Code2, Scale, HeartHandshake, Loader2, FileDown } from "lucide-react";
+import { Crown, ShieldAlert, Code2, Scale, HeartHandshake, FileDown, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import ManualViewerModal from "./ManualViewerModal";
+import ReattestDialog from "./ReattestDialog";
 
 type HatType = "tophat" | "security_council" | "product_xr" | "legal_defense" | "sociorelational";
 type Eligibility = "active" | "grayed" | "severed";
@@ -47,6 +48,8 @@ const HatsWardrobe: React.FC = () => {
   const [hats, setHats] = useState<Hat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isManualOpen, setIsManualOpen] = useState(false);
+  const [reattestTarget, setReattestTarget] = useState<{ id: string; label: string; grayed: boolean } | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -95,7 +98,7 @@ const HatsWardrobe: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [refreshKey]);
 
   const allTypes: HatType[] = ["tophat", "security_council", "product_xr", "legal_defense", "sociorelational"];
 
@@ -181,12 +184,39 @@ const HatsWardrobe: React.FC = () => {
               >
                 {meta.label}
               </div>
+
+              {wearer && (active || grayed) && (
+                <button
+                  type="button"
+                  onClick={() => setReattestTarget({ id: wearer.id, label: meta.label, grayed })}
+                  title={grayed ? "Restore authority — re-attest service" : "Re-attest service"}
+                  className={cn(
+                    "mt-1.5 inline-flex items-center justify-center gap-0.5 w-full px-1 py-0.5 rounded-full text-[7px] font-black uppercase tracking-widest border transition-colors",
+                    grayed
+                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 hover:bg-amber-500/25"
+                      : "bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800 hover:bg-teal-500/20",
+                  )}
+                >
+                  <ShieldCheck size={8} />
+                  {grayed ? "Restore" : "Attest"}
+                </button>
+              )}
             </div>
           );
         })}
       </div>
 
       <ManualViewerModal open={isManualOpen} onClose={() => setIsManualOpen(false)} />
+      {reattestTarget && (
+        <ReattestDialog
+          hatId={reattestTarget.id}
+          hatLabel={reattestTarget.label}
+          isGrayed={reattestTarget.grayed}
+          open={!!reattestTarget}
+          onClose={() => setReattestTarget(null)}
+          onReattested={() => setRefreshKey((k) => k + 1)}
+        />
+      )}
     </div>
   );
 };

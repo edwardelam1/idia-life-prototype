@@ -14,6 +14,7 @@ import {
   type PaymentRequest,
 } from '@/config/usdc';
 import { generateACAHash } from "../utils/acaGenerator";
+import { recordACA } from "../utils/acaLedger";
 import { supabase } from '@/integrations/supabase/client';
 
 // ─── Minimal ERC-20 ABI ─────────────────────────────────────────────
@@ -56,36 +57,38 @@ export interface PaymentResult {
 }
 
 // ─── Database Helpers ────────────────────────────────────────────────
+// ACA writes go through the canonical ledger helper (strict INSERT into
+// user_aca_records). No upsert, no fallback to the deleted artifact tables.
 
-async function storePaymentACA(aca: { hash: string; payload: any }) {
-  console.log(`[USDCService] BEGIN: storePaymentACA for hash: ${aca.hash}`);
+async function storePaymentACA(aca: { hash: string; payload: any }): Promise<boolean> {
   try {
-    const { error } = await supabase.from('user_aca_records').insert({
-      platform_guid: aca.payload.platform_guid,
-      aca_hash_key: aca.hash,
-      source_id: aca.payload.source_id,
-      consent_scope: aca.payload.consent_scope,
-      created_at: aca.payload.timestamp,
+    await recordACA({
+      userId: aca.payload.platform_guid,
+      sourceId: aca.payload.source_id,
+      consentType: "USDC_PAYMENT_V1",
+      hash: aca.hash,
+      payload: aca.payload,
     });
-    
-    if (error) throw error;
-    console.log(`[USDCService] END: storePaymentACA successful`);
     return true;
   } catch (e) {
-    console.error('[USDCService] CRITICAL: Failed to store ACA:', e);
+    console.error('[USDCService] CRITICAL: Failed to mirror ACA:', e);
     return false;
   }
 }
 
 async function markACAConsumed(hash: string, txHash: string) {
-  // Note: Based on your current schema, there is no 'consumed_at' or 'tx_hash' column.
-  // If these are required for auditability, please add them to the user_aca_records table.
-  // Assuming tracking is done via existing logic for now.
-  console.log(`[USDCService] BEGIN: markACAConsumed for hash: ${hash}`);
-  console.log(`[USDCService] NOTE: Schema update required to track tx_hash for ${hash}`);
-  
-  // Placeholder for when columns are added to user_aca_records
-  console.log(`[USDCService] END: markACAConsumed (No-Op: Schema adjustment needed)`);
+  // Append-only ledger: the row already exists from storePaymentACA. We only
+  // stamp the settlement reference + consumed_at, never re-insert.
+  try {
+    const { error } = await (supabase as any)
+      .from('user_aca_records')
+      .update({ tx_hash: txHash, consumed_at: new Date().toISOString() })
+      .eq('aca_hash_key', hash);
+    if (error) throw error;
+    console.log(`[USDCService] ACA ${hash.substring(0, 8)}… stamped with tx ${txHash.substring(0, 10)}…`);
+  } catch (e: any) {
+    console.warn(`[USDCService] markACAConsumed failed (non-fatal): ${e.message}`);
+  }
 }
 
 // ─── Provider & Signing ──────────────────────────────────────────────
