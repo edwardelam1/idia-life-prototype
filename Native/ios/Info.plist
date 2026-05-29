@@ -38,6 +38,16 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
+			<string>com.google.signin</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.67113257224-gc6tc9dfm58c7og5cqg6f74h09hhkedj</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
 			<string>com.idiadata.life</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
