@@ -425,10 +425,22 @@ const ActiveProposalsList: React.FC<{
   }
 
   if (proposals.length === 0) {
+    const showActivateEmpty = !isSelfDelegated && balance > 0;
     return (
-      <div className="py-16 text-center opacity-40 space-y-3 bg-slate-50 dark:bg-muted/30 rounded-3xl border border-slate-100 dark:border-border">
-        <Gavel className="mx-auto w-10 h-10 text-slate-400" />
-        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">No Active Proposals Found</p>
+      <div className="space-y-5">
+        {showActivateEmpty && (
+          <ActivateVotingPowerCard
+            idiaBalance={balance}
+            onActivated={() => {
+              onDelegationChanged?.();
+              setInnerRefresh((n) => n + 1);
+            }}
+          />
+        )}
+        <div className="py-16 text-center opacity-40 space-y-3 bg-slate-50 dark:bg-muted/30 rounded-3xl border border-slate-100 dark:border-border">
+          <Gavel className="mx-auto w-10 h-10 text-slate-400" />
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">No Active Proposals Found</p>
+        </div>
       </div>
     );
   }
