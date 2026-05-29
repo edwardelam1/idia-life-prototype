@@ -8,6 +8,8 @@ import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { stage } from "@/lib/stageLogger";
 import { governanceService } from "@/services/governanceService";
+import ActivateVotingPowerCard from "./ActivateVotingPowerCard";
+import { Progress } from "@/components/ui/progress";
 import {
   authorizeGovernanceAction,
   getAscensionLevel,
@@ -39,18 +41,21 @@ const ProposalCard: React.FC<{
   const [hasVoted, setHasVoted] = useState<null | "for" | "against">(null);
   const [voteCount, setVoteCount] = useState<number>(0);
   const [loadingMeta, setLoadingMeta] = useState(true);
+  const [quorumRequired, setQuorumRequired] = useState<number>(0);
+  const [totalWeight, setTotalWeight] = useState<number>(0);
 
   const isProposer = !!currentUserId && proposal.proposer_id === currentUserId;
   const canWithdraw = isProposer && voteCount === 0 && hasVoted === null;
 
   useEffect(() => {
     let alive = true;
+    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
     (async () => {
       const s = stage("PROPOSAL_CARD", "META_FETCH");
       s.start({ id: proposal.id });
       try {
         const [{ data: votes }, mine] = await Promise.all([
-          (supabase as any).from("dao_votes").select("vote_type").eq("proposal_id", proposal.id),
+          (supabase as any).from("dao_votes").select("vote_type, vote_weight").eq("proposal_id", proposal.id),
           currentUserId
             ? (supabase as any)
                 .from("dao_votes")
@@ -61,8 +66,21 @@ const ProposalCard: React.FC<{
             : Promise.resolve({ data: null }),
         ]);
         if (!alive) return;
-        setVoteCount((votes || []).length);
+        const rows = (votes || []) as { vote_type: string; vote_weight?: number }[];
+        setVoteCount(rows.length);
+        setTotalWeight(rows.reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0));
         setHasVoted(((mine as any)?.data?.vote_type as "for" | "against") ?? null);
+
+        // Fetch live quorum from chain (throttled to avoid 429s)
+        await delay(300);
+        try {
+          const q = proposal.on_chain_id
+            ? await governanceService.getProposalQuorum(proposal.on_chain_id)
+            : await governanceService.getCurrentQuorum();
+          if (alive) setQuorumRequired(Number(q) || 0);
+        } catch (qErr) {
+          console.warn("[PROPOSAL_CARD] quorum fetch failed", qErr);
+        }
         s.ok();
       } catch (e) {
         s.fail(e);
@@ -73,7 +91,7 @@ const ProposalCard: React.FC<{
     return () => {
       alive = false;
     };
-  }, [proposal.id, currentUserId]);
+  }, [proposal.id, proposal.on_chain_id, currentUserId]);
 
   const handleCastVote = async (support: "for" | "against") => {
     console.log(`[BEGIN] handleCastVote execution started | Proposal: ${proposal.id} | Intent: ${support}`);
@@ -276,6 +294,30 @@ const ProposalCard: React.FC<{
           <p className="text-xs text-muted-foreground leading-relaxed">{proposal.description}</p>
         </div>
 
+        {quorumRequired > 0 && (
+          <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2">
+            <div className="flex justify-between items-baseline">
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
+                Quorum Progress
+              </span>
+              <span className="text-[9px] font-black tracking-widest text-slate-700 dark:text-slate-200">
+                {totalWeight.toLocaleString()} / {quorumRequired.toLocaleString()} (
+                {Math.min(100, (totalWeight / quorumRequired) * 100).toFixed(1)}%)
+              </span>
+            </div>
+            <Progress
+              value={Math.min(100, (totalWeight / quorumRequired) * 100)}
+              className="h-2"
+              indicatorClassName={
+                totalWeight >= quorumRequired
+                  ? "bg-emerald-500"
+                  : "bg-[hsl(178,42%,32%)]"
+              }
+            />
+          </div>
+        )}
+
+
         <div className="p-4 bg-teal-50/50 dark:bg-teal-950/30 rounded-2xl border border-teal-100/50 dark:border-teal-900/50 space-y-3">
           <p className="text-[10px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-200">
             Cast Sovereign Vote · {votingPower ? Number(votingPower).toLocaleString() : 0} IDIAX
@@ -333,11 +375,13 @@ const ProposalCard: React.FC<{
   );
 };
 
-const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | string; refreshTrigger?: number }> = ({
-  balance,
-  votingPower,
-  refreshTrigger = 0,
-}) => {
+const ActiveProposalsList: React.FC<{
+  balance: number;
+  votingPower: number | string;
+  refreshTrigger?: number;
+  isSelfDelegated?: boolean;
+  onDelegationChanged?: () => void | Promise<void>;
+}> = ({ balance, votingPower, refreshTrigger = 0, isSelfDelegated = true, onDelegationChanged }) => {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -346,6 +390,7 @@ const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | str
 
   useEffect(() => {
     let isMounted = true;
+    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
     (async () => {
       const s = stage("ACTIVE_PROPOSALS", "FETCH_HYBRID");
       s.start();
@@ -367,29 +412,32 @@ const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | str
           if (isMounted) setAscensionLevel(getAscensionLevel(hatSet));
         }
 
-        // Fetch from both sources
-        const [dbProposals, onChainProposals] = await Promise.all([
-          (supabase as any)
-            .from("dao_proposals")
-            .select("id, title, description, status, proposer_id")
-            .order("created_at", { ascending: false }),
-          governanceService.getRecentProposals(user?.id || ""),
-        ]);
-
+        // Sequential to avoid RPC 429s — Supabase first (cheap), then on-chain.
+        const dbProposals = await (supabase as any)
+          .from("dao_proposals")
+          .select("id, title, description, status, proposer_id")
+          .order("created_at", { ascending: false });
         if (dbProposals.error) throw dbProposals.error;
 
-        // Merge logic: Index on-chain IDs to avoid duplicates if necessary
+        await delay(400);
+
+        const onChainProposals = await governanceService
+          .getRecentProposals(user?.id || "")
+          .catch((e) => {
+            console.warn("[ACTIVE_PROPOSALS] on-chain fetch failed:", e?.message);
+            return [];
+          });
+
         const combined = [
           ...(dbProposals.data || []),
           ...onChainProposals.map((p) => ({
             id: p.proposalId,
-            title: p.description.split("\n")[0], // Extract title from description if needed
+            title: p.description.split("\n")[0],
             description: p.description,
             status: p.stateName,
             proposer_id: p.proposer,
           })),
         ];
-        // Logic to append or reconcile onChainProposals goes here
 
         if (isMounted) setProposals(combined);
         s.ok({ count: combined.length });
@@ -417,16 +465,39 @@ const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | str
   }
 
   if (proposals.length === 0) {
+    const showActivateEmpty = !isSelfDelegated && balance > 0;
     return (
-      <div className="py-16 text-center opacity-40 space-y-3 bg-slate-50 dark:bg-muted/30 rounded-3xl border border-slate-100 dark:border-border">
-        <Gavel className="mx-auto w-10 h-10 text-slate-400" />
-        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">No Active Proposals Found</p>
+      <div className="space-y-5">
+        {showActivateEmpty && (
+          <ActivateVotingPowerCard
+            idiaBalance={balance}
+            onActivated={() => {
+              onDelegationChanged?.();
+              setInnerRefresh((n) => n + 1);
+            }}
+          />
+        )}
+        <div className="py-16 text-center opacity-40 space-y-3 bg-slate-50 dark:bg-muted/30 rounded-3xl border border-slate-100 dark:border-border">
+          <Gavel className="mx-auto w-10 h-10 text-slate-400" />
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">No Active Proposals Found</p>
+        </div>
       </div>
     );
   }
 
+  const showActivate = !isSelfDelegated && balance > 0;
+
   return (
     <div className="space-y-5">
+      {showActivate && (
+        <ActivateVotingPowerCard
+          idiaBalance={balance}
+          onActivated={() => {
+            onDelegationChanged?.();
+            setInnerRefresh((n) => n + 1);
+          }}
+        />
+      )}
       <div className="px-2">
         <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
           Clearance · {LEVEL_LABEL[ascensionLevel]}

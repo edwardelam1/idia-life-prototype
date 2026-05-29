@@ -22,9 +22,14 @@ const IDIA_CONTRACT = PROTOCOL.idiaToken;
 const IS_MAINNET = ACTIVE_DEPLOYMENT === "mainnet";
 
 const GovernanceScreen: React.FC = () => {
-  const { balance, usdcProvisioned } = useWalletBalance();
+  const { balance, usdcProvisioned, usdcAddress, refreshBalance } = useWalletBalance();
   const idiaBalance = balance.idia_token_balance;
   const chainVerified = usdcProvisioned; // same Alchemy/Base provider hydrates both
+  const isSelfDelegated = !!(
+    usdcAddress &&
+    balance.delegatee &&
+    balance.delegatee.toLowerCase() === usdcAddress.toLowerCase()
+  );
   const [jurisdiction, setJurisdiction] = useState<Jurisdiction>("wyoming");
   const [userId, setUserId] = useState<string | null>(null);
   const [needsWelcomeAck, setNeedsWelcomeAck] = useState<boolean>(false);
@@ -108,7 +113,13 @@ const GovernanceScreen: React.FC = () => {
                 <Plus size={12} className="mr-1" /> Submit Proposal
               </Button>
             </div>
-            <ActiveProposalsList balance={idiaBalance} votingPower={balance.voting_power ?? 0} refreshTrigger={refreshKey} />
+            <ActiveProposalsList
+              balance={idiaBalance}
+              votingPower={balance.voting_power ?? 0}
+              isSelfDelegated={isSelfDelegated}
+              onDelegationChanged={refreshBalance}
+              refreshTrigger={refreshKey}
+            />
           </section>
 
           <section className="space-y-3">

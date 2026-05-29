@@ -117,8 +117,10 @@ export const IDIA_TOKEN_ABI = [
   "function approve(address spender, uint256 amount) returns (bool)",
   "function allowance(address owner, address spender) view returns (uint256)",
   "function delegate(address delegatee)",
+  "function delegateBySig(address delegatee, uint256 nonce, uint256 expiry, uint8 v, bytes32 r, bytes32 s)",
   "function delegates(address account) view returns (address)",
   "function getVotes(address account) view returns (uint256)",
+  "function nonces(address owner) view returns (uint256)",
   "function totalSupply() view returns (uint256)",
 ];
 

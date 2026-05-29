@@ -184,13 +184,17 @@ export const useWalletBalance = () => {
           const idiaErc20 = new ethers.Contract(IDIA_ADDRESS, ERC20_BALANCE_ABI, provider);
           const idiaGov = new ethers.Contract(IDIA_ADDRESS, GOVERNANCE_READ_ABI, provider);
 
-          const [rawUsdc, rawIdia, rawEth, rawVotes, rawDelegatee] = await Promise.all([
-            usdcContract.balanceOf(walletAddress).catch(() => 0n),
-            idiaErc20.balanceOf(walletAddress).catch(() => 0n),
-            provider.getBalance(walletAddress).catch(() => 0n),
-            idiaGov.getVotes(walletAddress).catch(() => 0n),
-            idiaGov.delegates(walletAddress).catch(() => null),
-          ]);
+          // Sequential to avoid 429 rate-limits on free/standard RPC tiers.
+          const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+          const rawUsdc = await usdcContract.balanceOf(walletAddress).catch(() => 0n);
+          await delay(400);
+          const rawIdia = await idiaErc20.balanceOf(walletAddress).catch(() => 0n);
+          await delay(400);
+          const rawEth = await provider.getBalance(walletAddress).catch(() => 0n);
+          await delay(400);
+          const rawVotes = await idiaGov.getVotes(walletAddress).catch(() => 0n);
+          await delay(400);
+          const rawDelegatee = await idiaGov.delegates(walletAddress).catch(() => null);
 
           usdcBalance = Number(ethers.formatUnits(rawUsdc, 6));
           tokenBalance = Number(ethers.formatEther(rawIdia));

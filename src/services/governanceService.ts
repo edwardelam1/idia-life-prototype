@@ -276,8 +276,11 @@ async getCurrentQuorum(): Promise<string> {
     }
 
     const proposals: ProposalOnChain[] = [];
+    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-    for (const log of allLogs) {
+    for (let i = 0; i < allLogs.length; i++) {
+      const log = allLogs[i];
+      if (i > 0) await delay(250); // throttle to avoid RPC 429s
       try {
         const parsed = govInterface.parseLog({ topics: log.topics as string[], data: log.data });
         if (!parsed) continue;
@@ -434,6 +437,65 @@ async getCurrentQuorum(): Promise<string> {
     const address = walletService.getAddress();
     if (!address) throw new Error('Wallet not connected');
     return this.delegate(address);
+  }
+
+  /**
+   * Gasless self-delegation via EIP-712 `delegateBySig` + Supabase relayer.
+   * The user's local signer signs the typed-data offline; the relayer pays gas.
+   */
+  async signAndRelaySelfDelegation(): Promise<{ hash: string; acaHash?: string }> {
+    const { supabase } = await import('@/integrations/supabase/client');
+    const signer = walletService.getConnectedSigner();
+    if (!signer) throw new Error('Wallet not connected');
+    const address = await signer.getAddress();
+
+    const provider = this.getProvider();
+    const token = new ethers.Contract(
+      PROTOCOL.idiaToken,
+      ['function nonces(address) view returns (uint256)', 'function name() view returns (string)'],
+      provider,
+    );
+
+    const [nonceRaw, tokenName] = [
+      await token.nonces(address),
+      await token.name().catch(() => 'IDIA'),
+    ];
+    const nonce = Number(nonceRaw);
+    const expiry = Math.floor(Date.now() / 1000) + 3600; // 1 hour
+    const chainId = ACTIVE_DEPLOYMENT === 'mainnet' ? 8453 : 84532;
+
+    const domain = {
+      name: tokenName,
+      version: '1',
+      chainId,
+      verifyingContract: PROTOCOL.idiaToken,
+    };
+    const types = {
+      Delegation: [
+        { name: 'delegatee', type: 'address' },
+        { name: 'nonce', type: 'uint256' },
+        { name: 'expiry', type: 'uint256' },
+      ],
+    };
+    const value = { delegatee: address, nonce, expiry };
+
+    console.log('[SELF_DELEGATE] signing EIP-712 Delegation', { address, nonce, expiry });
+    const signature = await (signer as any).signTypedData(domain, types, value);
+    const sig = ethers.Signature.from(signature);
+
+    const { data, error } = await supabase.functions.invoke('relay-delegation', {
+      body: {
+        delegatee: address,
+        nonce,
+        expiry,
+        v: sig.v,
+        r: sig.r,
+        s: sig.s,
+      },
+    });
+    if (error) throw new Error(error.message || 'Relayer call failed');
+    if (!data?.tx_hash) throw new Error(data?.error || 'Relayer returned no tx hash');
+    return { hash: data.tx_hash, acaHash: data.aca_hash };
   }
 
   async undelegate(): Promise<{ hash: string }> {
