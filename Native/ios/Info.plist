@@ -28,8 +28,22 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Location is used for Shop AR discovery of nearby IDIA merchants.</string>
 
+	<!-- ═══ Google Sign-In (iOS OAuth Client) ═══ -->
+	<key>GIDClientID</key>
+	<string>67113257224-gc6tc9dfm58c7og5cqg6f74h09hhkedj.apps.googleusercontent.com</string>
+
 	<key>CFBundleURLTypes</key>
 	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.google.signin</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.67113257224-gc6tc9dfm58c7og5cqg6f74h09hhkedj</string>
+			</array>
+		</dict>
 		<dict>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
