@@ -276,8 +276,11 @@ async getCurrentQuorum(): Promise<string> {
     }
 
     const proposals: ProposalOnChain[] = [];
+    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-    for (const log of allLogs) {
+    for (let i = 0; i < allLogs.length; i++) {
+      const log = allLogs[i];
+      if (i > 0) await delay(250); // throttle to avoid RPC 429s
       try {
         const parsed = govInterface.parseLog({ topics: log.topics as string[], data: log.data });
         if (!parsed) continue;
