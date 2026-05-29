@@ -8,6 +8,8 @@ import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { stage } from "@/lib/stageLogger";
 import { governanceService } from "@/services/governanceService";
+import ActivateVotingPowerCard from "./ActivateVotingPowerCard";
+import { Progress } from "@/components/ui/progress";
 import {
   authorizeGovernanceAction,
   getAscensionLevel,
