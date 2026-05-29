@@ -1,4 +1,3 @@
-
 /// <reference types="node" />
 import { CapacitorConfig } from "@capacitor/cli";
 
@@ -41,6 +40,15 @@ const config: CapacitorConfig = {
       launchAutoHide: true,
       backgroundColor: "#1a1a2e",
     },
+    GoogleAuth: {
+      scopes: ["profile", "email"],
+      serverClientId: "349472255801-091p5a3320h0kb9636hjsd2otfs160ct.apps.googleusercontent.com",
+      forceCodeForRefreshToken: false,
+    },
+  },
+  android: {
+    // Preserve WebView debugging across updates (dev-only impact in release builds)
+    webContentsDebuggingEnabled: true,
   },
 };
 
