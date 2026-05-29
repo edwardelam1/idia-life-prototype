@@ -433,8 +433,19 @@ const ActiveProposalsList: React.FC<{
     );
   }
 
+  const showActivate = !isSelfDelegated && balance > 0;
+
   return (
     <div className="space-y-5">
+      {showActivate && (
+        <ActivateVotingPowerCard
+          idiaBalance={balance}
+          onActivated={() => {
+            onDelegationChanged?.();
+            setInnerRefresh((n) => n + 1);
+          }}
+        />
+      )}
       <div className="px-2">
         <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
           Clearance · {LEVEL_LABEL[ascensionLevel]}
