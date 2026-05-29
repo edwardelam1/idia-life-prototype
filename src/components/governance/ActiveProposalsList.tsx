@@ -333,11 +333,13 @@ const ProposalCard: React.FC<{
   );
 };
 
-const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | string; refreshTrigger?: number }> = ({
-  balance,
-  votingPower,
-  refreshTrigger = 0,
-}) => {
+const ActiveProposalsList: React.FC<{
+  balance: number;
+  votingPower: number | string;
+  refreshTrigger?: number;
+  isSelfDelegated?: boolean;
+  onDelegationChanged?: () => void | Promise<void>;
+}> = ({ balance, votingPower, refreshTrigger = 0, isSelfDelegated = true, onDelegationChanged }) => {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -346,6 +348,7 @@ const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | str
 
   useEffect(() => {
     let isMounted = true;
+    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
     (async () => {
       const s = stage("ACTIVE_PROPOSALS", "FETCH_HYBRID");
       s.start();
@@ -367,29 +370,32 @@ const ActiveProposalsList: React.FC<{ balance: number; votingPower: number | str
           if (isMounted) setAscensionLevel(getAscensionLevel(hatSet));
         }
 
-        // Fetch from both sources
-        const [dbProposals, onChainProposals] = await Promise.all([
-          (supabase as any)
-            .from("dao_proposals")
-            .select("id, title, description, status, proposer_id")
-            .order("created_at", { ascending: false }),
-          governanceService.getRecentProposals(user?.id || ""),
-        ]);
-
+        // Sequential to avoid RPC 429s — Supabase first (cheap), then on-chain.
+        const dbProposals = await (supabase as any)
+          .from("dao_proposals")
+          .select("id, title, description, status, proposer_id")
+          .order("created_at", { ascending: false });
         if (dbProposals.error) throw dbProposals.error;
 
-        // Merge logic: Index on-chain IDs to avoid duplicates if necessary
+        await delay(400);
+
+        const onChainProposals = await governanceService
+          .getRecentProposals(user?.id || "")
+          .catch((e) => {
+            console.warn("[ACTIVE_PROPOSALS] on-chain fetch failed:", e?.message);
+            return [];
+          });
+
         const combined = [
           ...(dbProposals.data || []),
           ...onChainProposals.map((p) => ({
             id: p.proposalId,
-            title: p.description.split("\n")[0], // Extract title from description if needed
+            title: p.description.split("\n")[0],
             description: p.description,
             status: p.stateName,
             proposer_id: p.proposer,
           })),
         ];
-        // Logic to append or reconcile onChainProposals goes here
 
         if (isMounted) setProposals(combined);
         s.ok({ count: combined.length });
