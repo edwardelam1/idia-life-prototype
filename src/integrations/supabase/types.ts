@@ -3324,6 +3324,27 @@ export type Database = {
           },
         ]
       }
+      governance_indexer_state: {
+        Row: {
+          id: string
+          last_scanned_block: number
+          network: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          last_scanned_block?: number
+          network?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          last_scanned_block?: number
+          network?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       governance_ledger: {
         Row: {
           aca_hash_key: string | null
@@ -3369,6 +3390,72 @@ export type Database = {
           target_table?: string | null
           transaction_type?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      governance_proposals: {
+        Row: {
+          abstain_votes: string
+          against_votes: string
+          block_created: number
+          calldatas: Json
+          callvalues: Json
+          created_at: string
+          description: string
+          for_votes: string
+          network: string
+          proposal_id: string
+          proposer: string
+          state: number
+          state_name: string
+          targets: Json
+          title: string
+          tx_hash: string | null
+          updated_at: string
+          vote_end: number
+          vote_start: number
+        }
+        Insert: {
+          abstain_votes?: string
+          against_votes?: string
+          block_created?: number
+          calldatas?: Json
+          callvalues?: Json
+          created_at?: string
+          description?: string
+          for_votes?: string
+          network?: string
+          proposal_id: string
+          proposer: string
+          state?: number
+          state_name?: string
+          targets?: Json
+          title?: string
+          tx_hash?: string | null
+          updated_at?: string
+          vote_end?: number
+          vote_start?: number
+        }
+        Update: {
+          abstain_votes?: string
+          against_votes?: string
+          block_created?: number
+          calldatas?: Json
+          callvalues?: Json
+          created_at?: string
+          description?: string
+          for_votes?: string
+          network?: string
+          proposal_id?: string
+          proposer?: string
+          state?: number
+          state_name?: string
+          targets?: Json
+          title?: string
+          tx_hash?: string | null
+          updated_at?: string
+          vote_end?: number
+          vote_start?: number
         }
         Relationships: []
       }
@@ -8205,6 +8292,48 @@ export type Database = {
           },
         ]
       }
+      vulture_provenance_ledger: {
+        Row: {
+          action: string
+          bucket_path: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          manifest_path: string | null
+          original_file_name: string
+          original_hash: string | null
+          record_count: number | null
+          sanitized_hash: string | null
+          status: string
+        }
+        Insert: {
+          action?: string
+          bucket_path?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          manifest_path?: string | null
+          original_file_name: string
+          original_hash?: string | null
+          record_count?: number | null
+          sanitized_hash?: string | null
+          status?: string
+        }
+        Update: {
+          action?: string
+          bucket_path?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          manifest_path?: string | null
+          original_file_name?: string
+          original_hash?: string | null
+          record_count?: number | null
+          sanitized_hash?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       wallets: {
         Row: {
           cash_balance: number | null
@@ -8915,6 +9044,7 @@ export type Database = {
         Args: { p_pseudo_id: string }
         Returns: string
       }
+      get_vulture_salt: { Args: never; Returns: string }
       grant_hat: {
         Args: { _hat_type: string; _target_user: string }
         Returns: string
