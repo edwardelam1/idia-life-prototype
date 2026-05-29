@@ -294,6 +294,30 @@ const ProposalCard: React.FC<{
           <p className="text-xs text-muted-foreground leading-relaxed">{proposal.description}</p>
         </div>
 
+        {quorumRequired > 0 && (
+          <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2">
+            <div className="flex justify-between items-baseline">
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
+                Quorum Progress
+              </span>
+              <span className="text-[9px] font-black tracking-widest text-slate-700 dark:text-slate-200">
+                {totalWeight.toLocaleString()} / {quorumRequired.toLocaleString()} (
+                {Math.min(100, (totalWeight / quorumRequired) * 100).toFixed(1)}%)
+              </span>
+            </div>
+            <Progress
+              value={Math.min(100, (totalWeight / quorumRequired) * 100)}
+              className="h-2"
+              indicatorClassName={
+                totalWeight >= quorumRequired
+                  ? "bg-emerald-500"
+                  : "bg-[hsl(178,42%,32%)]"
+              }
+            />
+          </div>
+        )}
+
+
         <div className="p-4 bg-teal-50/50 dark:bg-teal-950/30 rounded-2xl border border-teal-100/50 dark:border-teal-900/50 space-y-3">
           <p className="text-[10px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-200">
             Cast Sovereign Vote · {votingPower ? Number(votingPower).toLocaleString() : 0} IDIAX
