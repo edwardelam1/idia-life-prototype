@@ -41,18 +41,21 @@ const ProposalCard: React.FC<{
   const [hasVoted, setHasVoted] = useState<null | "for" | "against">(null);
   const [voteCount, setVoteCount] = useState<number>(0);
   const [loadingMeta, setLoadingMeta] = useState(true);
+  const [quorumRequired, setQuorumRequired] = useState<number>(0);
+  const [totalWeight, setTotalWeight] = useState<number>(0);
 
   const isProposer = !!currentUserId && proposal.proposer_id === currentUserId;
   const canWithdraw = isProposer && voteCount === 0 && hasVoted === null;
 
   useEffect(() => {
     let alive = true;
+    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
     (async () => {
       const s = stage("PROPOSAL_CARD", "META_FETCH");
       s.start({ id: proposal.id });
       try {
         const [{ data: votes }, mine] = await Promise.all([
-          (supabase as any).from("dao_votes").select("vote_type").eq("proposal_id", proposal.id),
+          (supabase as any).from("dao_votes").select("vote_type, vote_weight").eq("proposal_id", proposal.id),
           currentUserId
             ? (supabase as any)
                 .from("dao_votes")
@@ -63,8 +66,21 @@ const ProposalCard: React.FC<{
             : Promise.resolve({ data: null }),
         ]);
         if (!alive) return;
-        setVoteCount((votes || []).length);
+        const rows = (votes || []) as { vote_type: string; vote_weight?: number }[];
+        setVoteCount(rows.length);
+        setTotalWeight(rows.reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0));
         setHasVoted(((mine as any)?.data?.vote_type as "for" | "against") ?? null);
+
+        // Fetch live quorum from chain (throttled to avoid 429s)
+        await delay(300);
+        try {
+          const q = proposal.on_chain_id
+            ? await governanceService.getProposalQuorum(proposal.on_chain_id)
+            : await governanceService.getCurrentQuorum();
+          if (alive) setQuorumRequired(Number(q) || 0);
+        } catch (qErr) {
+          console.warn("[PROPOSAL_CARD] quorum fetch failed", qErr);
+        }
         s.ok();
       } catch (e) {
         s.fail(e);
@@ -75,7 +91,7 @@ const ProposalCard: React.FC<{
     return () => {
       alive = false;
     };
-  }, [proposal.id, currentUserId]);
+  }, [proposal.id, proposal.on_chain_id, currentUserId]);
 
   const handleCastVote = async (support: "for" | "against") => {
     console.log(`[BEGIN] handleCastVote execution started | Proposal: ${proposal.id} | Intent: ${support}`);
