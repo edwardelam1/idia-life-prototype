@@ -434,7 +434,7 @@ const ActiveProposalsList: React.FC<{
         // Sequential to avoid RPC 429s — Supabase first (cheap), then on-chain.
         const dbProposals = await (supabase as any)
           .from("dao_proposals")
-          .select("id, title, description, status, proposer_id")
+          .select("id, title, description, status, proposer_id, on_chain_id")
           .order("created_at", { ascending: false });
         if (dbProposals.error) throw dbProposals.error;
 
@@ -447,16 +447,36 @@ const ActiveProposalsList: React.FC<{
             return [];
           });
 
-        const combined = [
-          ...(dbProposals.data || []),
-          ...onChainProposals.map((p) => ({
+        // Index DB rows by on_chain_id to dedupe anchored entries
+        const anchoredIds = new Set<string>(
+          (dbProposals.data || [])
+            .map((r: any) => r.on_chain_id)
+            .filter((x: unknown): x is string => typeof x === "string" && x.length > 0),
+        );
+
+        const dbRows: Proposal[] = (dbProposals.data || []).map((r: any) => ({
+          id: r.id,
+          proposal_ref: r.on_chain_id ?? r.id, // on-chain id wins when anchored
+          title: r.title,
+          description: r.description,
+          status: r.status,
+          proposer_id: r.proposer_id,
+          on_chain_id: r.on_chain_id ?? null,
+        }));
+
+        const chainRows: Proposal[] = onChainProposals
+          .filter((p) => !anchoredIds.has(p.proposalId))
+          .map((p) => ({
             id: p.proposalId,
+            proposal_ref: p.proposalId,
             title: p.description.split("\n")[0],
             description: p.description,
             status: p.stateName,
             proposer_id: p.proposer,
-          })),
-        ];
+            on_chain_id: p.proposalId,
+          }));
+
+        const combined = [...dbRows, ...chainRows];
 
         if (isMounted) setProposals(combined);
         s.ok({ count: combined.length });
