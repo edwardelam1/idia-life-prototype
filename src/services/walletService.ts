@@ -212,6 +212,9 @@ class WalletService {
     await Preferences.set({ key: STORAGE_KEYS.WALLET_EXISTS, value: 'true' });
     await Preferences.set({ key: STORAGE_KEYS.ACTIVE_NETWORK, value: DEFAULT_NETWORK });
 
+    // FIX: persist to Secure Enclave so loadWallet() finds it on next launch
+    await storeSecureKeys(trimmed);
+
     this.wallet = w;
     this.mnemonic = trimmed;
     this.activeNetwork = DEFAULT_NETWORK;
