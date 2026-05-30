@@ -143,6 +143,7 @@ const GovernanceScreen: React.FC = () => {
             <CommitteeWorkspaceBoundary />
           </section>
           <AuditFeed />
+        </div>
       )}
 
       {needsWelcomeAck && userId && (
