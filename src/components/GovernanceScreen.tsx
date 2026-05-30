@@ -12,6 +12,7 @@ import LifecycleTelemetry from "./governance/LifecycleTelemetry";
 import MSAComplianceCard from "./governance/MSAComplianceCard";
 import TreasuryFlows from "./governance/TreasuryFlows";
 import CommitteesList from "./governance/CommitteesList";
+import CommitteeWorkspace from "./governance/CommitteeWorkspace";
 import ApplicationReviewQueue from "./governance/ApplicationReviewQueue";
 import AuditFeed from "./governance/AuditFeed";
 import WelcomeManualGate from "./governance/WelcomeManualGate";
