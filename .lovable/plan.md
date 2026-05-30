@@ -1,25 +1,22 @@
-## Refactor `src/services/governanceService.ts` for speed + DB-backed reads
+Your package.json already contains `@codetrix-studio/capacitor-google-auth` at `^3.4.0-rc.4` (line 29). The only missing dependency is `@capacitor/browser` at `^8.0.3`.
 
-Single-file change: `src/services/governanceService.ts`. Confirmed prerequisites:
-- `public.governance_proposals` table exists with all needed columns (`proposal_id`, `proposer`, `description`, `state`, `state_name`, `for_votes`, `against_votes`, `abstain_votes`, `vote_start`, `vote_end`, `targets`, `callvalues`, `calldatas`, `network`, `block_created`).
-- `governance-indexer` edge function is deployed and reachable.
+### Plan
 
-### Step 1 — Supabase import + cached provider
-- Add `import { supabase } from '../integrations/supabase/client';` to imports.
-- Replace stateless `getProvider()` with a memoized version backed by a private `_provider` field, constructing `new ethers.JsonRpcProvider(rpcUrl, chainId, { batchMaxCount: 5 })` once.
+1. **Add the missing package**
+   ```bash
+   bun add @capacitor/browser@^8.0.3
+   ```
 
-### Step 2 — Concurrency helpers (private methods)
-- `delay(ms)` — promise-based throttle.
-- `triggerIndexer()` — fire-and-forget `supabase.functions.invoke('governance-indexer', { body: {} })`, wrapped in try/catch with `console.warn` on failure.
+2. **Verify retention of existing native dependencies**
+   Confirm the following remain in `dependencies` after install:
+   - `"@capacitor-community/apple-sign-in": "^7.1.0"`
+   - `"capacitor-native-biometric": "^4.2.2"`
+   - `"@capacitor/device": "^8.0.2"`
 
-### Step 3 — Rewrite `getRecentProposals(address)`
-Delete the chunked `provider.getLogs` scraper (`MAX_LOG_RANGE = 9999` loop and per-event parsing) and replace with:
-- Supabase query against `governance_proposals`, filtered by `network` (`mainnet` vs `testnet` from `ACTIVE_DEPLOYMENT`), ordered by `block_created desc`.
-- For each row, sequentially call `gov.hasVoted(proposalId, address)` when `address` is set, throttled with `delay(200)` only when `dbProposals.length > 3`.
-- Map DB columns into existing `ProposalOnChain` shape (`row.callvalues` → `values`).
-- Keep `callRaw`, `computeQuorumFromSupply`, `getCurrentQuorum`, `getProposalQuorum`, `getGovernorParams`, `getDelegationInfo`, `getProposalState`, and the `GOVERNOR_DEPLOY_BLOCK` constants intact (constants can stay even though unused, or be removed — minor cleanup).
+3. **Sync native projects**
+   ```bash
+   npx cap sync
+   ```
+   This updates `android/app/src/main/AndroidManifest.xml` and `ios/App/App/Info.plist` with the configuration hooks for the newly added browser plugin.
 
-### Step 4 — Wire indexer into write paths
-At the end of `propose`, `proposeWithTiming`, and `castVote`, immediately before `return`, call `this.triggerIndexer().catch(() => {});` so the DB resyncs after each mutation. Leave `delegate` and `signAndRelaySelfDelegation` unchanged (delegation doesn't alter proposal state).
-
-No DB migrations, no new edge functions, no other files touched.
+No code changes beyond `package.json` and lockfile updates are required.
