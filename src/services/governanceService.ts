@@ -399,6 +399,7 @@ async getCurrentQuorum(): Promise<string> {
       : await gov.castVote(proposalId, support);
 
     await tx.wait();
+    this.triggerIndexer().catch(() => {});
     return { hash: tx.hash };
   }
 
