@@ -294,28 +294,41 @@ const ProposalCard: React.FC<{
           <p className="text-xs text-muted-foreground leading-relaxed">{proposal.description}</p>
         </div>
 
-        {quorumRequired > 0 && (
-          <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2">
-            <div className="flex justify-between items-baseline">
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
-                Quorum Progress
-              </span>
-              <span className="text-[9px] font-black tracking-widest text-slate-700 dark:text-slate-200">
-                {totalWeight.toLocaleString()} / {quorumRequired.toLocaleString()} (
-                {Math.min(100, (totalWeight / quorumRequired) * 100).toFixed(1)}%)
-              </span>
-            </div>
-            <Progress
-              value={Math.min(100, (totalWeight / quorumRequired) * 100)}
-              className="h-2"
-              indicatorClassName={
-                totalWeight >= quorumRequired
+        <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2">
+          <div className="flex justify-between items-baseline">
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
+              Quorum Progress
+            </span>
+            <span className="text-[9px] font-black tracking-widest text-slate-700 dark:text-slate-200">
+              {quorumRequired > 0 ? (
+                <>
+                  {totalWeight.toLocaleString()} / {quorumRequired.toLocaleString()} (
+                  {Math.min(100, (totalWeight / quorumRequired) * 100).toFixed(1)}%)
+                </>
+              ) : (
+                <>{totalWeight.toLocaleString()} cast · quorum hydrating…</>
+              )}
+            </span>
+          </div>
+          <Progress
+            value={
+              quorumRequired > 0
+                ? Math.min(100, (totalWeight / quorumRequired) * 100)
+                : totalWeight > 0
+                  ? 8
+                  : 0
+            }
+            className={`h-2 ${quorumRequired === 0 ? "animate-pulse" : ""}`}
+            indicatorClassName={
+              quorumRequired === 0
+                ? "bg-slate-300 dark:bg-slate-700"
+                : totalWeight >= quorumRequired
                   ? "bg-emerald-500"
                   : "bg-[hsl(178,42%,32%)]"
-              }
-            />
-          </div>
-        )}
+            }
+          />
+        </div>
+
 
 
         <div className="p-4 bg-teal-50/50 dark:bg-teal-950/30 rounded-2xl border border-teal-100/50 dark:border-teal-900/50 space-y-3">
