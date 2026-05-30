@@ -136,8 +136,13 @@ const GovernanceScreen: React.FC = () => {
           <TreasuryFlows />
           <ApplicationReviewQueue />
           <CommitteesList />
+          <section className="space-y-3">
+            <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
+              <Gavel size={14} className="text-teal-600" /> Committee Deliberations · Motion Threads
+            </h2>
+            <CommitteeWorkspaceBoundary />
+          </section>
           <AuditFeed />
-        </div>
       )}
 
       {needsWelcomeAck && userId && (
