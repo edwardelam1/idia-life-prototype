@@ -22,6 +22,40 @@ import { PROTOCOL, ACTIVE_DEPLOYMENT } from "@/config/contracts";
 const IDIA_CONTRACT = PROTOCOL.idiaToken;
 const IS_MAINNET = ACTIVE_DEPLOYMENT === "mainnet";
 
+class CommitteeWorkspaceBoundary extends React.Component<{}, { hasError: boolean; error: Error | null }> {
+  constructor(props: {}) {
+    super(props);
+    this.state = { hasError: false, error: null };
+    console.log("[START] Mounting CommitteeWorkspace");
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error) {
+    console.error("[ERROR] Failed to mount CommitteeWorkspace:", {
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      context: "GovernanceScreen.tsx/DelawarePortal",
+    });
+  }
+  componentDidMount() {
+    console.log("[SUCCESS] CommitteeWorkspace mounted successfully");
+  }
+  componentWillUnmount() {
+    console.log("[END] CommitteeWorkspace mount process concluded");
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-4 rounded-lg border border-red-200 bg-red-50 text-xs text-red-700">
+          Deliberation workspace failed to mount. Check console for trace.
+        </div>
+      );
+    }
+    return <CommitteeWorkspace />;
+  }
+}
+
 const GovernanceScreen: React.FC = () => {
   const { balance, usdcProvisioned, usdcAddress, refreshBalance } = useWalletBalance();
   const idiaBalance = balance.idia_token_balance;
