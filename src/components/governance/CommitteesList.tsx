@@ -117,10 +117,16 @@ const CommitteesList: React.FC = () => {
       const hatMap: Record<string, any> = {};
       const counts: Record<string, number> = {};
       const myHats = new Set<string>();
+      const myPending: Record<string, string> = {};
 
       hatsRes.data?.forEach((h: any) => {
         counts[h.hat_type] = (counts[h.hat_type] || 0) + 1;
-        if (h.eligibility_status === "active" && h.user_id === user.id) myHats.add(h.hat_type);
+        if (h.user_id === user.id) {
+          if (h.eligibility_status === "active") myHats.add(h.hat_type);
+          else if (h.eligibility_status === "pending_veto") {
+            myPending[h.hat_type] = h.veto_window_end;
+          }
+        }
         hatMap[h.hat_type] = h;
       });
 
@@ -129,6 +135,7 @@ const CommitteesList: React.FC = () => {
 
       setOfficerCounts(counts);
       setUserActiveHats(myHats);
+      setUserPendingHats(myPending);
       setUserHats(hatMap);
       setUserApplications(appMap);
 
