@@ -435,9 +435,13 @@ async getCurrentQuorum(): Promise<string> {
    * The user's local signer signs the typed-data offline; the relayer pays gas.
    */
   async signAndRelaySelfDelegation(): Promise<{ hash: string; acaHash?: string }> {
+    if (!walletService.getRawWallet()) {
+      console.error('[CRITICAL] Wallet service has no wallet instance.');
+      throw new Error('Wallet not initialized. Check your storage migration.');
+    }
     const { supabase } = await import('@/integrations/supabase/client');
     const signer = walletService.getConnectedSigner();
-    if (!signer) throw new Error('Wallet not connected');
+    if (!signer) throw new Error('Signer could not be connected');
     const address = await signer.getAddress();
 
     const provider = this.getProvider();
