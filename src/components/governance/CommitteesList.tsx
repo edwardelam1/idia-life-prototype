@@ -448,6 +448,20 @@ const CommitteesList: React.FC = () => {
                           Remove Membership
                         </Button>
                       </>
+                    ) : isProvisionedPendingVeto ? (
+                      <>
+                        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/30 px-2.5 py-1 rounded-full border border-purple-200 dark:border-purple-900/50">
+                          <ShieldCheck className="w-3 h-3" /> Provisioned · Veto Window
+                        </div>
+                        <span className="text-[10px] font-medium text-muted-foreground">
+                          Activates {new Date(pendingVetoEnd!).toLocaleString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </>
                     ) : isPending ? (
                       <>
                         <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-900/50">
