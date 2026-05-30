@@ -250,102 +250,57 @@ async getCurrentQuorum(): Promise<string> {
     };
   }
 
-  // ── Read: Proposals from events ───────────────────────────
+  // ── Read: Proposals from Database (Optimized) ─────────────
 
-  private static readonly GOVERNOR_DEPLOY_BLOCK = ACTIVE_DEPLOYMENT === 'mainnet' ? 46303500 : 0;
-  private static readonly MAX_LOG_RANGE = 9999;
+  async getRecentProposals(address: string): Promise<ProposalOnChain[]> {
+    const network = ACTIVE_DEPLOYMENT === 'mainnet' ? 'mainnet' : 'testnet';
+    console.log(`[GovernanceService] Fetching proposals from database (network: ${network})`);
 
-  async getRecentProposals(address: string, fromBlock?: number): Promise<ProposalOnChain[]> {
-    const provider = this.getProvider();
-    const gov = this.getGovernorReadOnly();
-    const govInterface = new ethers.Interface(GOVERNOR_ABI);
+    const { data: dbProposals, error } = await supabase
+      .from('governance_proposals')
+      .select('*')
+      .eq('network', network)
+      .order('block_created', { ascending: false });
 
-    const currentBlock = await provider.getBlockNumber();
-    const startBlock = fromBlock || GovernanceService.GOVERNOR_DEPLOY_BLOCK;
-
-    const topic0 = ethers.id('ProposalCreated(uint256,address,address[],uint256[],string[],bytes[],uint256,uint256,string)');
-
-    const totalBlocks = currentBlock - startBlock;
-    const chunks = Math.ceil(totalBlocks / GovernanceService.MAX_LOG_RANGE);
-    
-    console.log(`[GovernanceService] Scanning ${totalBlocks} blocks in ${chunks} chunks (${startBlock} → ${currentBlock}) on ${PROTOCOL.governor}`);
-
-    let allLogs: ethers.Log[] = [];
-
-    for (let i = 0; i < chunks; i++) {
-      const chunkFrom = startBlock + (i * GovernanceService.MAX_LOG_RANGE);
-      const chunkTo = Math.min(chunkFrom + GovernanceService.MAX_LOG_RANGE, currentBlock);
-
-      try {
-        const logs = await provider.getLogs({
-          address: PROTOCOL.governor,
-          topics: [topic0],
-          fromBlock: chunkFrom,
-          toBlock: chunkTo,
-        });
-
-        if (logs.length > 0) {
-          console.log(`[GovernanceService] Chunk ${i + 1}/${chunks}: found ${logs.length} events (blocks ${chunkFrom}-${chunkTo})`);
-          allLogs = allLogs.concat(logs);
-        }
-      } catch (e: any) {
-        console.warn(`[GovernanceService] Chunk ${i + 1}/${chunks} failed: ${e.message}`);
-      }
-    }
-
-    console.log(`[GovernanceService] Total ProposalCreated events found: ${allLogs.length}`);
-
-    if (allLogs.length === 0) {
+    if (error || !dbProposals || dbProposals.length === 0) {
+      console.warn('[GovernanceService] Database query empty or failed:', error?.message);
       return [];
     }
 
+    const gov = this.getGovernorReadOnly();
     const proposals: ProposalOnChain[] = [];
-    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-    for (let i = 0; i < allLogs.length; i++) {
-      const log = allLogs[i];
-      if (i > 0) await delay(250); // throttle to avoid RPC 429s
-      try {
-        const parsed = govInterface.parseLog({ topics: log.topics as string[], data: log.data });
-        if (!parsed) continue;
-
-        const proposalId = parsed.args[0].toString();
-        const proposer = parsed.args[1];
-        const targets = parsed.args[2];
-        const values = parsed.args[3].map((v: bigint) => v.toString());
-        const calldatas = parsed.args[5];
-        const voteStart = Number(parsed.args[6]);
-        const voteEnd = Number(parsed.args[7]);
-        const description = parsed.args[8];
-
-        const [state, votesResult, hasVoted] = await Promise.all([
-          gov.state(proposalId).catch(() => 0),
-          gov.proposalVotes(proposalId).catch(() => [0n, 0n, 0n]),
-          address ? gov.hasVoted(proposalId, address).catch(() => false) : false,
-        ]);
-
-        proposals.push({
-          proposalId,
-          proposer,
-          description,
-          state: Number(state),
-          stateName: PROPOSAL_STATES[Number(state)] || 'Unknown',
-          againstVotes: ethers.formatEther(votesResult[0]),
-          forVotes: ethers.formatEther(votesResult[1]),
-          abstainVotes: ethers.formatEther(votesResult[2]),
-          voteStart,
-          voteEnd,
-          hasVoted,
-          targets,
-          values,
-          calldatas,
-        });
-      } catch (e) {
-        console.warn('[GovernanceService] Failed to parse proposal event:', e);
+    // Process sequentially to protect the RPC node
+    for (const row of dbProposals as any[]) {
+      let hasVoted = false;
+      if (address) {
+        try {
+          hasVoted = await gov.hasVoted(row.proposal_id, address);
+          if (dbProposals.length > 3) await this.delay(200);
+        } catch {
+          // Fallback to false if the RPC node stalls on this specific check
+        }
       }
+
+      proposals.push({
+        proposalId: row.proposal_id,
+        proposer: row.proposer,
+        description: row.description,
+        state: row.state,
+        stateName: row.state_name || PROPOSAL_STATES[row.state] || 'Unknown',
+        forVotes: row.for_votes || '0',
+        againstVotes: row.against_votes || '0',
+        abstainVotes: row.abstain_votes || '0',
+        voteStart: Number(row.vote_start),
+        voteEnd: Number(row.vote_end),
+        hasVoted,
+        targets: row.targets || [],
+        values: row.callvalues || [],
+        calldatas: row.calldatas || [],
+      });
     }
 
-    return proposals.reverse();
+    return proposals;
   }
 
   // ── Read: Single proposal state ───────────────────────────
