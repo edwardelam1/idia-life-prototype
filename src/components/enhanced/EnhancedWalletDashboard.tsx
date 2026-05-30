@@ -29,6 +29,7 @@ import SendRequestModal from "../SendRequestModal";
 import PaymentTrigger from "../PaymentTrigger";
 import RequestPaymentQR from "../RequestPaymentQR";
 import { fireFinaleConfetti } from "../psychometric/confetti";
+import { useChainReceiveWatcher, type ChainReceipt } from "@/hooks/useChainReceiveWatcher";
 import {
   Wallet,
   CreditCard,
@@ -135,6 +136,14 @@ const EnhancedWalletDashboard: React.FC = () => {
       const newWallet = await createWallet();
       if (newWallet?.address && stableUserId) await syncWalletToSupabase(newWallet.address);
       const seed = await getSeedPhrase(); // FIXED: Added await here!
+      if (newWallet?.address) {
+        const short = `${newWallet.address.slice(0, 6)}…${newWallet.address.slice(-4)}`;
+        toast({
+          title: "Sovereign Vault created",
+          description: `${short} is now linked. Back up your recovery phrase.`,
+        });
+        window.dispatchEvent(new CustomEvent("vault-linked", { detail: { address: newWallet.address } }));
+      }
       return newWallet ? { address: newWallet.address, mnemonic: seed || newWallet.mnemonic || "" } : null;
     } catch (error) {
       console.error("Wallet creation error:", error);
@@ -146,6 +155,14 @@ const EnhancedWalletDashboard: React.FC = () => {
     try {
       const result = await importWallet(seedPhrase);
       if (result?.address && stableUserId) await syncWalletToSupabase(result.address);
+      if (result?.address) {
+        const short = `${result.address.slice(0, 6)}…${result.address.slice(-4)}`;
+        toast({
+          title: "Wallet linked",
+          description: `${short} connected to this device.`,
+        });
+        window.dispatchEvent(new CustomEvent("vault-linked", { detail: { address: result.address } }));
+      }
       return !!result;
     } catch (error) {
       console.error("Wallet import error:", error);
@@ -245,6 +262,40 @@ const EnhancedWalletDashboard: React.FC = () => {
     window.addEventListener("message", handleNativeAuthMessage);
     return () => window.removeEventListener("message", handleNativeAuthMessage);
   }, []);
+
+  // ── Cross-component: open Security sub-tab + setup modal on request ──
+  useEffect(() => {
+    const handler = (event: any) => {
+      const mode = event?.detail?.mode === "import" ? "import" : "create";
+      setActiveTab("security");
+      setSetupMode(mode);
+      setIsSetupModalOpen(true);
+    };
+    window.addEventListener("wallet:open-security", handler as EventListener);
+    return () => window.removeEventListener("wallet:open-security", handler as EventListener);
+  }, []);
+
+  // ── On-chain receive watcher → auto-open Sovereign Receipt + add History row ──
+  useChainReceiveWatcher(displayAddress, (receipt: ChainReceipt) => {
+    const synthetic: Transaction = {
+      id: `chain-${receipt.asset}-${receipt.observed_at}`,
+      transaction_type: "chain_receive",
+      amount: receipt.amount,
+      description: `Received ${receipt.asset}`,
+      source: receipt.asset,
+      created_at: receipt.observed_at,
+      metadata: { onchain: true, address: receipt.address, asset: receipt.asset, delta: receipt.amount },
+    };
+    setTransactions((prev) => [synthetic, ...prev]);
+    setSelectedTransaction(synthetic);
+    toast({
+      title: `Received ${receipt.asset}`,
+      description: formatAmount(receipt.amount, receipt.asset),
+    });
+    try {
+      refreshBalances();
+    } catch {}
+  });
 
   // ── Transactions ──
   useEffect(() => {
@@ -366,6 +417,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   // ── Transaction display helpers ──
   const getTransactionIcon = (type: string, currency: string) => {
     if (type === "synapse_ledger_event") return BrainCircuit;
+    if (type === "chain_receive") return ArrowDownLeft;
     if (currency === "USDC") return Shield;
     switch (type) {
       case "DATA_SALE_PAYOUT":
@@ -386,6 +438,8 @@ const EnhancedWalletDashboard: React.FC = () => {
 
   const formatAmount = (amount: number, currency: string) => {
     const prefix = amount > 0 ? "+" : "";
+    if (currency === "ETH") return `${prefix}${Math.abs(amount).toFixed(6)} ETH`;
+    if (currency === "IDIA") return `${prefix}${Math.abs(amount).toLocaleString(undefined, { maximumFractionDigits: 4 })} IDIA`;
     const value = Math.abs(amount).toFixed(2);
     if (currency === "USDC") return `${prefix}${value} USDC`;
     if (currency === "IDIA Token") return `${prefix}${value} IDIA`;

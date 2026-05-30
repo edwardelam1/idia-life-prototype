@@ -1,50 +1,55 @@
-# Fix: Voting → invalid UUID syntax
+# Wallet Awareness & Live Receive Detection
 
-## Root cause
-`ActiveProposalsList` merges two proposal sources into one list:
-1. `dao_proposals` rows (`id` is a Postgres `uuid`)
-2. `governanceService.getRecentProposals()` (id is the Governor's on-chain proposal id)
+Three related UX gaps where users don't realize wallet state. All work is frontend-only (no schema changes); on-chain receives are detected client-side from the Base RPC and surfaced through the existing Sovereign Receipt overlay and History tab.
 
-On-chain rows are pushed in as `{ id: p.proposalId, … }`. When a user votes on one of those cards, we insert into `dao_votes(proposal_id uuid, …)` with a non-uuid value → Postgres `22P02 invalid input syntax for type uuid`. The card's meta fetch fails for the same reason, which is why quorum/vote counts also look stuck on those rows.
+## 1. Post-login "No Wallet" dismissible popup
 
-## Decision
-The **on-chain proposal id is the authoritative identifier** for any live (anchored) proposal — that's the value the Governor contract uses for `castVote`, `state`, `quorum`, and execution. The Supabase uuid only matters for off-chain drafts that haven't been anchored yet. We standardize on a single text column that holds the on-chain id when present, falling back to the uuid for pre-anchor drafts.
+**New component:** `src/components/wallet/NoWalletNudge.tsx`
+- Glassmorphic Trust-Blue/Amber card, centered modal with backdrop blur, single dismiss (X) + two CTAs: "Create Wallet" (jumps to Wallet tab → Security sub-tab) and "Later".
+- Copy: "You don't have a Sovereign Vault yet. Create one from Wallet → Security to start receiving ETH, IDIA, and USDC."
+- Dismissal persisted per-user in `localStorage` under `idia_wallet_nudge_dismissed_v1:<user_id>` so it stops nagging within a session but reappears in a fresh session as long as no wallet exists.
 
-## Fix
+**Wire-up in `src/components/MainApp.tsx`:**
+- After `WelcomeSequence` completes and `profileLoading === false`, check `!isProvisioned.wallet && !wallet?.address` (read via `useWallet`) and `!dismissed`.
+- On "Create Wallet" click: `setActiveTab("wallet")` and `window.dispatchEvent(new CustomEvent("wallet:open-security", { detail: { mode: "create" } }))`.
+- `EnhancedWalletDashboard` listens for `wallet:open-security`, sets `activeTab="security"` and opens the setup modal in the requested mode.
 
-### 1. Migration — `dao_votes` keyed by on-chain id
-- Add `dao_votes.proposal_ref text` (canonical identifier: on-chain id when available, else the draft's uuid as text).
-- Backfill from existing rows:
-  - For votes whose `proposal_id` matches a `dao_proposals.id` with a non-null `on_chain_id` → `proposal_ref = on_chain_id`.
-  - Otherwise → `proposal_ref = proposal_id::text`.
-- Set `proposal_ref NOT NULL` after backfill; index it.
-- Drop the old `(proposal_id, user_id)` unique constraint; add `unique (proposal_ref, user_id)` so a user still can't double-vote, regardless of source.
-- Keep the legacy `proposal_id uuid` column nullable for back-compat with anything still reading it; new writes set `proposal_ref` always and leave `proposal_id` null for chain-only proposals.
-- RLS unchanged (scoped by `user_id = auth.uid()`); GRANTs unchanged.
+## 2. Success toast on wallet create / import
 
-### 2. Migration — also tag `dao_proposals` cleanly
-- No schema change needed; `dao_proposals.on_chain_id text` already exists. Just confirm and rely on it.
+**In `src/components/enhanced/EnhancedWalletDashboard.tsx`:**
+- In `handleCreateWallet`: on success, fire `toast({ title: "Sovereign Vault created", description: "<short address> is now linked. Back up your recovery phrase." })` and dispatch `window.dispatchEvent(new CustomEvent("vault-linked", { detail: { address }}))` (event already consumed by `MainApp`).
+- In `handleImportWallet`: on success, fire `toast({ title: "Wallet linked", description: "<short address> connected to this device." })` and same `vault-linked` dispatch.
+- Both toasts use the existing sonner stack (`@/hooks/use-toast`).
 
-### 3. Frontend — `ActiveProposalsList.tsx`
-- Extend the local `Proposal` type with `proposal_ref: string` (canonical id used for all vote reads/writes).
-- Build rows:
-  - DB row → `proposal_ref = row.on_chain_id ?? row.id` (on-chain id wins when anchored).
-  - On-chain-only row → `proposal_ref = p.proposalId`, `on_chain_id = p.proposalId`.
-- Dedupe: index DB rows by `on_chain_id`; drop any on-chain entry whose id is already covered.
-- Switch the meta-fetch `.eq("proposal_id", …)` and the `handleCastVote` insert to `proposal_ref`. Drop `proposal_id` from the insert (let it stay null).
-- Keep the existing on-chain bridge call exactly as-is (already keys on `proposal.on_chain_id`).
+## 3. Live on-chain receive detection → auto Sovereign Receipt + History row
 
-### 4. Edge functions (audit-only)
-- `dao-proposal-tally` and `dao-veto-tally` switch their `dao_votes` reads to `proposal_ref` after migration. No logic change beyond the column name.
+**New hook:** `src/hooks/useChainReceiveWatcher.ts`
+- Inputs: `walletAddress`, optional `onReceive(receipt)` callback.
+- Polls Base RPC every 30s for the connected wallet via `ethers.JsonRpcProvider` (reuses the same `BASE_RPC_URL` resolver pattern as `useWalletBalance`).
+- Tracks last-seen balances for ETH, IDIA, USDC in a `useRef` + `localStorage` key `idia_chain_seen_v1:<address>` (first run primes baseline silently — never fires on initial load).
+- When any asset balance **increases** (`new > previous`), emits one `ChainReceipt` per asset:
+  ```ts
+  { asset: "ETH" | "IDIA" | "USDC", amount: number, address, observed_at }
+  ```
+- Implementation note: Plain RPC `balanceOf` deltas only — no Transfer-log scanning (keeps free-tier RPC stable, matches the existing 400ms-spaced sequential pattern). Outgoing sends are ignored (already shown via existing transaction flow).
+
+**Wire-up in `EnhancedWalletDashboard`:**
+- Call `useChainReceiveWatcher(displayAddress)` with an `onReceive` handler that:
+  1. Builds a synthetic `Transaction` row: `transaction_type: "chain_receive"`, `source: asset`, positive `amount`, `description: "Received <asset>"`, `metadata: { onchain: true, address }`.
+  2. Prepends it into the `transactions` state (so it appears in History immediately).
+  3. Calls `setSelectedTransaction(syntheticTx)` — this reuses the existing Sovereign Receipt `<Dialog>` (lines 854–901) with zero new UI.
+  4. Calls `refreshBalances()` to update the headline balance card.
+- Existing History tab merge (`transactions` + `synapse_credit_ledger`) is preserved — synthetic chain rows simply join the same list. No schema write; receipts are session-local until any real DB row arrives.
+
+**Icon mapping:** extend `getTransactionIcon` to map `transaction_type === "chain_receive"` → `ArrowDownLeft`, and `formatAmount` already handles USDC/IDIA labels (ETH gets a new branch returning `+0.0004 ETH`).
 
 ## Out of scope
-- No change to `governanceService`, ACA generation, quorum logic, or the Governor bridge.
-- No change to `CommitteeWorkspace` (reads `dao_proposals` only).
-- No UI/visual changes.
+- No Supabase schema changes, no edge function, no contract changes.
+- No backfill of historical on-chain transfers — only deltas observed while the app is open.
+- No changes to `governance`, `synapse_credit_ledger`, or `WalletSetupModal` internals.
 
-## Verification
-- Vote on a chain-only proposal → row written with `proposal_ref` = on-chain id, `proposal_id` null, bridge fires, no Postgres error.
-- Vote on a Supabase draft that hasn't been anchored → row written with `proposal_ref` = uuid string, bridge skipped.
-- Vote on an anchored proposal that exists in both sources → renders once; vote written with `proposal_ref` = on-chain id; bridge fires.
-- Duplicate-vote attempt → blocked by `(proposal_ref, user_id)` unique with the existing `23505` toast path.
-- Tally functions still return correct for/against counts after the column swap.
+## Files touched
+- **new** `src/components/wallet/NoWalletNudge.tsx`
+- **new** `src/hooks/useChainReceiveWatcher.ts`
+- **edit** `src/components/MainApp.tsx` (mount nudge + listen for tab-jump)
+- **edit** `src/components/enhanced/EnhancedWalletDashboard.tsx` (success toasts, mount watcher, handle `wallet:open-security`, extend icon/format helpers)
