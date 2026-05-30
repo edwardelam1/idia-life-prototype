@@ -263,6 +263,40 @@ const EnhancedWalletDashboard: React.FC = () => {
     return () => window.removeEventListener("message", handleNativeAuthMessage);
   }, []);
 
+  // ── Cross-component: open Security sub-tab + setup modal on request ──
+  useEffect(() => {
+    const handler = (event: any) => {
+      const mode = event?.detail?.mode === "import" ? "import" : "create";
+      setActiveTab("security");
+      setSetupMode(mode);
+      setIsSetupModalOpen(true);
+    };
+    window.addEventListener("wallet:open-security", handler as EventListener);
+    return () => window.removeEventListener("wallet:open-security", handler as EventListener);
+  }, []);
+
+  // ── On-chain receive watcher → auto-open Sovereign Receipt + add History row ──
+  useChainReceiveWatcher(displayAddress, (receipt: ChainReceipt) => {
+    const synthetic: Transaction = {
+      id: `chain-${receipt.asset}-${receipt.observed_at}`,
+      transaction_type: "chain_receive",
+      amount: receipt.amount,
+      description: `Received ${receipt.asset}`,
+      source: receipt.asset,
+      created_at: receipt.observed_at,
+      metadata: { onchain: true, address: receipt.address, asset: receipt.asset, delta: receipt.amount },
+    };
+    setTransactions((prev) => [synthetic, ...prev]);
+    setSelectedTransaction(synthetic);
+    toast({
+      title: `Received ${receipt.asset}`,
+      description: formatAmount(receipt.amount, receipt.asset),
+    });
+    try {
+      refreshBalances();
+    } catch {}
+  });
+
   // ── Transactions ──
   useEffect(() => {
     if (stableUserId) fetchTransactions();
