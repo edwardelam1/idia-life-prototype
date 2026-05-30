@@ -173,6 +173,11 @@ const MainApp = () => {
         </nav>
 
         {showWelcome && <WelcomeSequence tabRefs={tabRefs} onComplete={() => setShowWelcome(false)} />}
+        <NoWalletNudge
+          isVisible={showNudge}
+          onDismiss={dismissNudge}
+          onCreateWallet={handleCreateWalletFromNudge}
+        />
       </div>
     </FriendAssistantProvider>
   );
