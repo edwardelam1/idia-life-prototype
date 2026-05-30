@@ -7,6 +7,7 @@
  */
 
 import { ethers } from 'ethers';
+import { supabase } from '../integrations/supabase/client';
 import { walletService, NETWORKS } from './walletService';
 import {
   PROTOCOL,
