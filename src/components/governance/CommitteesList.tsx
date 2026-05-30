@@ -78,6 +78,8 @@ const CommitteesList: React.FC = () => {
   // Map hat_type -> { eligibility_status, veto_window_end }
   const [userHats, setUserHats] = useState<Record<string, any>>({});
   const [userActiveHats, setUserActiveHats] = useState<Set<string>>(new Set());
+  // Map hat_type -> veto_window_end ISO for the CURRENT user's pending_veto hats
+  const [userPendingHats, setUserPendingHats] = useState<Record<string, string>>({});
   // ADD THIS LINE
   const [officerCounts, setOfficerCounts] = useState<Record<string, number>>({});
   // Set of hat_type values where the current user holds an active hat
