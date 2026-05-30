@@ -93,10 +93,7 @@ serve(async (req) => {
     stage = "NETWORK";
     const env = (Deno.env.get("ACTIVE_DEPLOYMENT") || "mainnet").toLowerCase();
     const network = NETWORKS[env] || NETWORKS.mainnet;
-    const rpcUrl =
-      Deno.env.get("BASE_RPC_URL") ||
-      Deno.env.get("VITE_ALCHEMY_RPC_URL") ||
-      network.rpcFallback;
+    const rpcUrl = Deno.env.get("ALCHEMY_BASE_RPC_URL") || network.rpcFallback;
 
     stage = "WALLET";
     const relayerKey = Deno.env.get("RELAYER_PRIVATE_KEY");
