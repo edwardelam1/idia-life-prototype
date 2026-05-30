@@ -25,9 +25,9 @@ export interface NetworkConfig {
   symbol: string;
   blockExplorer: string;
   isTestnet: boolean;
-  // Token contract addresses for THIS network (optional — not deployed on every chain)
-  idiaToken?: string;
-  usdc?: string;
+  // Token contract addresses for THIS network — pass '' if not deployed.
+  idiaToken: string;
+  usdc: string;
 }
 
 export const NETWORKS: Record<string, NetworkConfig> = {
@@ -38,6 +38,8 @@ export const NETWORKS: Record<string, NetworkConfig> = {
     symbol: 'C2FLR',
     blockExplorer: 'https://coston2-explorer.flare.network',
     isTestnet: true,
+    idiaToken: '',
+    usdc: '',
   },
   flare: {
     name: 'Flare',
@@ -46,6 +48,8 @@ export const NETWORKS: Record<string, NetworkConfig> = {
     symbol: 'FLR',
     blockExplorer: 'https://flare-explorer.flare.network',
     isTestnet: false,
+    idiaToken: '',
+    usdc: '',
   },
   ethereum: {
     name: 'Ethereum',
@@ -54,6 +58,8 @@ export const NETWORKS: Record<string, NetworkConfig> = {
     symbol: 'ETH',
     blockExplorer: 'https://etherscan.io',
     isTestnet: false,
+    idiaToken: '',
+    usdc: '',
   },
   polygon: {
     name: 'Polygon',
@@ -62,6 +68,8 @@ export const NETWORKS: Record<string, NetworkConfig> = {
     symbol: 'MATIC',
     blockExplorer: 'https://polygonscan.com',
     isTestnet: false,
+    idiaToken: '',
+    usdc: '',
   },
   base: {
     name: 'Base',
@@ -204,6 +212,9 @@ class WalletService {
     await Preferences.set({ key: STORAGE_KEYS.WALLET_EXISTS, value: 'true' });
     await Preferences.set({ key: STORAGE_KEYS.ACTIVE_NETWORK, value: DEFAULT_NETWORK });
 
+    // FIX: persist to Secure Enclave so loadWallet() finds it on next launch
+    await storeSecureKeys(trimmed);
+
     this.wallet = w;
     this.mnemonic = trimmed;
     this.activeNetwork = DEFAULT_NETWORK;
@@ -212,26 +223,49 @@ class WalletService {
 
   async loadWallet(): Promise<WalletInfo | null> {
     try {
-      const { value: mnemonic } = await SecureStoragePlugin.get({ key: KEYS.MNEMONIC });
+      let mnemonic: string | null = null;
+
+      // Primary: Secure Enclave
+      try {
+        const { value } = await SecureStoragePlugin.get({ key: KEYS.MNEMONIC });
+        mnemonic = value || null;
+      } catch {
+        mnemonic = null;
+      }
+
+      // Fallback: migrate from legacy Preferences storage
+      if (!mnemonic) {
+        try {
+          const { value: legacy } = await Preferences.get({ key: STORAGE_KEYS.ENCRYPTED_MNEMONIC });
+          if (legacy) {
+            mnemonic = legacy;
+            // Migrate to Secure Enclave BEFORE returning so wallet is safely stored
+            await storeSecureKeys(legacy);
+            console.log('[INFO] Wallet: migrated mnemonic from Preferences → Secure Enclave');
+          }
+        } catch (e) {
+          console.warn('[WARN] Wallet: Preferences fallback failed', e);
+        }
+      }
+
       if (!mnemonic) return null;
+
       this.wallet = ethers.HDNodeWallet.fromMnemonic(ethers.Mnemonic.fromPhrase(mnemonic));
       this.mnemonic = mnemonic;
 
-    try {
-  const { value: net } = await Preferences.get({ key: STORAGE_KEYS.ACTIVE_NETWORK });
-  if (net && NETWORKS[net]) {
-    // Don't load a testnet network on a mainnet build (or vice versa)
-    const storedIsTestnet = NETWORKS[net].isTestnet;
-    const buildIsTestnet = DEFAULT_NETWORK === 'baseSepolia';
-    if (storedIsTestnet === buildIsTestnet) {
-      this.activeNetwork = net;
-    } else {
-      // Stored network doesn't match build mode — reset to default
-      this.activeNetwork = DEFAULT_NETWORK;
-      await Preferences.set({ key: STORAGE_KEYS.ACTIVE_NETWORK, value: DEFAULT_NETWORK });
-    }
-  }
-} catch {}
+      try {
+        const { value: net } = await Preferences.get({ key: STORAGE_KEYS.ACTIVE_NETWORK });
+        if (net && NETWORKS[net]) {
+          const storedIsTestnet = NETWORKS[net].isTestnet;
+          const buildIsTestnet = DEFAULT_NETWORK === 'baseSepolia';
+          if (storedIsTestnet === buildIsTestnet) {
+            this.activeNetwork = net;
+          } else {
+            this.activeNetwork = DEFAULT_NETWORK;
+            await Preferences.set({ key: STORAGE_KEYS.ACTIVE_NETWORK, value: DEFAULT_NETWORK });
+          }
+        }
+      } catch {}
 
       return { address: this.wallet.address, activeNetwork: this.activeNetwork };
     } catch { return null; }
