@@ -11,6 +11,7 @@ import ProScreen from "./pro/ProScreen";
 import Header from "./Header";
 import { FriendAssistantProvider } from "./FriendAssistant";
 import WelcomeSequence from "./life/WelcomeSequence";
+import NoWalletNudge from "./wallet/NoWalletNudge";
 import { IDIA_PAY_RELEASE_DATE } from "@/config/release";
 
 const MainApp = () => {
@@ -61,10 +62,51 @@ const MainApp = () => {
     const handleVaultLinked = (event: any) => {
       console.log("[SYNC] Immediate Vault Hydration:", event.detail.address);
       setIsProvisioned((prev) => ({ ...prev, wallet: true }));
+      setNudgeDismissed(true);
     };
     window.addEventListener("vault-linked", handleVaultLinked);
     return () => window.removeEventListener("vault-linked", handleVaultLinked);
   }, []);
+
+  // Dismissible "no wallet" nudge — appears after welcome, when no vault is linked.
+  const [nudgeDismissed, setNudgeDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      const uid = profile?.user_id || profile?.id || "anon";
+      return localStorage.getItem(`idia_wallet_nudge_dismissed_v1:${uid}`) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    if (!profile) return;
+    try {
+      const uid = profile.user_id || profile.id || "anon";
+      setNudgeDismissed(localStorage.getItem(`idia_wallet_nudge_dismissed_v1:${uid}`) === "1");
+    } catch {}
+  }, [profile?.user_id, profile?.id]);
+
+  const dismissNudge = () => {
+    setNudgeDismissed(true);
+    try {
+      const uid = profile?.user_id || profile?.id || "anon";
+      localStorage.setItem(`idia_wallet_nudge_dismissed_v1:${uid}`, "1");
+    } catch {}
+  };
+
+  const handleCreateWalletFromNudge = () => {
+    dismissNudge();
+    setActiveTab("wallet");
+    window.dispatchEvent(new CustomEvent("wallet:open-security", { detail: { mode: "create" } }));
+  };
+
+  const showNudge =
+    !showWelcome &&
+    !profileLoading &&
+    !!profile &&
+    !isProvisioned.wallet &&
+    !nudgeDismissed;
 
   // AI Assistant Triggers
   useEffect(() => {
