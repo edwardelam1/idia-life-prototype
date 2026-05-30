@@ -13,7 +13,7 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 // Network — hardcoded Alchemy fallback ensures regional routing never collapses to public Base RPC.
 const PROD_ALCHEMY_URL = "https://base-mainnet.g.alchemy.com/v2/jKAs5SHfEFihKOngFIL2N";
-const BASE_RPC_URL = Deno.env.get("BASE_RPC_URL");
+const ALCHEMY_BASE_RPC_URL = Deno.env.get("ALCHEMY_BASE_RPC_URL");
 
 // Protocol contracts — Base Mainnet (mirrors src/config/contracts.ts)
 const REGISTRY_ADDRESS = "0x137D913d89d0D6a5b2d1Db76173770C94d25387B";
