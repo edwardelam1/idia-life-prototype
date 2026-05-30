@@ -38,6 +38,8 @@ export const NETWORKS: Record<string, NetworkConfig> = {
     symbol: 'C2FLR',
     blockExplorer: 'https://coston2-explorer.flare.network',
     isTestnet: true,
+    idiaToken: '',
+    usdc: '',
   },
   flare: {
     name: 'Flare',
@@ -46,6 +48,8 @@ export const NETWORKS: Record<string, NetworkConfig> = {
     symbol: 'FLR',
     blockExplorer: 'https://flare-explorer.flare.network',
     isTestnet: false,
+    idiaToken: '',
+    usdc: '',
   },
   ethereum: {
     name: 'Ethereum',
@@ -54,6 +58,8 @@ export const NETWORKS: Record<string, NetworkConfig> = {
     symbol: 'ETH',
     blockExplorer: 'https://etherscan.io',
     isTestnet: false,
+    idiaToken: '',
+    usdc: '',
   },
   polygon: {
     name: 'Polygon',
@@ -62,6 +68,8 @@ export const NETWORKS: Record<string, NetworkConfig> = {
     symbol: 'MATIC',
     blockExplorer: 'https://polygonscan.com',
     isTestnet: false,
+    idiaToken: '',
+    usdc: '',
   },
   base: {
     name: 'Base',
