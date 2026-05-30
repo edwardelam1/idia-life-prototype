@@ -387,7 +387,9 @@ const CommitteesList: React.FC = () => {
 
           // L3 Protocol Stewards (tophat) have universal authority over every committee.
           const isActiveMember = userActiveHats.has(committee.id) || ascensionLevel === 3;
-          const isPending = !!app && app.status === "pending";
+          const pendingVetoEnd = userPendingHats[committee.id];
+          const isProvisionedPendingVeto = !!pendingVetoEnd && !isActiveMember;
+          const isPending = !!app && app.status === "pending" && !isProvisionedPendingVeto;
           const busy = actionBusyId === committee.id;
 
           // Compute the dynamic pathway text
