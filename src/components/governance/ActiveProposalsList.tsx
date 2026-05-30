@@ -159,15 +159,18 @@ const ProposalCard: React.FC<{
       console.log(`[PROCESS] ACA Hash Generated: ${hash.substring(0, 8)}...`);
 
       console.log(`[PROCESS] Inserting Vote into Supabase with weight: ${numericVotingPower}`);
-      const { error: voteError } = await (supabase as any).from("dao_votes").insert({
-        proposal_id: proposal.id,
+      const voteRow: Record<string, unknown> = {
+        proposal_ref: proposal.proposal_ref,
         user_id: user.id,
         vote_type: support,
         vote_weight: numericVotingPower,
         credits_spent: 1,
         aca_hash_key: hash,
         aca_payload: payload,
-      });
+      };
+      // Only set the legacy uuid column when the canonical ref IS a uuid (off-chain draft)
+      if (UUID_RE.test(proposal.proposal_ref)) voteRow.proposal_id = proposal.proposal_ref;
+      const { error: voteError } = await (supabase as any).from("dao_votes").insert(voteRow);
 
       if (voteError) {
         if (voteError.code === "23505") {
