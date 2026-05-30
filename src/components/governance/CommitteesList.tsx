@@ -32,6 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { isNative } from "@/services/platform";
 import { getAscensionLevel, LEVEL_LABEL, LEVEL_BADGE_CLASS } from "@/utils/governanceGate";
+import CommitteeRosterModal from "./CommitteeRosterModal";
 
 // We keep the structural UI metadata static, but all metrics are hydrated live.
 const COMMITTEES_META = [
@@ -88,6 +89,8 @@ const CommitteesList: React.FC = () => {
   // Confirm dialog state for revoke + resign
   const [revokeTarget, setRevokeTarget] = useState<CommitteeMeta | null>(null);
   const [resignTarget, setResignTarget] = useState<CommitteeMeta | null>(null);
+  const [rosterTarget, setRosterTarget] = useState<CommitteeMeta | null>(null);
+  const [callerId, setCallerId] = useState<string | null>(null);
   const [actionBusyId, setActionBusyId] = useState<string | null>(null);
 
   // 1. Fetch Hats + Applications in one sweep
@@ -101,6 +104,7 @@ const CommitteesList: React.FC = () => {
         setIsLoadingLedger(false);
         return;
       }
+      setCallerId(user.id);
 
       // 1. Fetch Hats + Applications
       const [hatsRes, appsRes] = await Promise.all([
@@ -421,6 +425,15 @@ const CommitteesList: React.FC = () => {
                           {activeMembers} Active Officer{activeMembers === 1 ? "" : "s"}
                         </span>
                         <span className="text-[10px] text-muted-foreground font-medium">{pathwayText}</span>
+                        {ascensionLevel === 3 && (
+                          <button
+                            type="button"
+                            onClick={() => setRosterTarget(committee)}
+                            className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 border border-purple-200 dark:border-purple-900/50 px-2 py-0.5 rounded-full inline-flex items-center gap-1"
+                          >
+                            <Users className="w-3 h-3" /> View Roster
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -651,6 +664,13 @@ const CommitteesList: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <CommitteeRosterModal
+        committee={rosterTarget}
+        callerId={callerId}
+        open={!!rosterTarget}
+        onOpenChange={(o) => !o && setRosterTarget(null)}
+        onChanged={fetchLedgerState}
+      />
     </div>
   );
 };
