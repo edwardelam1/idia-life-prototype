@@ -378,6 +378,7 @@ async getCurrentQuorum(): Promise<string> {
     const receipt = await tx.wait();
     const proposalId = this.extractProposalIdFromReceipt(receipt);
 
+    this.triggerIndexer().catch(() => {});
     return { hash: tx.hash, proposalId };
   }
 
