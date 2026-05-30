@@ -234,45 +234,58 @@ private async computeQuorumFromSupply(): Promise<bigint | null> {
 
 // Update getCurrentQuorum to use the new raw caller, with deterministic fallback.
 async getCurrentQuorum(): Promise<string> {
-  const provider = this.getProvider();
-  try {
-    const blockNumber = await provider.getBlockNumber();
-    const quorum = await this.callRaw("quorum", [blockNumber - 1]);
-    if (quorum && BigInt(quorum) > 0n) {
-      return ethers.formatEther(quorum);
+  return this.cachedQuorum('current', async () => {
+    const provider = this.getProvider();
+    try {
+      const blockNumber = await this.withRpcRetry(() => provider.getBlockNumber(), 'getBlockNumber');
+      const quorum = await this.withRpcRetry(
+        () => this.callRaw('quorum', [blockNumber - 1]),
+        'quorum(current)',
+      );
+      if (quorum && BigInt(quorum) > 0n) {
+        return ethers.formatEther(quorum);
+      }
+      console.warn('[QUORUM_FALLBACK] Governor.quorum() returned 0 — computing from totalSupply');
+      const computed = await this.computeQuorumFromSupply();
+      return computed ? ethers.formatEther(computed) : '0';
+    } catch (e) {
+      console.warn('[GovernanceService] getCurrentQuorum failed after retries', e);
+      const computed = await this.computeQuorumFromSupply();
+      return computed ? ethers.formatEther(computed) : '0';
     }
-    console.warn("[QUORUM_FALLBACK] Governor.quorum() returned 0 — computing from totalSupply");
-    const computed = await this.computeQuorumFromSupply();
-    return computed ? ethers.formatEther(computed) : '0';
-  } catch (e) {
-    console.warn("[GovernanceService] getCurrentQuorum failed", e);
-    const computed = await this.computeQuorumFromSupply();
-    return computed ? ethers.formatEther(computed) : '0';
-  }
+  });
 }
 
   // ── Read: Exact Proposal Quorum ───────────────────────────
 
   async getProposalQuorum(proposalId: string): Promise<string> {
-    const gov = this.getGovernorReadOnly();
-    try {
-      const snapshotBlock = await gov.proposalSnapshot(proposalId);
-      if (Number(snapshotBlock) === 0) {
+    return this.cachedQuorum(`prop:${proposalId}`, async () => {
+      const gov = this.getGovernorReadOnly();
+      try {
+        const snapshotBlock = await this.withRpcRetry(
+          () => gov.proposalSnapshot(proposalId),
+          `proposalSnapshot(${proposalId})`,
+        );
+        if (Number(snapshotBlock) === 0) {
+          const computed = await this.computeQuorumFromSupply();
+          return computed ? ethers.formatEther(computed) : '0';
+        }
+
+        const quorum = await this.withRpcRetry(
+          () => gov.quorum(snapshotBlock),
+          `quorum(${proposalId})`,
+        );
+        if (BigInt(quorum) > 0n) return ethers.formatEther(quorum);
+
+        console.warn(`[QUORUM_FALLBACK] proposal ${proposalId} quorum=0 — falling back to supply math`);
+        const computed = await this.computeQuorumFromSupply();
+        return computed ? ethers.formatEther(computed) : '0';
+      } catch (error) {
+        console.error(`[GovernanceService] Quorum fetch failed for proposal ${proposalId} after retries:`, error);
         const computed = await this.computeQuorumFromSupply();
         return computed ? ethers.formatEther(computed) : '0';
       }
-
-      const quorum = await gov.quorum(snapshotBlock);
-      if (BigInt(quorum) > 0n) return ethers.formatEther(quorum);
-
-      console.warn(`[QUORUM_FALLBACK] proposal ${proposalId} quorum=0 — falling back to supply math`);
-      const computed = await this.computeQuorumFromSupply();
-      return computed ? ethers.formatEther(computed) : '0';
-    } catch (error) {
-      console.error(`[GovernanceService] Quorum fetch failed for proposal ${proposalId}:`, error);
-      const computed = await this.computeQuorumFromSupply();
-      return computed ? ethers.formatEther(computed) : '0';
-    }
+    });
   }
 
   // ── Read: Delegation info ─────────────────────────────────
