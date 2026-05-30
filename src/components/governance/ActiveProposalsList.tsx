@@ -19,13 +19,16 @@ import {
 } from "@/utils/governanceGate";
 
 interface Proposal {
-  id: string;
+  id: string; // DB uuid when present, else on-chain id (used as React key only)
+  proposal_ref: string; // canonical id for dao_votes: on-chain id when anchored, else uuid string
   title: string;
   description: string;
   status: string;
   proposer_id: string | null;
   on_chain_id?: string | null;
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 
 const ProposalCard: React.FC<{
