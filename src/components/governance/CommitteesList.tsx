@@ -78,6 +78,8 @@ const CommitteesList: React.FC = () => {
   // Map hat_type -> { eligibility_status, veto_window_end }
   const [userHats, setUserHats] = useState<Record<string, any>>({});
   const [userActiveHats, setUserActiveHats] = useState<Set<string>>(new Set());
+  // Map hat_type -> veto_window_end ISO for the CURRENT user's pending_veto hats
+  const [userPendingHats, setUserPendingHats] = useState<Record<string, string>>({});
   // ADD THIS LINE
   const [officerCounts, setOfficerCounts] = useState<Record<string, number>>({});
   // Set of hat_type values where the current user holds an active hat
@@ -115,10 +117,16 @@ const CommitteesList: React.FC = () => {
       const hatMap: Record<string, any> = {};
       const counts: Record<string, number> = {};
       const myHats = new Set<string>();
+      const myPending: Record<string, string> = {};
 
       hatsRes.data?.forEach((h: any) => {
         counts[h.hat_type] = (counts[h.hat_type] || 0) + 1;
-        if (h.eligibility_status === "active" && h.user_id === user.id) myHats.add(h.hat_type);
+        if (h.user_id === user.id) {
+          if (h.eligibility_status === "active") myHats.add(h.hat_type);
+          else if (h.eligibility_status === "pending_veto") {
+            myPending[h.hat_type] = h.veto_window_end;
+          }
+        }
         hatMap[h.hat_type] = h;
       });
 
@@ -127,6 +135,7 @@ const CommitteesList: React.FC = () => {
 
       setOfficerCounts(counts);
       setUserActiveHats(myHats);
+      setUserPendingHats(myPending);
       setUserHats(hatMap);
       setUserApplications(appMap);
 
@@ -378,7 +387,9 @@ const CommitteesList: React.FC = () => {
 
           // L3 Protocol Stewards (tophat) have universal authority over every committee.
           const isActiveMember = userActiveHats.has(committee.id) || ascensionLevel === 3;
-          const isPending = !!app && app.status === "pending";
+          const pendingVetoEnd = userPendingHats[committee.id];
+          const isProvisionedPendingVeto = !!pendingVetoEnd && !isActiveMember;
+          const isPending = !!app && app.status === "pending" && !isProvisionedPendingVeto;
           const busy = actionBusyId === committee.id;
 
           // Compute the dynamic pathway text
@@ -436,6 +447,20 @@ const CommitteesList: React.FC = () => {
                           )}
                           Remove Membership
                         </Button>
+                      </>
+                    ) : isProvisionedPendingVeto ? (
+                      <>
+                        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/30 px-2.5 py-1 rounded-full border border-purple-200 dark:border-purple-900/50">
+                          <ShieldCheck className="w-3 h-3" /> Provisioned · Veto Window
+                        </div>
+                        <span className="text-[10px] font-medium text-muted-foreground">
+                          Activates {new Date(pendingVetoEnd!).toLocaleString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </span>
                       </>
                     ) : isPending ? (
                       <>
