@@ -383,6 +383,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   // ── Transaction display helpers ──
   const getTransactionIcon = (type: string, currency: string) => {
     if (type === "synapse_ledger_event") return BrainCircuit;
+    if (type === "chain_receive") return ArrowDownLeft;
     if (currency === "USDC") return Shield;
     switch (type) {
       case "DATA_SALE_PAYOUT":
@@ -403,6 +404,8 @@ const EnhancedWalletDashboard: React.FC = () => {
 
   const formatAmount = (amount: number, currency: string) => {
     const prefix = amount > 0 ? "+" : "";
+    if (currency === "ETH") return `${prefix}${Math.abs(amount).toFixed(6)} ETH`;
+    if (currency === "IDIA") return `${prefix}${Math.abs(amount).toLocaleString(undefined, { maximumFractionDigits: 4 })} IDIA`;
     const value = Math.abs(amount).toFixed(2);
     if (currency === "USDC") return `${prefix}${value} USDC`;
     if (currency === "IDIA Token") return `${prefix}${value} IDIA`;
