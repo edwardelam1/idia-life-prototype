@@ -1,52 +1,65 @@
-# Root cause: RLS on `committee_applications` blocks reviewers
+# What the database actually shows
 
-You're right — the UI gate is fine. The block is at the database layer.
+Querying `dao_hats` and `committee_applications` for user `f60af0ab-2309-4846-a1d6-2d3dd72614d6` (committee `legal_defense`):
 
-## Evidence
+**`committee_applications`** — 1 row:
+- `id c8305467…` · `status = approved` · `committee_id = legal_defense` · created `02:24:21`
 
-`pg_policy` on `public.committee_applications` has exactly three policies:
+**`dao_hats`** — 2 rows for the same `(user_id, hat_type='legal_defense')`, both `revoked_at = null`:
+- `deb182d4…` · `pending_veto` · veto_window_end **2026-06-02** (72h window) · created `02:38:42.873`
+- `8f01c116…` · `pending_veto` · veto_window_end **2026-05-31** (**24h** window) · created `02:38:44.233`
 
-| cmd | name | qual |
-|---|---|---|
-| INSERT | Sovereigns can insert committee applications via ACA | — |
-| **SELECT** | Sovereigns can read their own committee applications | `auth.uid() = user_id` |
-| UPDATE | Users can update their own committee applications | `auth.uid() = user_id` |
+Two pending_veto hats provisioned 1.4s apart, with different veto-window lengths → two distinct code paths fired against the same approved application.
 
-The **only** SELECT policy restricts rows to the applicant. There is **no** policy that lets L2 (`oversight_chair`) or L3 (`tophat`) holders read other users' pending applications. So when your tophat session calls:
+# Why the user still sees "Apply to Join"
 
-```ts
-supabase.from("committee_applications").select(...).eq("status","pending")
-```
+`src/components/governance/CommitteesList.tsx` (lines 376–469) computes per-committee state for the applicant from:
 
-PostgREST silently returns `[]` for any row whose `user_id != auth.uid()`. The applicant (`f60af0ab…`) is not you, so the row is filtered out before it ever reaches the React component. The L2 gate in `ApplicationReviewQueue.tsx` then sees an empty array and renders the "No Pending Applications" empty state — exactly what you're seeing.
+- `isActiveMember = userActiveHats.has(committee.id) || ascensionLevel === 3`
+  - `userActiveHats` is populated only when `eligibility_status === "active"` (line 121)
+- `isPending = !!app && app.status === "pending"`
 
-This also means `ascension-reject` / `ascension-approve` are fine (they run with service role), but the *review surface itself* is structurally invisible to reviewers.
+After your L3 approval: application is `approved`, hat is `pending_veto`. Neither branch matches, so the card falls through to the `Apply to Join` button. There is **no UI state for "hat provisioned, in veto window."** That's the user-visible bug.
 
-## Fix
+# Why two hats were created
 
-Add a SELECT policy that grants reviewers read access. Use the existing `public.has_hat(_user_id, _hat_type)` SECURITY DEFINER helper (already in the schema) so we don't recurse into `dao_hats` RLS.
+`ascension-approve` guards against duplicates (lines 108–119) but:
+1. No DB-level uniqueness on `(user_id, hat_type)` when `revoked_at IS NULL` — concurrent invocations race past the in-function check.
+2. The 24h-vs-72h discrepancy proves the second insert didn't come from `ascension-approve` (which uses `VETO_WINDOW_MS = 72h`). Something else with a 24h window also wrote a `pending_veto` row — likely a stale/duplicate handler or an auto-promotion path. Needs to be located via `provisioned_by` / log inspection.
+
+# Proposed fixes (two layers)
+
+### 1. UI: recognize `pending_veto` state (frontend only)
+In `CommitteesList.tsx`:
+- Track `pending_veto` hats per committee for the current user (extend the `dao_hats` hydration to capture `eligibility_status` + `veto_window_end` for `user.id`).
+- Add a render branch between `isActiveMember` and `isPending`: when the user holds a `pending_veto` hat for that committee, show a **"Provisioned · Veto Window"** chip with the countdown to `veto_window_end` instead of `Apply to Join`. No new actions — view only.
+
+### 2. DB: prevent duplicate pending_veto/active hats (migration)
+Add a partial unique index so the race in `ascension-approve` can't silently succeed twice and any rogue secondary writer fails loudly:
 
 ```sql
-CREATE POLICY "Oversight and tophat can read committee applications"
-ON public.committee_applications
-FOR SELECT
-TO authenticated
-USING (
-  public.has_hat(auth.uid(), 'oversight_chair')
-  OR public.has_hat(auth.uid(), 'tophat')
-);
+CREATE UNIQUE INDEX dao_hats_one_live_hat_per_user_committee
+ON public.dao_hats (user_id, hat_type)
+WHERE revoked_at IS NULL
+  AND eligibility_status IN ('pending_veto','active');
 ```
 
-Multiple permissive SELECT policies are OR'd, so applicants still see their own rows via the existing policy, and L2/L3 reviewers additionally see everyone's. No grant changes needed — `authenticated` already has SELECT on this table.
+Then clean the existing duplicate: revoke the 24h-window row (`8f01c116…`), keeping the canonical 72h `deb182d4…` from `ascension-approve`:
 
-## Out of scope
-- No UI change. `ApplicationReviewQueue.tsx`, the L2 gate, and the Delaware portal layout stay as-is.
-- No change to `committee_application_sponsorships`, `ascension-approve`, or `ascension-reject`.
-- Not touching INSERT/UPDATE policies.
+```sql
+UPDATE public.dao_hats
+SET revoked_at = now(), eligibility_status = 'revoked'
+WHERE id = '8f01c116-e840-42e3-8102-3b21a467cd35';
+```
 
-## Verification after migration
-1. Reload Delaware portal → "Application Review Queue · L3" should list the `legal_defense` application from `f60af0ab…` submitted 2026-05-30.
-2. Endorse / Approve / Reject buttons should function unchanged (those paths already worked; they were just unreachable).
+### 3. Locate the second writer (investigation, no code change yet)
+Grep edge functions + client code for any other `dao_hats` insert with `eligibility_status: 'pending_veto'` or a 24h veto window, and surface findings before patching. Candidates to inspect: `dao-hat-eligibility`, `ascension-promote`, anything triggered from `ApplicationReviewQueue` on approve.
 
-## Deliverable
-One migration adding the SELECT policy above. No code edits, no edge function edits.
+# Out of scope
+- Compliance queue logic, ascension-promote, ascension-veto, ACA generation.
+- Any change to the applicant's permission to apply to other committees.
+
+# Files touched (build phase)
+- `src/components/governance/CommitteesList.tsx` — add pending_veto branch + state.
+- `supabase/migrations/<new>.sql` — partial unique index + cleanup UPDATE.
+- Investigation report in chat for the duplicate-writer source before any further edit.
