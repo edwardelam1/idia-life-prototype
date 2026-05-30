@@ -94,7 +94,7 @@ const ProposalCard: React.FC<{
     return () => {
       alive = false;
     };
-  }, [proposal.id, proposal.on_chain_id, currentUserId]);
+  }, [proposal.proposal_ref, proposal.on_chain_id, currentUserId]);
 
   const handleCastVote = async (support: "for" | "against") => {
     console.log(`[BEGIN] handleCastVote execution started | Proposal: ${proposal.id} | Intent: ${support}`);
