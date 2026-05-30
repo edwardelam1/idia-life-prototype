@@ -11,7 +11,7 @@ import { Loader2, ShieldCheck, ArrowUpCircle, ArrowDownCircle, Wallet } from "lu
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
-import { LEVEL_BADGE_CLASS, LEVEL_LABEL, type AscensionLevel } from "@/utils/governanceGate";
+import { LEVEL_BADGE_CLASS, LEVEL_LABEL, getAscensionLevel, type AscensionLevel } from "@/utils/governanceGate";
 
 export type CommitteeMeta = {
   id: string;
