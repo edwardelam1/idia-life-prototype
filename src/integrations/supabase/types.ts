@@ -1823,6 +1823,7 @@ export type Database = {
           credits_spent: number
           id: string
           proposal_id: string | null
+          proposal_ref: string
           user_id: string | null
           vote_type: string | null
           vote_weight: number
@@ -1834,6 +1835,7 @@ export type Database = {
           credits_spent: number
           id?: string
           proposal_id?: string | null
+          proposal_ref: string
           user_id?: string | null
           vote_type?: string | null
           vote_weight: number
@@ -1845,6 +1847,7 @@ export type Database = {
           credits_spent?: number
           id?: string
           proposal_id?: string | null
+          proposal_ref?: string
           user_id?: string | null
           vote_type?: string | null
           vote_weight?: number

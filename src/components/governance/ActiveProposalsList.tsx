@@ -19,13 +19,16 @@ import {
 } from "@/utils/governanceGate";
 
 interface Proposal {
-  id: string;
+  id: string; // DB uuid when present, else on-chain id (used as React key only)
+  proposal_ref: string; // canonical id for dao_votes: on-chain id when anchored, else uuid string
   title: string;
   description: string;
   status: string;
   proposer_id: string | null;
   on_chain_id?: string | null;
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 
 const ProposalCard: React.FC<{
@@ -55,12 +58,12 @@ const ProposalCard: React.FC<{
       s.start({ id: proposal.id });
       try {
         const [{ data: votes }, mine] = await Promise.all([
-          (supabase as any).from("dao_votes").select("vote_type, vote_weight").eq("proposal_id", proposal.id),
+          (supabase as any).from("dao_votes").select("vote_type, vote_weight").eq("proposal_ref", proposal.proposal_ref),
           currentUserId
             ? (supabase as any)
                 .from("dao_votes")
                 .select("vote_type")
-                .eq("proposal_id", proposal.id)
+                .eq("proposal_ref", proposal.proposal_ref)
                 .eq("user_id", currentUserId)
                 .maybeSingle()
             : Promise.resolve({ data: null }),
@@ -91,7 +94,7 @@ const ProposalCard: React.FC<{
     return () => {
       alive = false;
     };
-  }, [proposal.id, proposal.on_chain_id, currentUserId]);
+  }, [proposal.proposal_ref, proposal.on_chain_id, currentUserId]);
 
   const handleCastVote = async (support: "for" | "against") => {
     console.log(`[BEGIN] handleCastVote execution started | Proposal: ${proposal.id} | Intent: ${support}`);
@@ -156,15 +159,18 @@ const ProposalCard: React.FC<{
       console.log(`[PROCESS] ACA Hash Generated: ${hash.substring(0, 8)}...`);
 
       console.log(`[PROCESS] Inserting Vote into Supabase with weight: ${numericVotingPower}`);
-      const { error: voteError } = await (supabase as any).from("dao_votes").insert({
-        proposal_id: proposal.id,
+      const voteRow: Record<string, unknown> = {
+        proposal_ref: proposal.proposal_ref,
         user_id: user.id,
         vote_type: support,
         vote_weight: numericVotingPower,
         credits_spent: 1,
         aca_hash_key: hash,
         aca_payload: payload,
-      });
+      };
+      // Only set the legacy uuid column when the canonical ref IS a uuid (off-chain draft)
+      if (UUID_RE.test(proposal.proposal_ref)) voteRow.proposal_id = proposal.proposal_ref;
+      const { error: voteError } = await (supabase as any).from("dao_votes").insert(voteRow);
 
       if (voteError) {
         if (voteError.code === "23505") {
@@ -235,7 +241,7 @@ const ProposalCard: React.FC<{
       const { data: latest } = await (supabase as any)
         .from("dao_votes")
         .select("id")
-        .eq("proposal_id", proposal.id)
+        .eq("proposal_ref", proposal.proposal_ref)
         .limit(1);
       if ((latest || []).length > 0) {
         toast({
@@ -428,7 +434,7 @@ const ActiveProposalsList: React.FC<{
         // Sequential to avoid RPC 429s — Supabase first (cheap), then on-chain.
         const dbProposals = await (supabase as any)
           .from("dao_proposals")
-          .select("id, title, description, status, proposer_id")
+          .select("id, title, description, status, proposer_id, on_chain_id")
           .order("created_at", { ascending: false });
         if (dbProposals.error) throw dbProposals.error;
 
@@ -441,16 +447,36 @@ const ActiveProposalsList: React.FC<{
             return [];
           });
 
-        const combined = [
-          ...(dbProposals.data || []),
-          ...onChainProposals.map((p) => ({
+        // Index DB rows by on_chain_id to dedupe anchored entries
+        const anchoredIds = new Set<string>(
+          (dbProposals.data || [])
+            .map((r: any) => r.on_chain_id)
+            .filter((x: unknown): x is string => typeof x === "string" && x.length > 0),
+        );
+
+        const dbRows: Proposal[] = (dbProposals.data || []).map((r: any) => ({
+          id: r.id,
+          proposal_ref: r.on_chain_id ?? r.id, // on-chain id wins when anchored
+          title: r.title,
+          description: r.description,
+          status: r.status,
+          proposer_id: r.proposer_id,
+          on_chain_id: r.on_chain_id ?? null,
+        }));
+
+        const chainRows: Proposal[] = onChainProposals
+          .filter((p) => !anchoredIds.has(p.proposalId))
+          .map((p) => ({
             id: p.proposalId,
+            proposal_ref: p.proposalId,
             title: p.description.split("\n")[0],
             description: p.description,
             status: p.stateName,
             proposer_id: p.proposer,
-          })),
-        ];
+            on_chain_id: p.proposalId,
+          }));
+
+        const combined = [...dbRows, ...chainRows];
 
         if (isMounted) setProposals(combined);
         s.ok({ count: combined.length });

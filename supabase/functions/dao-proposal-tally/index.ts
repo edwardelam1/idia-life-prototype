@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
     // Pull active proposals whose voting window has closed (or have no end_date — fallback policy).
     const { data: proposals, error: pErr } = await admin
       .from("dao_proposals")
-      .select("id, end_date, quorum_threshold, status, lifecycle_phase")
+      .select("id, on_chain_id, end_date, quorum_threshold, status, lifecycle_phase")
       .eq("status", "active")
       .or(`end_date.lte.${nowIso},end_date.is.null`)
       .limit(200);
@@ -42,10 +42,11 @@ Deno.serve(async (req) => {
       // Skip proposals that haven't actually expired (end_date is null without grace)
       if (!p.end_date) continue;
 
+      const proposalRef = p.on_chain_id ?? p.id;
       const { data: votes, error: vErr } = await admin
         .from("dao_votes")
         .select("vote_type, vote_weight")
-        .eq("proposal_id", p.id);
+        .eq("proposal_ref", proposalRef);
       if (vErr) {
         console.error("[PROPOSAL_TALLY] votes fetch failed", p.id, vErr);
         continue;
