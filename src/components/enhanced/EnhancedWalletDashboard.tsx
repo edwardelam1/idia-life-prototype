@@ -29,6 +29,7 @@ import SendRequestModal from "../SendRequestModal";
 import PaymentTrigger from "../PaymentTrigger";
 import RequestPaymentQR from "../RequestPaymentQR";
 import { fireFinaleConfetti } from "../psychometric/confetti";
+import { useChainReceiveWatcher, type ChainReceipt } from "@/hooks/useChainReceiveWatcher";
 import {
   Wallet,
   CreditCard,
@@ -135,6 +136,14 @@ const EnhancedWalletDashboard: React.FC = () => {
       const newWallet = await createWallet();
       if (newWallet?.address && stableUserId) await syncWalletToSupabase(newWallet.address);
       const seed = await getSeedPhrase(); // FIXED: Added await here!
+      if (newWallet?.address) {
+        const short = `${newWallet.address.slice(0, 6)}…${newWallet.address.slice(-4)}`;
+        toast({
+          title: "Sovereign Vault created",
+          description: `${short} is now linked. Back up your recovery phrase.`,
+        });
+        window.dispatchEvent(new CustomEvent("vault-linked", { detail: { address: newWallet.address } }));
+      }
       return newWallet ? { address: newWallet.address, mnemonic: seed || newWallet.mnemonic || "" } : null;
     } catch (error) {
       console.error("Wallet creation error:", error);
@@ -146,6 +155,14 @@ const EnhancedWalletDashboard: React.FC = () => {
     try {
       const result = await importWallet(seedPhrase);
       if (result?.address && stableUserId) await syncWalletToSupabase(result.address);
+      if (result?.address) {
+        const short = `${result.address.slice(0, 6)}…${result.address.slice(-4)}`;
+        toast({
+          title: "Wallet linked",
+          description: `${short} connected to this device.`,
+        });
+        window.dispatchEvent(new CustomEvent("vault-linked", { detail: { address: result.address } }));
+      }
       return !!result;
     } catch (error) {
       console.error("Wallet import error:", error);
