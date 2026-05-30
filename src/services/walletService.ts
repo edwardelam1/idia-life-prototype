@@ -25,9 +25,9 @@ export interface NetworkConfig {
   symbol: string;
   blockExplorer: string;
   isTestnet: boolean;
-  // Token contract addresses for THIS network (optional — not deployed on every chain)
-  idiaToken?: string;
-  usdc?: string;
+  // Token contract addresses for THIS network — pass '' if not deployed.
+  idiaToken: string;
+  usdc: string;
 }
 
 export const NETWORKS: Record<string, NetworkConfig> = {
