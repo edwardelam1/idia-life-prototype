@@ -406,8 +406,13 @@ async getCurrentQuorum(): Promise<string> {
   // ── Write: Delegate ───────────────────────────────────────
 
   async delegate(delegatee: string): Promise<{ hash: string }> {
+    if (!walletService.getRawWallet()) {
+      console.error('[CRITICAL] Wallet service has no wallet instance.');
+      throw new Error('Wallet not initialized. Check your storage migration.');
+    }
+
     const signer = walletService.getConnectedSigner();
-    if (!signer) throw new Error('Wallet not connected');
+    if (!signer) throw new Error('Signer could not be connected');
 
     const token = new ethers.Contract(PROTOCOL.idiaToken, IDIA_TOKEN_ABI, signer);
     const tx = await token.delegate(delegatee);
@@ -416,6 +421,10 @@ async getCurrentQuorum(): Promise<string> {
   }
 
   async selfDelegate(): Promise<{ hash: string }> {
+    if (!walletService.getRawWallet()) {
+      console.error('[CRITICAL] Wallet service has no wallet instance.');
+      throw new Error('Wallet not initialized. Check your storage migration.');
+    }
     const address = walletService.getAddress();
     if (!address) throw new Error('Wallet not connected');
     return this.delegate(address);
@@ -426,9 +435,13 @@ async getCurrentQuorum(): Promise<string> {
    * The user's local signer signs the typed-data offline; the relayer pays gas.
    */
   async signAndRelaySelfDelegation(): Promise<{ hash: string; acaHash?: string }> {
+    if (!walletService.getRawWallet()) {
+      console.error('[CRITICAL] Wallet service has no wallet instance.');
+      throw new Error('Wallet not initialized. Check your storage migration.');
+    }
     const { supabase } = await import('@/integrations/supabase/client');
     const signer = walletService.getConnectedSigner();
-    if (!signer) throw new Error('Wallet not connected');
+    if (!signer) throw new Error('Signer could not be connected');
     const address = await signer.getAddress();
 
     const provider = this.getProvider();
