@@ -108,7 +108,7 @@ serve(async (req) => {
     console.log(`[GOV_RELAY][${stage}][START] Initializing JSON-RPC provider.`);
 
     const networkConfig = NETWORKS[networkId]!;
-    const rpcUrl = Deno.env.get("BASE_RPC_URL") || networkConfig.rpcUrlFallback;
+    const rpcUrl = Deno.env.get("ALCHEMY_BASE_RPC_URL") || networkConfig.rpcUrlFallback;
     const relayerKey = Deno.env.get("RELAYER_PRIVATE_KEY");
     if (!relayerKey) {
       return jsonResponse({ error: "RELAYER_PRIVATE_KEY unbound.", failed_at: stage }, 500);
