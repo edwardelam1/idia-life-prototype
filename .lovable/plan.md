@@ -1,47 +1,50 @@
-## Issue 1 — Proposal progress bar is missing
+# Fix: Voting → invalid UUID syntax
 
-**Root cause.** `ProposalCard` in `ActiveProposalsList.tsx` only renders the Quorum Progress card when `quorumRequired > 0`. The on-chain quorum fetch (`governanceService.getProposalQuorum` / `getCurrentQuorum`) is being throttled by the Base RPC (console shows `code: -32016 "over rate limit"`), so `quorumRequired` stays at 0 and the bar disappears entirely. Every mounted proposal card also fires its own quorum RPC, multiplying the load.
+## Root cause
+`ActiveProposalsList` merges two proposal sources into one list:
+1. `dao_proposals` rows (`id` is a Postgres `uuid`)
+2. `governanceService.getRecentProposals()` (id is the Governor's on-chain proposal id)
 
-**Fix.**
-- Always render the Quorum Progress card.
-  - While `quorumRequired === 0`: show the bar in a muted "hydrating…" state with current `totalWeight` / `voteCount` and an indeterminate fill.
-  - Once `quorumRequired > 0`: behave exactly as today (percentage + emerald fill at/above quorum).
-- Make the per-card quorum fetch resilient instead of silently failing.
+On-chain rows are pushed in as `{ id: p.proposalId, … }`. When a user votes on one of those cards, we insert into `dao_votes(proposal_id uuid, …)` with a non-uuid value → Postgres `22P02 invalid input syntax for type uuid`. The card's meta fetch fails for the same reason, which is why quorum/vote counts also look stuck on those rows.
 
-## Issue 2 — RPC rate-limit makes quorum unreliable
+## Decision
+The **on-chain proposal id is the authoritative identifier** for any live (anchored) proposal — that's the value the Governor contract uses for `castVote`, `state`, `quorum`, and execution. The Supabase uuid only matters for off-chain drafts that haven't been anchored yet. We standardize on a single text column that holds the on-chain id when present, falling back to the uuid for pre-anchor drafts.
 
-**Root cause.** Each `ProposalCard` independently calls the Base RPC for quorum on mount with no shared cache and no retry, so a handful of proposals plus the wallet-balance hooks blow past the public node's rate limit. Result: `over rate limit` → `quorumRequired = 0` → bar hidden.
+## Fix
 
-**Fix (in `src/services/governanceService.ts`).**
-- Add a **module-level quorum cache** (TTL ~60s, keyed by `proposalId` or `"current"`). Quorum is snapshot-bound and effectively constant within a vote window, so caching is safe and keeps the displayed count accurate.
-- Add an **in-flight de-dup map** so N proposal cards mounting at once trigger exactly one RPC, not N.
-- Add a small **`withRpcRetry` helper** with exponential backoff (3 tries, ~600ms → ~1.2s → ~2.4s + jitter) that detects `-32016` / `429` / `rate limit` messages and retries. Non-rate-limit errors throw immediately.
-- Wrap the raw `quorum()` and `proposalSnapshot()` calls in `getProposalQuorum` and `getCurrentQuorum` with `withRpcRetry`, falling back to `computeQuorumFromSupply` only when the chain genuinely returns 0 — never when we were just throttled.
-- Keep `computeQuorumFromSupply` as the deterministic last-resort fallback (unchanged).
+### 1. Migration — `dao_votes` keyed by on-chain id
+- Add `dao_votes.proposal_ref text` (canonical identifier: on-chain id when available, else the draft's uuid as text).
+- Backfill from existing rows:
+  - For votes whose `proposal_id` matches a `dao_proposals.id` with a non-null `on_chain_id` → `proposal_ref = on_chain_id`.
+  - Otherwise → `proposal_ref = proposal_id::text`.
+- Set `proposal_ref NOT NULL` after backfill; index it.
+- Drop the old `(proposal_id, user_id)` unique constraint; add `unique (proposal_ref, user_id)` so a user still can't double-vote, regardless of source.
+- Keep the legacy `proposal_id uuid` column nullable for back-compat with anything still reading it; new writes set `proposal_ref` always and leave `proposal_id` null for chain-only proposals.
+- RLS unchanged (scoped by `user_id = auth.uid()`); GRANTs unchanged.
 
-Net effect: users see the **exact on-chain quorum** the Governor will enforce, even under RPC pressure, and the UI never silently swallows the number.
+### 2. Migration — also tag `dao_proposals` cleanly
+- No schema change needed; `dao_proposals.on_chain_id text` already exists. Just confirm and rely on it.
 
-## Issue 3 — Committee roster shows the wrong ascension level
+### 3. Frontend — `ActiveProposalsList.tsx`
+- Extend the local `Proposal` type with `proposal_ref: string` (canonical id used for all vote reads/writes).
+- Build rows:
+  - DB row → `proposal_ref = row.on_chain_id ?? row.id` (on-chain id wins when anchored).
+  - On-chain-only row → `proposal_ref = p.proposalId`, `on_chain_id = p.proposalId`.
+- Dedupe: index DB rows by `on_chain_id`; drop any on-chain entry whose id is already covered.
+- Switch the meta-fetch `.eq("proposal_id", …)` and the `handleCastVote` insert to `proposal_ref`. Drop `proposal_id` from the insert (let it stay null).
+- Keep the existing on-chain bridge call exactly as-is (already keys on `proposal.on_chain_id`).
 
-**Root cause.** `CommitteeRosterModal.tsx` derives each member's level using only two hats:
-- `oversight_chair` → L2
-- otherwise active → L1
-
-It never checks `tophat`, so an L3 Protocol Steward who also holds the committee hat renders as L1 (or L2 if they happen to hold oversight_chair). This contradicts the single source of truth in `utils/governanceGate.ts → getAscensionLevel`, which already handles tophat → L3.
-
-**Fix.**
-- In the roster loader, also fetch active `tophat` holders for the same `user_id` set (one extra query, mirroring the existing `oversight_chair` query).
-- For each member, build a `Set<string>` of their active hats (`committee.id` + `oversight_chair` if present + `tophat` if present) and run it through `getAscensionLevel`. The roster now always agrees with `HatsWardrobe`, `CommitteesList`, and `ActiveProposalsList`.
-- Promote/demote buttons stay gated on `level === 1` / `=== 2`; L3 stewards correctly show no toggle (stewards aren't managed via this surface).
-- Pending-veto members keep their existing `L1 · pending` badge.
-
-## Files touched
-
-- `src/services/governanceService.ts` — quorum cache, in-flight de-dup, `withRpcRetry` helper applied to `getCurrentQuorum` and `getProposalQuorum`.
-- `src/components/governance/ActiveProposalsList.tsx` — progress card always renders; muted/indeterminate state while quorum hydrates.
-- `src/components/governance/CommitteeRosterModal.tsx` — include `tophat` in per-member level via `getAscensionLevel`.
+### 4. Edge functions (audit-only)
+- `dao-proposal-tally` and `dao-veto-tally` switch their `dao_votes` reads to `proposal_ref` after migration. No logic change beyond the column name.
 
 ## Out of scope
+- No change to `governanceService`, ACA generation, quorum logic, or the Governor bridge.
+- No change to `CommitteeWorkspace` (reads `dao_proposals` only).
+- No UI/visual changes.
 
-- The separate USDC `over rate limit` errors in `useWalletBalance` (different code path). Can be addressed in a follow-up if you want the same retry/cache treatment applied there.
-- Any backend / edge function changes.
+## Verification
+- Vote on a chain-only proposal → row written with `proposal_ref` = on-chain id, `proposal_id` null, bridge fires, no Postgres error.
+- Vote on a Supabase draft that hasn't been anchored → row written with `proposal_ref` = uuid string, bridge skipped.
+- Vote on an anchored proposal that exists in both sources → renders once; vote written with `proposal_ref` = on-chain id; bridge fires.
+- Duplicate-vote attempt → blocked by `(proposal_ref, user_id)` unique with the existing `23505` toast path.
+- Tally functions still return correct for/against counts after the column swap.
