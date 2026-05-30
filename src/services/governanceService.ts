@@ -54,10 +54,33 @@ export interface GovernorParams {
 
 class GovernanceService {
 
+  // Cache provider so all calls share one instance
+  private _provider: ethers.JsonRpcProvider | null = null;
+
   private getProvider(): ethers.JsonRpcProvider {
-    const networkKey = ACTIVE_DEPLOYMENT === 'mainnet' ? 'base' : 'baseSepolia';
-    const network = NETWORKS[networkKey];
-    return new ethers.JsonRpcProvider(network.rpcUrl, network.chainId);
+    if (!this._provider) {
+      const networkKey = ACTIVE_DEPLOYMENT === 'mainnet' ? 'base' : 'baseSepolia';
+      const network = NETWORKS[networkKey];
+      this._provider = new ethers.JsonRpcProvider(network.rpcUrl, network.chainId, {
+        batchMaxCount: 5,
+      });
+    }
+    return this._provider;
+  }
+
+  // Small delay to avoid RPC rate limits
+  private delay(ms: number): Promise<void> {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
+  /** Trigger the governance-indexer edge function to run immediately. */
+  private async triggerIndexer(): Promise<void> {
+    try {
+      await supabase.functions.invoke('governance-indexer', { body: {} });
+      console.log('[GovernanceService] Indexer triggered');
+    } catch (e: any) {
+      console.warn('[GovernanceService] Failed to trigger indexer:', e?.message || e);
+    }
   }
 
   private getGovernorReadOnly(): ethers.Contract {
