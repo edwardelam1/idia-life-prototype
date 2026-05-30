@@ -133,7 +133,7 @@ serve(async (req: Request) => {
     const formattedKey = rawKey.trim().startsWith("0x") ? rawKey.trim() : `0x${rawKey.trim()}`;
     const account = privateKeyToAccount(formattedKey as `0x${string}`);
 
-    const activeRpcUrl = BASE_RPC_URL || PROD_ALCHEMY_URL;
+    const activeRpcUrl = ALCHEMY_BASE_RPC_URL || PROD_ALCHEMY_URL;
     console.log(`[REGIONAL_ROUTING][TRANSPORT_BINDING] Launching wallet client. Route Vector: ${activeRpcUrl}`);
 
     const client = createWalletClient({
