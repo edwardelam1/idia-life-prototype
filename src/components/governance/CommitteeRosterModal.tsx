@@ -11,7 +11,7 @@ import { Loader2, ShieldCheck, ArrowUpCircle, ArrowDownCircle, Wallet } from "lu
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
-import { LEVEL_BADGE_CLASS, LEVEL_LABEL, type AscensionLevel } from "@/utils/governanceGate";
+import { LEVEL_BADGE_CLASS, LEVEL_LABEL, getAscensionLevel, type AscensionLevel } from "@/utils/governanceGate";
 
 export type CommitteeMeta = {
   id: string;
@@ -62,17 +62,28 @@ const CommitteeRosterModal: React.FC<Props> = ({
       if (hatsErr) throw hatsErr;
       const userIds = Array.from(new Set((hats || []).map((h: any) => h.user_id)));
 
-      // 2. Active oversight_chair holders among these users
+      // 2. Active oversight_chair + tophat holders among these users (drives true level)
       let chairs = new Set<string>();
+      let tophats = new Set<string>();
       if (userIds.length > 0) {
-        const { data: chairRows } = await (supabase as any)
-          .from("dao_hats")
-          .select("user_id")
-          .eq("hat_type", "oversight_chair")
-          .eq("eligibility_status", "active")
-          .is("revoked_at", null)
-          .in("user_id", userIds);
-        chairs = new Set((chairRows || []).map((r: any) => r.user_id));
+        const [chairRes, tophatRes] = await Promise.all([
+          (supabase as any)
+            .from("dao_hats")
+            .select("user_id")
+            .eq("hat_type", "oversight_chair")
+            .eq("eligibility_status", "active")
+            .is("revoked_at", null)
+            .in("user_id", userIds),
+          (supabase as any)
+            .from("dao_hats")
+            .select("user_id")
+            .eq("hat_type", "tophat")
+            .eq("eligibility_status", "active")
+            .is("revoked_at", null)
+            .in("user_id", userIds),
+        ]);
+        chairs = new Set((chairRes.data || []).map((r: any) => r.user_id));
+        tophats = new Set((tophatRes.data || []).map((r: any) => r.user_id));
       }
 
       // 3. Wallet addresses (zero-PII safe identifier)
@@ -87,11 +98,19 @@ const CommitteeRosterModal: React.FC<Props> = ({
 
       const list: Member[] = (hats || []).map((h: any) => {
         const isActive = h.eligibility_status === "active";
-        const isChair = chairs.has(h.user_id);
+        // Build the user's active-hat set and derive the canonical Ascension
+        // Level via the single source of truth (handles tophat → L3).
+        const hatSet = new Set<string>();
+        if (isActive) {
+          hatSet.add(committee.id);
+          if (chairs.has(h.user_id)) hatSet.add("oversight_chair");
+          if (tophats.has(h.user_id)) hatSet.add("tophat");
+        }
+        const level: AscensionLevel = isActive ? getAscensionLevel(hatSet) : (0 as AscensionLevel);
         return {
           userId: h.user_id,
           walletAddress: wallets[h.user_id] ?? null,
-          level: isActive ? ((isChair ? 2 : 1) as AscensionLevel) : (0 as AscensionLevel),
+          level,
           status: isActive ? "active" : "pending_veto",
           vetoWindowEnd: h.veto_window_end,
         };

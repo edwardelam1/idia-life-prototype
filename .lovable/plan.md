@@ -1,65 +1,47 @@
-# What the database actually shows
+## Issue 1 — Proposal progress bar is missing
 
-Querying `dao_hats` and `committee_applications` for user `f60af0ab-2309-4846-a1d6-2d3dd72614d6` (committee `legal_defense`):
+**Root cause.** `ProposalCard` in `ActiveProposalsList.tsx` only renders the Quorum Progress card when `quorumRequired > 0`. The on-chain quorum fetch (`governanceService.getProposalQuorum` / `getCurrentQuorum`) is being throttled by the Base RPC (console shows `code: -32016 "over rate limit"`), so `quorumRequired` stays at 0 and the bar disappears entirely. Every mounted proposal card also fires its own quorum RPC, multiplying the load.
 
-**`committee_applications`** — 1 row:
-- `id c8305467…` · `status = approved` · `committee_id = legal_defense` · created `02:24:21`
+**Fix.**
+- Always render the Quorum Progress card.
+  - While `quorumRequired === 0`: show the bar in a muted "hydrating…" state with current `totalWeight` / `voteCount` and an indeterminate fill.
+  - Once `quorumRequired > 0`: behave exactly as today (percentage + emerald fill at/above quorum).
+- Make the per-card quorum fetch resilient instead of silently failing.
 
-**`dao_hats`** — 2 rows for the same `(user_id, hat_type='legal_defense')`, both `revoked_at = null`:
-- `deb182d4…` · `pending_veto` · veto_window_end **2026-06-02** (72h window) · created `02:38:42.873`
-- `8f01c116…` · `pending_veto` · veto_window_end **2026-05-31** (**24h** window) · created `02:38:44.233`
+## Issue 2 — RPC rate-limit makes quorum unreliable
 
-Two pending_veto hats provisioned 1.4s apart, with different veto-window lengths → two distinct code paths fired against the same approved application.
+**Root cause.** Each `ProposalCard` independently calls the Base RPC for quorum on mount with no shared cache and no retry, so a handful of proposals plus the wallet-balance hooks blow past the public node's rate limit. Result: `over rate limit` → `quorumRequired = 0` → bar hidden.
 
-# Why the user still sees "Apply to Join"
+**Fix (in `src/services/governanceService.ts`).**
+- Add a **module-level quorum cache** (TTL ~60s, keyed by `proposalId` or `"current"`). Quorum is snapshot-bound and effectively constant within a vote window, so caching is safe and keeps the displayed count accurate.
+- Add an **in-flight de-dup map** so N proposal cards mounting at once trigger exactly one RPC, not N.
+- Add a small **`withRpcRetry` helper** with exponential backoff (3 tries, ~600ms → ~1.2s → ~2.4s + jitter) that detects `-32016` / `429` / `rate limit` messages and retries. Non-rate-limit errors throw immediately.
+- Wrap the raw `quorum()` and `proposalSnapshot()` calls in `getProposalQuorum` and `getCurrentQuorum` with `withRpcRetry`, falling back to `computeQuorumFromSupply` only when the chain genuinely returns 0 — never when we were just throttled.
+- Keep `computeQuorumFromSupply` as the deterministic last-resort fallback (unchanged).
 
-`src/components/governance/CommitteesList.tsx` (lines 376–469) computes per-committee state for the applicant from:
+Net effect: users see the **exact on-chain quorum** the Governor will enforce, even under RPC pressure, and the UI never silently swallows the number.
 
-- `isActiveMember = userActiveHats.has(committee.id) || ascensionLevel === 3`
-  - `userActiveHats` is populated only when `eligibility_status === "active"` (line 121)
-- `isPending = !!app && app.status === "pending"`
+## Issue 3 — Committee roster shows the wrong ascension level
 
-After your L3 approval: application is `approved`, hat is `pending_veto`. Neither branch matches, so the card falls through to the `Apply to Join` button. There is **no UI state for "hat provisioned, in veto window."** That's the user-visible bug.
+**Root cause.** `CommitteeRosterModal.tsx` derives each member's level using only two hats:
+- `oversight_chair` → L2
+- otherwise active → L1
 
-# Why two hats were created
+It never checks `tophat`, so an L3 Protocol Steward who also holds the committee hat renders as L1 (or L2 if they happen to hold oversight_chair). This contradicts the single source of truth in `utils/governanceGate.ts → getAscensionLevel`, which already handles tophat → L3.
 
-`ascension-approve` guards against duplicates (lines 108–119) but:
-1. No DB-level uniqueness on `(user_id, hat_type)` when `revoked_at IS NULL` — concurrent invocations race past the in-function check.
-2. The 24h-vs-72h discrepancy proves the second insert didn't come from `ascension-approve` (which uses `VETO_WINDOW_MS = 72h`). Something else with a 24h window also wrote a `pending_veto` row — likely a stale/duplicate handler or an auto-promotion path. Needs to be located via `provisioned_by` / log inspection.
+**Fix.**
+- In the roster loader, also fetch active `tophat` holders for the same `user_id` set (one extra query, mirroring the existing `oversight_chair` query).
+- For each member, build a `Set<string>` of their active hats (`committee.id` + `oversight_chair` if present + `tophat` if present) and run it through `getAscensionLevel`. The roster now always agrees with `HatsWardrobe`, `CommitteesList`, and `ActiveProposalsList`.
+- Promote/demote buttons stay gated on `level === 1` / `=== 2`; L3 stewards correctly show no toggle (stewards aren't managed via this surface).
+- Pending-veto members keep their existing `L1 · pending` badge.
 
-# Proposed fixes (two layers)
+## Files touched
 
-### 1. UI: recognize `pending_veto` state (frontend only)
-In `CommitteesList.tsx`:
-- Track `pending_veto` hats per committee for the current user (extend the `dao_hats` hydration to capture `eligibility_status` + `veto_window_end` for `user.id`).
-- Add a render branch between `isActiveMember` and `isPending`: when the user holds a `pending_veto` hat for that committee, show a **"Provisioned · Veto Window"** chip with the countdown to `veto_window_end` instead of `Apply to Join`. No new actions — view only.
+- `src/services/governanceService.ts` — quorum cache, in-flight de-dup, `withRpcRetry` helper applied to `getCurrentQuorum` and `getProposalQuorum`.
+- `src/components/governance/ActiveProposalsList.tsx` — progress card always renders; muted/indeterminate state while quorum hydrates.
+- `src/components/governance/CommitteeRosterModal.tsx` — include `tophat` in per-member level via `getAscensionLevel`.
 
-### 2. DB: prevent duplicate pending_veto/active hats (migration)
-Add a partial unique index so the race in `ascension-approve` can't silently succeed twice and any rogue secondary writer fails loudly:
+## Out of scope
 
-```sql
-CREATE UNIQUE INDEX dao_hats_one_live_hat_per_user_committee
-ON public.dao_hats (user_id, hat_type)
-WHERE revoked_at IS NULL
-  AND eligibility_status IN ('pending_veto','active');
-```
-
-Then clean the existing duplicate: revoke the 24h-window row (`8f01c116…`), keeping the canonical 72h `deb182d4…` from `ascension-approve`:
-
-```sql
-UPDATE public.dao_hats
-SET revoked_at = now(), eligibility_status = 'revoked'
-WHERE id = '8f01c116-e840-42e3-8102-3b21a467cd35';
-```
-
-### 3. Locate the second writer (investigation, no code change yet)
-Grep edge functions + client code for any other `dao_hats` insert with `eligibility_status: 'pending_veto'` or a 24h veto window, and surface findings before patching. Candidates to inspect: `dao-hat-eligibility`, `ascension-promote`, anything triggered from `ApplicationReviewQueue` on approve.
-
-# Out of scope
-- Compliance queue logic, ascension-promote, ascension-veto, ACA generation.
-- Any change to the applicant's permission to apply to other committees.
-
-# Files touched (build phase)
-- `src/components/governance/CommitteesList.tsx` — add pending_veto branch + state.
-- `supabase/migrations/<new>.sql` — partial unique index + cleanup UPDATE.
-- Investigation report in chat for the duplicate-writer source before any further edit.
+- The separate USDC `over rate limit` errors in `useWalletBalance` (different code path). Can be addressed in a follow-up if you want the same retry/cache treatment applied there.
+- Any backend / edge function changes.

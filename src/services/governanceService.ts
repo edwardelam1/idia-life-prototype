@@ -52,6 +52,14 @@ export interface GovernorParams {
 
 // ── Service ──────────────────────────────────────────────────────────
 
+// Module-level caches (shared across all proposal cards) so we don't hammer
+// the public Base RPC every time a card mounts. Quorum is a snapshot-bound
+// value that effectively never changes within a vote window, so a 60s TTL
+// keeps the UI accurate without flooding the node.
+const QUORUM_TTL_MS = 60_000;
+const _quorumCache = new Map<string, { value: string; at: number }>();
+const _inflight = new Map<string, Promise<string>>();
+
 class GovernanceService {
 
   // Cache provider so all calls share one instance
@@ -72,6 +80,51 @@ class GovernanceService {
   private delay(ms: number): Promise<void> {
     return new Promise((r) => setTimeout(r, ms));
   }
+
+  /**
+   * Retry an RPC call with exponential backoff when the node returns a
+   * rate-limit error (-32016 / 429 / "rate limit"). Non-rate-limit errors
+   * propagate immediately. Keeps quorum accurate under RPC pressure.
+   */
+  private async withRpcRetry<T>(fn: () => Promise<T>, label: string, max = 3): Promise<T> {
+    let lastErr: any;
+    for (let i = 0; i < max; i++) {
+      try {
+        return await fn();
+      } catch (e: any) {
+        lastErr = e;
+        const code = e?.info?.error?.code ?? e?.code;
+        const msg = (e?.info?.error?.message || e?.shortMessage || e?.message || '').toLowerCase();
+        const rateLimited =
+          code === -32016 || code === 429 || msg.includes('rate limit') || msg.includes('throttle');
+        if (!rateLimited) throw e;
+        const wait = 600 * Math.pow(2, i) + Math.floor(Math.random() * 250);
+        console.warn(`[RPC_RETRY] ${label} rate-limited, retry ${i + 1}/${max} in ${wait}ms`);
+        await this.delay(wait);
+      }
+    }
+    throw lastErr;
+  }
+
+  /** Cached + de-duplicated quorum lookup. Multiple callers share one RPC. */
+  private async cachedQuorum(key: string, loader: () => Promise<string>): Promise<string> {
+    const hit = _quorumCache.get(key);
+    if (hit && Date.now() - hit.at < QUORUM_TTL_MS) return hit.value;
+    const existing = _inflight.get(key);
+    if (existing) return existing;
+    const p = (async () => {
+      try {
+        const value = await loader();
+        _quorumCache.set(key, { value, at: Date.now() });
+        return value;
+      } finally {
+        _inflight.delete(key);
+      }
+    })();
+    _inflight.set(key, p);
+    return p;
+  }
+
 
   /** Trigger the governance-indexer edge function to run immediately. */
   private async triggerIndexer(): Promise<void> {
@@ -181,45 +234,58 @@ private async computeQuorumFromSupply(): Promise<bigint | null> {
 
 // Update getCurrentQuorum to use the new raw caller, with deterministic fallback.
 async getCurrentQuorum(): Promise<string> {
-  const provider = this.getProvider();
-  try {
-    const blockNumber = await provider.getBlockNumber();
-    const quorum = await this.callRaw("quorum", [blockNumber - 1]);
-    if (quorum && BigInt(quorum) > 0n) {
-      return ethers.formatEther(quorum);
+  return this.cachedQuorum('current', async () => {
+    const provider = this.getProvider();
+    try {
+      const blockNumber = await this.withRpcRetry(() => provider.getBlockNumber(), 'getBlockNumber');
+      const quorum = await this.withRpcRetry(
+        () => this.callRaw('quorum', [blockNumber - 1]),
+        'quorum(current)',
+      );
+      if (quorum && BigInt(quorum) > 0n) {
+        return ethers.formatEther(quorum);
+      }
+      console.warn('[QUORUM_FALLBACK] Governor.quorum() returned 0 — computing from totalSupply');
+      const computed = await this.computeQuorumFromSupply();
+      return computed ? ethers.formatEther(computed) : '0';
+    } catch (e) {
+      console.warn('[GovernanceService] getCurrentQuorum failed after retries', e);
+      const computed = await this.computeQuorumFromSupply();
+      return computed ? ethers.formatEther(computed) : '0';
     }
-    console.warn("[QUORUM_FALLBACK] Governor.quorum() returned 0 — computing from totalSupply");
-    const computed = await this.computeQuorumFromSupply();
-    return computed ? ethers.formatEther(computed) : '0';
-  } catch (e) {
-    console.warn("[GovernanceService] getCurrentQuorum failed", e);
-    const computed = await this.computeQuorumFromSupply();
-    return computed ? ethers.formatEther(computed) : '0';
-  }
+  });
 }
 
   // ── Read: Exact Proposal Quorum ───────────────────────────
 
   async getProposalQuorum(proposalId: string): Promise<string> {
-    const gov = this.getGovernorReadOnly();
-    try {
-      const snapshotBlock = await gov.proposalSnapshot(proposalId);
-      if (Number(snapshotBlock) === 0) {
+    return this.cachedQuorum(`prop:${proposalId}`, async () => {
+      const gov = this.getGovernorReadOnly();
+      try {
+        const snapshotBlock = await this.withRpcRetry(
+          () => gov.proposalSnapshot(proposalId),
+          `proposalSnapshot(${proposalId})`,
+        );
+        if (Number(snapshotBlock) === 0) {
+          const computed = await this.computeQuorumFromSupply();
+          return computed ? ethers.formatEther(computed) : '0';
+        }
+
+        const quorum = await this.withRpcRetry(
+          () => gov.quorum(snapshotBlock),
+          `quorum(${proposalId})`,
+        );
+        if (BigInt(quorum) > 0n) return ethers.formatEther(quorum);
+
+        console.warn(`[QUORUM_FALLBACK] proposal ${proposalId} quorum=0 — falling back to supply math`);
+        const computed = await this.computeQuorumFromSupply();
+        return computed ? ethers.formatEther(computed) : '0';
+      } catch (error) {
+        console.error(`[GovernanceService] Quorum fetch failed for proposal ${proposalId} after retries:`, error);
         const computed = await this.computeQuorumFromSupply();
         return computed ? ethers.formatEther(computed) : '0';
       }
-
-      const quorum = await gov.quorum(snapshotBlock);
-      if (BigInt(quorum) > 0n) return ethers.formatEther(quorum);
-
-      console.warn(`[QUORUM_FALLBACK] proposal ${proposalId} quorum=0 — falling back to supply math`);
-      const computed = await this.computeQuorumFromSupply();
-      return computed ? ethers.formatEther(computed) : '0';
-    } catch (error) {
-      console.error(`[GovernanceService] Quorum fetch failed for proposal ${proposalId}:`, error);
-      const computed = await this.computeQuorumFromSupply();
-      return computed ? ethers.formatEther(computed) : '0';
-    }
+    });
   }
 
   // ── Read: Delegation info ─────────────────────────────────
