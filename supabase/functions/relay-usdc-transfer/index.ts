@@ -55,7 +55,7 @@ serve(async (req) => {
 
     let rpcUrl: string;
     if (networkChainId === 8453) {
-      rpcUrl = Deno.env.get("BASE_RPC_URL") || network.rpcUrlFallback;
+      rpcUrl = Deno.env.get("ALCHEMY_BASE_RPC_URL") || network.rpcUrlFallback;
     } else {
       rpcUrl = network.rpcUrlFallback;
     }
