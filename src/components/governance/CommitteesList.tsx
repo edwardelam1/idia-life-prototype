@@ -32,6 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { isNative } from "@/services/platform";
 import { getAscensionLevel, LEVEL_LABEL, LEVEL_BADGE_CLASS } from "@/utils/governanceGate";
+import CommitteeRosterModal from "./CommitteeRosterModal";
 
 // We keep the structural UI metadata static, but all metrics are hydrated live.
 const COMMITTEES_META = [
@@ -88,6 +89,8 @@ const CommitteesList: React.FC = () => {
   // Confirm dialog state for revoke + resign
   const [revokeTarget, setRevokeTarget] = useState<CommitteeMeta | null>(null);
   const [resignTarget, setResignTarget] = useState<CommitteeMeta | null>(null);
+  const [rosterTarget, setRosterTarget] = useState<CommitteeMeta | null>(null);
+  const [callerId, setCallerId] = useState<string | null>(null);
   const [actionBusyId, setActionBusyId] = useState<string | null>(null);
 
   // 1. Fetch Hats + Applications in one sweep
