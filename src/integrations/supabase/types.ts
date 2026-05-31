@@ -4784,6 +4784,7 @@ export type Database = {
           is_active: boolean | null
           is_locked: boolean | null
           menu_status: string | null
+          modifier_groups: Json
           name: string
           preparation_time: number | null
           promotion_eligible: boolean | null
@@ -4809,6 +4810,7 @@ export type Database = {
           is_active?: boolean | null
           is_locked?: boolean | null
           menu_status?: string | null
+          modifier_groups?: Json
           name: string
           preparation_time?: number | null
           promotion_eligible?: boolean | null
@@ -4834,6 +4836,7 @@ export type Database = {
           is_active?: boolean | null
           is_locked?: boolean | null
           menu_status?: string | null
+          modifier_groups?: Json
           name?: string
           preparation_time?: number | null
           promotion_eligible?: boolean | null
