@@ -122,9 +122,64 @@ export interface Proposal {
   status: string;
   proposer_id: string | null;
   on_chain_id?: string | null;
+  lifecycle_phase?: string | null;
+  created_at?: string | null;
+  indexed_state?: number | null;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const normalizeStateText = (value?: string | null) => (value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+
+const stateOnly = (state: number): ChainState => ({
+  snapshotBlock: null,
+  quorum: 0,
+  forVotes: 0,
+  againstVotes: 0,
+  abstainVotes: 0,
+  state,
+});
+
+const deriveDbState = (proposal: Pick<Proposal, "status" | "lifecycle_phase">): number | null => {
+  const markers = [normalizeStateText(proposal.status), normalizeStateText(proposal.lifecycle_phase)];
+  if (markers.some((m) => ["executed", "settled", "complete", "completed"].includes(m))) return 7;
+  if (markers.includes("expired")) return 6;
+  if (markers.some((m) => ["queued", "timelock", "in_timelock"].includes(m))) return 5;
+  if (markers.some((m) => ["succeeded", "passed"].includes(m))) return 4;
+  if (markers.some((m) => ["defeated", "failed", "rejected"].includes(m))) return 3;
+  if (markers.some((m) => ["canceled", "cancelled"].includes(m))) return 2;
+  if (markers.some((m) => ["pending", "draft", "proposed"].includes(m))) return 0;
+  if (markers.some((m) => ["active", "active_vote", "live", "open"].includes(m))) return 1;
+  return null;
+};
+
+export function classifyProposalBucket(proposal: Proposal, chainState?: ChainState): ProposalBucket {
+  const hasOnChainId = !!proposal.on_chain_id?.trim();
+  if (chainState?.state != null) return classifyBucket(chainState.state, hasOnChainId);
+  if (hasOnChainId) return "UNRESOLVED";
+  const dbState = deriveDbState(proposal);
+  if (dbState != null) return classifyBucket(dbState, false);
+  return "ACTIVE_FEED";
+}
+
+export function sortByGovernanceOrder(a: Proposal, b: Proposal, chainStates: Map<string, ChainState>) {
+  const aState = chainStates.get(a.proposal_ref)?.state ?? (!a.on_chain_id ? deriveDbState(a) : null);
+  const bState = chainStates.get(b.proposal_ref)?.state ?? (!b.on_chain_id ? deriveDbState(b) : null);
+  const stateRank = (state: number | null) => {
+    switch (state) {
+      case 1: return 0;
+      case 0: return 1;
+      case 5: return 2;
+      case 4: return 3;
+      case 7: return 4;
+      case 6: return 5;
+      default: return 9;
+    }
+  };
+  const rankDiff = stateRank(aState) - stateRank(bState);
+  if (rankDiff !== 0) return rankDiff;
+  return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+}
 
 
 export const ProposalCard: React.FC<{
