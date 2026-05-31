@@ -610,9 +610,35 @@ export const ProposalCard: React.FC<{
         ["GOV_PROPOSAL_CANCEL", "LEDGER_WRITE"],
       );
 
-      const signer = walletService.getConnectedSigner();
-      const signerAddress = signer ? await signer.getAddress() : null;
-      if (!signer || !sameEvmAddress(signerAddress, proposal.proposer_address ?? currentWalletAddress)) {
+      // Lazy-load wallet from Secure Enclave if not in memory (cold reload, tab switch).
+      if (!walletService.getAddress()) {
+        try {
+          const loaded = await walletService.loadWallet();
+          if (!loaded) {
+            toast({ title: "Wallet locked", description: "Open the Wallet tab to unlock, then retry cancel.", variant: "destructive" });
+            s.fail("wallet_locked");
+            setIsCancelling(false);
+            return;
+          }
+        } catch (loadErr: any) {
+          toast({ title: "Wallet unavailable", description: "Open the Wallet tab to unlock, then retry cancel.", variant: "destructive" });
+          s.fail(loadErr?.message || "wallet_load_failed");
+          setIsCancelling(false);
+          return;
+        }
+      }
+
+      let signer: ethers.Wallet;
+      try {
+        signer = walletService.getConnectedSigner();
+      } catch {
+        toast({ title: "Wallet locked", description: "Open the Wallet tab to unlock, then retry cancel.", variant: "destructive" });
+        s.fail("no_signer");
+        setIsCancelling(false);
+        return;
+      }
+      const signerAddress = await signer.getAddress();
+      if (!sameEvmAddress(signerAddress, proposal.proposer_address ?? currentWalletAddress)) {
         throw new Error("Original proposer wallet required to cancel this proposal.");
       }
 
