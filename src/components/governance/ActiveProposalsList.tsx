@@ -601,7 +601,9 @@ export const ProposalCard: React.FC<{
               </Badge>
             )}
           </div>
+          {TimeframeRow}
           {QuorumBar}
+
         </CardContent>
       </Card>
     );
