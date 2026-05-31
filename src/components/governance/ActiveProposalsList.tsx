@@ -1206,7 +1206,7 @@ const ActiveProposalsList: React.FC<{
         // Sequential to avoid RPC 429s — Supabase first (cheap), then on-chain.
         const dbProposals = await (supabase as any)
           .from("dao_proposals")
-          .select("id, title, description, status, proposer_id, on_chain_id, lifecycle_phase, created_at")
+          .select("id, title, description, status, proposer_id, on_chain_id, lifecycle_phase, created_at, proposal_targets, proposal_values, proposal_calldatas")
           .order("created_at", { ascending: false });
         if (dbProposals.error) throw dbProposals.error;
 
@@ -1244,6 +1244,9 @@ const ActiveProposalsList: React.FC<{
             lifecycle_phase: indexed?.stateName ?? r.lifecycle_phase ?? null,
             created_at: r.created_at ?? null,
             indexed_state: indexed?.state ?? null,
+            proposal_targets: r.proposal_targets ?? indexed?.targets ?? null,
+            proposal_values: r.proposal_values ?? indexed?.values ?? null,
+            proposal_calldatas: r.proposal_calldatas ?? indexed?.calldatas ?? null,
           };
         });
 
@@ -1261,6 +1264,9 @@ const ActiveProposalsList: React.FC<{
             lifecycle_phase: p.stateName,
             created_at: null,
             indexed_state: p.state,
+            proposal_targets: p.targets,
+            proposal_values: p.values,
+            proposal_calldatas: p.calldatas,
           }));
 
         const combined = [...dbRows, ...chainRows];
