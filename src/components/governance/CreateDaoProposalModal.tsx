@@ -86,14 +86,23 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
       if (!user) throw new Error("Authentication required.");
       console.log("[PROPOSAL_SUBMIT] AUTH_SUCCESS: User resolved.");
 
+      // Pre-mint the DB UUID so the on-chain description carries a deterministic
+      // salt (System Ref). This guarantees a unique descriptionHash on every
+      // submit — even when title+description are byte-identical to a prior
+      // proposal — and gives us a 1:1 lineage between the on-chain proposal
+      // and the dao_proposals row.
+      const proposalUuid =
+        (typeof crypto !== "undefined" && "randomUUID" in crypto)
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const saltedDescription = `# ${safeTitle}\n\n${safeDescription}\n\n---\n*System Ref: ${proposalUuid}*`;
+
       // ─── ON-CHAIN EXECUTION BLOCK (MANDATORY) ──────────────────────────
-      console.log("[PROPOSAL_SUBMIT] CHAIN_START: Requesting wallet signature...");
+      console.log("[PROPOSAL_SUBMIT] CHAIN_START: Requesting wallet signature (uuid=" + proposalUuid + ")…");
 
       let chainResult: { hash: string; proposalId?: string };
       try {
-        chainResult = await governanceService.propose(
-          `# ${safeTitle}\n\n${safeDescription}`,
-        );
+        chainResult = await governanceService.propose(saltedDescription);
       } catch (chainErr: any) {
         console.error("[PROPOSAL_SUBMIT] CHAIN_FAIL:", chainErr);
         const code = chainErr?.code;
@@ -104,6 +113,8 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
           friendly = "Not enough gas to anchor the proposal on-chain.";
         } else if (code === "NETWORK_ERROR" || /network|timeout|fetch/i.test(friendly)) {
           friendly = "Could not reach the Governor contract. Try again in a moment.";
+        } else if (/GovernorUnexpectedProposalState|already exists|duplicate/i.test(friendly)) {
+          friendly = "An identical proposal is already on-chain. Refresh and try again.";
         }
         toast({
           title: "Proposal rejected — chain anchor failed",
