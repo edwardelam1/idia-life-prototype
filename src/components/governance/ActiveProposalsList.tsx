@@ -827,7 +827,7 @@ const ActiveProposalsList: React.FC<{
         // Sequential to avoid RPC 429s — Supabase first (cheap), then on-chain.
         const dbProposals = await (supabase as any)
           .from("dao_proposals")
-          .select("id, title, description, status, proposer_id, on_chain_id")
+          .select("id, title, description, status, proposer_id, on_chain_id, lifecycle_phase, created_at")
           .order("created_at", { ascending: false });
         if (dbProposals.error) throw dbProposals.error;
 
@@ -855,6 +855,8 @@ const ActiveProposalsList: React.FC<{
           status: r.status,
           proposer_id: r.proposer_id,
           on_chain_id: r.on_chain_id ?? null,
+          lifecycle_phase: r.lifecycle_phase ?? null,
+          created_at: r.created_at ?? null,
         }));
 
         const chainRows: Proposal[] = onChainProposals
@@ -867,23 +869,26 @@ const ActiveProposalsList: React.FC<{
             status: p.stateName,
             proposer_id: p.proposer,
             on_chain_id: p.proposalId,
+            lifecycle_phase: p.stateName,
+            created_at: null,
+            indexed_state: p.state,
           }));
 
         const combined = [...dbRows, ...chainRows];
 
-        if (isMounted) setProposals(combined);
-        s.ok({ count: combined.length });
-
         // Parent-side chain-state hydration — single canonical source for bucket classification.
         const stateEntries = await Promise.all(
           combined.map(async (p) => {
-            if (!p.on_chain_id) return [p.proposal_ref, null] as const;
+            if (!p.on_chain_id) {
+              const dbState = deriveDbState(p);
+              return [p.proposal_ref, dbState != null ? stateOnly(dbState) : null] as const;
+            }
             try {
               const cs = await readChainState(p.on_chain_id);
               return [p.proposal_ref, cs] as const;
             } catch (e) {
               console.warn(`[ACTIVE_PROPOSALS][CLASSIFY] state read failed for ${p.proposal_ref}`, e);
-              return [p.proposal_ref, null] as const;
+              return [p.proposal_ref, p.indexed_state != null ? stateOnly(p.indexed_state) : null] as const;
             }
           }),
         );
@@ -891,12 +896,14 @@ const ActiveProposalsList: React.FC<{
           const map = new Map<string, ChainState>();
           for (const [ref, cs] of stateEntries) if (cs) map.set(ref, cs);
           setChainStates(map);
+          setProposals(combined.sort((a, b) => sortByGovernanceOrder(a, b, map)));
           for (const [ref, cs] of stateEntries) {
             const st = cs?.state ?? null;
             const bucket = classifyBucket(st, !!combined.find((p) => p.proposal_ref === ref)?.on_chain_id);
             console.log(`[BUCKET_CLASSIFY] ref=${ref} state=${st} → ${bucket}`);
           }
         }
+        s.ok({ count: combined.length });
       } catch (err: any) {
         s.fail(err);
         toast({ title: "Telemetry Stalled", description: err.message, variant: "destructive" });
