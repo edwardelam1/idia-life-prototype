@@ -927,7 +927,12 @@ const ActiveProposalsList: React.FC<{
     );
   }
 
-  if (proposals.length === 0) {
+  const activeProposals = proposals.filter((prop) => {
+    const cs = chainStates.get(prop.proposal_ref);
+    return classifyProposalBucket(prop, cs) === "ACTIVE_FEED";
+  });
+
+  if (activeProposals.length === 0) {
     const showActivateEmpty = !isSelfDelegated && balance > 0;
     return (
       <div className="space-y-5">
@@ -966,12 +971,7 @@ const ActiveProposalsList: React.FC<{
           Clearance · {LEVEL_LABEL[ascensionLevel]}
         </span>
       </div>
-      {proposals
-        .filter((prop) => {
-          const cs = chainStates.get(prop.proposal_ref);
-          const bucket = classifyBucket(cs?.state ?? null, !!prop.on_chain_id);
-          return bucket === "ACTIVE_FEED";
-        })
+      {activeProposals
         .map((prop) => (
           <ProposalCard
             key={prop.id}
