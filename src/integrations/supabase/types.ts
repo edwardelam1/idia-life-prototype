@@ -3882,6 +3882,54 @@ export type Database = {
           },
         ]
       }
+      inventory_demand: {
+        Row: {
+          business_id: string
+          created_by: string | null
+          fulfilled_at: string | null
+          id: string
+          inventory_item_id: string
+          quantity_needed: number
+          requested_at: string
+          status: string
+        }
+        Insert: {
+          business_id: string
+          created_by?: string | null
+          fulfilled_at?: string | null
+          id?: string
+          inventory_item_id: string
+          quantity_needed?: number
+          requested_at?: string
+          status?: string
+        }
+        Update: {
+          business_id?: string
+          created_by?: string | null
+          fulfilled_at?: string | null
+          id?: string
+          inventory_item_id?: string
+          quantity_needed?: number
+          requested_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_demand_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_demand_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inventory_history: {
         Row: {
           action: string
