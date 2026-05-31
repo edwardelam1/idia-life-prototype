@@ -159,6 +159,7 @@ export interface Proposal {
   proposal_targets?: string[] | null;
   proposal_values?: string[] | null;
   proposal_calldatas?: string[] | null;
+  chain_description?: string | null;
 }
 
 const sameEvmAddress = (a?: string | null, b?: string | null) =>
@@ -618,9 +619,10 @@ export const ProposalCard: React.FC<{
       const targets = proposal.proposal_targets?.length ? proposal.proposal_targets : [PROTOCOL.idiaToken];
       const values = proposal.proposal_values?.length ? proposal.proposal_values : ["0"];
       const calldatas = proposal.proposal_calldatas?.length ? proposal.proposal_calldatas : ["0x"];
-      const chainDescription = proposal.description.startsWith("# ")
-        ? proposal.description
-        : `# ${proposal.title}\n\n${proposal.description}`;
+      const sourceDescription = proposal.chain_description || proposal.description;
+      const chainDescription = sourceDescription.startsWith("# ")
+        ? sourceDescription
+        : `# ${proposal.title}\n\n${sourceDescription}`;
       const descriptionHash = ethers.keccak256(ethers.toUtf8Bytes(chainDescription));
       const gov = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, signer);
       const tx = await gov.cancel(
