@@ -522,10 +522,14 @@ const ProposalCard: React.FC<{
                   ? "bg-rose-500 hover:bg-rose-600"
                   : isFinalPassed
                     ? "bg-emerald-500 hover:bg-emerald-600"
-                    : "bg-orange-500 hover:bg-orange-600"
+                    : isActive
+                      ? "bg-orange-500 hover:bg-orange-600"
+                      : chain.state === 0
+                        ? "bg-amber-500 hover:bg-amber-600"
+                        : "bg-slate-400 hover:bg-slate-500"
               }`}
             >
-              {chainName || proposal.status}
+              {chainName || (chain.state === null ? "Syncing" : proposal.status)}
             </Badge>
             {SnapshotBadge}
             <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
