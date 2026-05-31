@@ -6,6 +6,7 @@ import { Gavel, Loader2, CheckCircle2, ThumbsUp, ThumbsDown, Trash2, Crown } fro
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
+import { recordACA } from "@/utils/acaLedger";
 import { stage } from "@/lib/stageLogger";
 import { governanceService, type ProposalOnChain } from "@/services/governanceService";
 import ActivateVotingPowerCard from "./ActivateVotingPowerCard";
@@ -13,7 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ethers } from "ethers";
 import { PROTOCOL, ACTIVE_DEPLOYMENT, GOVERNOR_ABI } from "@/config/contracts";
-import { NETWORKS } from "@/services/walletService";
+import { NETWORKS, walletService } from "@/services/walletService";
 
 // Direct-RPC chain state read — snapshot block, dynamic quorum, and live tally.
 // Quorum is fetched dynamically per snapshot block so the UI auto-adapts if
@@ -155,6 +156,10 @@ export interface Proposal {
   lifecycle_phase?: string | null;
   created_at?: string | null;
   indexed_state?: number | null;
+  proposal_targets?: string[] | null;
+  proposal_values?: string[] | null;
+  proposal_calldatas?: string[] | null;
+  chain_description?: string | null;
 }
 
 const sameEvmAddress = (a?: string | null, b?: string | null) =>
@@ -589,7 +594,7 @@ export const ProposalCard: React.FC<{
   const [isCancelling, setIsCancelling] = useState(false);
   const handleCancelPending = async () => {
     if (!proposal.on_chain_id) return;
-    const s = stage("PROPOSAL_CANCEL", "RELAY");
+    const s = stage("PROPOSAL_CANCEL", "WALLET_CANCEL");
     s.start({ id: proposal.id, onChainId: proposal.on_chain_id });
     setIsCancelling(true);
     try {
@@ -605,50 +610,80 @@ export const ProposalCard: React.FC<{
         ["GOV_PROPOSAL_CANCEL", "LEDGER_WRITE"],
       );
 
-      const { data: relayData, error: relayErr } = await supabase.functions.invoke(
-        "relay-governance-action",
-        {
-          body: {
-            actionType: "CANCEL_PROPOSAL",
-            proposalId: proposal.on_chain_id,
-            title: proposal.title,
-            description: proposal.description,
-            chainId: 8453,
-            acaHash: hash,
-            acaPayload: payload,
-          },
-        },
-      );
-      if (relayErr) {
-        const msg = (relayErr as any)?.context?.error
-          || (relayErr as any)?.message
-          || "Cancellation relay failed.";
-        let friendly = msg;
-        if (/cancellation window closed|no longer in Pending/i.test(msg)) {
-          friendly = "Voting has already opened — this proposal can no longer be cancelled.";
-        } else if (/Only the proposer/i.test(msg)) {
-          friendly = "Only the original proposer can cancel this proposal.";
-        } else if (/not the on-chain proposer/i.test(msg)) {
-          friendly = "Chain mismatch — cancellation refused for safety.";
-        } else if (/gas/i.test(msg)) {
-          friendly = "Relayer is out of gas. Notify an operator.";
-        }
-        toast({ title: "Cancel failed", description: friendly, variant: "destructive" });
-        s.fail(relayErr);
-        return;
+      const signer = walletService.getConnectedSigner();
+      const signerAddress = signer ? await signer.getAddress() : null;
+      if (!signer || !sameEvmAddress(signerAddress, proposal.proposer_address ?? currentWalletAddress)) {
+        throw new Error("Original proposer wallet required to cancel this proposal.");
       }
+
+      const targets = proposal.proposal_targets?.length ? proposal.proposal_targets : [PROTOCOL.idiaToken];
+      const values = proposal.proposal_values?.length ? proposal.proposal_values : ["0"];
+      const calldatas = proposal.proposal_calldatas?.length ? proposal.proposal_calldatas : ["0x"];
+      const sourceDescription = proposal.chain_description || proposal.description;
+      const chainDescription = proposal.chain_description
+        ? proposal.chain_description
+        : UUID_RE.test(proposal.id)
+          ? `# ${proposal.title}\n\n${proposal.description}\n\n---\n*System Ref: ${proposal.id}*`
+          : sourceDescription.startsWith("# ")
+            ? sourceDescription
+            : `# ${proposal.title}\n\n${sourceDescription}`;
+      const descriptionHash = ethers.keccak256(ethers.toUtf8Bytes(chainDescription));
+      const gov = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, signer);
+      const tx = await gov.cancel(
+        targets,
+        values.map((v) => BigInt(v)),
+        calldatas,
+        descriptionHash,
+      );
+      const receipt = await tx.wait();
+
+      await recordACA({
+        userId: user.id,
+        sourceId: "GOV_PROPOSAL_CANCEL",
+        consentType: "governance_cancel",
+        hash,
+        payload,
+        txHash: tx.hash,
+      }).catch((acaErr) => console.warn("[PROPOSAL_CANCEL] ACA mirror warning", acaErr));
+
+      await (supabase as any)
+        .from("governance_proposals")
+        .update({ state: 2, state_name: "Canceled" })
+        .eq("proposal_id", proposal.on_chain_id)
+        .then(({ error }: any) => {
+          if (error) console.warn("[PROPOSAL_CANCEL] governance_proposals reconcile warning", error.message);
+        });
+
+      if (UUID_RE.test(proposal.id)) {
+        await (supabase as any)
+          .from("dao_proposals")
+          .update({ status: "cancelled", lifecycle_phase: "cancelled" })
+          .eq("id", proposal.id)
+          .then(({ error }: any) => {
+            if (error) console.warn("[PROPOSAL_CANCEL] dao_proposals reconcile warning", error.message);
+          });
+      }
+
       toast({
         title: "Proposal cancelled",
-        description: `Anchored on-chain · tx ${String(relayData?.tx_hash || "").substring(0, 10)}…`,
+        description: `Anchored on-chain · tx ${String(tx.hash || "").substring(0, 10)}…`,
       });
       setDetailOpen(false);
       onChanged();
-      s.ok();
+      s.ok({ tx_hash: tx.hash, block_number: receipt?.blockNumber });
     } catch (e: any) {
       console.error("[PROPOSAL_CANCEL] EXCEPTION", e);
+      const raw = e?.shortMessage || e?.message || "Unable to cancel proposal.";
+      const friendly = /ACTION_REJECTED|user rejected|rejected/i.test(raw)
+        ? "Signature declined — proposal was not cancelled."
+        : /insufficient funds|gas/i.test(raw)
+          ? "Not enough Base ETH to cancel this proposal from the proposer wallet."
+          : /GovernorUnexpectedProposalState|Pending|state/i.test(raw)
+            ? "Voting has already opened — this proposal can no longer be cancelled."
+            : raw;
       toast({
         title: "Cancel failed",
-        description: e?.message || "Unable to cancel proposal.",
+        description: friendly,
         variant: "destructive",
       });
       s.fail(e);
@@ -1185,7 +1220,7 @@ const ActiveProposalsList: React.FC<{
         // Sequential to avoid RPC 429s — Supabase first (cheap), then on-chain.
         const dbProposals = await (supabase as any)
           .from("dao_proposals")
-          .select("id, title, description, status, proposer_id, on_chain_id, lifecycle_phase, created_at")
+          .select("id, title, description, status, proposer_id, on_chain_id, lifecycle_phase, created_at, proposal_targets, proposal_values, proposal_calldatas")
           .order("created_at", { ascending: false });
         if (dbProposals.error) throw dbProposals.error;
 
@@ -1223,6 +1258,10 @@ const ActiveProposalsList: React.FC<{
             lifecycle_phase: indexed?.stateName ?? r.lifecycle_phase ?? null,
             created_at: r.created_at ?? null,
             indexed_state: indexed?.state ?? null,
+            proposal_targets: r.proposal_targets ?? indexed?.targets ?? null,
+            proposal_values: r.proposal_values ?? indexed?.values ?? null,
+            proposal_calldatas: r.proposal_calldatas ?? indexed?.calldatas ?? null,
+            chain_description: indexed?.description ?? null,
           };
         });
 
@@ -1240,6 +1279,10 @@ const ActiveProposalsList: React.FC<{
             lifecycle_phase: p.stateName,
             created_at: null,
             indexed_state: p.state,
+            proposal_targets: p.targets,
+            proposal_values: p.values,
+            proposal_calldatas: p.calldatas,
+            chain_description: p.description,
           }));
 
         const combined = [...dbRows, ...chainRows];
