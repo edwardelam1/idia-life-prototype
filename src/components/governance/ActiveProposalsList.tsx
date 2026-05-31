@@ -1249,6 +1249,7 @@ const ActiveProposalsList: React.FC<{
             proposal_targets: r.proposal_targets ?? indexed?.targets ?? null,
             proposal_values: r.proposal_values ?? indexed?.values ?? null,
             proposal_calldatas: r.proposal_calldatas ?? indexed?.calldatas ?? null,
+            chain_description: indexed?.description ?? null,
           };
         });
 
@@ -1269,6 +1270,7 @@ const ActiveProposalsList: React.FC<{
             proposal_targets: p.targets,
             proposal_values: p.values,
             proposal_calldatas: p.calldatas,
+            chain_description: p.description,
           }));
 
         const combined = [...dbRows, ...chainRows];
