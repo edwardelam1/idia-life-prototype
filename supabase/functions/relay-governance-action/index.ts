@@ -86,6 +86,9 @@ serve(async (req) => {
       voteWeight,
       tophatOverride,
       acaHash,
+      acaPayload,
+      title,
+      description,
     } = body ?? {};
 
     if (!actionType || !ALLOWED_ACTIONS.has(actionType)) {
