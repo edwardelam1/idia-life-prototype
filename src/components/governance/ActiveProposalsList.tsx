@@ -609,6 +609,64 @@ export const ProposalCard: React.FC<{
         ["GOV_PROPOSAL_CANCEL", "LEDGER_WRITE"],
       );
 
+      const signer = walletService.getConnectedSigner();
+      const signerAddress = signer ? await signer.getAddress() : null;
+      if (!signer || !sameEvmAddress(signerAddress, proposal.proposer_address ?? currentWalletAddress)) {
+        throw new Error("Original proposer wallet required to cancel this proposal.");
+      }
+
+      const targets = proposal.proposal_targets?.length ? proposal.proposal_targets : [PROTOCOL.idiaToken];
+      const values = proposal.proposal_values?.length ? proposal.proposal_values : ["0"];
+      const calldatas = proposal.proposal_calldatas?.length ? proposal.proposal_calldatas : ["0x"];
+      const chainDescription = proposal.description.startsWith("# ")
+        ? proposal.description
+        : `# ${proposal.title}\n\n${proposal.description}`;
+      const descriptionHash = ethers.keccak256(ethers.toUtf8Bytes(chainDescription));
+      const gov = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, signer);
+      const tx = await gov.cancel(
+        targets,
+        values.map((v) => BigInt(v)),
+        calldatas,
+        descriptionHash,
+      );
+      const receipt = await tx.wait();
+
+      await recordACA({
+        userId: user.id,
+        sourceId: "GOV_PROPOSAL_CANCEL",
+        consentType: "governance_cancel",
+        hash,
+        payload,
+        txHash: tx.hash,
+      }).catch((acaErr) => console.warn("[PROPOSAL_CANCEL] ACA mirror warning", acaErr));
+
+      await (supabase as any)
+        .from("governance_proposals")
+        .update({ state: 2, state_name: "Canceled" })
+        .eq("proposal_id", proposal.on_chain_id)
+        .then(({ error }: any) => {
+          if (error) console.warn("[PROPOSAL_CANCEL] governance_proposals reconcile warning", error.message);
+        });
+
+      if (UUID_RE.test(proposal.id)) {
+        await (supabase as any)
+          .from("dao_proposals")
+          .update({ status: "cancelled", lifecycle_phase: "cancelled" })
+          .eq("id", proposal.id)
+          .then(({ error }: any) => {
+            if (error) console.warn("[PROPOSAL_CANCEL] dao_proposals reconcile warning", error.message);
+          });
+      }
+
+      toast({
+        title: "Proposal cancelled",
+        description: `Anchored on-chain · tx ${String(tx.hash || "").substring(0, 10)}…`,
+      });
+      setDetailOpen(false);
+      onChanged();
+      s.ok({ tx_hash: tx.hash, block_number: receipt?.blockNumber });
+      return;
+
       const { data: relayData, error: relayErr } = await supabase.functions.invoke(
         "relay-governance-action",
         {
