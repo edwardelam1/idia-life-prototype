@@ -665,47 +665,6 @@ export const ProposalCard: React.FC<{
       setDetailOpen(false);
       onChanged();
       s.ok({ tx_hash: tx.hash, block_number: receipt?.blockNumber });
-      return;
-
-      const { data: relayData, error: relayErr } = await supabase.functions.invoke(
-        "relay-governance-action",
-        {
-          body: {
-            actionType: "CANCEL_PROPOSAL",
-            proposalId: proposal.on_chain_id,
-            title: proposal.title,
-            description: proposal.description,
-            chainId: 8453,
-            acaHash: hash,
-            acaPayload: payload,
-          },
-        },
-      );
-      if (relayErr) {
-        const msg = (relayErr as any)?.context?.error
-          || (relayErr as any)?.message
-          || "Cancellation relay failed.";
-        let friendly = msg;
-        if (/cancellation window closed|no longer in Pending/i.test(msg)) {
-          friendly = "Voting has already opened — this proposal can no longer be cancelled.";
-        } else if (/Only the proposer/i.test(msg)) {
-          friendly = "Only the original proposer can cancel this proposal.";
-        } else if (/not the on-chain proposer/i.test(msg)) {
-          friendly = "Chain mismatch — cancellation refused for safety.";
-        } else if (/gas/i.test(msg)) {
-          friendly = "Relayer is out of gas. Notify an operator.";
-        }
-        toast({ title: "Cancel failed", description: friendly, variant: "destructive" });
-        s.fail(relayErr);
-        return;
-      }
-      toast({
-        title: "Proposal cancelled",
-        description: `Anchored on-chain · tx ${String(relayData?.tx_hash || "").substring(0, 10)}…`,
-      });
-      setDetailOpen(false);
-      onChanged();
-      s.ok();
     } catch (e: any) {
       console.error("[PROPOSAL_CANCEL] EXCEPTION", e);
       toast({
