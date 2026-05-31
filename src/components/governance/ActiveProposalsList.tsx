@@ -518,21 +518,15 @@ const ProposalCard: React.FC<{
             </p>
             <div className="grid grid-cols-2 gap-2">
               <Button
-                onClick={() => handleCastVote("for")}
+                onClick={() => openVoteDialog("for")}
                 disabled={isSubmitting || isWithdrawing || loadingMeta}
                 className="h-11 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[10px] rounded-full"
               >
-                {isSubmitting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <ThumbsUp className="w-3.5 h-3.5 mr-1.5" />
-                    Vote For
-                  </>
-                )}
+                <ThumbsUp className="w-3.5 h-3.5 mr-1.5" />
+                Vote For
               </Button>
               <Button
-                onClick={() => handleCastVote("against")}
+                onClick={() => openVoteDialog("against")}
                 disabled={isSubmitting || isWithdrawing || loadingMeta}
                 variant="outline"
                 className="h-11 font-black uppercase text-[10px] rounded-full border-slate-300 dark:border-slate-700"
@@ -543,6 +537,102 @@ const ProposalCard: React.FC<{
             </div>
           </div>
         )}
+
+        <Dialog open={voteDialogOpen} onOpenChange={setVoteDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-black uppercase tracking-wider text-sm">
+                Allocate Vote Weight
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Casting{" "}
+                <span
+                  className={
+                    pendingSupport === "for"
+                      ? "text-emerald-600 font-black"
+                      : "text-rose-600 font-black"
+                  }
+                >
+                  {pendingSupport?.toUpperCase()}
+                </span>{" "}
+                on "{proposal.title}". Max available: {Math.floor(numericVotingPower).toLocaleString()} IDIA.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="vote-weight" className="text-[10px] font-black uppercase tracking-widest">
+                  Allocate Vote Weight (IDIA)
+                </Label>
+                <Input
+                  id="vote-weight"
+                  type="number"
+                  min={1}
+                  max={Math.max(1, Math.floor(numericVotingPower))}
+                  value={voteWeight}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value || "0", 10);
+                    if (!Number.isNaN(v)) setVoteWeight(v);
+                  }}
+                  className="font-mono text-lg font-black"
+                />
+                <Slider
+                  min={1}
+                  max={Math.max(1, Math.floor(numericVotingPower))}
+                  step={1}
+                  value={[Math.min(voteWeight, Math.max(1, Math.floor(numericVotingPower)))]}
+                  onValueChange={(v) => setVoteWeight(v[0] ?? 1)}
+                  className="pt-2"
+                />
+              </div>
+
+              <Button
+                onClick={() => pendingSupport && handleCastVote(pendingSupport, voteWeight, false)}
+                disabled={isSubmitting || !pendingSupport}
+                className="w-full h-11 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[10px] rounded-full"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>Confirm Vote · {voteWeight.toLocaleString()} IDIA</>
+                )}
+              </Button>
+
+              {isL3User && (
+                <>
+                  <div className="relative py-1">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-purple-200 dark:border-purple-900/50" />
+                    </div>
+                    <div className="relative flex justify-center">
+                      <span className="bg-background px-2 text-[9px] font-black uppercase tracking-widest text-purple-700 dark:text-purple-300">
+                        Protocol Steward
+                      </span>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => pendingSupport && handleCastVote(pendingSupport, voteWeight, true)}
+                    disabled={isSubmitting || !pendingSupport}
+                    className="w-full h-12 bg-purple-700 hover:bg-purple-800 text-white font-black uppercase tracking-widest text-[11px] rounded-full shadow-lg shadow-purple-900/30"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Crown className="w-4 h-4 mr-2" />
+                        Tophat Override: Carry Vote
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-[9px] text-center text-muted-foreground uppercase tracking-widest">
+                    Treasury weight will shatter quorum instantly
+                  </p>
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
 
         {canWithdraw && !isFinal && (
           <Button
