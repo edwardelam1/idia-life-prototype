@@ -271,6 +271,16 @@ export const ProposalCard: React.FC<{
 
   const isProposer = !!currentUserId && proposal.proposer_id === currentUserId;
   const canWithdraw = isProposer && voteCount === 0 && hasVoted === null;
+  // Pending detection that survives RPC hydration lag. Server still enforces
+  // on-chain state=0 in the cancel relay, so a permissive client gate is safe.
+  const isPendingForViewer =
+    chain.state === 0 ||
+    (chain.state == null && (
+      proposal.indexed_state === 0 ||
+      deriveDbState(proposal) === 0 ||
+      /pending/i.test(proposal.status ?? "") ||
+      /pending/i.test(proposal.lifecycle_phase ?? "")
+    ));
 
   useEffect(() => {
     let alive = true;
