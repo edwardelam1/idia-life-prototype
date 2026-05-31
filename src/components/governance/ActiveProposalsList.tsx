@@ -807,6 +807,30 @@ const ActiveProposalsList: React.FC<{
 
         if (isMounted) setProposals(combined);
         s.ok({ count: combined.length });
+
+        // Parent-side chain-state hydration — single canonical source for bucket classification.
+        const stateEntries = await Promise.all(
+          combined.map(async (p) => {
+            if (!p.on_chain_id) return [p.proposal_ref, null] as const;
+            try {
+              const cs = await readChainState(p.on_chain_id);
+              return [p.proposal_ref, cs] as const;
+            } catch (e) {
+              console.warn(`[ACTIVE_PROPOSALS][CLASSIFY] state read failed for ${p.proposal_ref}`, e);
+              return [p.proposal_ref, null] as const;
+            }
+          }),
+        );
+        if (isMounted) {
+          const map = new Map<string, ChainState>();
+          for (const [ref, cs] of stateEntries) if (cs) map.set(ref, cs);
+          setChainStates(map);
+          for (const [ref, cs] of stateEntries) {
+            const st = cs?.state ?? null;
+            const bucket = classifyBucket(st, !!combined.find((p) => p.proposal_ref === ref)?.on_chain_id);
+            console.log(`[BUCKET_CLASSIFY] ref=${ref} state=${st} → ${bucket}`);
+          }
+        }
       } catch (err: any) {
         s.fail(err);
         toast({ title: "Telemetry Stalled", description: err.message, variant: "destructive" });
