@@ -16,13 +16,18 @@ const ESCROW_ABI = [
   "function approveAndExecute(uint256 proposalId) external returns (bool)",
 ];
 
+const GOVERNOR_ABI = [
+  "function castVote(uint256 proposalId, uint8 support) returns (uint256)",
+];
+
 const NETWORKS: Record<
   number,
-  { rpcUrlFallback: string; targets: Record<string, string>; name: string }
+  { rpcUrlFallback: string; targets: Record<string, string>; governor: string; name: string }
 > = {
   8453: {
     name: "Base",
     rpcUrlFallback: "https://mainnet.base.org",
+    governor: "0x9777067CAd2892D20decAF1a5ccb78e6B291B87a",
     targets: {
       team: "0xF0E67683783ef5879b43ef99ab04Bc27A9a71074",
       ecosystem: "0xd052C6F3846b4Fe56E579880Ec9ea2764ABDe708",
@@ -30,8 +35,10 @@ const NETWORKS: Record<
   },
 };
 
-const ALLOWED_ACTIONS = new Set(["APPROVE_AND_EXECUTE"]);
+const ALLOWED_ACTIONS = new Set(["APPROVE_AND_EXECUTE", "CAST_VOTE"]);
 const ALLOWED_TARGETS = new Set(["team", "ecosystem"]);
+// L3 Tophat clearance — hat types that may carry the vote with Treasury weight
+const TOPHAT_HAT_TYPES = ["tophat", "security_council", "admin"];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
