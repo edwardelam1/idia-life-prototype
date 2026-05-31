@@ -620,9 +620,13 @@ export const ProposalCard: React.FC<{
       const values = proposal.proposal_values?.length ? proposal.proposal_values : ["0"];
       const calldatas = proposal.proposal_calldatas?.length ? proposal.proposal_calldatas : ["0x"];
       const sourceDescription = proposal.chain_description || proposal.description;
-      const chainDescription = sourceDescription.startsWith("# ")
-        ? sourceDescription
-        : `# ${proposal.title}\n\n${sourceDescription}`;
+      const chainDescription = proposal.chain_description
+        ? proposal.chain_description
+        : UUID_RE.test(proposal.id)
+          ? `# ${proposal.title}\n\n${proposal.description}\n\n---\n*System Ref: ${proposal.id}*`
+          : sourceDescription.startsWith("# ")
+            ? sourceDescription
+            : `# ${proposal.title}\n\n${sourceDescription}`;
       const descriptionHash = ethers.keccak256(ethers.toUtf8Bytes(chainDescription));
       const gov = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, signer);
       const tx = await gov.cancel(
