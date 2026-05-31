@@ -308,12 +308,17 @@ serve(async (req) => {
 
       // STAGE 6: RECONCILE_DATABASE — flip row + ACA ledger + audit log
       stage = "RECONCILE_DATABASE";
-      const { error: updErr } = await supabaseAdmin
-        .from("dao_proposals")
-        .update({ status: "cancelled", lifecycle_phase: "cancelled" })
-        .eq("id", row.id);
+      const { error: updErr } = row
+        ? await supabaseAdmin
+            .from("dao_proposals")
+            .update({ status: "cancelled", lifecycle_phase: "cancelled" })
+            .eq("id", row.id)
+        : await supabaseAdmin
+            .from("governance_proposals")
+            .update({ state: 2, state_name: "Canceled" })
+            .eq("proposal_id", onchainId.toString());
       if (updErr) {
-        console.error(`[GOV_RELAY][${TAG}][${stage}] dao_proposals update failed: ${updErr.message}`);
+        console.error(`[GOV_RELAY][${TAG}][${stage}] proposal update failed: ${updErr.message}`);
       }
 
       try {
