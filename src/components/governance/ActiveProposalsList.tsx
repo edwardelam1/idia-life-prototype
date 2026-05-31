@@ -114,7 +114,7 @@ import {
   type AscensionLevel,
 } from "@/utils/governanceGate";
 
-interface Proposal {
+export interface Proposal {
   id: string; // DB uuid when present, else on-chain id (used as React key only)
   proposal_ref: string; // canonical id for dao_votes: on-chain id when anchored, else uuid string
   title: string;
