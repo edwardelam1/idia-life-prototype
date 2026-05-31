@@ -147,6 +147,8 @@ export const GOVERNOR_ABI = [
   "function execute(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) returns (uint256)",
   "function hasVoted(uint256 proposalId, address account) view returns (bool)",
   "function proposalVotes(uint256 proposalId) view returns (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes)",
+  "function proposalSnapshot(uint256 proposalId) view returns (uint256)",
+  "function quorum(uint256 blockNumber) view returns (uint256)",
 ];
 
 export const REGISTRY_ABI = [
