@@ -832,6 +832,22 @@ export const ProposalCard: React.FC<{
         {DeadlinePill}
       </button>
 
+      {isProposer && isPendingForViewer && proposal.on_chain_id && (
+        <Button
+          onClick={(e) => { e.stopPropagation(); handleCancelPending(); }}
+          disabled={isCancelling}
+          variant="ghost"
+          size="sm"
+          className="w-full mt-1.5 h-9 text-[10px] font-black uppercase tracking-widest text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-full border border-rose-200 dark:border-rose-900/50"
+        >
+          {isCancelling ? (
+            <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Cancelling…</>
+          ) : (
+            <><Trash2 className="w-3.5 h-3.5 mr-1.5" />Cancel Proposal (Pending)</>
+          )}
+        </Button>
+      )}
+
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="sm:max-w-md rounded-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
