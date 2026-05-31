@@ -110,15 +110,20 @@ const ProposalCard: React.FC<{
   const [hasVoted, setHasVoted] = useState<null | "for" | "against">(null);
   const [voteCount, setVoteCount] = useState<number>(0);
   const [loadingMeta, setLoadingMeta] = useState(true);
-  const [quorumRequired, setQuorumRequired] = useState<number>(0);
-  const [totalWeight, setTotalWeight] = useState<number>(0);
+  const [chain, setChain] = useState<ChainState>({
+    snapshotBlock: null,
+    quorum: 0,
+    forVotes: 0,
+    againstVotes: 0,
+    abstainVotes: 0,
+    state: null,
+  });
 
   const isProposer = !!currentUserId && proposal.proposer_id === currentUserId;
   const canWithdraw = isProposer && voteCount === 0 && hasVoted === null;
 
   useEffect(() => {
     let alive = true;
-    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
     (async () => {
       const s = stage("PROPOSAL_CARD", "META_FETCH");
       s.start({ id: proposal.id });
@@ -137,7 +142,6 @@ const ProposalCard: React.FC<{
         if (!alive) return;
         const rows = (votes || []) as { vote_type: string; vote_weight?: number }[];
         setVoteCount(rows.length);
-        setTotalWeight(rows.reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0));
         setHasVoted(((mine as any)?.data?.vote_type as "for" | "against") ?? null);
         s.ok();
       } catch (e) {
@@ -147,23 +151,23 @@ const ProposalCard: React.FC<{
       }
     })();
 
-    // Direct-RPC quorum poll (no service cache). Repolls every 15s so a
-    // stalled hydrate self-heals on the next tick.
-    const pollQuorum = async () => {
+    // Direct-RPC chain poll: snapshot + dynamic quorum + tally + state.
+    // Repolls every 15s so a stalled hydrate self-heals on the next tick.
+    const pollChain = async () => {
       try {
-        console.log(`[QUORUM_DEBUG] Direct RPC quorum fetch · proposal=${proposal.on_chain_id || "(off-chain)"}`);
-        const q = await directQuorum(proposal.on_chain_id);
-        const formatted = Number(ethers.formatEther(q));
+        const cs = await readChainState(proposal.on_chain_id);
         if (alive) {
-          console.log(`[QUORUM_DEBUG] Setting quorumRequired: ${formatted}`);
-          setQuorumRequired(formatted);
+          console.log(
+            `[QUORUM_DEBUG] proposal=${proposal.on_chain_id || "(off-chain)"} snap=${cs.snapshotBlock} quorum=${cs.quorum} for=${cs.forVotes} against=${cs.againstVotes} state=${cs.state}`,
+          );
+          setChain(cs);
         }
       } catch (qErr) {
-        console.warn("[PROPOSAL_CARD] direct quorum fetch failed", qErr);
+        console.warn("[PROPOSAL_CARD] direct chain fetch failed", qErr);
       }
     };
-    pollQuorum();
-    const iv = setInterval(pollQuorum, 15000);
+    pollChain();
+    const iv = setInterval(pollChain, 15000);
 
     return () => {
       alive = false;
