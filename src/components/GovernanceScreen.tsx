@@ -86,6 +86,15 @@ const GovernanceScreen: React.FC = () => {
         console.log("[GOVERNANCE] First visit detected — gating Vote page on Welcome Manual.");
         setNeedsWelcomeAck(true);
       }
+
+      const { data: hats } = await (supabase as any)
+        .from("dao_hats")
+        .select("hat_type")
+        .eq("user_id", user.id)
+        .eq("eligibility_status", "active")
+        .is("revoked_at", null);
+      const hatSet = new Set<string>((hats || []).map((h: any) => h.hat_type));
+      setAscensionLevel(getAscensionLevel(hatSet));
     })();
   }, []);
 
