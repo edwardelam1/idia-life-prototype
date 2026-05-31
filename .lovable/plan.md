@@ -1,60 +1,78 @@
 ## Goal
-Eliminate state-bleed on the Governance dashboard by routing every proposal into exactly one bucket keyed on the canonical OpenZeppelin Governor state, and visually separate the terminal "Locked" set from the active feed via a collapsed accordion placed below Lifecycle Telemetry.
 
-## Bucket contract (single source of truth)
-A proposal's bucket is decided exclusively by `gov.state(proposalId)` (or `null` while hydrating):
+Permanently eliminate `GovernorUnexpectedProposalState` hash collisions, stop "ghost" rows from crashing the Active feed, and harden chain reads against `ERC5805FutureLookup` reverts on Pending proposals.
 
-| Bucket            | OZ states          | Surface                                       |
-|-------------------|--------------------|-----------------------------------------------|
-| `ACTIVE_FEED`     | 0 Pending, 1 Active| `ActiveProposalsList` (main vote feed)        |
-| `TELEMETRY`       | 4 Succeeded, 5 Queued | `LifecycleTelemetry`                       |
-| `DEFEATED`        | 2 Canceled, 3 Defeated | excluded from all visible feeds (not rendered) |
-| `LOCKED`          | 6 Expired, 7 Executed | new `LockedProposalsList` (collapsed)      |
-| `UNRESOLVED`      | `state === null`   | rendered in Active feed only if no on-chain id (pure DB draft); otherwise hidden until hydrated |
+---
 
-A proposal can never appear in two buckets — the classifier is a switch on the integer; the consumers do not re-filter or fall through.
+## 1. GUID-salted description (prevents hash collisions)
 
-## Changes
+**Problem:** Today `CreateDaoProposalModal` calls `governanceService.propose()` *before* inserting the DB row, so no UUID exists yet to salt with. We must pre-mint the UUID on the client and reuse it for both the on-chain description and the DB primary key.
 
-### 1. `src/components/governance/ActiveProposalsList.tsx`
-- Add a parent-level chain-state hydration pass: for each fetched proposal with an `on_chain_id`, call the existing `readChainState` once and store `{ proposalRef → state }` in a `Map` in component state.
-- Add `classifyBucket(state, hasOnChainId)` helper that returns `'ACTIVE_FEED' | 'TELEMETRY' | 'DEFEATED' | 'LOCKED' | 'UNRESOLVED'` via a strict `switch`. No range checks, no `>=`, no `Set` membership reuse — just integer equality.
-- Filter the rendered `proposals.map(...)` to `bucket === 'ACTIVE_FEED'` (plus `UNRESOLVED` pure-DB drafts with no `on_chain_id`).
-- Pass `initialChainState` into `ProposalCard` so the card never momentarily renders the orange "Active" fallback badge while hydrating.
-- In `ProposalCard`:
-  - When `chain.state` is `null`, render a neutral slate "Syncing" badge instead of the orange default.
-  - When `isFinal`, suppress the animated `QuorumBar` pulse (already partly handled) and force the badge to the chain-derived `STATE_NAME[state]` (Executed / Expired / Defeated / Canceled / Succeeded / Queued) with the corresponding color tone. Never render "Active" or vote CTAs for terminal states (already gated by `!isFinal`, keep).
-- Export `ProposalCard` and the parent-side `readChainState` + `classifyBucket` so the new Locked list can reuse them without duplication.
-
-### 2. New `src/components/governance/LockedProposalsList.tsx`
-- Mirrors the fetch logic in `ActiveProposalsList` (Supabase + on-chain dedupe).
-- Hydrates on-chain `state` per proposal, keeps only `state === 6 || state === 7`.
-- Renders inside `Collapsible` (shadcn) defaulting `open={false}`:
-  - Trigger: full-width pill button labelled **"Locked Proposals"** with a count badge and a chevron that rotates on open.
-  - Content: stacked `ProposalCard`s (reuses the same component; cards naturally show terminal badge + no vote UI).
-- Empty bucket → render nothing (no clutter).
-
-### 3. `src/components/governance/LifecycleTelemetry.tsx`
-- After the Supabase fetch, hydrate on-chain `state` per item with `readChainState` and keep only items where `state === 4 || state === 5`. Items lacking an `on_chain_id` fall through unfiltered only if `lifecycle_phase === 'queued'` (matches the Succeeded/Queued contract for off-chain placeholders).
-- No visual changes; the section keeps its current layout.
-
-### 4. `src/components/GovernanceScreen.tsx`
-- Add a new section directly **below** the existing Lifecycle Telemetry section:
+**Frontend — `src/components/governance/CreateDaoProposalModal.tsx`:**
+- Before calling `governanceService.propose()`, generate `const proposalUuid = crypto.randomUUID()`.
+- Build the description string as:
   ```
-  <section className="space-y-3">
-    <h2>…Locked Proposals header…</h2>
-    <LockedProposalsList refreshTrigger={refreshKey} />
-  </section>
+  # ${safeTitle}\n\n${safeDescription}\n\n---\n*System Ref: ${proposalUuid}*
   ```
-- Header styling matches the other section labels (uppercase tracking, muted color, small icon).
-- No other ordering changes.
+- Pass that exact string into `governanceService.propose(fullDescription)`.
+- On the subsequent `dao_proposals` insert, set `id: proposalUuid` so the on-chain `System Ref` matches the DB primary key 1:1.
+
+**Backend — `supabase/functions/relay-governance-action/index.ts` (CANCEL_PROPOSAL branch):**
+- The `dao_proposals` lookup already returns `id`. When rebuilding `descriptionHash`, use:
+  ```
+  ethers.keccak256(ethers.toUtf8Bytes(`# ${title}\n\n${description}\n\n---\n*System Ref: ${row.id}*`))
+  ```
+- This keeps the salt deterministic — same UUID that the frontend baked in at submit time.
+
+No new DB columns. No migration. The salt rides inside the description text and the existing `id`/`on_chain_id` linkage stays untouched.
+
+---
+
+## 2. Drift sweep guard in `classifyBucket`
+
+**File:** `src/components/governance/ActiveProposalsList.tsx`
+
+Inject a top-of-function guard into `classifyProposalBucket` (the proposal-aware wrapper — `classifyBucket` itself is state-only and can't see `lifecycle_phase`):
+
+```ts
+export function classifyProposalBucket(proposal: Proposal, chainState?: ChainState): ProposalBucket {
+  const phase = (proposal.lifecycle_phase || "").toLowerCase();
+  if (phase === "archived" || phase === "drift") return "DEFEATED";
+  // ...existing logic
+}
+```
+
+Effect: admin sets `lifecycle_phase = 'drift'` on a stuck row → next render sweeps it out of `ACTIVE_FEED` into the Defeated bucket, and the `ProposalCard` poller for that row stops being mounted under Active.
+
+---
+
+## 3. Time-travel guard on chain reads
+
+**File:** `src/components/governance/ActiveProposalsList.tsx`, inside `readChainState`.
+
+Currently `proposalVotes(id)` and `quorum(snapshotBlock)` are always called. For state 0 (Pending) the snapshot is in the future → `ERC5805FutureLookup` revert (exactly what the console log shows: `0xecd3f81e` on `quorum(46768431)` while current block is ~46768425).
+
+Restructure the fetch:
+1. First read `state(onChainId)` and `currentBlock` (always safe).
+2. If `state > 0` (Active or later) → read `proposalVotes`, `proposalSnapshot`, `proposalDeadline`, and `quorum(snapshotBlock)` as today.
+3. If `state === 0` → skip `proposalVotes` and `proposalSnapshot`-derived quorum entirely. Default `forVotes/againstVotes/abstainVotes = 0`, set `snapshotBlock` to the raw value (for the existing Pending countdown UI) but fetch quorum via `gov.quorum(currentBlock - 1)` instead, so the card still shows the live quorum threshold without touching a future block.
+
+Wrap each chain call in its own try/catch so one revert can't poison the rest of the hydration.
+
+---
 
 ## Out of scope
-- No edge-function changes.
-- No backend / DB schema changes.
-- Defeated bucket is intentionally not surfaced anywhere (per the strict mutual-exclusion contract — it simply disappears from view).
+
+- No DB migration, no new columns.
+- No changes to vote casting, archive list, locked list, telemetry list, or the create-proposal UI.
+- No changes to `governanceService.propose` signature — it already accepts an arbitrary description string.
+- No changes to existing proposals already on-chain (their hashes are immutable; the guard in §2 is the escape hatch for any that drifted before this fix shipped).
+
+---
 
 ## Verification
-- Manually inspect the rendered feed: every proposal appears in exactly one of {Active feed, Telemetry, Locked accordion}; none appear in two.
-- A proposal in state 7 (Executed) shows an "Executed" emerald badge, no progress pulse, no vote buttons, and only inside the collapsed Locked accordion.
-- `console.log` traces from `readChainState` confirm each proposal resolves to a single integer state before classification.
+
+- Submit two proposals with identical title + description back-to-back → both anchor successfully (different `on_chain_id`s, different `System Ref` UUIDs visible in the description preview).
+- Console no longer prints `[PROPOSAL_CARD] direct chain fetch failed … ERC5805FutureLookup` for fresh Pending proposals; `[QUORUM_DEBUG]` still logs with `quorum=<live>` and `for=0 against=0 state=0`.
+- Manually set a row's `lifecycle_phase = 'drift'` via SQL editor → on next 15s poll the card disappears from Active and stops generating chain calls.
+- Cancel flow still works: relayer rebuilds the salted descriptionHash from `row.id` and OZ Governor accepts `cancel()`.

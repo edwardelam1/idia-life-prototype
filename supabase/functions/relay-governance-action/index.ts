@@ -256,7 +256,7 @@ serve(async (req) => {
       const calldatas: string[] = hasStored ? storedCalldatas! : ["0x"];
 
       const descriptionHash = ethers.keccak256(
-        ethers.toUtf8Bytes(`# ${title}\n\n${description}`),
+        ethers.toUtf8Bytes(`# ${title}\n\n${description}\n\n---\n*System Ref: ${row.id}*`),
       );
       console.log(
         `[GOV_RELAY][${TAG}][${stage}] mode=${hasStored ? "stored" : "defaults"} arity=${targets.length} descHash=${descriptionHash.substring(0, 10)}…`,

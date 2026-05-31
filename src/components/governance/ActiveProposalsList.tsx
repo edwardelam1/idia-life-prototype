@@ -60,26 +60,50 @@ export async function readChainState(onChainId?: string | null): Promise<ChainSt
     }
   }
 
-  const snapBlockRaw = await gov.proposalSnapshot(onChainId);
-  const snapshotBlock = snapBlockRaw && Number(snapBlockRaw) > 0 ? Number(snapBlockRaw) : null;
-
-  const [rawQuorum, rawVotes, rawState, rawDeadline, currentBlock] = await Promise.all([
-    snapshotBlock ? gov.quorum(snapBlockRaw) : Promise.resolve(0n),
-    gov.proposalVotes(onChainId),
-    gov.state(onChainId),
-    gov.proposalDeadline(onChainId).catch(() => 0n),
+  // Time-travel guard: state(id) + currentBlock are always safe. proposalVotes
+  // and quorum(snapshotBlock) revert with ERC5805FutureLookup while Pending
+  // because the snapshot block is in the future. Defer those reads until
+  // state > 0 (Active or beyond), and fetch a "live" quorum off currentBlock
+  // for Pending cards so the threshold UI still renders.
+  const [rawState, currentBlockRaw, rawSnapshot, rawDeadline] = await Promise.all([
+    gov.state(onChainId).catch(() => null),
     provider.getBlockNumber().catch(() => 0),
+    gov.proposalSnapshot(onChainId).catch(() => 0n),
+    gov.proposalDeadline(onChainId).catch(() => 0n),
   ]);
+
+  const state = rawState != null ? Number(rawState) : null;
+  const currentBlock = currentBlockRaw || null;
+  const snapshotBlock = rawSnapshot && Number(rawSnapshot) > 0 ? Number(rawSnapshot) : null;
+  const deadlineBlock = rawDeadline && Number(rawDeadline) > 0 ? Number(rawDeadline) : null;
+
+  let rawQuorum: bigint = 0n;
+  let rawVotes: [bigint, bigint, bigint] = [0n, 0n, 0n];
+
+  if (state !== null && state > 0) {
+    const [q, v] = await Promise.all([
+      snapshotBlock
+        ? gov.quorum(snapshotBlock).catch(() => 0n)
+        : Promise.resolve(0n),
+      gov.proposalVotes(onChainId).catch(() => [0n, 0n, 0n] as any),
+    ]);
+    rawQuorum = q;
+    rawVotes = v as [bigint, bigint, bigint];
+  } else if (state === 0 && currentBlock) {
+    // Pending: query quorum against the latest finalized block so the UI shows
+    // the live threshold without poking a future snapshot block.
+    rawQuorum = await gov.quorum(currentBlock - 1).catch(() => 0n);
+  }
 
   return {
     snapshotBlock,
-    deadlineBlock: rawDeadline && Number(rawDeadline) > 0 ? Number(rawDeadline) : null,
-    currentBlock: currentBlock || null,
+    deadlineBlock,
+    currentBlock,
     quorum: Number(ethers.formatUnits(rawQuorum, 18)),
     againstVotes: Number(ethers.formatUnits(rawVotes[0], 18)),
     forVotes: Number(ethers.formatUnits(rawVotes[1], 18)),
     abstainVotes: Number(ethers.formatUnits(rawVotes[2], 18)),
-    state: Number(rawState),
+    state,
   };
 }
 
@@ -164,6 +188,10 @@ const deriveDbState = (proposal: Pick<Proposal, "status" | "lifecycle_phase">): 
 };
 
 export function classifyProposalBucket(proposal: Proposal, chainState?: ChainState): ProposalBucket {
+  // Drift sweep: admin-flagged stuck/archived rows are evicted from Active so
+  // the card unmounts and stops hammering gov.state()/gov.quorum().
+  const phase = (proposal.lifecycle_phase || "").toLowerCase();
+  if (phase === "archived" || phase === "drift") return "DEFEATED";
   const hasOnChainId = !!proposal.on_chain_id?.trim();
   if (chainState?.state != null) return classifyBucket(chainState.state, hasOnChainId);
   if (hasOnChainId) return "UNRESOLVED";
