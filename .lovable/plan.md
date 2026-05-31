@@ -1,55 +1,80 @@
-# Wallet Awareness & Live Receive Detection
 
-Three related UX gaps where users don't realize wallet state. All work is frontend-only (no schema changes); on-chain receives are detected client-side from the Base RPC and surfaced through the existing Sovereign Receipt overlay and History tab.
+## Scope
 
-## 1. Post-login "No Wallet" dismissible popup
+Three legacy files were compared against the current implementations. Two regressions plus one quorum bug are in scope:
 
-**New component:** `src/components/wallet/NoWalletNudge.tsx`
-- Glassmorphic Trust-Blue/Amber card, centered modal with backdrop blur, single dismiss (X) + two CTAs: "Create Wallet" (jumps to Wallet tab → Security sub-tab) and "Later".
-- Copy: "You don't have a Sovereign Vault yet. Create one from Wallet → Security to start receiving ETH, IDIA, and USDC."
-- Dismissal persisted per-user in `localStorage` under `idia_wallet_nudge_dismissed_v1:<user_id>` so it stops nagging within a session but reappears in a fresh session as long as no wallet exists.
+1. **`LifecycleTelemetry.tsx`** — currently rendered as a plain list of titles in unstyled buttons. The legacy file had the full mobile UI: phase-coded icon tile, badge + relative date row, click → polished `<Dialog>`. **All gone.** Restore it.
+2. **Quorum stays "pending" forever** — both `ProposalCard` (in `ActiveProposalsList.tsx`) and the lifecycle `DetailDialog` route through `governanceService.getProposalQuorum` / `getCurrentQuorum`, which goes through a TTL cache + de-dupe + retry stack + `computeQuorumFromSupply` fallback chain. Under live RPC pressure this hybrid pipeline silently leaves the UI in "hydrating…" state. Switch to a direct RPC poll per card / dialog.
+3. **`GovernanceScreen.tsx`** — current file is a superset of the legacy (adds `CommitteeWorkspaceBoundary`, `ApplicationReviewQueue`, `AuditFeed`). Nothing to restore. **No changes.**
 
-**Wire-up in `src/components/MainApp.tsx`:**
-- After `WelcomeSequence` completes and `profileLoading === false`, check `!isProvisioned.wallet && !wallet?.address` (read via `useWallet`) and `!dismissed`.
-- On "Create Wallet" click: `setActiveTab("wallet")` and `window.dispatchEvent(new CustomEvent("wallet:open-security", { detail: { mode: "create" } }))`.
-- `EnhancedWalletDashboard` listens for `wallet:open-security`, sets `activeTab="security"` and opens the setup modal in the requested mode.
+Out of scope: edge functions, contracts, vote-write path, indexer, ACA, wallet nudge, chain-receive watcher.
 
-## 2. Success toast on wallet create / import
+## Files
 
-**In `src/components/enhanced/EnhancedWalletDashboard.tsx`:**
-- In `handleCreateWallet`: on success, fire `toast({ title: "Sovereign Vault created", description: "<short address> is now linked. Back up your recovery phrase." })` and dispatch `window.dispatchEvent(new CustomEvent("vault-linked", { detail: { address }}))` (event already consumed by `MainApp`).
-- In `handleImportWallet`: on success, fire `toast({ title: "Wallet linked", description: "<short address> connected to this device." })` and same `vault-linked` dispatch.
-- Both toasts use the existing sonner stack (`@/hooks/use-toast`).
+- `src/components/governance/LifecycleTelemetry.tsx` — rewrite
+- `src/components/governance/ActiveProposalsList.tsx` — swap one quorum call in `ProposalCard.useEffect`
 
-## 3. Live on-chain receive detection → auto Sovereign Receipt + History row
+---
 
-**New hook:** `src/hooks/useChainReceiveWatcher.ts`
-- Inputs: `walletAddress`, optional `onReceive(receipt)` callback.
-- Polls Base RPC every 30s for the connected wallet via `ethers.JsonRpcProvider` (reuses the same `BASE_RPC_URL` resolver pattern as `useWalletBalance`).
-- Tracks last-seen balances for ETH, IDIA, USDC in a `useRef` + `localStorage` key `idia_chain_seen_v1:<address>` (first run primes baseline silently — never fires on initial load).
-- When any asset balance **increases** (`new > previous`), emits one `ChainReceipt` per asset:
-  ```ts
-  { asset: "ETH" | "IDIA" | "USDC", amount: number, address, observed_at }
-  ```
-- Implementation note: Plain RPC `balanceOf` deltas only — no Transfer-log scanning (keeps free-tier RPC stable, matches the existing 400ms-spaced sequential pattern). Outgoing sends are ignored (already shown via existing transaction flow).
+## 1. Restore LifecycleTelemetry list UI
 
-**Wire-up in `EnhancedWalletDashboard`:**
-- Call `useChainReceiveWatcher(displayAddress)` with an `onReceive` handler that:
-  1. Builds a synthetic `Transaction` row: `transaction_type: "chain_receive"`, `source: asset`, positive `amount`, `description: "Received <asset>"`, `metadata: { onchain: true, address }`.
-  2. Prepends it into the `transactions` state (so it appears in History immediately).
-  3. Calls `setSelectedTransaction(syntheticTx)` — this reuses the existing Sovereign Receipt `<Dialog>` (lines 854–901) with zero new UI.
-  4. Calls `refreshBalances()` to update the headline balance card.
-- Existing History tab merge (`transactions` + `synapse_credit_ledger`) is preserved — synthetic chain rows simply join the same list. No schema write; receipts are session-local until any real DB row arrives.
+Replace the stripped list with the legacy presentation, but keep the current DetailDialog (it already does the right chain-side computation for `forVotes` / `againstVotes` / deadline math).
 
-**Icon mapping:** extend `getTransactionIcon` to map `transaction_type === "chain_receive"` → `ArrowDownLeft`, and `formatAmount` already handles USDC/IDIA labels (ETH gets a new branch returning `+0.0004 ETH`).
+List item structure (per row, from legacy):
 
-## Out of scope
-- No Supabase schema changes, no edge function, no contract changes.
-- No backfill of historical on-chain transfers — only deltas observed while the app is open.
-- No changes to `governance`, `synapse_credit_ledger`, or `WalletSetupModal` internals.
+```
+[ 📝 ⚡ ⏳ ✅ icon tile ]  Title (bold, truncate)
+                          Phase label · created date
+```
 
-## Files touched
-- **new** `src/components/wallet/NoWalletNudge.tsx`
-- **new** `src/hooks/useChainReceiveWatcher.ts`
-- **edit** `src/components/MainApp.tsx` (mount nudge + listen for tab-jump)
-- **edit** `src/components/enhanced/EnhancedWalletDashboard.tsx` (success toasts, mount watcher, handle `wallet:open-security`, extend icon/format helpers)
+- White card, `rounded-2xl`, teal hairline border, subtle shadow, `hover:shadow-md`, `active:scale-[0.99]`.
+- Phase icon/label/color from a `PHASE_META` map (draft/active/queued/executed) — same map already used by the current `DetailDialog`, just extract to module scope so both consume it.
+- Limit fetch to `limit(8)` (legacy) — current `limit(50)` is overkill for a telemetry strip.
+- Add the legacy Supabase realtime channel: `postgres_changes` on `dao_proposals` → re-fetch list. Tear down on unmount with `supabase.removeChannel`.
+- Loading + empty states from legacy (`Loader2` spinner, "No Telemetry Detected").
+
+Keep the current `DetailDialog` as-is — it already shows the quorum progress, for/against split, block number, and deadline countdown the user expects. The only DetailDialog change is item 2 below.
+
+## 2. Direct-RPC quorum polling (kill the hybrid)
+
+Both call sites currently do:
+
+```ts
+governanceService.getProposalQuorum(onChainId) // cached + retried + fallback chain
+```
+
+Replace with a local helper inside each component that talks straight to ethers, with no service-layer cache:
+
+```ts
+const directQuorum = async (onChainId?: string | null): Promise<bigint> => {
+  const network = ACTIVE_DEPLOYMENT === "mainnet" ? "base" : "baseSepolia";
+  const rpcUrl =
+    (import.meta.env.VITE_ALCHEMY_RPC_URL as string | undefined) ||
+    NETWORKS[network].rpcUrl;
+  const provider = new ethers.JsonRpcProvider(rpcUrl, NETWORKS[network].chainId);
+  const gov = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, provider);
+
+  if (onChainId) {
+    const snap = await gov.proposalSnapshot(onChainId);
+    if (snap && Number(snap) > 0) return await gov.quorum(snap);
+  }
+  const block = await provider.getBlockNumber();
+  return await gov.quorum(block - 1);
+};
+```
+
+- No TTL cache, no in-flight dedupe, no `withRpcRetry` wrapper, no `computeQuorumFromSupply` fallback — pure on-chain reads, exactly as the user requested.
+- Apply in **two places**:
+  - `ProposalCard` `META_FETCH` effect — replace the `governanceService.getProposalQuorum / getCurrentQuorum` block. Result is `ethers.formatEther(bigint)` → `Number` into `setQuorumRequired`.
+  - Lifecycle `DetailDialog` quorum block (BLOCK 1: TALLY & QUORUM) — replace both branches of `governanceService.getProposalQuorum` / `getCurrentQuorum`.
+- Re-poll on a 15s interval while a card / dialog is mounted so a stuck "hydrating…" state self-heals on the next tick. Clear the interval in cleanup.
+- Logs: keep the existing `[QUORUM_DEBUG]` prefixed lines so console diagnostics survive.
+
+## 3. Verification
+
+After edit:
+- `LifecycleTelemetry` strip renders styled cards on `/index` Vote tab. Tapping one opens the polished dialog.
+- ProposalCard quorum bar shows real numerator/denominator within ~2s of mount (not "quorum hydrating…").
+- DetailDialog shows quorum + deadline countdown.
+- Console shows `[QUORUM_DEBUG]` lines with non-zero values.
+- No new TS errors, no unused imports.

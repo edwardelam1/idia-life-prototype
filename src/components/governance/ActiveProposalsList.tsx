@@ -10,6 +10,25 @@ import { stage } from "@/lib/stageLogger";
 import { governanceService } from "@/services/governanceService";
 import ActivateVotingPowerCard from "./ActivateVotingPowerCard";
 import { Progress } from "@/components/ui/progress";
+import { ethers } from "ethers";
+import { PROTOCOL, ACTIVE_DEPLOYMENT, GOVERNOR_ABI } from "@/config/contracts";
+import { NETWORKS } from "@/services/walletService";
+
+// Direct-RPC quorum read — no cache, no retry chain. Hits Alchemy / public RPC
+// directly so the UI never gets stuck on a stale "hydrating…" state.
+async function directQuorum(onChainId?: string | null): Promise<bigint> {
+  const networkKey = ACTIVE_DEPLOYMENT === "mainnet" ? "base" : "baseSepolia";
+  const network = NETWORKS[networkKey];
+  const rpcUrl = (import.meta.env.VITE_ALCHEMY_RPC_URL as string | undefined) || network.rpcUrl;
+  const provider = new ethers.JsonRpcProvider(rpcUrl, network.chainId);
+  const gov = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, provider);
+  if (onChainId && onChainId.trim() !== "") {
+    const snap = await gov.proposalSnapshot(onChainId);
+    if (snap && Number(snap) > 0) return BigInt(await gov.quorum(snap));
+  }
+  const block = await provider.getBlockNumber();
+  return BigInt(await gov.quorum(block - 1));
+}
 import {
   authorizeGovernanceAction,
   getAscensionLevel,
@@ -73,17 +92,6 @@ const ProposalCard: React.FC<{
         setVoteCount(rows.length);
         setTotalWeight(rows.reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0));
         setHasVoted(((mine as any)?.data?.vote_type as "for" | "against") ?? null);
-
-        // Fetch live quorum from chain (throttled to avoid 429s)
-        await delay(300);
-        try {
-          const q = proposal.on_chain_id
-            ? await governanceService.getProposalQuorum(proposal.on_chain_id)
-            : await governanceService.getCurrentQuorum();
-          if (alive) setQuorumRequired(Number(q) || 0);
-        } catch (qErr) {
-          console.warn("[PROPOSAL_CARD] quorum fetch failed", qErr);
-        }
         s.ok();
       } catch (e) {
         s.fail(e);
@@ -91,8 +99,28 @@ const ProposalCard: React.FC<{
         if (alive) setLoadingMeta(false);
       }
     })();
+
+    // Direct-RPC quorum poll (no service cache). Repolls every 15s so a
+    // stalled hydrate self-heals on the next tick.
+    const pollQuorum = async () => {
+      try {
+        console.log(`[QUORUM_DEBUG] Direct RPC quorum fetch · proposal=${proposal.on_chain_id || "(off-chain)"}`);
+        const q = await directQuorum(proposal.on_chain_id);
+        const formatted = Number(ethers.formatEther(q));
+        if (alive) {
+          console.log(`[QUORUM_DEBUG] Setting quorumRequired: ${formatted}`);
+          setQuorumRequired(formatted);
+        }
+      } catch (qErr) {
+        console.warn("[PROPOSAL_CARD] direct quorum fetch failed", qErr);
+      }
+    };
+    pollQuorum();
+    const iv = setInterval(pollQuorum, 15000);
+
     return () => {
       alive = false;
+      clearInterval(iv);
     };
   }, [proposal.proposal_ref, proposal.on_chain_id, currentUserId]);
 
