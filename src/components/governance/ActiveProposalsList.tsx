@@ -893,17 +893,24 @@ const ActiveProposalsList: React.FC<{
           Clearance · {LEVEL_LABEL[ascensionLevel]}
         </span>
       </div>
-      {proposals.map((prop) => (
-        <ProposalCard
-          key={prop.id}
-          proposal={prop}
-          balance={balance}
-          votingPower={votingPower}
-          currentUserId={userId}
-          ascensionLevel={ascensionLevel}
-          onChanged={() => setInnerRefresh((n) => n + 1)}
-        />
-      ))}
+      {proposals
+        .filter((prop) => {
+          const cs = chainStates.get(prop.proposal_ref);
+          const bucket = classifyBucket(cs?.state ?? null, !!prop.on_chain_id);
+          return bucket === "ACTIVE_FEED";
+        })
+        .map((prop) => (
+          <ProposalCard
+            key={prop.id}
+            proposal={prop}
+            balance={balance}
+            votingPower={votingPower}
+            currentUserId={userId}
+            ascensionLevel={ascensionLevel}
+            initialChainState={chainStates.get(prop.proposal_ref)}
+            onChanged={() => setInnerRefresh((n) => n + 1)}
+          />
+        ))}
     </div>
   );
 };
