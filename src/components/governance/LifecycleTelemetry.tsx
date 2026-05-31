@@ -10,6 +10,7 @@ import { stage } from "@/lib/stageLogger";
 import { ethers } from "ethers";
 import { PROTOCOL, ACTIVE_DEPLOYMENT, GOVERNOR_ABI } from "@/config/contracts";
 import { NETWORKS } from "@/services/walletService";
+import { readChainState } from "./ActiveProposalsList";
 
 interface ProposalLite {
   id: string;
