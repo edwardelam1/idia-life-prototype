@@ -594,7 +594,7 @@ export const ProposalCard: React.FC<{
   const [isCancelling, setIsCancelling] = useState(false);
   const handleCancelPending = async () => {
     if (!proposal.on_chain_id) return;
-    const s = stage("PROPOSAL_CANCEL", "RELAY");
+    const s = stage("PROPOSAL_CANCEL", "WALLET_CANCEL");
     s.start({ id: proposal.id, onChainId: proposal.on_chain_id });
     setIsCancelling(true);
     try {
@@ -669,9 +669,17 @@ export const ProposalCard: React.FC<{
       s.ok({ tx_hash: tx.hash, block_number: receipt?.blockNumber });
     } catch (e: any) {
       console.error("[PROPOSAL_CANCEL] EXCEPTION", e);
+      const raw = e?.shortMessage || e?.message || "Unable to cancel proposal.";
+      const friendly = /ACTION_REJECTED|user rejected|rejected/i.test(raw)
+        ? "Signature declined — proposal was not cancelled."
+        : /insufficient funds|gas/i.test(raw)
+          ? "Not enough Base ETH to cancel this proposal from the proposer wallet."
+          : /GovernorUnexpectedProposalState|Pending|state/i.test(raw)
+            ? "Voting has already opened — this proposal can no longer be cancelled."
+            : raw;
       toast({
         title: "Cancel failed",
-        description: e?.message || "Unable to cancel proposal.",
+        description: friendly,
         variant: "destructive",
       });
       s.fail(e);
