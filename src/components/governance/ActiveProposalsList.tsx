@@ -141,7 +141,7 @@ const ProposalCard: React.FC<{
   const [hasVoted, setHasVoted] = useState<null | "for" | "against">(null);
   const [voteCount, setVoteCount] = useState<number>(0);
   const [loadingMeta, setLoadingMeta] = useState(true);
-  const [chain, setChain] = useState<ChainState>({
+  const [chain, setChain] = useState<ChainState>(initialChainState ?? {
     snapshotBlock: null,
     quorum: 0,
     forVotes: 0,
