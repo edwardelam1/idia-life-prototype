@@ -6642,6 +6642,30 @@ export type Database = {
         }
         Relationships: []
       }
+      settlement_queue: {
+        Row: {
+          created_at: string | null
+          id: string
+          payload: Json
+          reference_id: string
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          payload: Json
+          reference_id: string
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          payload?: Json
+          reference_id?: string
+          status?: string | null
+        }
+        Relationships: []
+      }
       shipment_line_items: {
         Row: {
           created_at: string | null
