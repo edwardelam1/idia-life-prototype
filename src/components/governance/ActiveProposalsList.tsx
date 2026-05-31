@@ -6,6 +6,7 @@ import { Gavel, Loader2, CheckCircle2, ThumbsUp, ThumbsDown, Trash2, Crown } fro
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
+import { recordACA } from "@/utils/acaLedger";
 import { stage } from "@/lib/stageLogger";
 import { governanceService, type ProposalOnChain } from "@/services/governanceService";
 import ActivateVotingPowerCard from "./ActivateVotingPowerCard";
@@ -13,7 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ethers } from "ethers";
 import { PROTOCOL, ACTIVE_DEPLOYMENT, GOVERNOR_ABI } from "@/config/contracts";
-import { NETWORKS } from "@/services/walletService";
+import { NETWORKS, walletService } from "@/services/walletService";
 
 // Direct-RPC chain state read — snapshot block, dynamic quorum, and live tally.
 // Quorum is fetched dynamically per snapshot block so the UI auto-adapts if
@@ -155,6 +156,9 @@ export interface Proposal {
   lifecycle_phase?: string | null;
   created_at?: string | null;
   indexed_state?: number | null;
+  proposal_targets?: string[] | null;
+  proposal_values?: string[] | null;
+  proposal_calldatas?: string[] | null;
 }
 
 const sameEvmAddress = (a?: string | null, b?: string | null) =>
