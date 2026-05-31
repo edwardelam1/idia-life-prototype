@@ -21,7 +21,7 @@ import { NETWORKS } from "@/services/walletService";
 // Direct-RPC chain state read — snapshot block, dynamic quorum, and live tally.
 // Quorum is fetched dynamically per snapshot block so the UI auto-adapts if
 // the protocol upgrades to a floating relative quorum in the future.
-interface ChainState {
+export interface ChainState {
   snapshotBlock: number | null;
   quorum: number;
   forVotes: number;
@@ -30,7 +30,7 @@ interface ChainState {
   state: number | null;
 }
 
-async function readChainState(onChainId?: string | null): Promise<ChainState> {
+export async function readChainState(onChainId?: string | null): Promise<ChainState> {
   const networkKey = ACTIVE_DEPLOYMENT === "mainnet" ? "base" : "baseSepolia";
   const network = NETWORKS[networkKey];
   const rpcUrl = (import.meta.env.VITE_ALCHEMY_RPC_URL as string | undefined) || network.rpcUrl;
@@ -75,6 +75,32 @@ async function readChainState(onChainId?: string | null): Promise<ChainState> {
   };
 }
 
+export type ProposalBucket = "ACTIVE_FEED" | "TELEMETRY" | "DEFEATED" | "LOCKED" | "UNRESOLVED";
+
+/**
+ * Strict mutual-exclusion bucket classifier keyed on OpenZeppelin Governor state.
+ * Switch on the integer — no ranges, no Set membership, no overlap possible.
+ */
+export function classifyBucket(state: number | null, hasOnChainId: boolean): ProposalBucket {
+  if (state === null) return hasOnChainId ? "UNRESOLVED" : "ACTIVE_FEED";
+  switch (state) {
+    case 0:
+    case 1:
+      return "ACTIVE_FEED";
+    case 2:
+    case 3:
+      return "DEFEATED";
+    case 4:
+    case 5:
+      return "TELEMETRY";
+    case 6:
+    case 7:
+      return "LOCKED";
+    default:
+      return "UNRESOLVED";
+  }
+}
+
 // OpenZeppelin Governor state enum:
 // 0 Pending · 1 Active · 2 Canceled · 3 Defeated · 4 Succeeded · 5 Queued · 6 Expired · 7 Executed
 const STATE_NAME = ["Pending", "Active", "Canceled", "Defeated", "Succeeded", "Queued", "Expired", "Executed"];
@@ -88,7 +114,7 @@ import {
   type AscensionLevel,
 } from "@/utils/governanceGate";
 
-interface Proposal {
+export interface Proposal {
   id: string; // DB uuid when present, else on-chain id (used as React key only)
   proposal_ref: string; // canonical id for dao_votes: on-chain id when anchored, else uuid string
   title: string;
@@ -101,20 +127,21 @@ interface Proposal {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 
-const ProposalCard: React.FC<{
+export const ProposalCard: React.FC<{
   proposal: Proposal;
   balance: number;
   votingPower: number | string;
   currentUserId: string | null;
   ascensionLevel: AscensionLevel;
+  initialChainState?: ChainState;
   onChanged: () => void;
-}> = ({ proposal, balance, votingPower, currentUserId, ascensionLevel, onChanged }) => {
+}> = ({ proposal, balance, votingPower, currentUserId, ascensionLevel, initialChainState, onChanged }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [hasVoted, setHasVoted] = useState<null | "for" | "against">(null);
   const [voteCount, setVoteCount] = useState<number>(0);
   const [loadingMeta, setLoadingMeta] = useState(true);
-  const [chain, setChain] = useState<ChainState>({
+  const [chain, setChain] = useState<ChainState>(initialChainState ?? {
     snapshotBlock: null,
     quorum: 0,
     forVotes: 0,
@@ -495,10 +522,14 @@ const ProposalCard: React.FC<{
                   ? "bg-rose-500 hover:bg-rose-600"
                   : isFinalPassed
                     ? "bg-emerald-500 hover:bg-emerald-600"
-                    : "bg-orange-500 hover:bg-orange-600"
+                    : isActive
+                      ? "bg-orange-500 hover:bg-orange-600"
+                      : chain.state === 0
+                        ? "bg-amber-500 hover:bg-amber-600"
+                        : "bg-slate-400 hover:bg-slate-500"
               }`}
             >
-              {chainName || proposal.status}
+              {chainName || (chain.state === null ? "Syncing" : proposal.status)}
             </Badge>
             {SnapshotBadge}
             <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
@@ -697,6 +728,7 @@ const ActiveProposalsList: React.FC<{
   onDelegationChanged?: () => void | Promise<void>;
 }> = ({ balance, votingPower, refreshTrigger = 0, isSelfDelegated = true, onDelegationChanged }) => {
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [chainStates, setChainStates] = useState<Map<string, ChainState>>(new Map());
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [ascensionLevel, setAscensionLevel] = useState<AscensionLevel>(0);
@@ -775,6 +807,30 @@ const ActiveProposalsList: React.FC<{
 
         if (isMounted) setProposals(combined);
         s.ok({ count: combined.length });
+
+        // Parent-side chain-state hydration — single canonical source for bucket classification.
+        const stateEntries = await Promise.all(
+          combined.map(async (p) => {
+            if (!p.on_chain_id) return [p.proposal_ref, null] as const;
+            try {
+              const cs = await readChainState(p.on_chain_id);
+              return [p.proposal_ref, cs] as const;
+            } catch (e) {
+              console.warn(`[ACTIVE_PROPOSALS][CLASSIFY] state read failed for ${p.proposal_ref}`, e);
+              return [p.proposal_ref, null] as const;
+            }
+          }),
+        );
+        if (isMounted) {
+          const map = new Map<string, ChainState>();
+          for (const [ref, cs] of stateEntries) if (cs) map.set(ref, cs);
+          setChainStates(map);
+          for (const [ref, cs] of stateEntries) {
+            const st = cs?.state ?? null;
+            const bucket = classifyBucket(st, !!combined.find((p) => p.proposal_ref === ref)?.on_chain_id);
+            console.log(`[BUCKET_CLASSIFY] ref=${ref} state=${st} → ${bucket}`);
+          }
+        }
       } catch (err: any) {
         s.fail(err);
         toast({ title: "Telemetry Stalled", description: err.message, variant: "destructive" });
@@ -837,17 +893,24 @@ const ActiveProposalsList: React.FC<{
           Clearance · {LEVEL_LABEL[ascensionLevel]}
         </span>
       </div>
-      {proposals.map((prop) => (
-        <ProposalCard
-          key={prop.id}
-          proposal={prop}
-          balance={balance}
-          votingPower={votingPower}
-          currentUserId={userId}
-          ascensionLevel={ascensionLevel}
-          onChanged={() => setInnerRefresh((n) => n + 1)}
-        />
-      ))}
+      {proposals
+        .filter((prop) => {
+          const cs = chainStates.get(prop.proposal_ref);
+          const bucket = classifyBucket(cs?.state ?? null, !!prop.on_chain_id);
+          return bucket === "ACTIVE_FEED";
+        })
+        .map((prop) => (
+          <ProposalCard
+            key={prop.id}
+            proposal={prop}
+            balance={balance}
+            votingPower={votingPower}
+            currentUserId={userId}
+            ascensionLevel={ascensionLevel}
+            initialChainState={chainStates.get(prop.proposal_ref)}
+            onChanged={() => setInnerRefresh((n) => n + 1)}
+          />
+        ))}
     </div>
   );
 };

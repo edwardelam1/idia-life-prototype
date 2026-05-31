@@ -9,6 +9,7 @@ import HatsWardrobe from "./governance/HatsWardrobe";
 import PendingActionsCarousel from "./governance/PendingActionsCarousel";
 import ActiveProposalsList from "./governance/ActiveProposalsList";
 import LifecycleTelemetry from "./governance/LifecycleTelemetry";
+import LockedProposalsList from "./governance/LockedProposalsList";
 import MSAComplianceCard from "./governance/MSAComplianceCard";
 import TreasuryFlows from "./governance/TreasuryFlows";
 import CommitteesList from "./governance/CommitteesList";
@@ -176,6 +177,14 @@ const GovernanceScreen: React.FC = () => {
               <Activity size={14} className="text-teal-600" /> Lifecycle Telemetry
             </h2>
             <LifecycleTelemetry />
+          </section>
+
+          <section className="space-y-3">
+            <LockedProposalsList
+              balance={idiaBalance}
+              votingPower={balance.voting_power ?? 0}
+              refreshTrigger={refreshKey}
+            />
           </section>
         </div>
       ) : (
