@@ -508,11 +508,19 @@ export const ProposalCard: React.FC<{
       setHasVoted(support);
       setVoteCount((c) => c + 1);
       setVoteDialogOpen(false);
+
+      // Center-screen vote blast — auto-dismisses after 2.6s
+      const weightLabel = tophatOverride
+        ? "TREASURY WEIGHT"
+        : `${Math.floor(numericVotingPower).toLocaleString()} IDIA`;
+      setVoteBlast({ support, weightLabel, tophat: !!tophatOverride });
+      setTimeout(() => setVoteBlast(null), 2600);
+
       toast({
         title: tophatOverride ? "Tophat Override Executed" : "Vote Anchored",
         description: tophatOverride
           ? `Treasury weight applied to ${support.toUpperCase()} · ACA ${hash.substring(0, 8)}…`
-          : `${support.toUpperCase()} · ${chosenWeight} IDIA · tx ${String(relayData?.tx_hash || "").substring(0, 10)}…`,
+          : `${support.toUpperCase()} · ${Math.floor(numericVotingPower)} IDIA · tx ${String(relayData?.tx_hash || "").substring(0, 10)}…`,
       });
       onChanged();
       s.ok();
