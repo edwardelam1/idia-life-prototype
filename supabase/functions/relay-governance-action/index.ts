@@ -18,7 +18,14 @@ const ESCROW_ABI = [
 
 const GOVERNOR_ABI = [
   "function castVote(uint256 proposalId, uint8 support) returns (uint256)",
+  "function state(uint256 proposalId) view returns (uint8)",
+  "function proposalProposer(uint256 proposalId) view returns (address)",
+  "function cancel(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) returns (uint256)",
 ];
+
+// Default fallback target for basic signaling proposals — matches
+// governanceService.propose() defaults so descriptionHash + arrays line up.
+const IDIA_TOKEN_ADDRESS = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
 
 const NETWORKS: Record<
   number,
@@ -35,7 +42,7 @@ const NETWORKS: Record<
   },
 };
 
-const ALLOWED_ACTIONS = new Set(["APPROVE_AND_EXECUTE", "CAST_VOTE"]);
+const ALLOWED_ACTIONS = new Set(["APPROVE_AND_EXECUTE", "CAST_VOTE", "CANCEL_PROPOSAL"]);
 const ALLOWED_TARGETS = new Set(["team", "ecosystem"]);
 // L3 Tophat clearance — hat types that may carry the vote with Treasury weight
 const TOPHAT_HAT_TYPES = ["tophat", "security_council", "admin"];
