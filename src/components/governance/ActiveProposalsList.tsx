@@ -940,7 +940,8 @@ const ActiveProposalsList: React.FC<{
             .filter((x: unknown): x is string => typeof x === "string" && x.length > 0),
         );
 
-        const dbRows: Proposal[] = (dbProposals.data || []).map((r: any) => {
+        // ON-CHAIN MANDATE: drop any DB row that never anchored on-chain.
+        const dbRows: Proposal[] = (dbProposals.data || []).filter((r: any) => typeof r.on_chain_id === "string" && r.on_chain_id.length > 0).map((r: any) => {
           const indexed = r.on_chain_id ? indexedById.get(r.on_chain_id) : undefined;
           return {
             id: r.id,
