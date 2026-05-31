@@ -4,7 +4,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { stage } from "@/lib/stageLogger";
-import { governanceService } from "@/services/governanceService";
+import { governanceService, type ProposalOnChain } from "@/services/governanceService";
 import {
   ProposalCard,
   readChainState,
@@ -60,6 +60,9 @@ const LockedProposalsList: React.FC<Props> = ({ balance, votingPower, refreshTri
         const onChainProposals = await governanceService
           .getRecentProposals(user?.id || "")
           .catch(() => []);
+        const indexedById = new Map<string, ProposalOnChain>(
+          onChainProposals.map((p): [string, ProposalOnChain] => [p.proposalId, p]),
+        );
 
         const anchoredIds = new Set<string>(
           (dbProposals.data || [])
@@ -67,17 +70,21 @@ const LockedProposalsList: React.FC<Props> = ({ balance, votingPower, refreshTri
             .filter((x: unknown): x is string => typeof x === "string" && x.length > 0),
         );
 
-        const dbRows: Proposal[] = (dbProposals.data || []).map((r: any) => ({
-          id: r.id,
-          proposal_ref: r.on_chain_id ?? r.id,
-          title: r.title,
-          description: r.description,
-          status: r.status,
-          proposer_id: r.proposer_id,
-          on_chain_id: r.on_chain_id ?? null,
-          lifecycle_phase: r.lifecycle_phase ?? null,
-          created_at: r.created_at ?? null,
-        }));
+        const dbRows: Proposal[] = (dbProposals.data || []).map((r: any) => {
+          const indexed = r.on_chain_id ? indexedById.get(r.on_chain_id) : undefined;
+          return {
+            id: r.id,
+            proposal_ref: r.on_chain_id ?? r.id,
+            title: r.title,
+            description: r.description,
+            status: indexed?.stateName ?? r.status,
+            proposer_id: r.proposer_id,
+            on_chain_id: r.on_chain_id ?? null,
+            lifecycle_phase: indexed?.stateName ?? r.lifecycle_phase ?? null,
+            created_at: r.created_at ?? null,
+            indexed_state: indexed?.state ?? null,
+          };
+        });
 
         const chainRows: Proposal[] = onChainProposals
           .filter((p) => !anchoredIds.has(p.proposalId))
