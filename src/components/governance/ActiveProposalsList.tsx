@@ -30,7 +30,7 @@ interface ChainState {
   state: number | null;
 }
 
-async function readChainState(onChainId?: string | null): Promise<ChainState> {
+export async function readChainState(onChainId?: string | null): Promise<ChainState> {
   const networkKey = ACTIVE_DEPLOYMENT === "mainnet" ? "base" : "baseSepolia";
   const network = NETWORKS[networkKey];
   const rpcUrl = (import.meta.env.VITE_ALCHEMY_RPC_URL as string | undefined) || network.rpcUrl;
@@ -73,6 +73,32 @@ async function readChainState(onChainId?: string | null): Promise<ChainState> {
     abstainVotes: Number(ethers.formatUnits(rawVotes[2], 18)),
     state: Number(rawState),
   };
+}
+
+export type ProposalBucket = "ACTIVE_FEED" | "TELEMETRY" | "DEFEATED" | "LOCKED" | "UNRESOLVED";
+
+/**
+ * Strict mutual-exclusion bucket classifier keyed on OpenZeppelin Governor state.
+ * Switch on the integer — no ranges, no Set membership, no overlap possible.
+ */
+export function classifyBucket(state: number | null, hasOnChainId: boolean): ProposalBucket {
+  if (state === null) return hasOnChainId ? "UNRESOLVED" : "ACTIVE_FEED";
+  switch (state) {
+    case 0:
+    case 1:
+      return "ACTIVE_FEED";
+    case 2:
+    case 3:
+      return "DEFEATED";
+    case 4:
+    case 5:
+      return "TELEMETRY";
+    case 6:
+    case 7:
+      return "LOCKED";
+    default:
+      return "UNRESOLVED";
+  }
 }
 
 // OpenZeppelin Governor state enum:
