@@ -14,21 +14,68 @@ import { ethers } from "ethers";
 import { PROTOCOL, ACTIVE_DEPLOYMENT, GOVERNOR_ABI } from "@/config/contracts";
 import { NETWORKS } from "@/services/walletService";
 
-// Direct-RPC quorum read — no cache, no retry chain. Hits Alchemy / public RPC
-// directly so the UI never gets stuck on a stale "hydrating…" state.
-async function directQuorum(onChainId?: string | null): Promise<bigint> {
+// Direct-RPC chain state read — snapshot block, dynamic quorum, and live tally.
+// Quorum is fetched dynamically per snapshot block so the UI auto-adapts if
+// the protocol upgrades to a floating relative quorum in the future.
+interface ChainState {
+  snapshotBlock: number | null;
+  quorum: number;
+  forVotes: number;
+  againstVotes: number;
+  abstainVotes: number;
+  state: number | null;
+}
+
+async function readChainState(onChainId?: string | null): Promise<ChainState> {
   const networkKey = ACTIVE_DEPLOYMENT === "mainnet" ? "base" : "baseSepolia";
   const network = NETWORKS[networkKey];
   const rpcUrl = (import.meta.env.VITE_ALCHEMY_RPC_URL as string | undefined) || network.rpcUrl;
   const provider = new ethers.JsonRpcProvider(rpcUrl, network.chainId);
   const gov = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, provider);
-  if (onChainId && onChainId.trim() !== "") {
-    const snap = await gov.proposalSnapshot(onChainId);
-    if (snap && Number(snap) > 0) return BigInt(await gov.quorum(snap));
+
+  const empty: ChainState = {
+    snapshotBlock: null,
+    quorum: 0,
+    forVotes: 0,
+    againstVotes: 0,
+    abstainVotes: 0,
+    state: null,
+  };
+
+  if (!onChainId || onChainId.trim() === "") {
+    try {
+      const block = await provider.getBlockNumber();
+      const rawQ = await gov.quorum(block - 1);
+      return { ...empty, quorum: Number(ethers.formatUnits(rawQ, 18)) };
+    } catch {
+      return empty;
+    }
   }
-  const block = await provider.getBlockNumber();
-  return BigInt(await gov.quorum(block - 1));
+
+  const snapBlockRaw = await gov.proposalSnapshot(onChainId);
+  const snapshotBlock = snapBlockRaw && Number(snapBlockRaw) > 0 ? Number(snapBlockRaw) : null;
+
+  const [rawQuorum, rawVotes, rawState] = await Promise.all([
+    snapshotBlock ? gov.quorum(snapBlockRaw) : Promise.resolve(0n),
+    gov.proposalVotes(onChainId),
+    gov.state(onChainId),
+  ]);
+
+  return {
+    snapshotBlock,
+    quorum: Number(ethers.formatUnits(rawQuorum, 18)),
+    againstVotes: Number(ethers.formatUnits(rawVotes[0], 18)),
+    forVotes: Number(ethers.formatUnits(rawVotes[1], 18)),
+    abstainVotes: Number(ethers.formatUnits(rawVotes[2], 18)),
+    state: Number(rawState),
+  };
 }
+
+// OpenZeppelin Governor state enum:
+// 0 Pending · 1 Active · 2 Canceled · 3 Defeated · 4 Succeeded · 5 Queued · 6 Expired · 7 Executed
+const STATE_NAME = ["Pending", "Active", "Canceled", "Defeated", "Succeeded", "Queued", "Expired", "Executed"];
+const FINAL_DEFEATED = new Set([2, 3, 6]);
+const FINAL_PASSED = new Set([4, 5, 7]);
 import {
   authorizeGovernanceAction,
   getAscensionLevel,
@@ -63,15 +110,20 @@ const ProposalCard: React.FC<{
   const [hasVoted, setHasVoted] = useState<null | "for" | "against">(null);
   const [voteCount, setVoteCount] = useState<number>(0);
   const [loadingMeta, setLoadingMeta] = useState(true);
-  const [quorumRequired, setQuorumRequired] = useState<number>(0);
-  const [totalWeight, setTotalWeight] = useState<number>(0);
+  const [chain, setChain] = useState<ChainState>({
+    snapshotBlock: null,
+    quorum: 0,
+    forVotes: 0,
+    againstVotes: 0,
+    abstainVotes: 0,
+    state: null,
+  });
 
   const isProposer = !!currentUserId && proposal.proposer_id === currentUserId;
   const canWithdraw = isProposer && voteCount === 0 && hasVoted === null;
 
   useEffect(() => {
     let alive = true;
-    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
     (async () => {
       const s = stage("PROPOSAL_CARD", "META_FETCH");
       s.start({ id: proposal.id });
@@ -90,7 +142,6 @@ const ProposalCard: React.FC<{
         if (!alive) return;
         const rows = (votes || []) as { vote_type: string; vote_weight?: number }[];
         setVoteCount(rows.length);
-        setTotalWeight(rows.reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0));
         setHasVoted(((mine as any)?.data?.vote_type as "for" | "against") ?? null);
         s.ok();
       } catch (e) {
@@ -100,23 +151,23 @@ const ProposalCard: React.FC<{
       }
     })();
 
-    // Direct-RPC quorum poll (no service cache). Repolls every 15s so a
-    // stalled hydrate self-heals on the next tick.
-    const pollQuorum = async () => {
+    // Direct-RPC chain poll: snapshot + dynamic quorum + tally + state.
+    // Repolls every 15s so a stalled hydrate self-heals on the next tick.
+    const pollChain = async () => {
       try {
-        console.log(`[QUORUM_DEBUG] Direct RPC quorum fetch · proposal=${proposal.on_chain_id || "(off-chain)"}`);
-        const q = await directQuorum(proposal.on_chain_id);
-        const formatted = Number(ethers.formatEther(q));
+        const cs = await readChainState(proposal.on_chain_id);
         if (alive) {
-          console.log(`[QUORUM_DEBUG] Setting quorumRequired: ${formatted}`);
-          setQuorumRequired(formatted);
+          console.log(
+            `[QUORUM_DEBUG] proposal=${proposal.on_chain_id || "(off-chain)"} snap=${cs.snapshotBlock} quorum=${cs.quorum} for=${cs.forVotes} against=${cs.againstVotes} state=${cs.state}`,
+          );
+          setChain(cs);
         }
       } catch (qErr) {
-        console.warn("[PROPOSAL_CARD] direct quorum fetch failed", qErr);
+        console.warn("[PROPOSAL_CARD] direct chain fetch failed", qErr);
       }
     };
-    pollQuorum();
-    const iv = setInterval(pollQuorum, 15000);
+    pollChain();
+    const iv = setInterval(pollChain, 15000);
 
     return () => {
       alive = false;
@@ -294,19 +345,99 @@ const ProposalCard: React.FC<{
     }
   };
 
+  // ── Shared chain-derived display values ────────────────────────────
+  const chainName = chain.state != null ? STATE_NAME[chain.state] : null;
+  const isActive = chain.state === 1;
+  const isFinalDefeated = chain.state != null && FINAL_DEFEATED.has(chain.state);
+  const isFinalPassed = chain.state != null && FINAL_PASSED.has(chain.state);
+  const isFinal = isFinalDefeated || isFinalPassed;
+
+  // Progress numerator: on-chain For votes when available, else off-chain intents
+  const forDisplay = chain.forVotes;
+  const againstDisplay = chain.againstVotes;
+  const quorumTarget = chain.quorum;
+  const pct = quorumTarget > 0 ? Math.min(100, (forDisplay / quorumTarget) * 100) : 0;
+  const fmt = (n: number) =>
+    n >= 1 ? Math.round(n).toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+
+  const SnapshotBadge = chain.snapshotBlock ? (
+    <Badge
+      variant="outline"
+      className="text-[9px] font-black uppercase tracking-widest border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+    >
+      Block #{chain.snapshotBlock.toLocaleString()}
+    </Badge>
+  ) : null;
+
+  const QuorumBar = (
+    <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2">
+      <div className="flex justify-between items-baseline gap-2">
+        <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
+          {isFinal ? "Final Tally" : "Quorum Progress"}
+        </span>
+        <span className="text-[9px] font-black tracking-widest text-slate-700 dark:text-slate-200 text-right">
+          {quorumTarget > 0 ? (
+            <>
+              {fmt(forDisplay)} / {fmt(quorumTarget)} Votes Reached ({pct.toFixed(1)}%)
+            </>
+          ) : (
+            <>{fmt(forDisplay)} cast · quorum hydrating…</>
+          )}
+        </span>
+      </div>
+      <Progress
+        value={quorumTarget > 0 ? pct : forDisplay > 0 ? 8 : 0}
+        className={`h-2 ${quorumTarget === 0 ? "animate-pulse" : ""}`}
+        indicatorClassName={
+          quorumTarget === 0
+            ? "bg-slate-300 dark:bg-slate-700"
+            : isFinalDefeated
+              ? "bg-rose-500"
+              : isFinalPassed || forDisplay >= quorumTarget
+                ? "bg-emerald-500"
+                : "bg-[hsl(178,42%,32%)]"
+        }
+      />
+      <div className="flex justify-between text-[10px] font-bold text-muted-foreground pt-0.5">
+        <span>✔ For: {fmt(forDisplay)}</span>
+        <span>✘ Against: {fmt(againstDisplay)}</span>
+      </div>
+    </div>
+  );
+
   // ── Minimized view: user has already voted ─────────────────────────
   if (hasVoted) {
     return (
-      <Card className="border-teal-50 dark:bg-card dark:border-teal-900/40 shadow-sm rounded-2xl opacity-70">
-        <CardContent className="p-4 flex items-center gap-3">
-          <CheckCircle2 className="w-5 h-5 text-teal-600 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-slate-800 dark:text-foreground truncate">{proposal.title}</p>
-            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-              Vote cast · {hasVoted.toUpperCase()}
-            </p>
+      <Card className="border-teal-50 dark:bg-card dark:border-teal-900/40 shadow-sm rounded-2xl">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-teal-600 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-slate-800 dark:text-foreground truncate">{proposal.title}</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                Vote cast · {hasVoted.toUpperCase()}
+              </p>
+            </div>
+            <Badge className="bg-teal-600 text-white text-[9px] font-black uppercase">Locked</Badge>
           </div>
-          <Badge className="bg-teal-600 text-white text-[9px] font-black uppercase">Locked</Badge>
+          <div className="flex items-center gap-2 flex-wrap">
+            {SnapshotBadge}
+            {chainName && (
+              <Badge
+                variant="outline"
+                className={`text-[9px] font-black uppercase tracking-widest ${
+                  isFinalDefeated
+                    ? "border-rose-300 text-rose-600 dark:text-rose-300"
+                    : isFinalPassed
+                      ? "border-emerald-300 text-emerald-600 dark:text-emerald-300"
+                      : "border-orange-300 text-orange-600 dark:text-orange-300"
+                }`}
+              >
+                {chainName}
+              </Badge>
+            )}
+          </div>
+          {QuorumBar}
         </CardContent>
       </Card>
     );
@@ -316,87 +447,63 @@ const ProposalCard: React.FC<{
     <Card className="border-teal-50 dark:bg-card dark:border-teal-900/40 shadow-sm rounded-3xl overflow-hidden transition-all hover:shadow-md">
       <CardContent className="p-5 space-y-4">
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[9px] font-black uppercase tracking-wider">
-              {proposal.status}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge
+              className={`text-white text-[9px] font-black uppercase tracking-wider ${
+                isFinalDefeated
+                  ? "bg-rose-500 hover:bg-rose-600"
+                  : isFinalPassed
+                    ? "bg-emerald-500 hover:bg-emerald-600"
+                    : "bg-orange-500 hover:bg-orange-600"
+              }`}
+            >
+              {chainName || proposal.status}
             </Badge>
+            {SnapshotBadge}
             <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-              {voteCount} vote{voteCount === 1 ? "" : "s"}
+              {voteCount} intent{voteCount === 1 ? "" : "s"}
             </span>
           </div>
           <h3 className="font-black text-lg leading-tight text-slate-800 dark:text-foreground">{proposal.title}</h3>
           <p className="text-xs text-muted-foreground leading-relaxed">{proposal.description}</p>
         </div>
 
-        <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2">
-          <div className="flex justify-between items-baseline">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
-              Quorum Progress
-            </span>
-            <span className="text-[9px] font-black tracking-widest text-slate-700 dark:text-slate-200">
-              {quorumRequired > 0 ? (
-                <>
-                  {totalWeight.toLocaleString()} / {quorumRequired.toLocaleString()} (
-                  {Math.min(100, (totalWeight / quorumRequired) * 100).toFixed(1)}%)
-                </>
-              ) : (
-                <>{totalWeight.toLocaleString()} cast · quorum hydrating…</>
-              )}
-            </span>
+        {QuorumBar}
+
+        {!isFinal && (
+          <div className="p-4 bg-teal-50/50 dark:bg-teal-950/30 rounded-2xl border border-teal-100/50 dark:border-teal-900/50 space-y-3">
+            <p className="text-[10px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-200">
+              Cast Sovereign Vote · {votingPower ? Number(votingPower).toLocaleString() : 0} IDIAX
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                onClick={() => handleCastVote("for")}
+                disabled={isSubmitting || isWithdrawing || loadingMeta}
+                className="h-11 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[10px] rounded-full"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <ThumbsUp className="w-3.5 h-3.5 mr-1.5" />
+                    Vote For
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={() => handleCastVote("against")}
+                disabled={isSubmitting || isWithdrawing || loadingMeta}
+                variant="outline"
+                className="h-11 font-black uppercase text-[10px] rounded-full border-slate-300 dark:border-slate-700"
+              >
+                <ThumbsDown className="w-3.5 h-3.5 mr-1.5" />
+                Vote Against
+              </Button>
+            </div>
           </div>
-          <Progress
-            value={
-              quorumRequired > 0
-                ? Math.min(100, (totalWeight / quorumRequired) * 100)
-                : totalWeight > 0
-                  ? 8
-                  : 0
-            }
-            className={`h-2 ${quorumRequired === 0 ? "animate-pulse" : ""}`}
-            indicatorClassName={
-              quorumRequired === 0
-                ? "bg-slate-300 dark:bg-slate-700"
-                : totalWeight >= quorumRequired
-                  ? "bg-emerald-500"
-                  : "bg-[hsl(178,42%,32%)]"
-            }
-          />
-        </div>
+        )}
 
-
-
-        <div className="p-4 bg-teal-50/50 dark:bg-teal-950/30 rounded-2xl border border-teal-100/50 dark:border-teal-900/50 space-y-3">
-          <p className="text-[10px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-200">
-            Cast Sovereign Vote · {votingPower ? Number(votingPower).toLocaleString() : 0} IDIAX
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              onClick={() => handleCastVote("for")}
-              disabled={isSubmitting || isWithdrawing || loadingMeta}
-              className="h-11 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[10px] rounded-full"
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <ThumbsUp className="w-3.5 h-3.5 mr-1.5" />
-                  Vote For
-                </>
-              )}
-            </Button>
-            <Button
-              onClick={() => handleCastVote("against")}
-              disabled={isSubmitting || isWithdrawing || loadingMeta}
-              variant="outline"
-              className="h-11 font-black uppercase text-[10px] rounded-full border-slate-300 dark:border-slate-700"
-            >
-              <ThumbsDown className="w-3.5 h-3.5 mr-1.5" />
-              Vote Against
-            </Button>
-          </div>
-        </div>
-
-        {canWithdraw && (
+        {canWithdraw && !isFinal && (
           <Button
             onClick={handleWithdraw}
             disabled={isWithdrawing}
@@ -421,6 +528,7 @@ const ProposalCard: React.FC<{
     </Card>
   );
 };
+
 
 const ActiveProposalsList: React.FC<{
   balance: number;
