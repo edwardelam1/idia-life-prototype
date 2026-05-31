@@ -203,10 +203,29 @@ serve(async (req) => {
         console.error(`[GOV_RELAY][${TAG}][${stage}] dao_proposals lookup failed: ${rowErr.message}`);
         return jsonResponse({ error: "Proposal lookup failed.", failed_at: stage }, 500);
       }
-      if (!row) {
+      const { data: indexedRow, error: indexedErr } = !row
+        ? await supabaseAdmin
+            .from("governance_proposals")
+            .select("proposal_id, proposer, targets, callvalues, calldatas, description")
+            .eq("proposal_id", onchainId.toString())
+            .maybeSingle()
+        : { data: null, error: null };
+      if (indexedErr) {
+        console.error(`[GOV_RELAY][${TAG}][${stage}] governance_proposals lookup failed: ${indexedErr.message}`);
+        return jsonResponse({ error: "Indexed proposal lookup failed.", failed_at: stage }, 500);
+      }
+      if (!row && !indexedRow) {
         return jsonResponse({ error: "Proposal not found in ledger.", failed_at: stage }, 404);
       }
-      if (row.proposer_id !== userId) {
+
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("wallet_address")
+        .eq("id", userId)
+        .maybeSingle();
+      const requesterWallet = String(profile?.wallet_address || "").toLowerCase();
+      const indexedProposer = String(indexedRow?.proposer || "").toLowerCase();
+      if (row?.proposer_id !== userId && (!indexedProposer || indexedProposer !== requesterWallet)) {
         return jsonResponse({ error: "Only the proposer may cancel this proposal.", failed_at: stage }, 403);
       }
 
@@ -240,9 +259,15 @@ serve(async (req) => {
 
       // STAGE 4: REBUILD_ARGS — prefer stored arrays, fall back to signaling defaults
       stage = "REBUILD_ARGS";
-      const storedTargets = Array.isArray(row.proposal_targets) ? row.proposal_targets : null;
-      const storedValues = Array.isArray(row.proposal_values) ? row.proposal_values : null;
-      const storedCalldatas = Array.isArray(row.proposal_calldatas) ? row.proposal_calldatas : null;
+      const storedTargets = Array.isArray(row?.proposal_targets)
+        ? row.proposal_targets
+        : Array.isArray(indexedRow?.targets) ? indexedRow.targets : null;
+      const storedValues = Array.isArray(row?.proposal_values)
+        ? row.proposal_values
+        : Array.isArray(indexedRow?.callvalues) ? indexedRow.callvalues.map((v: unknown) => String(v)) : null;
+      const storedCalldatas = Array.isArray(row?.proposal_calldatas)
+        ? row.proposal_calldatas
+        : Array.isArray(indexedRow?.calldatas) ? indexedRow.calldatas : null;
 
       const hasStored = !!(storedTargets && storedValues && storedCalldatas
         && storedTargets.length > 0
@@ -256,7 +281,7 @@ serve(async (req) => {
       const calldatas: string[] = hasStored ? storedCalldatas! : ["0x"];
 
       const descriptionHash = ethers.keccak256(
-        ethers.toUtf8Bytes(`# ${title}\n\n${description}\n\n---\n*System Ref: ${row.id}*`),
+        ethers.toUtf8Bytes(indexedRow?.description || `# ${title}\n\n${description}\n\n---\n*System Ref: ${row!.id}*`),
       );
       console.log(
         `[GOV_RELAY][${TAG}][${stage}] mode=${hasStored ? "stored" : "defaults"} arity=${targets.length} descHash=${descriptionHash.substring(0, 10)}…`,
