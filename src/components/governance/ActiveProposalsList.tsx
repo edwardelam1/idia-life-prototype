@@ -214,6 +214,8 @@ export const ProposalCard: React.FC<{
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [chain, setChain] = useState<ChainState>(fallbackState ?? {
     snapshotBlock: null,
+    deadlineBlock: null,
+    currentBlock: null,
     quorum: 0,
     forVotes: 0,
     againstVotes: 0,
