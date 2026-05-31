@@ -191,12 +191,18 @@ export const ProposalCard: React.FC<{
   initialChainState?: ChainState;
   onChanged: () => void;
 }> = ({ proposal, balance, votingPower, currentUserId, ascensionLevel, initialChainState, onChanged }) => {
+  const fallbackState = initialChainState
+    ?? (proposal.indexed_state != null ? stateOnly(proposal.indexed_state) : undefined)
+    ?? (!proposal.on_chain_id ? (() => {
+      const dbState = deriveDbState(proposal);
+      return dbState != null ? stateOnly(dbState) : undefined;
+    })() : undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [hasVoted, setHasVoted] = useState<null | "for" | "against">(null);
   const [voteCount, setVoteCount] = useState<number>(0);
   const [loadingMeta, setLoadingMeta] = useState(true);
-  const [chain, setChain] = useState<ChainState>(initialChainState ?? {
+  const [chain, setChain] = useState<ChainState>(fallbackState ?? {
     snapshotBlock: null,
     quorum: 0,
     forVotes: 0,
@@ -253,6 +259,11 @@ export const ProposalCard: React.FC<{
     // Direct-RPC chain poll: snapshot + dynamic quorum + tally + state.
     // Repolls every 15s so a stalled hydrate self-heals on the next tick.
     const pollChain = async () => {
+      if (!proposal.on_chain_id) {
+        const dbState = deriveDbState(proposal);
+        if (alive && dbState != null) setChain(stateOnly(dbState));
+        return;
+      }
       try {
         const cs = await readChainState(proposal.on_chain_id);
         if (alive) {
@@ -272,7 +283,7 @@ export const ProposalCard: React.FC<{
       alive = false;
       clearInterval(iv);
     };
-  }, [proposal.proposal_ref, proposal.on_chain_id, currentUserId]);
+  }, [proposal.proposal_ref, proposal.on_chain_id, proposal.status, proposal.lifecycle_phase, currentUserId]);
 
   const handleCastVote = async (
     support: "for" | "against",
@@ -510,7 +521,7 @@ export const ProposalCard: React.FC<{
       </div>
       <Progress
         value={quorumTarget > 0 ? pct : forDisplay > 0 ? 8 : 0}
-        className={`h-2 ${quorumTarget === 0 ? "animate-pulse" : ""}`}
+        className={`h-2 ${!isFinal && quorumTarget === 0 ? "animate-pulse" : ""}`}
         indicatorClassName={
           quorumTarget === 0
             ? "bg-slate-300 dark:bg-slate-700"
@@ -529,7 +540,7 @@ export const ProposalCard: React.FC<{
   );
 
   // ── Minimized view: user has already voted ─────────────────────────
-  if (hasVoted) {
+  if (hasVoted && !isFinal) {
     return (
       <Card className="border-teal-50 dark:bg-card dark:border-teal-900/40 shadow-sm rounded-2xl">
         <CardContent className="p-4 space-y-3">
