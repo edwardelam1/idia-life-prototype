@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Gavel, Loader2, CheckCircle2, ThumbsUp, ThumbsDown, Trash2 } from "lucide-react";
+import { Gavel, Loader2, CheckCircle2, ThumbsUp, ThumbsDown, Trash2, Crown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
@@ -10,6 +10,10 @@ import { stage } from "@/lib/stageLogger";
 import { governanceService } from "@/services/governanceService";
 import ActivateVotingPowerCard from "./ActivateVotingPowerCard";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
+import { Label } from "@/components/ui/label";
 import { ethers } from "ethers";
 import { PROTOCOL, ACTIVE_DEPLOYMENT, GOVERNOR_ABI } from "@/config/contracts";
 import { NETWORKS } from "@/services/walletService";
@@ -119,6 +123,19 @@ const ProposalCard: React.FC<{
     state: null,
   });
 
+  // Vote-weight allocation dialog state
+  const numericVotingPower = parseFloat(votingPower?.toString() || "0");
+  const isL3User = ascensionLevel === 3;
+  const [voteDialogOpen, setVoteDialogOpen] = useState(false);
+  const [pendingSupport, setPendingSupport] = useState<"for" | "against" | null>(null);
+  const [voteWeight, setVoteWeight] = useState<number>(Math.max(1, Math.floor(numericVotingPower) || 1));
+
+  const openVoteDialog = (support: "for" | "against") => {
+    setPendingSupport(support);
+    setVoteWeight(Math.max(1, Math.floor(numericVotingPower) || 1));
+    setVoteDialogOpen(true);
+  };
+
   const isProposer = !!currentUserId && proposal.proposer_id === currentUserId;
   const canWithdraw = isProposer && voteCount === 0 && hasVoted === null;
 
@@ -175,141 +192,165 @@ const ProposalCard: React.FC<{
     };
   }, [proposal.proposal_ref, proposal.on_chain_id, currentUserId]);
 
-  const handleCastVote = async (support: "for" | "against") => {
-    console.log(`[BEGIN] handleCastVote execution started | Proposal: ${proposal.id} | Intent: ${support}`);
-    const s = stage("VOTE_CAST", support.toUpperCase());
-    s.start({ proposalId: proposal.id, level: ascensionLevel });
+  const handleCastVote = async (
+    support: "for" | "against",
+    chosenWeight: number,
+    tophatOverride: boolean,
+  ) => {
+    console.log(
+      `[BEGIN] handleCastVote | proposal=${proposal.id} intent=${support} weight=${chosenWeight} override=${tophatOverride}`,
+    );
+    const s = stage("VOTE_CAST", `${support.toUpperCase()}${tophatOverride ? "_OVERRIDE" : ""}`);
+    s.start({ proposalId: proposal.id, level: ascensionLevel, weight: chosenWeight, tophatOverride });
 
-    // 0. Indemnity gate — Level 1 (Fiduciary Officer) required
+    // 0. Indemnity gate — Level 1 (Fiduciary Officer) required for any vote
     try {
-      console.log(`[PROCESS] Validating Indemnity Gate for Ascension Level: ${ascensionLevel}`);
       authorizeGovernanceAction(ascensionLevel, 1, `GOVERNANCE_VOTE:${proposal.id}`);
     } catch (e) {
       const userMsg = e instanceof IndemnityViolation ? e.userMessage : "Insufficient clearance.";
-      console.error(`[STALL DETECTED] Indemnity Violation: ${userMsg}`);
       toast({ title: "Clearance Required", description: userMsg, variant: "destructive" });
       s.fail(e);
       return;
     }
 
-    const numericVotingPower = parseFloat(votingPower?.toString() || "0");
-    console.log(`[PROCESS] Parsed Sovereign Voting Power: ${numericVotingPower}`);
-
-    // 1. Enforcement of Sovereign Delegation (Added as requested)
-    if (!votingPower || numericVotingPower < 1) {
-      console.error(`[STALL DETECTED] Insufficient voting power. Detected: ${numericVotingPower}`);
+    // Tophat override requires L3 clearance (server-validated again in edge fn)
+    if (tophatOverride && ascensionLevel !== 3) {
       toast({
-        title: "Action Required",
-        description: "You must Activate Voting Power before casting a vote.",
+        title: "Override Denied",
+        description: "Tophat clearance (L3) required to carry the vote.",
         variant: "destructive",
       });
-      s.fail("insufficient_voting_power");
+      s.fail("not_l3");
       return;
     }
 
-    if (balance < 1) {
-      console.error(`[STALL DETECTED] Insufficient IDIA balance. Balance: ${balance}`);
-      toast({
-        title: "Insufficient IDIA",
-        description: "1 IDIA is required to cast a sovereign vote.",
-        variant: "destructive",
-      });
-      s.fail("insufficient_balance");
-      return;
+    // Standard votes still require activated voting power + IDIA balance.
+    // Override bypasses both — the Treasury wallet supplies the weight.
+    if (!tophatOverride) {
+      if (!votingPower || numericVotingPower < 1) {
+        toast({
+          title: "Action Required",
+          description: "You must Activate Voting Power before casting a vote.",
+          variant: "destructive",
+        });
+        s.fail("insufficient_voting_power");
+        return;
+      }
+      if (balance < 1) {
+        toast({
+          title: "Insufficient IDIA",
+          description: "1 IDIA is required to cast a sovereign vote.",
+          variant: "destructive",
+        });
+        s.fail("insufficient_balance");
+        return;
+      }
+      if (chosenWeight < 1 || chosenWeight > numericVotingPower) {
+        toast({
+          title: "Invalid Vote Weight",
+          description: `Weight must be between 1 and ${Math.floor(numericVotingPower)} IDIA.`,
+          variant: "destructive",
+        });
+        s.fail("invalid_weight");
+        return;
+      }
     }
 
     setIsSubmitting(true);
     try {
-      console.log(`[PROCESS] Fetching Supabase Auth User...`);
       const {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
-      if (authError || !user) {
-        console.error(`[STALL DETECTED] Sovereign authentication failed: ${authError?.message}`);
-        throw new Error("Sovereign authentication failed.");
-      }
+      if (authError || !user) throw new Error("Sovereign authentication failed.");
 
-      console.log(`[PROCESS] Generating ACA Hash for Ledger Write...`);
       const { hash, payload } = await generateACAHash(user.id, `proposal_vote_${proposal.id}`, [
         "GOVERNANCE_VOTE",
         "LEDGER_WRITE",
+        ...(tophatOverride ? ["TOPHAT_OVERRIDE"] : []),
       ]);
-      console.log(`[PROCESS] ACA Hash Generated: ${hash.substring(0, 8)}...`);
+      console.log(`[PROCESS] ACA Hash: ${hash.substring(0, 8)}…`);
 
-      console.log(`[PROCESS] Inserting Vote into Supabase with weight: ${numericVotingPower}`);
+      // Off-chain ledger write — records intent + weight for both branches
       const voteRow: Record<string, unknown> = {
         proposal_ref: proposal.proposal_ref,
         user_id: user.id,
         vote_type: support,
-        vote_weight: numericVotingPower,
-        credits_spent: 1,
+        vote_weight: chosenWeight,
+        credits_spent: tophatOverride ? 0 : 1,
         aca_hash_key: hash,
         aca_payload: payload,
       };
-      // Only set the legacy uuid column when the canonical ref IS a uuid (off-chain draft)
       if (UUID_RE.test(proposal.proposal_ref)) voteRow.proposal_id = proposal.proposal_ref;
       const { error: voteError } = await (supabase as any).from("dao_votes").insert(voteRow);
 
       if (voteError) {
         if (voteError.code === "23505") {
-          console.warn(`[WARNING] Duplicate Vote Detected (Code 23505). Intent already recorded.`);
           toast({ title: "Already Voted", description: "Intent already recorded.", variant: "destructive" });
           setHasVoted(support);
           return;
         }
-        console.error(`[STALL DETECTED] Supabase Insert Error: ${voteError.message}`);
         throw voteError;
       }
 
-      // On-chain bridge: when the proposal is anchored to the Governor, also
-      // cast the vote on-chain so the ledger and chain stay in sync. Off-chain
-      // proposals (no on_chain_id) remain Supabase-only.
+      // On-chain bridge via relayer edge function (handles both standard + override)
       if (proposal.on_chain_id) {
-        try {
-          console.log(`[PROCESS] Bridging vote to on-chain Governor proposal ${proposal.on_chain_id}`);
-          const chainSupport = support === "for" ? 1 : 0;
-          const { hash: txHash } = await governanceService.castVote(
-            proposal.on_chain_id,
-            chainSupport as 0 | 1,
-            `ACA:${hash.substring(0, 12)}`,
-          );
-          console.log(`[PROCESS] On-chain vote tx: ${txHash}`);
-        } catch (chainErr: any) {
-          console.error(`[VOTE_CAST] ON_CHAIN_BRIDGE_FAILED`, chainErr?.message);
+        const chainSupport = support === "for" ? 1 : 0;
+        const payload = {
+          actionType: "CAST_VOTE",
+          proposalId: proposal.on_chain_id,
+          support: chainSupport,
+          voteWeight: chosenWeight,
+          tophatOverride: !!tophatOverride,
+          acaHash: hash,
+          chainId: 8453,
+        };
+        console.log(`[PROCESS] Invoking relay-governance-action`, payload);
+        const { data: relayData, error: relayErr } = await supabase.functions.invoke(
+          "relay-governance-action",
+          { body: payload },
+        );
+        if (relayErr) {
+          console.error(`[VOTE_CAST] RELAY_FAILED`, relayErr);
           toast({
-            title: "On-chain bridge failed",
-            description: chainErr?.message || "Off-chain intent recorded; on-chain vote not submitted.",
+            title: tophatOverride ? "Override failed" : "On-chain bridge failed",
+            description: relayErr.message || "Off-chain intent recorded; on-chain vote not submitted.",
             variant: "destructive",
           });
+        } else {
+          console.log(`[PROCESS] Relay result`, relayData);
         }
       }
 
-
-      console.log(`[PROCESS] Executing wallet balance burn RPC...`);
-      const { error: burnError } = await (supabase as any).rpc("increment_wallet_balance", {
-        target_user_id: user.id,
-        amount: -1,
-      });
-      if (burnError) console.warn("[VOTE_CAST] BURN_WARNING", burnError.message);
+      // Burn 1 IDIA from wallet for standard votes only
+      if (!tophatOverride) {
+        const { error: burnError } = await (supabase as any).rpc("increment_wallet_balance", {
+          target_user_id: user.id,
+          amount: -1,
+        });
+        if (burnError) console.warn("[VOTE_CAST] BURN_WARNING", burnError.message);
+      }
 
       setHasVoted(support);
       setVoteCount((c) => c + 1);
+      setVoteDialogOpen(false);
       toast({
-        title: "Intent Cast",
-        description: `Recorded ${support.toUpperCase()} with ${numericVotingPower} weight · ACA ${hash.substring(0, 8)}…`,
+        title: tophatOverride ? "Tophat Override Executed" : "Intent Cast",
+        description: tophatOverride
+          ? `Treasury weight applied to ${support.toUpperCase()} · ACA ${hash.substring(0, 8)}…`
+          : `Recorded ${support.toUpperCase()} with ${chosenWeight} weight · ACA ${hash.substring(0, 8)}…`,
       });
       onChanged();
       s.ok();
-      console.log(`[END] handleCastVote execution completed successfully.`);
     } catch (e: any) {
-      console.error(`[STALL DETECTED] Unhandled Exception during voting: ${e.message}`);
+      console.error(`[STALL DETECTED] Vote exception: ${e.message}`);
       s.fail(e);
       toast({ title: "Submission Failed", description: e.message, variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
   };
+
 
   const handleWithdraw = async () => {
     const s = stage("PROPOSAL_WITHDRAW", "DELETE");
@@ -477,21 +518,15 @@ const ProposalCard: React.FC<{
             </p>
             <div className="grid grid-cols-2 gap-2">
               <Button
-                onClick={() => handleCastVote("for")}
+                onClick={() => openVoteDialog("for")}
                 disabled={isSubmitting || isWithdrawing || loadingMeta}
                 className="h-11 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[10px] rounded-full"
               >
-                {isSubmitting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <ThumbsUp className="w-3.5 h-3.5 mr-1.5" />
-                    Vote For
-                  </>
-                )}
+                <ThumbsUp className="w-3.5 h-3.5 mr-1.5" />
+                Vote For
               </Button>
               <Button
-                onClick={() => handleCastVote("against")}
+                onClick={() => openVoteDialog("against")}
                 disabled={isSubmitting || isWithdrawing || loadingMeta}
                 variant="outline"
                 className="h-11 font-black uppercase text-[10px] rounded-full border-slate-300 dark:border-slate-700"
@@ -502,6 +537,102 @@ const ProposalCard: React.FC<{
             </div>
           </div>
         )}
+
+        <Dialog open={voteDialogOpen} onOpenChange={setVoteDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-black uppercase tracking-wider text-sm">
+                Allocate Vote Weight
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Casting{" "}
+                <span
+                  className={
+                    pendingSupport === "for"
+                      ? "text-emerald-600 font-black"
+                      : "text-rose-600 font-black"
+                  }
+                >
+                  {pendingSupport?.toUpperCase()}
+                </span>{" "}
+                on "{proposal.title}". Max available: {Math.floor(numericVotingPower).toLocaleString()} IDIA.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="vote-weight" className="text-[10px] font-black uppercase tracking-widest">
+                  Allocate Vote Weight (IDIA)
+                </Label>
+                <Input
+                  id="vote-weight"
+                  type="number"
+                  min={1}
+                  max={Math.max(1, Math.floor(numericVotingPower))}
+                  value={voteWeight}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value || "0", 10);
+                    if (!Number.isNaN(v)) setVoteWeight(v);
+                  }}
+                  className="font-mono text-lg font-black"
+                />
+                <Slider
+                  min={1}
+                  max={Math.max(1, Math.floor(numericVotingPower))}
+                  step={1}
+                  value={[Math.min(voteWeight, Math.max(1, Math.floor(numericVotingPower)))]}
+                  onValueChange={(v) => setVoteWeight(v[0] ?? 1)}
+                  className="pt-2"
+                />
+              </div>
+
+              <Button
+                onClick={() => pendingSupport && handleCastVote(pendingSupport, voteWeight, false)}
+                disabled={isSubmitting || !pendingSupport}
+                className="w-full h-11 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[10px] rounded-full"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>Confirm Vote · {voteWeight.toLocaleString()} IDIA</>
+                )}
+              </Button>
+
+              {isL3User && (
+                <>
+                  <div className="relative py-1">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-purple-200 dark:border-purple-900/50" />
+                    </div>
+                    <div className="relative flex justify-center">
+                      <span className="bg-background px-2 text-[9px] font-black uppercase tracking-widest text-purple-700 dark:text-purple-300">
+                        Protocol Steward
+                      </span>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => pendingSupport && handleCastVote(pendingSupport, voteWeight, true)}
+                    disabled={isSubmitting || !pendingSupport}
+                    className="w-full h-12 bg-purple-700 hover:bg-purple-800 text-white font-black uppercase tracking-widest text-[11px] rounded-full shadow-lg shadow-purple-900/30"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Crown className="w-4 h-4 mr-2" />
+                        Tophat Override: Carry Vote
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-[9px] text-center text-muted-foreground uppercase tracking-widest">
+                    Treasury weight will shatter quorum instantly
+                  </p>
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
 
         {canWithdraw && !isFinal && (
           <Button
