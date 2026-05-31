@@ -18,6 +18,7 @@ import AuditFeed from "./governance/AuditFeed";
 import WelcomeManualGate from "./governance/WelcomeManualGate";
 import CreateDaoProposalModal from "./governance/CreateDaoProposalModal";
 import { PROTOCOL, ACTIVE_DEPLOYMENT } from "@/config/contracts";
+import { ACTION_REQUIRED_LEVEL, getAscensionLevel, type AscensionLevel } from "@/utils/governanceGate";
 
 const IDIA_CONTRACT = PROTOCOL.idiaToken;
 const IS_MAINNET = ACTIVE_DEPLOYMENT === "mainnet";
@@ -70,6 +71,8 @@ const GovernanceScreen: React.FC = () => {
   const [needsWelcomeAck, setNeedsWelcomeAck] = useState<boolean>(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [ascensionLevel, setAscensionLevel] = useState<AscensionLevel>(0);
+  const canSubmitProposal = ascensionLevel >= ACTION_REQUIRED_LEVEL.SUBMIT_PROPOSAL;
 
   useEffect(() => {
     (async () => {
@@ -83,6 +86,15 @@ const GovernanceScreen: React.FC = () => {
         console.log("[GOVERNANCE] First visit detected — gating Vote page on Welcome Manual.");
         setNeedsWelcomeAck(true);
       }
+
+      const { data: hats } = await (supabase as any)
+        .from("dao_hats")
+        .select("hat_type")
+        .eq("user_id", user.id)
+        .eq("eligibility_status", "active")
+        .is("revoked_at", null);
+      const hatSet = new Set<string>((hats || []).map((h: any) => h.hat_type));
+      setAscensionLevel(getAscensionLevel(hatSet));
     })();
   }, []);
 
@@ -140,13 +152,15 @@ const GovernanceScreen: React.FC = () => {
               <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                 <Gavel size={14} className="text-teal-600" /> Active Proposals · 1:1 Vote
               </h2>
-              <Button
-                size="sm"
-                onClick={() => setIsCreateModalOpen(true)}
-                className="h-8 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[9px] tracking-widest rounded-full px-3"
-              >
-                <Plus size={12} className="mr-1" /> Submit Proposal
-              </Button>
+              {canSubmitProposal && (
+                <Button
+                  size="sm"
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="h-8 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[9px] tracking-widest rounded-full px-3"
+                >
+                  <Plus size={12} className="mr-1" /> Submit Proposal
+                </Button>
+              )}
             </div>
             <ActiveProposalsList
               balance={idiaBalance}
