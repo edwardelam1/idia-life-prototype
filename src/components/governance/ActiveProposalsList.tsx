@@ -123,6 +123,19 @@ const ProposalCard: React.FC<{
     state: null,
   });
 
+  // Vote-weight allocation dialog state
+  const numericVotingPower = parseFloat(votingPower?.toString() || "0");
+  const isL3User = ascensionLevel === 3;
+  const [voteDialogOpen, setVoteDialogOpen] = useState(false);
+  const [pendingSupport, setPendingSupport] = useState<"for" | "against" | null>(null);
+  const [voteWeight, setVoteWeight] = useState<number>(Math.max(1, Math.floor(numericVotingPower) || 1));
+
+  const openVoteDialog = (support: "for" | "against") => {
+    setPendingSupport(support);
+    setVoteWeight(Math.max(1, Math.floor(numericVotingPower) || 1));
+    setVoteDialogOpen(true);
+  };
+
   const isProposer = !!currentUserId && proposal.proposer_id === currentUserId;
   const canWithdraw = isProposer && voteCount === 0 && hasVoted === null;
 
