@@ -399,15 +399,7 @@ export const ProposalCard: React.FC<{
         s.fail("insufficient_balance");
         return;
       }
-      if (chosenWeight < 1 || chosenWeight > numericVotingPower) {
-        toast({
-          title: "Invalid Vote Weight",
-          description: `Weight must be between 1 and ${Math.floor(numericVotingPower)} IDIA.`,
-          variant: "destructive",
-        });
-        s.fail("invalid_weight");
-        return;
-      }
+      // Governor uses 100% of snapshot balance automatically — no client-side weight validation.
     }
 
     setIsSubmitting(true);
