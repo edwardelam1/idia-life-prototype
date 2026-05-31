@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { stage } from "@/lib/stageLogger";
-import { governanceService } from "@/services/governanceService";
+import { governanceService, type ProposalOnChain } from "@/services/governanceService";
 import ActivateVotingPowerCard from "./ActivateVotingPowerCard";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -839,7 +839,9 @@ const ActiveProposalsList: React.FC<{
             console.warn("[ACTIVE_PROPOSALS] on-chain fetch failed:", e?.message);
             return [];
           });
-        const indexedById = new Map(onChainProposals.map((p) => [p.proposalId, p]));
+        const indexedById = new Map<string, ProposalOnChain>(
+          onChainProposals.map((p): [string, ProposalOnChain] => [p.proposalId, p]),
+        );
 
         // Index DB rows by on_chain_id to dedupe anchored entries
         const anchoredIds = new Set<string>(
