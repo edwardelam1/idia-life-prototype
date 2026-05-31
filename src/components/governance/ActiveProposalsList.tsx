@@ -23,6 +23,8 @@ import { NETWORKS } from "@/services/walletService";
 // the protocol upgrades to a floating relative quorum in the future.
 export interface ChainState {
   snapshotBlock: number | null;
+  deadlineBlock: number | null;
+  currentBlock: number | null;
   quorum: number;
   forVotes: number;
   againstVotes: number;
@@ -39,6 +41,8 @@ export async function readChainState(onChainId?: string | null): Promise<ChainSt
 
   const empty: ChainState = {
     snapshotBlock: null,
+    deadlineBlock: null,
+    currentBlock: null,
     quorum: 0,
     forVotes: 0,
     againstVotes: 0,
@@ -50,7 +54,7 @@ export async function readChainState(onChainId?: string | null): Promise<ChainSt
     try {
       const block = await provider.getBlockNumber();
       const rawQ = await gov.quorum(block - 1);
-      return { ...empty, quorum: Number(ethers.formatUnits(rawQ, 18)) };
+      return { ...empty, currentBlock: block, quorum: Number(ethers.formatUnits(rawQ, 18)) };
     } catch {
       return empty;
     }
@@ -59,14 +63,18 @@ export async function readChainState(onChainId?: string | null): Promise<ChainSt
   const snapBlockRaw = await gov.proposalSnapshot(onChainId);
   const snapshotBlock = snapBlockRaw && Number(snapBlockRaw) > 0 ? Number(snapBlockRaw) : null;
 
-  const [rawQuorum, rawVotes, rawState] = await Promise.all([
+  const [rawQuorum, rawVotes, rawState, rawDeadline, currentBlock] = await Promise.all([
     snapshotBlock ? gov.quorum(snapBlockRaw) : Promise.resolve(0n),
     gov.proposalVotes(onChainId),
     gov.state(onChainId),
+    gov.proposalDeadline(onChainId).catch(() => 0n),
+    provider.getBlockNumber().catch(() => 0),
   ]);
 
   return {
     snapshotBlock,
+    deadlineBlock: rawDeadline && Number(rawDeadline) > 0 ? Number(rawDeadline) : null,
+    currentBlock: currentBlock || null,
     quorum: Number(ethers.formatUnits(rawQuorum, 18)),
     againstVotes: Number(ethers.formatUnits(rawVotes[0], 18)),
     forVotes: Number(ethers.formatUnits(rawVotes[1], 18)),
