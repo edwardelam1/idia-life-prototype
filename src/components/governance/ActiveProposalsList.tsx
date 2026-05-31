@@ -21,7 +21,7 @@ import { NETWORKS } from "@/services/walletService";
 // Direct-RPC chain state read — snapshot block, dynamic quorum, and live tally.
 // Quorum is fetched dynamically per snapshot block so the UI auto-adapts if
 // the protocol upgrades to a floating relative quorum in the future.
-interface ChainState {
+export interface ChainState {
   snapshotBlock: number | null;
   quorum: number;
   forVotes: number;
