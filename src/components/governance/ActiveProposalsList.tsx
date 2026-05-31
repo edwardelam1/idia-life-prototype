@@ -615,14 +615,14 @@ export const ProposalCard: React.FC<{
         try {
           const loaded = await walletService.loadWallet();
           if (!loaded) {
-            toast.error("Wallet locked — open the Wallet tab to unlock, then retry cancel.");
-            s.end({ status: "skipped", reason: "wallet_locked" });
+            toast({ title: "Wallet locked", description: "Open the Wallet tab to unlock, then retry cancel.", variant: "destructive" });
+            s.fail("wallet_locked");
             setIsCancelling(false);
             return;
           }
         } catch (loadErr: any) {
-          toast.error("Wallet unavailable — open the Wallet tab to unlock, then retry cancel.");
-          s.end({ status: "skipped", reason: "wallet_load_failed", error: loadErr?.message });
+          toast({ title: "Wallet unavailable", description: "Open the Wallet tab to unlock, then retry cancel.", variant: "destructive" });
+          s.fail(loadErr?.message || "wallet_load_failed");
           setIsCancelling(false);
           return;
         }
@@ -632,8 +632,8 @@ export const ProposalCard: React.FC<{
       try {
         signer = walletService.getConnectedSigner();
       } catch {
-        toast.error("Wallet locked — open the Wallet tab to unlock, then retry cancel.");
-        s.end({ status: "skipped", reason: "no_signer" });
+        toast({ title: "Wallet locked", description: "Open the Wallet tab to unlock, then retry cancel.", variant: "destructive" });
+        s.fail("no_signer");
         setIsCancelling(false);
         return;
       }
