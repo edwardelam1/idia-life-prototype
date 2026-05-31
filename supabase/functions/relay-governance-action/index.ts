@@ -127,6 +127,22 @@ serve(async (req) => {
         return jsonResponse({ error: "Missing acaHash", failed_at: stage }, 400);
       }
     }
+
+    // CANCEL_PROPOSAL-specific validation
+    if (actionType === "CANCEL_PROPOSAL") {
+      if (!title || typeof title !== "string") {
+        return jsonResponse({ error: "Missing proposal title", failed_at: stage }, 400);
+      }
+      if (!description || typeof description !== "string") {
+        return jsonResponse({ error: "Missing proposal description", failed_at: stage }, 400);
+      }
+      if (!acaHash || typeof acaHash !== "string") {
+        return jsonResponse({ error: "Missing acaHash", failed_at: stage }, 400);
+      }
+      if (!acaPayload || typeof acaPayload !== "object") {
+        return jsonResponse({ error: "Missing acaPayload", failed_at: stage }, 400);
+      }
+    }
     console.log(
       `[GOV_RELAY][${stage}][SUCCESS] action=${actionType} proposalId=${onchainId} chainId=${networkId} override=${!!tophatOverride}`,
     );
