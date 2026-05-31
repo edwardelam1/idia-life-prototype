@@ -111,7 +111,7 @@ const LockedProposalsList: React.FC<Props> = ({ balance, votingPower, refreshTri
               const cs = await readChainState(p.on_chain_id);
               return [p.proposal_ref, cs] as const;
             } catch {
-              return [p.proposal_ref, p.indexed_state != null ? { snapshotBlock: null, quorum: 0, forVotes: 0, againstVotes: 0, abstainVotes: 0, state: p.indexed_state } : null] as const;
+              return [p.proposal_ref, p.indexed_state != null ? { snapshotBlock: null, deadlineBlock: null, currentBlock: null, quorum: 0, forVotes: 0, againstVotes: 0, abstainVotes: 0, state: p.indexed_state } : null] as const;
             }
           }),
         );
