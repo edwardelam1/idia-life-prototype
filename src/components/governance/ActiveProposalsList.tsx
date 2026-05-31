@@ -497,6 +497,78 @@ export const ProposalCard: React.FC<{
     }
   };
 
+  const [isCancelling, setIsCancelling] = useState(false);
+  const handleCancelPending = async () => {
+    if (!proposal.on_chain_id) return;
+    const s = stage("PROPOSAL_CANCEL", "RELAY");
+    s.start({ id: proposal.id, onChainId: proposal.on_chain_id });
+    setIsCancelling(true);
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) throw new Error("Sovereign authentication failed.");
+
+      const { hash, payload } = await generateACAHash(
+        user.id,
+        `proposal_cancel_${proposal.on_chain_id}`,
+        ["GOV_PROPOSAL_CANCEL", "LEDGER_WRITE"],
+      );
+
+      const { data: relayData, error: relayErr } = await supabase.functions.invoke(
+        "relay-governance-action",
+        {
+          body: {
+            actionType: "CANCEL_PROPOSAL",
+            proposalId: proposal.on_chain_id,
+            title: proposal.title,
+            description: proposal.description,
+            chainId: 8453,
+            acaHash: hash,
+            acaPayload: payload,
+          },
+        },
+      );
+      if (relayErr) {
+        const msg = (relayErr as any)?.context?.error
+          || (relayErr as any)?.message
+          || "Cancellation relay failed.";
+        let friendly = msg;
+        if (/cancellation window closed|no longer in Pending/i.test(msg)) {
+          friendly = "Voting has already opened — this proposal can no longer be cancelled.";
+        } else if (/Only the proposer/i.test(msg)) {
+          friendly = "Only the original proposer can cancel this proposal.";
+        } else if (/not the on-chain proposer/i.test(msg)) {
+          friendly = "Chain mismatch — cancellation refused for safety.";
+        } else if (/gas/i.test(msg)) {
+          friendly = "Relayer is out of gas. Notify an operator.";
+        }
+        toast({ title: "Cancel failed", description: friendly, variant: "destructive" });
+        s.fail(relayErr);
+        return;
+      }
+      toast({
+        title: "Proposal cancelled",
+        description: `Anchored on-chain · tx ${String(relayData?.tx_hash || "").substring(0, 10)}…`,
+      });
+      setDetailOpen(false);
+      onChanged();
+      s.ok();
+    } catch (e: any) {
+      console.error("[PROPOSAL_CANCEL] EXCEPTION", e);
+      toast({
+        title: "Cancel failed",
+        description: e?.message || "Unable to cancel proposal.",
+        variant: "destructive",
+      });
+      s.fail(e);
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+
   // ── Shared chain-derived display values ────────────────────────────
   const chainName = chain.state != null ? STATE_NAME[chain.state] : null;
   const isActive = chain.state === 1;
@@ -712,8 +784,58 @@ export const ProposalCard: React.FC<{
 
           <div className="space-y-3 pt-2">
             {TimeframeRow}
+
+            {chain.state === 0 && (() => {
+              const SEC_PER_BLOCK = 2;
+              let opensInLabel = "syncing…";
+              if (chain.snapshotBlock != null && chain.currentBlock != null) {
+                const remaining = (chain.snapshotBlock - chain.currentBlock) * SEC_PER_BLOCK;
+                if (remaining <= 0) {
+                  opensInLabel = "any moment now";
+                } else {
+                  const d = Math.floor(remaining / 86400);
+                  const h = Math.floor((remaining % 86400) / 3600);
+                  const m = Math.floor((remaining % 3600) / 60);
+                  opensInLabel = `${d}d ${h}h ${m}m`;
+                }
+              }
+              void nowTick;
+              return (
+                <div className="p-3 rounded-2xl border border-amber-200 bg-amber-50/70 dark:bg-amber-950/30 dark:border-amber-900/50 space-y-1.5">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-200">
+                    Why is this Pending?
+                  </p>
+                  <p className="text-[11px] leading-snug text-amber-800/90 dark:text-amber-100/90">
+                    The Governor records a voting-power snapshot before votes open. Until that snapshot block is reached, the proposal sits in a Pending window — no one can vote yet.
+                  </p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-200">
+                    Voting opens in {opensInLabel}
+                  </p>
+                  <p className="text-[10px] text-amber-700/80 dark:text-amber-200/80">
+                    Only the original proposer may cancel while Pending. Once voting opens, cancellation is no longer available.
+                  </p>
+                </div>
+              );
+            })()}
+
             {QuorumBar}
             {DeadlinePill}
+
+            {isProposer && chain.state === 0 && proposal.on_chain_id && (
+              <Button
+                onClick={handleCancelPending}
+                disabled={isCancelling}
+                variant="destructive"
+                className="w-full h-10 text-[10px] font-black uppercase tracking-widest rounded-full"
+              >
+                {isCancelling ? (
+                  <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Cancelling…</>
+                ) : (
+                  <><Trash2 className="w-3.5 h-3.5 mr-1.5" />Cancel Proposal</>
+                )}
+              </Button>
+            )}
+
 
             {hasVoted && !isFinal && (
               <div className="flex items-center gap-3 p-3 bg-teal-50/60 dark:bg-teal-950/30 border border-teal-100 dark:border-teal-900/50 rounded-2xl">

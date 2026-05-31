@@ -149,7 +149,9 @@ export const GOVERNOR_ABI = [
   "function proposalVotes(uint256 proposalId) view returns (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes)",
   "function proposalSnapshot(uint256 proposalId) view returns (uint256)",
   "function proposalDeadline(uint256 proposalId) view returns (uint256)",
+  "function proposalProposer(uint256 proposalId) view returns (address)",
   "function quorum(uint256 blockNumber) view returns (uint256)",
+  "function cancel(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) returns (uint256)",
 ];
 
 export const REGISTRY_ABI = [

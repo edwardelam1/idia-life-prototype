@@ -1697,6 +1697,9 @@ export type Database = {
           lifecycle_phase: string | null
           on_chain_block: number | null
           on_chain_id: string | null
+          proposal_calldatas: string[] | null
+          proposal_targets: string[] | null
+          proposal_values: string[] | null
           proposer_id: string | null
           quorum_threshold: number | null
           status: string | null
@@ -1720,6 +1723,9 @@ export type Database = {
           lifecycle_phase?: string | null
           on_chain_block?: number | null
           on_chain_id?: string | null
+          proposal_calldatas?: string[] | null
+          proposal_targets?: string[] | null
+          proposal_values?: string[] | null
           proposer_id?: string | null
           quorum_threshold?: number | null
           status?: string | null
@@ -1743,6 +1749,9 @@ export type Database = {
           lifecycle_phase?: string | null
           on_chain_block?: number | null
           on_chain_id?: string | null
+          proposal_calldatas?: string[] | null
+          proposal_targets?: string[] | null
+          proposal_values?: string[] | null
           proposer_id?: string | null
           quorum_threshold?: number | null
           status?: string | null
