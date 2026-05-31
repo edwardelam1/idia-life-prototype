@@ -226,7 +226,7 @@ export const ProposalCard: React.FC<{
   balance: number;
   votingPower: number | string;
   currentUserId: string | null;
-  currentWalletAddress: string | null;
+  currentWalletAddress?: string | null;
   ascensionLevel: AscensionLevel;
   initialChainState?: ChainState;
   onChanged: () => void;
@@ -1144,6 +1144,7 @@ const ActiveProposalsList: React.FC<{
   const [chainStates, setChainStates] = useState<Map<string, ChainState>>(new Map());
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [ascensionLevel, setAscensionLevel] = useState<AscensionLevel>(0);
   const [innerRefresh, setInnerRefresh] = useState(0);
 
@@ -1158,6 +1159,16 @@ const ActiveProposalsList: React.FC<{
           data: { user },
         } = await supabase.auth.getUser();
         if (isMounted) setUserId(user?.id ?? null);
+        if (user) {
+          const { data: profile } = await (supabase as any)
+            .from("profiles")
+            .select("wallet_address")
+            .eq("id", user.id)
+            .maybeSingle();
+          if (isMounted) setWalletAddress(profile?.wallet_address ?? null);
+        } else if (isMounted) {
+          setWalletAddress(null);
+        }
 
         // Hydrate viewer's ascension level from active hats
         if (user && isMounted) {
@@ -1207,6 +1218,7 @@ const ActiveProposalsList: React.FC<{
             description: r.description,
             status: indexed?.stateName ?? r.status,
             proposer_id: r.proposer_id,
+            proposer_address: indexed?.proposer ?? null,
             on_chain_id: r.on_chain_id ?? null,
             lifecycle_phase: indexed?.stateName ?? r.lifecycle_phase ?? null,
             created_at: r.created_at ?? null,
@@ -1223,6 +1235,7 @@ const ActiveProposalsList: React.FC<{
             description: p.description,
             status: p.stateName,
             proposer_id: p.proposer,
+            proposer_address: p.proposer,
             on_chain_id: p.proposalId,
             lifecycle_phase: p.stateName,
             created_at: null,
@@ -1334,6 +1347,7 @@ const ActiveProposalsList: React.FC<{
             balance={balance}
             votingPower={votingPower}
             currentUserId={userId}
+            currentWalletAddress={walletAddress}
             ascensionLevel={ascensionLevel}
             initialChainState={chainStates.get(prop.proposal_ref)}
             onChanged={() => setInnerRefresh((n) => n + 1)}
