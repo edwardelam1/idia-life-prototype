@@ -552,7 +552,7 @@ export const ProposalCard: React.FC<{
                 Vote cast · {hasVoted.toUpperCase()}
               </p>
             </div>
-            <Badge className="bg-teal-600 text-white text-[9px] font-black uppercase">Locked</Badge>
+            <Badge className="bg-teal-600 text-white text-[9px] font-black uppercase">Vote Recorded</Badge>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {SnapshotBadge}
