@@ -69,12 +69,22 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { actionType, escrowTarget, proposalId, chainId, actionId } = body ?? {};
+    const {
+      actionType,
+      escrowTarget,
+      proposalId,
+      chainId,
+      actionId,
+      support,
+      voteWeight,
+      tophatOverride,
+      acaHash,
+    } = body ?? {};
 
     if (!actionType || !ALLOWED_ACTIONS.has(actionType)) {
       return jsonResponse({ error: `Invalid actionType: ${actionType}`, failed_at: stage }, 400);
     }
-    if (!escrowTarget || !ALLOWED_TARGETS.has(escrowTarget)) {
+    if (actionType === "APPROVE_AND_EXECUTE" && (!escrowTarget || !ALLOWED_TARGETS.has(escrowTarget))) {
       return jsonResponse({ error: `Invalid escrowTarget: ${escrowTarget}`, failed_at: stage }, 400);
     }
     if (proposalId === undefined || proposalId === null) {
@@ -90,8 +100,25 @@ serve(async (req) => {
     if (networkId !== 8453) {
       return jsonResponse({ error: `Unsupported chainId: ${networkId}`, failed_at: stage }, 400);
     }
+
+    // CAST_VOTE-specific validation
+    let supportValue: 0 | 1 | 2 = 0;
+    let voteWeightNum = 0;
+    if (actionType === "CAST_VOTE") {
+      if (support !== 0 && support !== 1 && support !== 2) {
+        return jsonResponse({ error: `Invalid support value: ${support}`, failed_at: stage }, 400);
+      }
+      supportValue = support as 0 | 1 | 2;
+      voteWeightNum = Number(voteWeight);
+      if (!Number.isFinite(voteWeightNum) || voteWeightNum <= 0) {
+        return jsonResponse({ error: `Invalid voteWeight: ${voteWeight}`, failed_at: stage }, 400);
+      }
+      if (!acaHash || typeof acaHash !== "string") {
+        return jsonResponse({ error: "Missing acaHash", failed_at: stage }, 400);
+      }
+    }
     console.log(
-      `[GOV_RELAY][${stage}][SUCCESS] action=${actionType} target=${escrowTarget} proposalId=${onchainId} chainId=${networkId}`,
+      `[GOV_RELAY][${stage}][SUCCESS] action=${actionType} proposalId=${onchainId} chainId=${networkId} override=${!!tophatOverride}`,
     );
 
     // ─── STAGE 2: VERIFY_IDENTITY ───────────────────────────────────────────
@@ -131,6 +158,92 @@ serve(async (req) => {
     }
     console.log(`[GOV_RELAY][${stage}][SUCCESS] Provider and wallet bound.`);
 
+    // ════════════════════════════════════════════════════════════════════════
+    // BRANCH: CAST_VOTE (standard or Tophat Override)
+    // ════════════════════════════════════════════════════════════════════════
+    if (actionType === "CAST_VOTE") {
+      // STAGE 3.5: ROLE_CHECK (only when override requested — never trust client flag)
+      let overrideAuthorized = false;
+      if (tophatOverride === true) {
+        stage = "ROLE_CHECK";
+        console.log(`[GOV_RELAY][TOPHAT_OVERRIDE][${stage}][START] Validating L3 clearance for ${userId}`);
+        const { data: hats, error: hatsErr } = await supabaseAdmin
+          .from("dao_hats")
+          .select("hat_type")
+          .eq("user_id", userId)
+          .eq("eligibility_status", "active")
+          .is("revoked_at", null)
+          .in("hat_type", TOPHAT_HAT_TYPES);
+        if (hatsErr) {
+          console.error(`[GOV_RELAY][TOPHAT_OVERRIDE][${stage}] dao_hats query failed: ${hatsErr.message}`);
+          return jsonResponse({ error: "Role verification failed.", failed_at: stage }, 500);
+        }
+        if (!hats || hats.length === 0) {
+          console.warn(`[GOV_RELAY][TOPHAT_OVERRIDE][${stage}][DENIED] user ${userId} lacks L3 hat`);
+          return jsonResponse(
+            { error: "Tophat clearance required to carry the vote.", failed_at: stage },
+            403,
+          );
+        }
+        overrideAuthorized = true;
+        console.log(`[GOV_RELAY][TOPHAT_OVERRIDE][${stage}][SUCCESS] hats=${hats.map((h: any) => h.hat_type).join(",")}`);
+      }
+
+      // STAGE 4: BROADCAST_TRANSACTION — Treasury/Relayer wallet casts the vote
+      stage = "BROADCAST_TRANSACTION";
+      const tag = overrideAuthorized ? "TOPHAT_OVERRIDE" : "STANDARD_VOTE";
+      console.log(
+        `[GOV_RELAY][${tag}][${stage}][START] castVote(${onchainId}, ${supportValue}) -> ${networkConfig.governor}`,
+      );
+      const gov = new ethers.Contract(networkConfig.governor, GOVERNOR_ABI, relayerWallet);
+      const tx = await gov.castVote(onchainId, supportValue);
+      console.log(`[GOV_RELAY][${tag}][${stage}] Tx submitted: ${tx.hash}`);
+
+      stage = "AWAIT_CONFIRMATION";
+      const receipt = await tx.wait();
+      console.log(`[GOV_RELAY][${tag}][${stage}][SUCCESS] Block ${receipt.blockNumber}`);
+
+      // STAGE 6: RECONCILE_DATABASE
+      stage = "RECONCILE_DATABASE";
+      try {
+        await supabaseAdmin.from("transactions").insert({
+          user_id: userId,
+          transaction_type: overrideAuthorized ? "governance_tophat_override" : "governance_vote",
+          amount: 0,
+          description: `Governance ${tag} on proposal ${onchainId}`,
+          metadata: {
+            tx_hash: tx.hash,
+            block_number: receipt.blockNumber,
+            target_contract: networkConfig.governor,
+            proposal_id: onchainId.toString(),
+            support: supportValue,
+            vote_weight: voteWeightNum,
+            tophat_override: overrideAuthorized,
+            aca_hash: acaHash,
+            action_type: actionType,
+            chain_id: networkId,
+            network: networkConfig.name,
+            relayed_by: relayerWallet.address,
+          },
+        });
+      } catch (auditErr: any) {
+        console.error(`[GOV_RELAY][${tag}][${stage}] transactions insert failed: ${auditErr.message}`);
+      }
+      console.log(`[GOV_RELAY][${tag}][${stage}][SUCCESS] Reconciliation complete.`);
+
+      return jsonResponse({
+        success: true,
+        mode: overrideAuthorized ? "tophat_override" : "standard_vote",
+        tx_hash: tx.hash,
+        block_number: receipt.blockNumber,
+        target_contract: networkConfig.governor,
+        network: networkConfig.name,
+      });
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // BRANCH: APPROVE_AND_EXECUTE (existing escrow flow)
+    // ════════════════════════════════════════════════════════════════════════
     // ─── STAGE 4: BROADCAST_TRANSACTION ─────────────────────────────────────
     stage = "BROADCAST_TRANSACTION";
     const targetContractAddress = networkConfig.targets[escrowTarget];
