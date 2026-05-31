@@ -71,6 +71,8 @@ const GovernanceScreen: React.FC = () => {
   const [needsWelcomeAck, setNeedsWelcomeAck] = useState<boolean>(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [ascensionLevel, setAscensionLevel] = useState<AscensionLevel>(0);
+  const canSubmitProposal = ascensionLevel >= ACTION_REQUIRED_LEVEL.SUBMIT_PROPOSAL;
 
   useEffect(() => {
     (async () => {
