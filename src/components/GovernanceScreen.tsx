@@ -10,6 +10,8 @@ import PendingActionsCarousel from "./governance/PendingActionsCarousel";
 import ActiveProposalsList from "./governance/ActiveProposalsList";
 import LifecycleTelemetry from "./governance/LifecycleTelemetry";
 import LockedProposalsList from "./governance/LockedProposalsList";
+import ArchiveProposalsList from "./governance/ArchiveProposalsList";
+
 import MSAComplianceCard from "./governance/MSAComplianceCard";
 import TreasuryFlows from "./governance/TreasuryFlows";
 import CommitteesList from "./governance/CommitteesList";
