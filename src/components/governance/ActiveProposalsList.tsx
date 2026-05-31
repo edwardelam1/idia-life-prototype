@@ -229,6 +229,12 @@ export const ProposalCard: React.FC<{
   const [voteDialogOpen, setVoteDialogOpen] = useState(false);
   const [pendingSupport, setPendingSupport] = useState<"for" | "against" | null>(null);
   const [voteWeight, setVoteWeight] = useState<number>(Math.max(1, Math.floor(numericVotingPower) || 1));
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [nowTick, setNowTick] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => setNowTick((n) => n + 1), 30000);
+    return () => clearInterval(iv);
+  }, []);
 
   const openVoteDialog = (support: "for" | "against") => {
     setPendingSupport(support);
