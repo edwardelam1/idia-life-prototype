@@ -150,11 +150,15 @@ export interface Proposal {
   description: string;
   status: string;
   proposer_id: string | null;
+  proposer_address?: string | null;
   on_chain_id?: string | null;
   lifecycle_phase?: string | null;
   created_at?: string | null;
   indexed_state?: number | null;
 }
+
+const sameEvmAddress = (a?: string | null, b?: string | null) =>
+  !!a && !!b && /^0x[0-9a-f]{40}$/i.test(a) && /^0x[0-9a-f]{40}$/i.test(b) && a.toLowerCase() === b.toLowerCase();
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -222,10 +226,11 @@ export const ProposalCard: React.FC<{
   balance: number;
   votingPower: number | string;
   currentUserId: string | null;
+  currentWalletAddress: string | null;
   ascensionLevel: AscensionLevel;
   initialChainState?: ChainState;
   onChanged: () => void;
-}> = ({ proposal, balance, votingPower, currentUserId, ascensionLevel, initialChainState, onChanged }) => {
+}> = ({ proposal, balance, votingPower, currentUserId, currentWalletAddress, ascensionLevel, initialChainState, onChanged }) => {
   const fallbackState = initialChainState
     ?? (proposal.indexed_state != null ? stateOnly(proposal.indexed_state) : undefined)
     ?? (!proposal.on_chain_id ? (() => {
@@ -269,7 +274,9 @@ export const ProposalCard: React.FC<{
     setVoteDialogOpen(true);
   };
 
-  const isProposer = !!currentUserId && proposal.proposer_id === currentUserId;
+  const isProposer =
+    (!!currentUserId && proposal.proposer_id === currentUserId) ||
+    sameEvmAddress(proposal.proposer_address ?? proposal.proposer_id, currentWalletAddress);
   const canWithdraw = isProposer && voteCount === 0 && hasVoted === null;
   // Pending detection that survives RPC hydration lag. Server still enforces
   // on-chain state=0 in the cancel relay, so a permissive client gate is safe.
