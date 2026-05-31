@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { stage } from "@/lib/stageLogger";
-import { governanceService } from "@/services/governanceService";
+import { governanceService, type ProposalOnChain } from "@/services/governanceService";
 import ActivateVotingPowerCard from "./ActivateVotingPowerCard";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -122,9 +122,64 @@ export interface Proposal {
   status: string;
   proposer_id: string | null;
   on_chain_id?: string | null;
+  lifecycle_phase?: string | null;
+  created_at?: string | null;
+  indexed_state?: number | null;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const normalizeStateText = (value?: string | null) => (value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+
+const stateOnly = (state: number): ChainState => ({
+  snapshotBlock: null,
+  quorum: 0,
+  forVotes: 0,
+  againstVotes: 0,
+  abstainVotes: 0,
+  state,
+});
+
+const deriveDbState = (proposal: Pick<Proposal, "status" | "lifecycle_phase">): number | null => {
+  const markers = [normalizeStateText(proposal.status), normalizeStateText(proposal.lifecycle_phase)];
+  if (markers.some((m) => ["executed", "settled", "complete", "completed"].includes(m))) return 7;
+  if (markers.includes("expired")) return 6;
+  if (markers.some((m) => ["queued", "timelock", "in_timelock"].includes(m))) return 5;
+  if (markers.some((m) => ["succeeded", "passed"].includes(m))) return 4;
+  if (markers.some((m) => ["defeated", "failed", "rejected"].includes(m))) return 3;
+  if (markers.some((m) => ["canceled", "cancelled"].includes(m))) return 2;
+  if (markers.some((m) => ["pending", "draft", "proposed"].includes(m))) return 0;
+  if (markers.some((m) => ["active", "active_vote", "live", "open"].includes(m))) return 1;
+  return null;
+};
+
+export function classifyProposalBucket(proposal: Proposal, chainState?: ChainState): ProposalBucket {
+  const hasOnChainId = !!proposal.on_chain_id?.trim();
+  if (chainState?.state != null) return classifyBucket(chainState.state, hasOnChainId);
+  if (hasOnChainId) return "UNRESOLVED";
+  const dbState = deriveDbState(proposal);
+  if (dbState != null) return classifyBucket(dbState, false);
+  return "ACTIVE_FEED";
+}
+
+export function sortByGovernanceOrder(a: Proposal, b: Proposal, chainStates: Map<string, ChainState>) {
+  const aState = chainStates.get(a.proposal_ref)?.state ?? (!a.on_chain_id ? deriveDbState(a) : null);
+  const bState = chainStates.get(b.proposal_ref)?.state ?? (!b.on_chain_id ? deriveDbState(b) : null);
+  const stateRank = (state: number | null) => {
+    switch (state) {
+      case 1: return 0;
+      case 0: return 1;
+      case 5: return 2;
+      case 4: return 3;
+      case 7: return 4;
+      case 6: return 5;
+      default: return 9;
+    }
+  };
+  const rankDiff = stateRank(aState) - stateRank(bState);
+  if (rankDiff !== 0) return rankDiff;
+  return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+}
 
 
 export const ProposalCard: React.FC<{
@@ -136,12 +191,18 @@ export const ProposalCard: React.FC<{
   initialChainState?: ChainState;
   onChanged: () => void;
 }> = ({ proposal, balance, votingPower, currentUserId, ascensionLevel, initialChainState, onChanged }) => {
+  const fallbackState = initialChainState
+    ?? (proposal.indexed_state != null ? stateOnly(proposal.indexed_state) : undefined)
+    ?? (!proposal.on_chain_id ? (() => {
+      const dbState = deriveDbState(proposal);
+      return dbState != null ? stateOnly(dbState) : undefined;
+    })() : undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [hasVoted, setHasVoted] = useState<null | "for" | "against">(null);
   const [voteCount, setVoteCount] = useState<number>(0);
   const [loadingMeta, setLoadingMeta] = useState(true);
-  const [chain, setChain] = useState<ChainState>(initialChainState ?? {
+  const [chain, setChain] = useState<ChainState>(fallbackState ?? {
     snapshotBlock: null,
     quorum: 0,
     forVotes: 0,
@@ -198,6 +259,11 @@ export const ProposalCard: React.FC<{
     // Direct-RPC chain poll: snapshot + dynamic quorum + tally + state.
     // Repolls every 15s so a stalled hydrate self-heals on the next tick.
     const pollChain = async () => {
+      if (!proposal.on_chain_id) {
+        const dbState = deriveDbState(proposal);
+        if (alive && dbState != null) setChain(stateOnly(dbState));
+        return;
+      }
       try {
         const cs = await readChainState(proposal.on_chain_id);
         if (alive) {
@@ -217,7 +283,7 @@ export const ProposalCard: React.FC<{
       alive = false;
       clearInterval(iv);
     };
-  }, [proposal.proposal_ref, proposal.on_chain_id, currentUserId]);
+  }, [proposal.proposal_ref, proposal.on_chain_id, proposal.status, proposal.lifecycle_phase, currentUserId]);
 
   const handleCastVote = async (
     support: "for" | "against",
@@ -455,7 +521,7 @@ export const ProposalCard: React.FC<{
       </div>
       <Progress
         value={quorumTarget > 0 ? pct : forDisplay > 0 ? 8 : 0}
-        className={`h-2 ${quorumTarget === 0 ? "animate-pulse" : ""}`}
+        className={`h-2 ${!isFinal && quorumTarget === 0 ? "animate-pulse" : ""}`}
         indicatorClassName={
           quorumTarget === 0
             ? "bg-slate-300 dark:bg-slate-700"
@@ -474,7 +540,7 @@ export const ProposalCard: React.FC<{
   );
 
   // ── Minimized view: user has already voted ─────────────────────────
-  if (hasVoted) {
+  if (hasVoted && !isFinal) {
     return (
       <Card className="border-teal-50 dark:bg-card dark:border-teal-900/40 shadow-sm rounded-2xl">
         <CardContent className="p-4 space-y-3">
@@ -486,7 +552,7 @@ export const ProposalCard: React.FC<{
                 Vote cast · {hasVoted.toUpperCase()}
               </p>
             </div>
-            <Badge className="bg-teal-600 text-white text-[9px] font-black uppercase">Locked</Badge>
+            <Badge className="bg-teal-600 text-white text-[9px] font-black uppercase">Vote Recorded</Badge>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {SnapshotBadge}
@@ -761,7 +827,7 @@ const ActiveProposalsList: React.FC<{
         // Sequential to avoid RPC 429s — Supabase first (cheap), then on-chain.
         const dbProposals = await (supabase as any)
           .from("dao_proposals")
-          .select("id, title, description, status, proposer_id, on_chain_id")
+          .select("id, title, description, status, proposer_id, on_chain_id, lifecycle_phase, created_at")
           .order("created_at", { ascending: false });
         if (dbProposals.error) throw dbProposals.error;
 
@@ -773,6 +839,9 @@ const ActiveProposalsList: React.FC<{
             console.warn("[ACTIVE_PROPOSALS] on-chain fetch failed:", e?.message);
             return [];
           });
+        const indexedById = new Map<string, ProposalOnChain>(
+          onChainProposals.map((p): [string, ProposalOnChain] => [p.proposalId, p]),
+        );
 
         // Index DB rows by on_chain_id to dedupe anchored entries
         const anchoredIds = new Set<string>(
@@ -781,15 +850,21 @@ const ActiveProposalsList: React.FC<{
             .filter((x: unknown): x is string => typeof x === "string" && x.length > 0),
         );
 
-        const dbRows: Proposal[] = (dbProposals.data || []).map((r: any) => ({
-          id: r.id,
-          proposal_ref: r.on_chain_id ?? r.id, // on-chain id wins when anchored
-          title: r.title,
-          description: r.description,
-          status: r.status,
-          proposer_id: r.proposer_id,
-          on_chain_id: r.on_chain_id ?? null,
-        }));
+        const dbRows: Proposal[] = (dbProposals.data || []).map((r: any) => {
+          const indexed = r.on_chain_id ? indexedById.get(r.on_chain_id) : undefined;
+          return {
+            id: r.id,
+            proposal_ref: r.on_chain_id ?? r.id, // on-chain id wins when anchored
+            title: r.title,
+            description: r.description,
+            status: indexed?.stateName ?? r.status,
+            proposer_id: r.proposer_id,
+            on_chain_id: r.on_chain_id ?? null,
+            lifecycle_phase: indexed?.stateName ?? r.lifecycle_phase ?? null,
+            created_at: r.created_at ?? null,
+            indexed_state: indexed?.state ?? null,
+          };
+        });
 
         const chainRows: Proposal[] = onChainProposals
           .filter((p) => !anchoredIds.has(p.proposalId))
@@ -801,23 +876,26 @@ const ActiveProposalsList: React.FC<{
             status: p.stateName,
             proposer_id: p.proposer,
             on_chain_id: p.proposalId,
+            lifecycle_phase: p.stateName,
+            created_at: null,
+            indexed_state: p.state,
           }));
 
         const combined = [...dbRows, ...chainRows];
 
-        if (isMounted) setProposals(combined);
-        s.ok({ count: combined.length });
-
         // Parent-side chain-state hydration — single canonical source for bucket classification.
         const stateEntries = await Promise.all(
           combined.map(async (p) => {
-            if (!p.on_chain_id) return [p.proposal_ref, null] as const;
+            if (!p.on_chain_id) {
+              const dbState = deriveDbState(p);
+              return [p.proposal_ref, dbState != null ? stateOnly(dbState) : null] as const;
+            }
             try {
               const cs = await readChainState(p.on_chain_id);
               return [p.proposal_ref, cs] as const;
             } catch (e) {
               console.warn(`[ACTIVE_PROPOSALS][CLASSIFY] state read failed for ${p.proposal_ref}`, e);
-              return [p.proposal_ref, null] as const;
+              return [p.proposal_ref, p.indexed_state != null ? stateOnly(p.indexed_state) : null] as const;
             }
           }),
         );
@@ -825,12 +903,14 @@ const ActiveProposalsList: React.FC<{
           const map = new Map<string, ChainState>();
           for (const [ref, cs] of stateEntries) if (cs) map.set(ref, cs);
           setChainStates(map);
+          setProposals(combined.sort((a, b) => sortByGovernanceOrder(a, b, map)));
           for (const [ref, cs] of stateEntries) {
             const st = cs?.state ?? null;
             const bucket = classifyBucket(st, !!combined.find((p) => p.proposal_ref === ref)?.on_chain_id);
             console.log(`[BUCKET_CLASSIFY] ref=${ref} state=${st} → ${bucket}`);
           }
         }
+        s.ok({ count: combined.length });
       } catch (err: any) {
         s.fail(err);
         toast({ title: "Telemetry Stalled", description: err.message, variant: "destructive" });
@@ -854,7 +934,12 @@ const ActiveProposalsList: React.FC<{
     );
   }
 
-  if (proposals.length === 0) {
+  const activeProposals = proposals.filter((prop) => {
+    const cs = chainStates.get(prop.proposal_ref);
+    return classifyProposalBucket(prop, cs) === "ACTIVE_FEED";
+  });
+
+  if (activeProposals.length === 0) {
     const showActivateEmpty = !isSelfDelegated && balance > 0;
     return (
       <div className="space-y-5">
@@ -893,12 +978,7 @@ const ActiveProposalsList: React.FC<{
           Clearance · {LEVEL_LABEL[ascensionLevel]}
         </span>
       </div>
-      {proposals
-        .filter((prop) => {
-          const cs = chainStates.get(prop.proposal_ref);
-          const bucket = classifyBucket(cs?.state ?? null, !!prop.on_chain_id);
-          return bucket === "ACTIVE_FEED";
-        })
+      {activeProposals
         .map((prop) => (
           <ProposalCard
             key={prop.id}
