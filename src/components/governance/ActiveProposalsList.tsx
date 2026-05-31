@@ -345,19 +345,99 @@ const ProposalCard: React.FC<{
     }
   };
 
+  // ── Shared chain-derived display values ────────────────────────────
+  const chainName = chain.state != null ? STATE_NAME[chain.state] : null;
+  const isActive = chain.state === 1;
+  const isFinalDefeated = chain.state != null && FINAL_DEFEATED.has(chain.state);
+  const isFinalPassed = chain.state != null && FINAL_PASSED.has(chain.state);
+  const isFinal = isFinalDefeated || isFinalPassed;
+
+  // Progress numerator: on-chain For votes when available, else off-chain intents
+  const forDisplay = chain.forVotes;
+  const againstDisplay = chain.againstVotes;
+  const quorumTarget = chain.quorum;
+  const pct = quorumTarget > 0 ? Math.min(100, (forDisplay / quorumTarget) * 100) : 0;
+  const fmt = (n: number) =>
+    n >= 1 ? Math.round(n).toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+
+  const SnapshotBadge = chain.snapshotBlock ? (
+    <Badge
+      variant="outline"
+      className="text-[9px] font-black uppercase tracking-widest border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+    >
+      Block #{chain.snapshotBlock.toLocaleString()}
+    </Badge>
+  ) : null;
+
+  const QuorumBar = (
+    <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2">
+      <div className="flex justify-between items-baseline gap-2">
+        <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
+          {isFinal ? "Final Tally" : "Quorum Progress"}
+        </span>
+        <span className="text-[9px] font-black tracking-widest text-slate-700 dark:text-slate-200 text-right">
+          {quorumTarget > 0 ? (
+            <>
+              {fmt(forDisplay)} / {fmt(quorumTarget)} Votes Reached ({pct.toFixed(1)}%)
+            </>
+          ) : (
+            <>{fmt(forDisplay)} cast · quorum hydrating…</>
+          )}
+        </span>
+      </div>
+      <Progress
+        value={quorumTarget > 0 ? pct : forDisplay > 0 ? 8 : 0}
+        className={`h-2 ${quorumTarget === 0 ? "animate-pulse" : ""}`}
+        indicatorClassName={
+          quorumTarget === 0
+            ? "bg-slate-300 dark:bg-slate-700"
+            : isFinalDefeated
+              ? "bg-rose-500"
+              : isFinalPassed || forDisplay >= quorumTarget
+                ? "bg-emerald-500"
+                : "bg-[hsl(178,42%,32%)]"
+        }
+      />
+      <div className="flex justify-between text-[10px] font-bold text-muted-foreground pt-0.5">
+        <span>✔ For: {fmt(forDisplay)}</span>
+        <span>✘ Against: {fmt(againstDisplay)}</span>
+      </div>
+    </div>
+  );
+
   // ── Minimized view: user has already voted ─────────────────────────
   if (hasVoted) {
     return (
-      <Card className="border-teal-50 dark:bg-card dark:border-teal-900/40 shadow-sm rounded-2xl opacity-70">
-        <CardContent className="p-4 flex items-center gap-3">
-          <CheckCircle2 className="w-5 h-5 text-teal-600 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-slate-800 dark:text-foreground truncate">{proposal.title}</p>
-            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-              Vote cast · {hasVoted.toUpperCase()}
-            </p>
+      <Card className="border-teal-50 dark:bg-card dark:border-teal-900/40 shadow-sm rounded-2xl">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-teal-600 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-slate-800 dark:text-foreground truncate">{proposal.title}</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                Vote cast · {hasVoted.toUpperCase()}
+              </p>
+            </div>
+            <Badge className="bg-teal-600 text-white text-[9px] font-black uppercase">Locked</Badge>
           </div>
-          <Badge className="bg-teal-600 text-white text-[9px] font-black uppercase">Locked</Badge>
+          <div className="flex items-center gap-2 flex-wrap">
+            {SnapshotBadge}
+            {chainName && (
+              <Badge
+                variant="outline"
+                className={`text-[9px] font-black uppercase tracking-widest ${
+                  isFinalDefeated
+                    ? "border-rose-300 text-rose-600 dark:text-rose-300"
+                    : isFinalPassed
+                      ? "border-emerald-300 text-emerald-600 dark:text-emerald-300"
+                      : "border-orange-300 text-orange-600 dark:text-orange-300"
+                }`}
+              >
+                {chainName}
+              </Badge>
+            )}
+          </div>
+          {QuorumBar}
         </CardContent>
       </Card>
     );
@@ -367,87 +447,63 @@ const ProposalCard: React.FC<{
     <Card className="border-teal-50 dark:bg-card dark:border-teal-900/40 shadow-sm rounded-3xl overflow-hidden transition-all hover:shadow-md">
       <CardContent className="p-5 space-y-4">
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[9px] font-black uppercase tracking-wider">
-              {proposal.status}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge
+              className={`text-white text-[9px] font-black uppercase tracking-wider ${
+                isFinalDefeated
+                  ? "bg-rose-500 hover:bg-rose-600"
+                  : isFinalPassed
+                    ? "bg-emerald-500 hover:bg-emerald-600"
+                    : "bg-orange-500 hover:bg-orange-600"
+              }`}
+            >
+              {chainName || proposal.status}
             </Badge>
+            {SnapshotBadge}
             <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-              {voteCount} vote{voteCount === 1 ? "" : "s"}
+              {voteCount} intent{voteCount === 1 ? "" : "s"}
             </span>
           </div>
           <h3 className="font-black text-lg leading-tight text-slate-800 dark:text-foreground">{proposal.title}</h3>
           <p className="text-xs text-muted-foreground leading-relaxed">{proposal.description}</p>
         </div>
 
-        <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2">
-          <div className="flex justify-between items-baseline">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
-              Quorum Progress
-            </span>
-            <span className="text-[9px] font-black tracking-widest text-slate-700 dark:text-slate-200">
-              {quorumRequired > 0 ? (
-                <>
-                  {totalWeight.toLocaleString()} / {quorumRequired.toLocaleString()} (
-                  {Math.min(100, (totalWeight / quorumRequired) * 100).toFixed(1)}%)
-                </>
-              ) : (
-                <>{totalWeight.toLocaleString()} cast · quorum hydrating…</>
-              )}
-            </span>
+        {QuorumBar}
+
+        {!isFinal && (
+          <div className="p-4 bg-teal-50/50 dark:bg-teal-950/30 rounded-2xl border border-teal-100/50 dark:border-teal-900/50 space-y-3">
+            <p className="text-[10px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-200">
+              Cast Sovereign Vote · {votingPower ? Number(votingPower).toLocaleString() : 0} IDIAX
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                onClick={() => handleCastVote("for")}
+                disabled={isSubmitting || isWithdrawing || loadingMeta}
+                className="h-11 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[10px] rounded-full"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <ThumbsUp className="w-3.5 h-3.5 mr-1.5" />
+                    Vote For
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={() => handleCastVote("against")}
+                disabled={isSubmitting || isWithdrawing || loadingMeta}
+                variant="outline"
+                className="h-11 font-black uppercase text-[10px] rounded-full border-slate-300 dark:border-slate-700"
+              >
+                <ThumbsDown className="w-3.5 h-3.5 mr-1.5" />
+                Vote Against
+              </Button>
+            </div>
           </div>
-          <Progress
-            value={
-              quorumRequired > 0
-                ? Math.min(100, (totalWeight / quorumRequired) * 100)
-                : totalWeight > 0
-                  ? 8
-                  : 0
-            }
-            className={`h-2 ${quorumRequired === 0 ? "animate-pulse" : ""}`}
-            indicatorClassName={
-              quorumRequired === 0
-                ? "bg-slate-300 dark:bg-slate-700"
-                : totalWeight >= quorumRequired
-                  ? "bg-emerald-500"
-                  : "bg-[hsl(178,42%,32%)]"
-            }
-          />
-        </div>
+        )}
 
-
-
-        <div className="p-4 bg-teal-50/50 dark:bg-teal-950/30 rounded-2xl border border-teal-100/50 dark:border-teal-900/50 space-y-3">
-          <p className="text-[10px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-200">
-            Cast Sovereign Vote · {votingPower ? Number(votingPower).toLocaleString() : 0} IDIAX
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              onClick={() => handleCastVote("for")}
-              disabled={isSubmitting || isWithdrawing || loadingMeta}
-              className="h-11 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[10px] rounded-full"
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <ThumbsUp className="w-3.5 h-3.5 mr-1.5" />
-                  Vote For
-                </>
-              )}
-            </Button>
-            <Button
-              onClick={() => handleCastVote("against")}
-              disabled={isSubmitting || isWithdrawing || loadingMeta}
-              variant="outline"
-              className="h-11 font-black uppercase text-[10px] rounded-full border-slate-300 dark:border-slate-700"
-            >
-              <ThumbsDown className="w-3.5 h-3.5 mr-1.5" />
-              Vote Against
-            </Button>
-          </div>
-        </div>
-
-        {canWithdraw && (
+        {canWithdraw && !isFinal && (
           <Button
             onClick={handleWithdraw}
             disabled={isWithdrawing}
@@ -472,6 +528,7 @@ const ProposalCard: React.FC<{
     </Card>
   );
 };
+
 
 const ActiveProposalsList: React.FC<{
   balance: number;
