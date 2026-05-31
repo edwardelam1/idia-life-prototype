@@ -638,7 +638,9 @@ export const ProposalCard: React.FC<{
           <p className="text-xs text-muted-foreground leading-relaxed">{proposal.description}</p>
         </div>
 
+        {TimeframeRow}
         {QuorumBar}
+
 
         {!isFinal && (
           <div className="p-4 bg-teal-50/50 dark:bg-teal-950/30 rounded-2xl border border-teal-100/50 dark:border-teal-900/50 space-y-3">
