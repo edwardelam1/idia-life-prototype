@@ -248,12 +248,15 @@ export const ProposalCard: React.FC<{
     state: null,
   });
 
-  // Vote-weight allocation dialog state
+  // Vote dialog state — Governor uses 100% of snapshot balance; no slider needed.
   const numericVotingPower = parseFloat(votingPower?.toString() || "0");
   const isL3User = ascensionLevel === 3;
   const [voteDialogOpen, setVoteDialogOpen] = useState(false);
   const [pendingSupport, setPendingSupport] = useState<"for" | "against" | null>(null);
-  const [voteWeight, setVoteWeight] = useState<number>(Math.max(1, Math.floor(numericVotingPower) || 1));
+  const [voteBlast, setVoteBlast] = useState<
+    | { support: "for" | "against"; weightLabel: string; tophat: boolean }
+    | null
+  >(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [nowTick, setNowTick] = useState(0);
   useEffect(() => {
@@ -263,7 +266,6 @@ export const ProposalCard: React.FC<{
 
   const openVoteDialog = (support: "for" | "against") => {
     setPendingSupport(support);
-    setVoteWeight(Math.max(1, Math.floor(numericVotingPower) || 1));
     setVoteDialogOpen(true);
   };
 
