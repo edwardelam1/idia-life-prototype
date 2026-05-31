@@ -65,6 +65,19 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
     setIsSubmitting(true);
     console.log("[PROPOSAL_SUBMIT] FLOW_START: Sovereign initiated proposal submission.");
 
+    // ── On-chain mandate: wallet must be connected before anything else ──
+    const signer = walletService.getConnectedSigner();
+    if (!signer) {
+      toast({
+        title: "Wallet required",
+        description:
+          "Connect your sovereign wallet before submitting. Every proposal must anchor on-chain — no exceptions.",
+        variant: "destructive",
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       console.log("[PROPOSAL_SUBMIT] AUTH_START: Resolving sovereign identity...");
       const {
@@ -73,21 +86,54 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
       if (!user) throw new Error("Authentication required.");
       console.log("[PROPOSAL_SUBMIT] AUTH_SUCCESS: User resolved.");
 
-      // ─── ON-CHAIN EXECUTION BLOCK ──────────────────────────────────────────
+      // ─── ON-CHAIN EXECUTION BLOCK (MANDATORY) ──────────────────────────
       console.log("[PROPOSAL_SUBMIT] CHAIN_START: Requesting wallet signature...");
-      
-      const chainResult = await governanceService.propose(
-        `# ${safeTitle}\n\n${safeDescription}`
-      );
-      
+
+      let chainResult: { hash: string; proposalId?: string };
+      try {
+        chainResult = await governanceService.propose(
+          `# ${safeTitle}\n\n${safeDescription}`,
+        );
+      } catch (chainErr: any) {
+        console.error("[PROPOSAL_SUBMIT] CHAIN_FAIL:", chainErr);
+        const code = chainErr?.code;
+        let friendly = chainErr?.shortMessage || chainErr?.message || "Unknown chain error.";
+        if (code === "ACTION_REJECTED" || code === 4001 || /user rejected/i.test(friendly)) {
+          friendly = "Signature declined — proposal not submitted.";
+        } else if (code === "INSUFFICIENT_FUNDS" || /insufficient funds/i.test(friendly)) {
+          friendly = "Not enough gas to anchor the proposal on-chain.";
+        } else if (code === "NETWORK_ERROR" || /network|timeout|fetch/i.test(friendly)) {
+          friendly = "Could not reach the Governor contract. Try again in a moment.";
+        }
+        toast({
+          title: "Proposal rejected — chain anchor failed",
+          description: friendly,
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
       const txHash = chainResult.hash;
       const onChainProposalId = chainResult.proposalId || "";
-      console.log(`[PROPOSAL_SUBMIT] CHAIN_SUCCESS: Tx Hash: ${txHash}`);
+
+      // Hard gate: both txHash AND on-chain id required, otherwise no DB write.
+      if (!txHash || !onChainProposalId) {
+        console.error("[PROPOSAL_SUBMIT] CHAIN_MISSING_ID:", { txHash, onChainProposalId });
+        toast({
+          title: "Proposal rejected — chain anchor failed",
+          description: "Governor did not confirm the proposal id. Please retry.",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+      console.log(`[PROPOSAL_SUBMIT] CHAIN_SUCCESS: Tx Hash: ${txHash} · id: ${onChainProposalId}`);
 
       let onChainBlock = null;
       try {
         console.log("[PROPOSAL_SUBMIT] RECEIPT_START: Awaiting block confirmation...");
-        const provider = walletService.getConnectedSigner()?.provider;
+        const provider = signer.provider;
         if (provider) {
           const receipt = await provider.getTransactionReceipt(txHash);
           onChainBlock = receipt?.blockNumber || null;
@@ -109,10 +155,9 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
           vote_type: "simple",
           voting_modality: "simple",
           lifecycle_phase: "active",
-          // Mapping the new columns to the database
           on_chain_id: onChainProposalId,
           tx_hash: txHash,
-          on_chain_block: onChainBlock
+          on_chain_block: onChainBlock,
         })
         .select()
         .single();
@@ -123,7 +168,7 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
       console.log("[PROPOSAL_SUBMIT] DB_INSERT_SUCCESS: Row committed safely.", inserted?.id);
 
       if (TEMP_DISABLE_AI_VALIDATION) {
-        console.log("[PROPOSAL_SUBMIT] VALIDATION_SKIPPED: Testing mode bypass active. No edge validator invoked.");
+        console.log("[PROPOSAL_SUBMIT] VALIDATION_SKIPPED: Testing mode bypass active.");
       } else if (inserted?.id) {
         try {
           console.log("[PROPOSAL_SUBMIT] VALIDATION_INVOKE: calling validate-proposal");
