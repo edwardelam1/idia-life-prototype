@@ -728,6 +728,7 @@ const ActiveProposalsList: React.FC<{
   onDelegationChanged?: () => void | Promise<void>;
 }> = ({ balance, votingPower, refreshTrigger = 0, isSelfDelegated = true, onDelegationChanged }) => {
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [chainStates, setChainStates] = useState<Map<string, ChainState>>(new Map());
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [ascensionLevel, setAscensionLevel] = useState<AscensionLevel>(0);
