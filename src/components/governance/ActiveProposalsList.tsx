@@ -188,6 +188,10 @@ const deriveDbState = (proposal: Pick<Proposal, "status" | "lifecycle_phase">): 
 };
 
 export function classifyProposalBucket(proposal: Proposal, chainState?: ChainState): ProposalBucket {
+  // Drift sweep: admin-flagged stuck/archived rows are evicted from Active so
+  // the card unmounts and stops hammering gov.state()/gov.quorum().
+  const phase = (proposal.lifecycle_phase || "").toLowerCase();
+  if (phase === "archived" || phase === "drift") return "DEFEATED";
   const hasOnChainId = !!proposal.on_chain_id?.trim();
   if (chainState?.state != null) return classifyBucket(chainState.state, hasOnChainId);
   if (hasOnChainId) return "UNRESOLVED";
