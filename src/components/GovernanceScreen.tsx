@@ -152,13 +152,15 @@ const GovernanceScreen: React.FC = () => {
               <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                 <Gavel size={14} className="text-teal-600" /> Active Proposals · 1:1 Vote
               </h2>
-              <Button
-                size="sm"
-                onClick={() => setIsCreateModalOpen(true)}
-                className="h-8 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[9px] tracking-widest rounded-full px-3"
-              >
-                <Plus size={12} className="mr-1" /> Submit Proposal
-              </Button>
+              {canSubmitProposal && (
+                <Button
+                  size="sm"
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="h-8 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[9px] tracking-widest rounded-full px-3"
+                >
+                  <Plus size={12} className="mr-1" /> Submit Proposal
+                </Button>
+              )}
             </div>
             <ActiveProposalsList
               balance={idiaBalance}
