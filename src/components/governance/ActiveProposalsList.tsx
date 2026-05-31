@@ -535,6 +535,34 @@ const ProposalCard: React.FC<{
                 Vote Against
               </Button>
             </div>
+
+            {isL3User && (
+              <div className="pt-3 mt-1 border-t border-purple-200/60 dark:border-purple-900/40 space-y-2">
+                <p className="text-[9px] font-black uppercase tracking-widest text-purple-700 dark:text-purple-300 flex items-center gap-1.5">
+                  <Crown className="w-3 h-3" /> Protocol Steward · Tophat Override
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    onClick={() => handleCastVote("for", 0, true)}
+                    disabled={isSubmitting || isWithdrawing || loadingMeta}
+                    className="h-10 bg-purple-700 hover:bg-purple-800 text-white font-black uppercase tracking-widest text-[9px] rounded-full shadow-lg shadow-purple-900/20"
+                  >
+                    {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Crown className="w-3 h-3 mr-1.5" />Carry For</>}
+                  </Button>
+                  <Button
+                    onClick={() => handleCastVote("against", 0, true)}
+                    disabled={isSubmitting || isWithdrawing || loadingMeta}
+                    variant="outline"
+                    className="h-10 font-black uppercase tracking-widest text-[9px] rounded-full border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40"
+                  >
+                    {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Crown className="w-3 h-3 mr-1.5" />Carry Against</>}
+                  </Button>
+                </div>
+                <p className="text-[8px] text-center text-muted-foreground uppercase tracking-widest">
+                  Treasury weight shatters quorum instantly
+                </p>
+              </div>
+            )}
           </div>
         )}
 
