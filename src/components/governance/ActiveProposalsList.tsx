@@ -919,7 +919,7 @@ export const ProposalCard: React.FC<{
             {QuorumBar}
             {DeadlinePill}
 
-            {isProposer && chain.state === 0 && proposal.on_chain_id && (
+            {isProposer && isPendingForViewer && proposal.on_chain_id && (
               <Button
                 onClick={handleCancelPending}
                 disabled={isCancelling}
