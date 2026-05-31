@@ -10,6 +10,25 @@ import { stage } from "@/lib/stageLogger";
 import { governanceService } from "@/services/governanceService";
 import ActivateVotingPowerCard from "./ActivateVotingPowerCard";
 import { Progress } from "@/components/ui/progress";
+import { ethers } from "ethers";
+import { PROTOCOL, ACTIVE_DEPLOYMENT, GOVERNOR_ABI } from "@/config/contracts";
+import { NETWORKS } from "@/services/walletService";
+
+// Direct-RPC quorum read — no cache, no retry chain. Hits Alchemy / public RPC
+// directly so the UI never gets stuck on a stale "hydrating…" state.
+async function directQuorum(onChainId?: string | null): Promise<bigint> {
+  const networkKey = ACTIVE_DEPLOYMENT === "mainnet" ? "base" : "baseSepolia";
+  const network = NETWORKS[networkKey];
+  const rpcUrl = (import.meta.env.VITE_ALCHEMY_RPC_URL as string | undefined) || network.rpcUrl;
+  const provider = new ethers.JsonRpcProvider(rpcUrl, network.chainId);
+  const gov = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, provider);
+  if (onChainId && onChainId.trim() !== "") {
+    const snap = await gov.proposalSnapshot(onChainId);
+    if (snap && Number(snap) > 0) return BigInt(await gov.quorum(snap));
+  }
+  const block = await provider.getBlockNumber();
+  return BigInt(await gov.quorum(block - 1));
+}
 import {
   authorizeGovernanceAction,
   getAscensionLevel,
