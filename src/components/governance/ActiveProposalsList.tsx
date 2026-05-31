@@ -426,7 +426,61 @@ export const ProposalCard: React.FC<{
       ]);
       console.log(`[PROCESS] ACA Hash: ${hash.substring(0, 8)}…`);
 
-      // Off-chain ledger write — records intent + weight for both branches
+      // ── CHAIN-FIRST: relay must confirm the on-chain vote BEFORE we write
+      // dao_votes or flip any UI state. No optimistic writes. The ACA hash
+      // is already permanently logged in user_aca_records as the immutable
+      // audit trail of the biometric intent, so a failed chain call leaves
+      // a forensic record without polluting the vote ledger.
+      if (!proposal.on_chain_id) {
+        toast({
+          title: "Off-chain proposal",
+          description: "This proposal has no on-chain anchor; voting is disabled.",
+          variant: "destructive",
+        });
+        s.fail("no_on_chain_id");
+        return;
+      }
+
+      const chainSupport = support === "for" ? 1 : 0;
+      const relayPayload = {
+        actionType: "CAST_VOTE",
+        proposalId: proposal.on_chain_id,
+        support: chainSupport,
+        voteWeight: chosenWeight,
+        tophatOverride: !!tophatOverride,
+        acaHash: hash,
+        chainId: 8453,
+      };
+      console.log(`[PROCESS] Invoking relay-governance-action`, relayPayload);
+      const { data: relayData, error: relayErr } = await supabase.functions.invoke(
+        "relay-governance-action",
+        { body: relayPayload },
+      );
+      if (relayErr || !relayData?.success) {
+        const raw = (relayErr as any)?.context?.error
+          || (relayErr as any)?.message
+          || (relayData as any)?.error
+          || "Governor rejected the vote.";
+        let friendly = raw;
+        if (/UnexpectedProposalState|Pending|not.*open/i.test(raw)) {
+          friendly = "Voting is not open yet. Try again once the snapshot block is reached.";
+        } else if (/already.*voted|hasVoted/i.test(raw)) {
+          friendly = "This wallet has already voted on-chain for this proposal.";
+        } else if (/gas/i.test(raw)) {
+          friendly = "Relayer is out of gas. Notify an operator.";
+        }
+        console.error(`[VOTE_CAST] RELAY_FAILED`, relayErr || relayData);
+        toast({
+          title: tophatOverride ? "Override failed" : "On-chain vote failed",
+          description: friendly,
+          variant: "destructive",
+        });
+        s.fail(relayErr || "relay_no_success");
+        return; // NO dao_votes insert, NO state flip
+      }
+      console.log(`[PROCESS] Relay confirmed`, relayData);
+
+      // ── ONLY after on-chain success: mirror the vote into dao_votes ──
       const voteRow: Record<string, unknown> = {
         proposal_ref: proposal.proposal_ref,
         user_id: user.id,
@@ -438,42 +492,16 @@ export const ProposalCard: React.FC<{
       };
       if (UUID_RE.test(proposal.proposal_ref)) voteRow.proposal_id = proposal.proposal_ref;
       const { error: voteError } = await (supabase as any).from("dao_votes").insert(voteRow);
-
       if (voteError) {
         if (voteError.code === "23505") {
-          toast({ title: "Already Voted", description: "Intent already recorded.", variant: "destructive" });
+          // Chain accepted but mirror already exists — safe to surface as success
           setHasVoted(support);
-          return;
-        }
-        throw voteError;
-      }
-
-      // On-chain bridge via relayer edge function (handles both standard + override)
-      if (proposal.on_chain_id) {
-        const chainSupport = support === "for" ? 1 : 0;
-        const payload = {
-          actionType: "CAST_VOTE",
-          proposalId: proposal.on_chain_id,
-          support: chainSupport,
-          voteWeight: chosenWeight,
-          tophatOverride: !!tophatOverride,
-          acaHash: hash,
-          chainId: 8453,
-        };
-        console.log(`[PROCESS] Invoking relay-governance-action`, payload);
-        const { data: relayData, error: relayErr } = await supabase.functions.invoke(
-          "relay-governance-action",
-          { body: payload },
-        );
-        if (relayErr) {
-          console.error(`[VOTE_CAST] RELAY_FAILED`, relayErr);
-          toast({
-            title: tophatOverride ? "Override failed" : "On-chain bridge failed",
-            description: relayErr.message || "Off-chain intent recorded; on-chain vote not submitted.",
-            variant: "destructive",
-          });
         } else {
-          console.log(`[PROCESS] Relay result`, relayData);
+          console.error(`[VOTE_CAST] MIRROR_FAILED (chain succeeded)`, voteError);
+          toast({
+            title: "Vote anchored, mirror lagging",
+            description: "On-chain vote succeeded. The off-chain mirror will reconcile shortly.",
+          });
         }
       }
 
@@ -490,10 +518,10 @@ export const ProposalCard: React.FC<{
       setVoteCount((c) => c + 1);
       setVoteDialogOpen(false);
       toast({
-        title: tophatOverride ? "Tophat Override Executed" : "Intent Cast",
+        title: tophatOverride ? "Tophat Override Executed" : "Vote Anchored",
         description: tophatOverride
           ? `Treasury weight applied to ${support.toUpperCase()} · ACA ${hash.substring(0, 8)}…`
-          : `Recorded ${support.toUpperCase()} with ${chosenWeight} weight · ACA ${hash.substring(0, 8)}…`,
+          : `${support.toUpperCase()} · ${chosenWeight} IDIA · tx ${String(relayData?.tx_hash || "").substring(0, 10)}…`,
       });
       onChanged();
       s.ok();
@@ -505,6 +533,7 @@ export const ProposalCard: React.FC<{
       setIsSubmitting(false);
     }
   };
+
 
 
   const handleWithdraw = async () => {
