@@ -260,12 +260,29 @@ const LifecycleTelemetry: React.FC = () => {
           .limit(8);
         if (error) throw error;
         if (isMounted) {
-          setItems(
-            ((data as any[]) || []).map((item) => ({
-              ...item,
-              lifecycle_phase: item.lifecycle_phase as "draft" | "active" | "queued" | "executed",
-            })),
+          const rows = ((data as any[]) || []).map((item) => ({
+            ...item,
+            lifecycle_phase: item.lifecycle_phase as "draft" | "active" | "queued" | "executed",
+          })) as ProposalLite[];
+
+          // Strict bucket filter: only on-chain states 4 (Succeeded) or 5 (Queued).
+          // Off-chain placeholders fall through only when lifecycle_phase === 'queued'.
+          const stateChecks = await Promise.all(
+            rows.map(async (r) => {
+              if (!r.on_chain_id) {
+                return r.lifecycle_phase === "queued" ? r : null;
+              }
+              try {
+                const cs = await readChainState(r.on_chain_id);
+                const st = cs.state;
+                console.log(`[TELEMETRY_BUCKET] ref=${r.on_chain_id} state=${st}`);
+                return st === 4 || st === 5 ? r : null;
+              } catch {
+                return null;
+              }
+            }),
           );
+          if (isMounted) setItems(stateChecks.filter((x): x is ProposalLite => x !== null));
         }
         s.ok({ count: data?.length });
       } catch (error: any) {
