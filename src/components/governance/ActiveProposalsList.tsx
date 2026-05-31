@@ -141,6 +141,8 @@ const normalizeStateText = (value?: string | null) => (value || "").trim().toLow
 
 const stateOnly = (state: number): ChainState => ({
   snapshotBlock: null,
+  deadlineBlock: null,
+  currentBlock: null,
   quorum: 0,
   forVotes: 0,
   againstVotes: 0,
