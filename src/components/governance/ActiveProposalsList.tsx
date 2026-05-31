@@ -497,6 +497,78 @@ export const ProposalCard: React.FC<{
     }
   };
 
+  const [isCancelling, setIsCancelling] = useState(false);
+  const handleCancelPending = async () => {
+    if (!proposal.on_chain_id) return;
+    const s = stage("PROPOSAL_CANCEL", "RELAY");
+    s.start({ id: proposal.id, onChainId: proposal.on_chain_id });
+    setIsCancelling(true);
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) throw new Error("Sovereign authentication failed.");
+
+      const { hash, payload } = await generateACAHash(
+        user.id,
+        `proposal_cancel_${proposal.on_chain_id}`,
+        ["GOV_PROPOSAL_CANCEL", "LEDGER_WRITE"],
+      );
+
+      const { data: relayData, error: relayErr } = await supabase.functions.invoke(
+        "relay-governance-action",
+        {
+          body: {
+            actionType: "CANCEL_PROPOSAL",
+            proposalId: proposal.on_chain_id,
+            title: proposal.title,
+            description: proposal.description,
+            chainId: 8453,
+            acaHash: hash,
+            acaPayload: payload,
+          },
+        },
+      );
+      if (relayErr) {
+        const msg = (relayErr as any)?.context?.error
+          || (relayErr as any)?.message
+          || "Cancellation relay failed.";
+        let friendly = msg;
+        if (/cancellation window closed|no longer in Pending/i.test(msg)) {
+          friendly = "Voting has already opened — this proposal can no longer be cancelled.";
+        } else if (/Only the proposer/i.test(msg)) {
+          friendly = "Only the original proposer can cancel this proposal.";
+        } else if (/not the on-chain proposer/i.test(msg)) {
+          friendly = "Chain mismatch — cancellation refused for safety.";
+        } else if (/gas/i.test(msg)) {
+          friendly = "Relayer is out of gas. Notify an operator.";
+        }
+        toast({ title: "Cancel failed", description: friendly, variant: "destructive" });
+        s.fail(relayErr);
+        return;
+      }
+      toast({
+        title: "Proposal cancelled",
+        description: `Anchored on-chain · tx ${String(relayData?.tx_hash || "").substring(0, 10)}…`,
+      });
+      setDetailOpen(false);
+      onChanged();
+      s.ok();
+    } catch (e: any) {
+      console.error("[PROPOSAL_CANCEL] EXCEPTION", e);
+      toast({
+        title: "Cancel failed",
+        description: e?.message || "Unable to cancel proposal.",
+        variant: "destructive",
+      });
+      s.fail(e);
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+
   // ── Shared chain-derived display values ────────────────────────────
   const chainName = chain.state != null ? STATE_NAME[chain.state] : null;
   const isActive = chain.state === 1;
