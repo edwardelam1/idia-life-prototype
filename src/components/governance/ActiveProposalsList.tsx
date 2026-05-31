@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+// Card primitives no longer used — cards are rendered as compact lifecycle-style rows.
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Gavel, Loader2, CheckCircle2, ThumbsUp, ThumbsDown, Trash2, Crown } from "lucide-react";
