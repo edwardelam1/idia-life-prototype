@@ -16,7 +16,7 @@ interface ProposalLite {
   id: string;
   title: string;
   description: string | null;
-  lifecycle_phase: "draft" | "active" | "queued" | "executed";
+  lifecycle_phase: "draft" | "active" | "succeeded" | "queued" | "executed";
   status: string | null;
   created_at: string;
   end_date: string | null;
@@ -42,6 +42,11 @@ export const PHASE_META = {
     label: "In Timelock",
     color:
       "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border-amber-100 dark:border-amber-900/50",
+  },
+  succeeded: {
+    icon: "✅",
+    label: "Succeeded",
+    color: "text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30 border-teal-100 dark:border-teal-900/50",
   },
   executed: {
     icon: "✅",
@@ -262,7 +267,7 @@ const LifecycleTelemetry: React.FC = () => {
         if (isMounted) {
           const rows = ((data as any[]) || []).map((item) => ({
             ...item,
-            lifecycle_phase: item.lifecycle_phase as "draft" | "active" | "queued" | "executed",
+            lifecycle_phase: item.lifecycle_phase as "draft" | "active" | "succeeded" | "queued" | "executed",
           })) as ProposalLite[];
 
           // Strict bucket filter: only on-chain states 4 (Succeeded) or 5 (Queued).
@@ -276,13 +281,22 @@ const LifecycleTelemetry: React.FC = () => {
                 const cs = await readChainState(r.on_chain_id);
                 const st = cs.state;
                 console.log(`[TELEMETRY_BUCKET] ref=${r.on_chain_id} state=${st}`);
-                return st === 4 || st === 5 ? r : null;
+                if (st === 4) return { ...r, lifecycle_phase: "succeeded" as const, status: "Succeeded" };
+                if (st === 5) return { ...r, lifecycle_phase: "queued" as const, status: "Queued" };
+                return null;
               } catch {
                 return null;
               }
             }),
           );
-          if (isMounted) setItems(stateChecks.filter((x): x is ProposalLite => x !== null));
+          const order = { succeeded: 0, queued: 1, executed: 2, active: 3, draft: 4 } as const;
+          if (isMounted) {
+            setItems(
+              stateChecks
+                .filter((x): x is ProposalLite => x !== null)
+                .sort((a, b) => order[a.lifecycle_phase] - order[b.lifecycle_phase]),
+            );
+          }
         }
         s.ok({ count: data?.length });
       } catch (error: any) {
