@@ -839,6 +839,7 @@ const ActiveProposalsList: React.FC<{
             console.warn("[ACTIVE_PROPOSALS] on-chain fetch failed:", e?.message);
             return [];
           });
+        const indexedById = new Map(onChainProposals.map((p) => [p.proposalId, p]));
 
         // Index DB rows by on_chain_id to dedupe anchored entries
         const anchoredIds = new Set<string>(
@@ -847,17 +848,21 @@ const ActiveProposalsList: React.FC<{
             .filter((x: unknown): x is string => typeof x === "string" && x.length > 0),
         );
 
-        const dbRows: Proposal[] = (dbProposals.data || []).map((r: any) => ({
-          id: r.id,
-          proposal_ref: r.on_chain_id ?? r.id, // on-chain id wins when anchored
-          title: r.title,
-          description: r.description,
-          status: r.status,
-          proposer_id: r.proposer_id,
-          on_chain_id: r.on_chain_id ?? null,
-          lifecycle_phase: r.lifecycle_phase ?? null,
-          created_at: r.created_at ?? null,
-        }));
+        const dbRows: Proposal[] = (dbProposals.data || []).map((r: any) => {
+          const indexed = r.on_chain_id ? indexedById.get(r.on_chain_id) : undefined;
+          return {
+            id: r.id,
+            proposal_ref: r.on_chain_id ?? r.id, // on-chain id wins when anchored
+            title: r.title,
+            description: r.description,
+            status: indexed?.stateName ?? r.status,
+            proposer_id: r.proposer_id,
+            on_chain_id: r.on_chain_id ?? null,
+            lifecycle_phase: indexed?.stateName ?? r.lifecycle_phase ?? null,
+            created_at: r.created_at ?? null,
+            indexed_state: indexed?.state ?? null,
+          };
+        });
 
         const chainRows: Proposal[] = onChainProposals
           .filter((p) => !anchoredIds.has(p.proposalId))
