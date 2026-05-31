@@ -18,6 +18,7 @@ import AuditFeed from "./governance/AuditFeed";
 import WelcomeManualGate from "./governance/WelcomeManualGate";
 import CreateDaoProposalModal from "./governance/CreateDaoProposalModal";
 import { PROTOCOL, ACTIVE_DEPLOYMENT } from "@/config/contracts";
+import { ACTION_REQUIRED_LEVEL, getAscensionLevel, type AscensionLevel } from "@/utils/governanceGate";
 
 const IDIA_CONTRACT = PROTOCOL.idiaToken;
 const IS_MAINNET = ACTIVE_DEPLOYMENT === "mainnet";
