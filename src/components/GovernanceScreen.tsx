@@ -178,6 +178,14 @@ const GovernanceScreen: React.FC = () => {
             </h2>
             <LifecycleTelemetry />
           </section>
+
+          <section className="space-y-3">
+            <LockedProposalsList
+              balance={idiaBalance}
+              votingPower={balance.voting_power ?? 0}
+              refreshTrigger={refreshKey}
+            />
+          </section>
         </div>
       ) : (
         <div className="space-y-5">
