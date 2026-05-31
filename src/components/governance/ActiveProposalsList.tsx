@@ -11,9 +11,6 @@ import { governanceService, type ProposalOnChain } from "@/services/governanceSe
 import ActivateVotingPowerCard from "./ActivateVotingPowerCard";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Slider } from "@/components/ui/slider";
-import { Label } from "@/components/ui/label";
 import { ethers } from "ethers";
 import { PROTOCOL, ACTIVE_DEPLOYMENT, GOVERNOR_ABI } from "@/config/contracts";
 import { NETWORKS } from "@/services/walletService";
@@ -251,12 +248,15 @@ export const ProposalCard: React.FC<{
     state: null,
   });
 
-  // Vote-weight allocation dialog state
+  // Vote dialog state — Governor uses 100% of snapshot balance; no slider needed.
   const numericVotingPower = parseFloat(votingPower?.toString() || "0");
   const isL3User = ascensionLevel === 3;
   const [voteDialogOpen, setVoteDialogOpen] = useState(false);
   const [pendingSupport, setPendingSupport] = useState<"for" | "against" | null>(null);
-  const [voteWeight, setVoteWeight] = useState<number>(Math.max(1, Math.floor(numericVotingPower) || 1));
+  const [voteBlast, setVoteBlast] = useState<
+    | { support: "for" | "against"; weightLabel: string; tophat: boolean }
+    | null
+  >(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [nowTick, setNowTick] = useState(0);
   useEffect(() => {
@@ -266,7 +266,6 @@ export const ProposalCard: React.FC<{
 
   const openVoteDialog = (support: "for" | "against") => {
     setPendingSupport(support);
-    setVoteWeight(Math.max(1, Math.floor(numericVotingPower) || 1));
     setVoteDialogOpen(true);
   };
 
@@ -400,15 +399,7 @@ export const ProposalCard: React.FC<{
         s.fail("insufficient_balance");
         return;
       }
-      if (chosenWeight < 1 || chosenWeight > numericVotingPower) {
-        toast({
-          title: "Invalid Vote Weight",
-          description: `Weight must be between 1 and ${Math.floor(numericVotingPower)} IDIA.`,
-          variant: "destructive",
-        });
-        s.fail("invalid_weight");
-        return;
-      }
+      // Governor uses 100% of snapshot balance automatically — no client-side weight validation.
     }
 
     setIsSubmitting(true);
@@ -517,11 +508,19 @@ export const ProposalCard: React.FC<{
       setHasVoted(support);
       setVoteCount((c) => c + 1);
       setVoteDialogOpen(false);
+
+      // Center-screen vote blast — auto-dismisses after 2.6s
+      const weightLabel = tophatOverride
+        ? "TREASURY WEIGHT"
+        : `${Math.floor(numericVotingPower).toLocaleString()} IDIA`;
+      setVoteBlast({ support, weightLabel, tophat: !!tophatOverride });
+      setTimeout(() => setVoteBlast(null), 2600);
+
       toast({
         title: tophatOverride ? "Tophat Override Executed" : "Vote Anchored",
         description: tophatOverride
           ? `Treasury weight applied to ${support.toUpperCase()} · ACA ${hash.substring(0, 8)}…`
-          : `${support.toUpperCase()} · ${chosenWeight} IDIA · tx ${String(relayData?.tx_hash || "").substring(0, 10)}…`,
+          : `${support.toUpperCase()} · ${Math.floor(numericVotingPower)} IDIA · tx ${String(relayData?.tx_hash || "").substring(0, 10)}…`,
       });
       onChanged();
       s.ok();
@@ -996,50 +995,36 @@ export const ProposalCard: React.FC<{
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-black uppercase tracking-wider text-sm">
-              Allocate Vote Weight
+              Confirm Your Vote
             </DialogTitle>
             <DialogDescription className="text-xs">
               Casting{" "}
               <span className={pendingSupport === "for" ? "text-emerald-600 font-black" : "text-rose-600 font-black"}>
                 {pendingSupport?.toUpperCase()}
               </span>{" "}
-              on "{proposal.title}". Max available: {Math.floor(numericVotingPower).toLocaleString()} IDIA.
+              on "{proposal.title}". The Governor will automatically apply 100% of your snapshot voting power.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="vote-weight" className="text-[10px] font-black uppercase tracking-widest">
-                Allocate Vote Weight (IDIA)
-              </Label>
-              <Input
-                id="vote-weight"
-                type="number"
-                min={1}
-                max={Math.max(1, Math.floor(numericVotingPower))}
-                value={voteWeight}
-                onChange={(e) => {
-                  const v = parseInt(e.target.value || "0", 10);
-                  if (!Number.isNaN(v)) setVoteWeight(v);
-                }}
-                className="font-mono text-lg font-black"
-              />
-              <Slider
-                min={1}
-                max={Math.max(1, Math.floor(numericVotingPower))}
-                step={1}
-                value={[Math.min(voteWeight, Math.max(1, Math.floor(numericVotingPower)))]}
-                onValueChange={(v) => setVoteWeight(v[0] ?? 1)}
-                className="pt-2"
-              />
+            <div className="rounded-2xl border border-border bg-muted/40 p-4 text-center">
+              <div className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+                Your Voting Power
+              </div>
+              <div className="mt-1 font-mono text-3xl font-black tracking-tight">
+                {Math.floor(numericVotingPower).toLocaleString()}
+              </div>
+              <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                IDIA
+              </div>
             </div>
 
             <Button
-              onClick={() => pendingSupport && handleCastVote(pendingSupport, voteWeight, false)}
+              onClick={() => pendingSupport && handleCastVote(pendingSupport, numericVotingPower, false)}
               disabled={isSubmitting || !pendingSupport}
               className="w-full h-11 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[10px] rounded-full"
             >
-              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Confirm Vote · {voteWeight.toLocaleString()} IDIA</>}
+              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Confirm Vote · {pendingSupport?.toUpperCase()}</>}
             </Button>
 
             {isL3User && (
@@ -1055,7 +1040,7 @@ export const ProposalCard: React.FC<{
                   </div>
                 </div>
                 <Button
-                  onClick={() => pendingSupport && handleCastVote(pendingSupport, voteWeight, true)}
+                  onClick={() => pendingSupport && handleCastVote(pendingSupport, 0, true)}
                   disabled={isSubmitting || !pendingSupport}
                   className="w-full h-12 bg-purple-700 hover:bg-purple-800 text-white font-black uppercase tracking-widest text-[11px] rounded-full shadow-lg shadow-purple-900/30"
                 >
@@ -1066,6 +1051,50 @@ export const ProposalCard: React.FC<{
           </div>
         </DialogContent>
       </Dialog>
+
+      {voteBlast && (
+        <div
+          className="fixed inset-0 z-[10001] flex items-center justify-center pointer-events-none"
+          style={{ animation: "vote-blast-fade 2.6s ease-out forwards" }}
+        >
+          <div className="absolute inset-0 bg-background/70 backdrop-blur-md" />
+          <div
+            className="relative text-center px-8"
+            style={{ animation: "vote-blast-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1) both" }}
+          >
+            <div
+              className={`text-[11px] font-black uppercase tracking-[0.4em] mb-3 ${
+                voteBlast.support === "for" ? "text-emerald-600" : "text-rose-600"
+              }`}
+            >
+              Vote Cast · {voteBlast.support.toUpperCase()}
+            </div>
+            <div
+              className={`font-mono font-black leading-none tracking-tight ${
+                voteBlast.support === "for" ? "text-emerald-600" : "text-rose-600"
+              }`}
+              style={{ fontSize: "clamp(4rem, 18vw, 11rem)" }}
+            >
+              {voteBlast.weightLabel}
+            </div>
+            <div className="mt-4 text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
+              {voteBlast.tophat ? "Tophat Override · Carried by Treasury" : "Anchored On-Chain"}
+            </div>
+          </div>
+          <style>{`
+            @keyframes vote-blast-pop {
+              0%   { opacity: 0; transform: scale(0.6); }
+              60%  { opacity: 1; transform: scale(1.08); }
+              100% { opacity: 1; transform: scale(1); }
+            }
+            @keyframes vote-blast-fade {
+              0%   { opacity: 1; }
+              75%  { opacity: 1; }
+              100% { opacity: 0; }
+            }
+          `}</style>
+        </div>
+      )}
     </>
   );
 };
