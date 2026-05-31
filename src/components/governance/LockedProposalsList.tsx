@@ -8,7 +8,8 @@ import { governanceService } from "@/services/governanceService";
 import {
   ProposalCard,
   readChainState,
-  classifyBucket,
+  classifyProposalBucket,
+  sortByGovernanceOrder,
   type Proposal,
 } from "./ActiveProposalsList";
 import { getAscensionLevel, type AscensionLevel } from "@/utils/governanceGate";
@@ -51,7 +52,7 @@ const LockedProposalsList: React.FC<Props> = ({ balance, votingPower, refreshTri
 
         const dbProposals = await (supabase as any)
           .from("dao_proposals")
-          .select("id, title, description, status, proposer_id, on_chain_id")
+          .select("id, title, description, status, proposer_id, on_chain_id, lifecycle_phase, created_at")
           .order("created_at", { ascending: false });
         if (dbProposals.error) throw dbProposals.error;
 
@@ -74,6 +75,8 @@ const LockedProposalsList: React.FC<Props> = ({ balance, votingPower, refreshTri
           status: r.status,
           proposer_id: r.proposer_id,
           on_chain_id: r.on_chain_id ?? null,
+          lifecycle_phase: r.lifecycle_phase ?? null,
+          created_at: r.created_at ?? null,
         }));
 
         const chainRows: Proposal[] = onChainProposals
@@ -86,6 +89,9 @@ const LockedProposalsList: React.FC<Props> = ({ balance, votingPower, refreshTri
             status: p.stateName,
             proposer_id: p.proposer,
             on_chain_id: p.proposalId,
+            lifecycle_phase: p.stateName,
+            created_at: null,
+            indexed_state: p.state,
           }));
 
         const combined = [...dbRows, ...chainRows];
@@ -98,7 +104,7 @@ const LockedProposalsList: React.FC<Props> = ({ balance, votingPower, refreshTri
               const cs = await readChainState(p.on_chain_id);
               return [p.proposal_ref, cs] as const;
             } catch {
-              return [p.proposal_ref, null] as const;
+              return [p.proposal_ref, p.indexed_state != null ? { snapshotBlock: null, quorum: 0, forVotes: 0, againstVotes: 0, abstainVotes: 0, state: p.indexed_state } : null] as const;
             }
           }),
         );
@@ -108,8 +114,8 @@ const LockedProposalsList: React.FC<Props> = ({ balance, votingPower, refreshTri
 
         const locked = combined.filter((p) => {
           const cs = map.get(p.proposal_ref);
-          return classifyBucket(cs?.state ?? null, !!p.on_chain_id) === "LOCKED";
-        });
+          return classifyProposalBucket(p, cs) === "LOCKED";
+        }).sort((a, b) => sortByGovernanceOrder(a, b, map));
 
         for (const p of locked) {
           console.log(`[LOCKED_PROPOSALS] ref=${p.proposal_ref} state=${map.get(p.proposal_ref)?.state}`);
