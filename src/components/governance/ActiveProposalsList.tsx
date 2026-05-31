@@ -503,6 +503,36 @@ export const ProposalCard: React.FC<{
     </Badge>
   ) : null;
 
+  // ── Timeframe row — visible on every proposal (active, archive, locked) ──
+  const submittedLabel = proposal.created_at
+    ? new Date(proposal.created_at).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+  const phaseLabel = isFinal
+    ? "Final Window"
+    : isActive
+      ? "Voting Open"
+      : chain.state === 0
+        ? "Pending Window"
+        : "Timeframe";
+  const TimeframeRow = (
+    <div className="flex items-center justify-between gap-2 flex-wrap text-[9px] font-black uppercase tracking-widest text-muted-foreground px-1">
+      <span className="text-slate-600 dark:text-slate-300">
+        {phaseLabel}
+      </span>
+      <span className="text-slate-500 dark:text-slate-400">
+        {submittedLabel ? <>Submitted · {submittedLabel}</> : <>Submitted · on-chain only</>}
+        {chain.snapshotBlock ? <> · Snap #{chain.snapshotBlock.toLocaleString()}</> : <> · Snap syncing</>}
+      </span>
+    </div>
+  );
+
+
   const QuorumBar = (
     <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2">
       <div className="flex justify-between items-baseline gap-2">
