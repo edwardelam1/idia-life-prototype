@@ -159,6 +159,7 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
       const { data: inserted, error: insertError } = await (supabase as any)
         .from("dao_proposals")
         .insert({
+          id: proposalUuid,
           proposer_id: user.id,
           title: safeTitle,
           description: safeDescription,
