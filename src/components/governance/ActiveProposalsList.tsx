@@ -127,7 +127,7 @@ interface Proposal {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 
-const ProposalCard: React.FC<{
+export const ProposalCard: React.FC<{
   proposal: Proposal;
   balance: number;
   votingPower: number | string;
