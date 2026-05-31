@@ -185,6 +185,162 @@ serve(async (req) => {
     console.log(`[GOV_RELAY][${stage}][SUCCESS] Provider and wallet bound.`);
 
     // ════════════════════════════════════════════════════════════════════════
+    // BRANCH: CANCEL_PROPOSAL (only the proposer may cancel while Pending)
+    // ════════════════════════════════════════════════════════════════════════
+    if (actionType === "CANCEL_PROPOSAL") {
+      const TAG = "CANCEL_PROPOSAL";
+
+      // STAGE 3.5: AUTHORIZE — DB row ownership + Governor state + Relayer proposer parity
+      stage = "AUTHORIZE_CANCEL";
+      console.log(`[GOV_RELAY][${TAG}][${stage}][START] proposalId=${onchainId} user=${userId}`);
+
+      const { data: row, error: rowErr } = await supabaseAdmin
+        .from("dao_proposals")
+        .select("id, proposer_id, on_chain_id, proposal_targets, proposal_values, proposal_calldatas")
+        .eq("on_chain_id", onchainId.toString())
+        .maybeSingle();
+      if (rowErr) {
+        console.error(`[GOV_RELAY][${TAG}][${stage}] dao_proposals lookup failed: ${rowErr.message}`);
+        return jsonResponse({ error: "Proposal lookup failed.", failed_at: stage }, 500);
+      }
+      if (!row) {
+        return jsonResponse({ error: "Proposal not found in ledger.", failed_at: stage }, 404);
+      }
+      if (row.proposer_id !== userId) {
+        return jsonResponse({ error: "Only the proposer may cancel this proposal.", failed_at: stage }, 403);
+      }
+
+      const govRead = new ethers.Contract(networkConfig.governor, GOVERNOR_ABI, provider);
+      let chainState: number;
+      let onchainProposer: string;
+      try {
+        const [s, p] = await Promise.all([
+          govRead.state(onchainId),
+          govRead.proposalProposer(onchainId),
+        ]);
+        chainState = Number(s);
+        onchainProposer = String(p);
+      } catch (readErr: any) {
+        console.error(`[GOV_RELAY][${TAG}][${stage}] chain read failed: ${readErr.message}`);
+        return jsonResponse({ error: "Could not read proposal state on-chain.", failed_at: stage }, 502);
+      }
+      if (chainState !== 0) {
+        return jsonResponse(
+          { error: `Proposal is no longer in Pending (state=${chainState}). Cancellation window closed.`, failed_at: stage },
+          409,
+        );
+      }
+      if (onchainProposer.toLowerCase() !== relayerWallet.address.toLowerCase()) {
+        return jsonResponse(
+          { error: "Relayer is not the on-chain proposer. Cancellation refused.", failed_at: stage },
+          409,
+        );
+      }
+      console.log(`[GOV_RELAY][${TAG}][${stage}][SUCCESS] state=0, proposer parity OK`);
+
+      // STAGE 4: REBUILD_ARGS — prefer stored arrays, fall back to signaling defaults
+      stage = "REBUILD_ARGS";
+      const storedTargets = Array.isArray(row.proposal_targets) ? row.proposal_targets : null;
+      const storedValues = Array.isArray(row.proposal_values) ? row.proposal_values : null;
+      const storedCalldatas = Array.isArray(row.proposal_calldatas) ? row.proposal_calldatas : null;
+
+      const hasStored = !!(storedTargets && storedValues && storedCalldatas
+        && storedTargets.length > 0
+        && storedTargets.length === storedValues.length
+        && storedTargets.length === storedCalldatas.length);
+
+      const targets: string[] = hasStored ? storedTargets! : [IDIA_TOKEN_ADDRESS];
+      const values: bigint[] = hasStored
+        ? storedValues!.map((v: string) => BigInt(v))
+        : [0n];
+      const calldatas: string[] = hasStored ? storedCalldatas! : ["0x"];
+
+      const descriptionHash = ethers.keccak256(
+        ethers.toUtf8Bytes(`# ${title}\n\n${description}`),
+      );
+      console.log(
+        `[GOV_RELAY][${TAG}][${stage}] mode=${hasStored ? "stored" : "defaults"} arity=${targets.length} descHash=${descriptionHash.substring(0, 10)}…`,
+      );
+
+      // STAGE 5: BROADCAST_TRANSACTION
+      stage = "BROADCAST_TRANSACTION";
+      const gov = new ethers.Contract(networkConfig.governor, GOVERNOR_ABI, relayerWallet);
+      let tx;
+      try {
+        tx = await gov.cancel(targets, values, calldatas, descriptionHash);
+      } catch (txErr: any) {
+        console.error(`[GOV_RELAY][${TAG}][${stage}] cancel() reverted: ${txErr.message}`);
+        return jsonResponse(
+          { error: "Governor rejected cancel(). Arguments may not match the original propose().", failed_at: stage, detail: txErr.shortMessage || txErr.message },
+          500,
+        );
+      }
+      console.log(`[GOV_RELAY][${TAG}][${stage}] Tx submitted: ${tx.hash}`);
+
+      stage = "AWAIT_CONFIRMATION";
+      const receipt = await tx.wait();
+      console.log(`[GOV_RELAY][${TAG}][${stage}][SUCCESS] Block ${receipt.blockNumber}`);
+
+      // STAGE 6: RECONCILE_DATABASE — flip row + ACA ledger + audit log
+      stage = "RECONCILE_DATABASE";
+      const { error: updErr } = await supabaseAdmin
+        .from("dao_proposals")
+        .update({ status: "cancelled", lifecycle_phase: "cancelled" })
+        .eq("id", row.id);
+      if (updErr) {
+        console.error(`[GOV_RELAY][${TAG}][${stage}] dao_proposals update failed: ${updErr.message}`);
+      }
+
+      try {
+        const { recordACA } = await import("../_shared/recordACA.ts");
+        await recordACA(supabaseAdmin, {
+          userId,
+          sourceId: "GOV_PROPOSAL_CANCEL",
+          consentType: "governance_cancel",
+          hash: acaHash,
+          payload: acaPayload,
+          txHash: tx.hash,
+        });
+      } catch (acaErr: any) {
+        console.error(`[GOV_RELAY][${TAG}][${stage}] recordACA failed: ${acaErr.message}`);
+      }
+
+      try {
+        await supabaseAdmin.from("transactions").insert({
+          user_id: userId,
+          transaction_type: "governance_cancel",
+          amount: 0,
+          description: `Cancelled proposal ${onchainId}`,
+          metadata: {
+            tx_hash: tx.hash,
+            block_number: receipt.blockNumber,
+            target_contract: networkConfig.governor,
+            proposal_id: onchainId.toString(),
+            action_type: actionType,
+            chain_id: networkId,
+            network: networkConfig.name,
+            relayed_by: relayerWallet.address,
+            arg_mode: hasStored ? "stored" : "defaults",
+            arg_arity: targets.length,
+            aca_hash: acaHash,
+          },
+        });
+      } catch (auditErr: any) {
+        console.error(`[GOV_RELAY][${TAG}][${stage}] transactions insert failed: ${auditErr.message}`);
+      }
+      console.log(`[GOV_RELAY][${TAG}][${stage}][SUCCESS] Cancellation reconciled.`);
+
+      return jsonResponse({
+        success: true,
+        mode: "cancel_proposal",
+        tx_hash: tx.hash,
+        block_number: receipt.blockNumber,
+        target_contract: networkConfig.governor,
+        network: networkConfig.name,
+      });
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
     // BRANCH: CAST_VOTE (standard or Tophat Override)
     // ════════════════════════════════════════════════════════════════════════
     if (actionType === "CAST_VOTE") {
