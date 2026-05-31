@@ -550,6 +550,53 @@ export const ProposalCard: React.FC<{
     </div>
   );
 
+  // ── Amber deadline countdown — sits at the bottom of every card ──
+  const SECONDS_PER_BLOCK = 2;
+  const VOTING_DELAY_BLOCKS = 43200;
+  const VOTING_PERIOD_BLOCKS = 302400;
+  // Touch nowTick so this recomputes on the 30s tick
+  void nowTick;
+  let deadlineSecondsLeft: number | null = null;
+  if (chain.deadlineBlock != null && chain.currentBlock != null) {
+    deadlineSecondsLeft = (chain.deadlineBlock - chain.currentBlock) * SECONDS_PER_BLOCK;
+  } else if (proposal.created_at) {
+    const totalDurationSec = (VOTING_DELAY_BLOCKS + VOTING_PERIOD_BLOCKS) * SECONDS_PER_BLOCK;
+    const endMs = new Date(proposal.created_at).getTime() + totalDurationSec * 1000;
+    deadlineSecondsLeft = Math.floor((endMs - Date.now()) / 1000);
+  }
+  let deadlineLabel = "⏱ Deadline syncing…";
+  let deadlineTone: "live" | "ended" | "none" = "none";
+  if (isFinal) {
+    deadlineLabel = "⏱ Voting Closed · Deadline Passed";
+    deadlineTone = "ended";
+  } else if (deadlineSecondsLeft != null) {
+    if (deadlineSecondsLeft <= 0) {
+      deadlineLabel = "⏱ Closing now";
+      deadlineTone = "ended";
+    } else {
+      const d = Math.floor(deadlineSecondsLeft / 86400);
+      const h = Math.floor((deadlineSecondsLeft % 86400) / 3600);
+      const m = Math.floor((deadlineSecondsLeft % 3600) / 60);
+      deadlineLabel = `⏱ Auto-fails in ${d}d ${h}h ${m}m`;
+      deadlineTone = "live";
+    }
+  }
+  const DeadlinePill = (
+    <div
+      className={`mt-1 px-3 py-2 rounded-2xl border text-[10px] font-black uppercase tracking-widest text-center ${
+        deadlineTone === "live"
+          ? "border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-900/50"
+          : deadlineTone === "ended"
+            ? "border-rose-200 bg-rose-50/60 text-rose-700 dark:bg-rose-950/20 dark:text-rose-300 dark:border-rose-900/50"
+            : "border-slate-200 bg-slate-50 text-slate-600 dark:bg-slate-900/40 dark:text-slate-300 dark:border-slate-800"
+      }`}
+    >
+      {deadlineLabel}
+    </div>
+  );
+
+
+
 
   const QuorumBar = (
     <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2">
