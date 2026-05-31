@@ -14,21 +14,68 @@ import { ethers } from "ethers";
 import { PROTOCOL, ACTIVE_DEPLOYMENT, GOVERNOR_ABI } from "@/config/contracts";
 import { NETWORKS } from "@/services/walletService";
 
-// Direct-RPC quorum read — no cache, no retry chain. Hits Alchemy / public RPC
-// directly so the UI never gets stuck on a stale "hydrating…" state.
-async function directQuorum(onChainId?: string | null): Promise<bigint> {
+// Direct-RPC chain state read — snapshot block, dynamic quorum, and live tally.
+// Quorum is fetched dynamically per snapshot block so the UI auto-adapts if
+// the protocol upgrades to a floating relative quorum in the future.
+interface ChainState {
+  snapshotBlock: number | null;
+  quorum: number;
+  forVotes: number;
+  againstVotes: number;
+  abstainVotes: number;
+  state: number | null;
+}
+
+async function readChainState(onChainId?: string | null): Promise<ChainState> {
   const networkKey = ACTIVE_DEPLOYMENT === "mainnet" ? "base" : "baseSepolia";
   const network = NETWORKS[networkKey];
   const rpcUrl = (import.meta.env.VITE_ALCHEMY_RPC_URL as string | undefined) || network.rpcUrl;
   const provider = new ethers.JsonRpcProvider(rpcUrl, network.chainId);
   const gov = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, provider);
-  if (onChainId && onChainId.trim() !== "") {
-    const snap = await gov.proposalSnapshot(onChainId);
-    if (snap && Number(snap) > 0) return BigInt(await gov.quorum(snap));
+
+  const empty: ChainState = {
+    snapshotBlock: null,
+    quorum: 0,
+    forVotes: 0,
+    againstVotes: 0,
+    abstainVotes: 0,
+    state: null,
+  };
+
+  if (!onChainId || onChainId.trim() === "") {
+    try {
+      const block = await provider.getBlockNumber();
+      const rawQ = await gov.quorum(block - 1);
+      return { ...empty, quorum: Number(ethers.formatUnits(rawQ, 18)) };
+    } catch {
+      return empty;
+    }
   }
-  const block = await provider.getBlockNumber();
-  return BigInt(await gov.quorum(block - 1));
+
+  const snapBlockRaw = await gov.proposalSnapshot(onChainId);
+  const snapshotBlock = snapBlockRaw && Number(snapBlockRaw) > 0 ? Number(snapBlockRaw) : null;
+
+  const [rawQuorum, rawVotes, rawState] = await Promise.all([
+    snapshotBlock ? gov.quorum(snapBlockRaw) : Promise.resolve(0n),
+    gov.proposalVotes(onChainId),
+    gov.state(onChainId),
+  ]);
+
+  return {
+    snapshotBlock,
+    quorum: Number(ethers.formatUnits(rawQuorum, 18)),
+    againstVotes: Number(ethers.formatUnits(rawVotes[0], 18)),
+    forVotes: Number(ethers.formatUnits(rawVotes[1], 18)),
+    abstainVotes: Number(ethers.formatUnits(rawVotes[2], 18)),
+    state: Number(rawState),
+  };
 }
+
+// OpenZeppelin Governor state enum:
+// 0 Pending · 1 Active · 2 Canceled · 3 Defeated · 4 Succeeded · 5 Queued · 6 Expired · 7 Executed
+const STATE_NAME = ["Pending", "Active", "Canceled", "Defeated", "Succeeded", "Queued", "Expired", "Executed"];
+const FINAL_DEFEATED = new Set([2, 3, 6]);
+const FINAL_PASSED = new Set([4, 5, 7]);
 import {
   authorizeGovernanceAction,
   getAscensionLevel,
