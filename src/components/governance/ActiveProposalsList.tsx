@@ -784,8 +784,58 @@ export const ProposalCard: React.FC<{
 
           <div className="space-y-3 pt-2">
             {TimeframeRow}
+
+            {chain.state === 0 && (() => {
+              const SEC_PER_BLOCK = 2;
+              let opensInLabel = "syncing…";
+              if (chain.snapshotBlock != null && chain.currentBlock != null) {
+                const remaining = (chain.snapshotBlock - chain.currentBlock) * SEC_PER_BLOCK;
+                if (remaining <= 0) {
+                  opensInLabel = "any moment now";
+                } else {
+                  const d = Math.floor(remaining / 86400);
+                  const h = Math.floor((remaining % 86400) / 3600);
+                  const m = Math.floor((remaining % 3600) / 60);
+                  opensInLabel = `${d}d ${h}h ${m}m`;
+                }
+              }
+              void nowTick;
+              return (
+                <div className="p-3 rounded-2xl border border-amber-200 bg-amber-50/70 dark:bg-amber-950/30 dark:border-amber-900/50 space-y-1.5">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-200">
+                    Why is this Pending?
+                  </p>
+                  <p className="text-[11px] leading-snug text-amber-800/90 dark:text-amber-100/90">
+                    The Governor records a voting-power snapshot before votes open. Until that snapshot block is reached, the proposal sits in a Pending window — no one can vote yet.
+                  </p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-200">
+                    Voting opens in {opensInLabel}
+                  </p>
+                  <p className="text-[10px] text-amber-700/80 dark:text-amber-200/80">
+                    Only the original proposer may cancel while Pending. Once voting opens, cancellation is no longer available.
+                  </p>
+                </div>
+              );
+            })()}
+
             {QuorumBar}
             {DeadlinePill}
+
+            {isProposer && chain.state === 0 && proposal.on_chain_id && (
+              <Button
+                onClick={handleCancelPending}
+                disabled={isCancelling}
+                variant="destructive"
+                className="w-full h-10 text-[10px] font-black uppercase tracking-widest rounded-full"
+              >
+                {isCancelling ? (
+                  <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Cancelling…</>
+                ) : (
+                  <><Trash2 className="w-3.5 h-3.5 mr-1.5" />Cancel Proposal</>
+                )}
+              </Button>
+            )}
+
 
             {hasVoted && !isFinal && (
               <div className="flex items-center gap-3 p-3 bg-teal-50/60 dark:bg-teal-950/30 border border-teal-100 dark:border-teal-900/50 rounded-2xl">
