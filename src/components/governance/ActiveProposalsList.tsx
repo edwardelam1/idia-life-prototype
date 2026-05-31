@@ -150,11 +150,15 @@ export interface Proposal {
   description: string;
   status: string;
   proposer_id: string | null;
+  proposer_address?: string | null;
   on_chain_id?: string | null;
   lifecycle_phase?: string | null;
   created_at?: string | null;
   indexed_state?: number | null;
 }
+
+const sameEvmAddress = (a?: string | null, b?: string | null) =>
+  !!a && !!b && /^0x[0-9a-f]{40}$/i.test(a) && /^0x[0-9a-f]{40}$/i.test(b) && a.toLowerCase() === b.toLowerCase();
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -222,10 +226,11 @@ export const ProposalCard: React.FC<{
   balance: number;
   votingPower: number | string;
   currentUserId: string | null;
+  currentWalletAddress?: string | null;
   ascensionLevel: AscensionLevel;
   initialChainState?: ChainState;
   onChanged: () => void;
-}> = ({ proposal, balance, votingPower, currentUserId, ascensionLevel, initialChainState, onChanged }) => {
+}> = ({ proposal, balance, votingPower, currentUserId, currentWalletAddress, ascensionLevel, initialChainState, onChanged }) => {
   const fallbackState = initialChainState
     ?? (proposal.indexed_state != null ? stateOnly(proposal.indexed_state) : undefined)
     ?? (!proposal.on_chain_id ? (() => {
@@ -269,7 +274,9 @@ export const ProposalCard: React.FC<{
     setVoteDialogOpen(true);
   };
 
-  const isProposer = !!currentUserId && proposal.proposer_id === currentUserId;
+  const isProposer =
+    (!!currentUserId && proposal.proposer_id === currentUserId) ||
+    sameEvmAddress(proposal.proposer_address ?? proposal.proposer_id, currentWalletAddress);
   const canWithdraw = isProposer && voteCount === 0 && hasVoted === null;
   // Pending detection that survives RPC hydration lag. Server still enforces
   // on-chain state=0 in the cancel relay, so a permissive client gate is safe.
@@ -1137,6 +1144,7 @@ const ActiveProposalsList: React.FC<{
   const [chainStates, setChainStates] = useState<Map<string, ChainState>>(new Map());
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [ascensionLevel, setAscensionLevel] = useState<AscensionLevel>(0);
   const [innerRefresh, setInnerRefresh] = useState(0);
 
@@ -1151,6 +1159,16 @@ const ActiveProposalsList: React.FC<{
           data: { user },
         } = await supabase.auth.getUser();
         if (isMounted) setUserId(user?.id ?? null);
+        if (user) {
+          const { data: profile } = await (supabase as any)
+            .from("profiles")
+            .select("wallet_address")
+            .eq("id", user.id)
+            .maybeSingle();
+          if (isMounted) setWalletAddress(profile?.wallet_address ?? null);
+        } else if (isMounted) {
+          setWalletAddress(null);
+        }
 
         // Hydrate viewer's ascension level from active hats
         if (user && isMounted) {
@@ -1200,6 +1218,7 @@ const ActiveProposalsList: React.FC<{
             description: r.description,
             status: indexed?.stateName ?? r.status,
             proposer_id: r.proposer_id,
+            proposer_address: indexed?.proposer ?? null,
             on_chain_id: r.on_chain_id ?? null,
             lifecycle_phase: indexed?.stateName ?? r.lifecycle_phase ?? null,
             created_at: r.created_at ?? null,
@@ -1216,6 +1235,7 @@ const ActiveProposalsList: React.FC<{
             description: p.description,
             status: p.stateName,
             proposer_id: p.proposer,
+            proposer_address: p.proposer,
             on_chain_id: p.proposalId,
             lifecycle_phase: p.stateName,
             created_at: null,
@@ -1327,6 +1347,7 @@ const ActiveProposalsList: React.FC<{
             balance={balance}
             votingPower={votingPower}
             currentUserId={userId}
+            currentWalletAddress={walletAddress}
             ascensionLevel={ascensionLevel}
             initialChainState={chainStates.get(prop.proposal_ref)}
             onChanged={() => setInnerRefresh((n) => n + 1)}
