@@ -1,27 +1,44 @@
-# Fix "No wallet loaded" on Pending proposal cancel
+# Fix relay edge function "module not found" errors
 
-## Why the relayer can't do this (the transferFrom question)
+## Symptom
 
-`Governor.cancel(targets, values, calldatas, descriptionHash)` from OpenZeppelin has a hard rule for **Pending** proposals: `msg.sender` must equal the original `proposer` address (or the contract's guardian, which we haven't configured). There is no allowance/approval primitive like `transferFrom` — the proposer cannot grant the relayer the right to cancel on their behalf without redeploying the Governor with a custom role. That's exactly why we moved cancel client-side last round, and why the relayer attempt failed before that.
+Edge function (deployment `66cd0c5f...` — `relay-governance-action`) logs:
 
-So the only correct path is: sign with the proposer's own wallet on-device. The bug is that the wallet isn't loaded into memory yet when the user taps Cancel, not that we picked the wrong signer.
+```
+module "/utf-8-validate@5.0.10/denonext/package.json" not found
+module "/bufferutil@4.1.0/denonext/package.json" not found
+```
+
+These fire on cold start and break the function before it can handle the request — which is why the recent cancel/relay attempts surface as opaque edge errors.
 
 ## Root cause
 
-`walletService.getConnectedSigner()` → `getSigner()` throws `"No wallet loaded"` when `this.wallet` is null. The wallet only populates after `walletService.loadWallet()` reads the mnemonic out of the Secure Enclave. On the Governance tab — especially after a cold reload or a tab switch where the in-memory wallet was cleared — the user can have a wallet on disk but nothing in `walletService`, and the cancel button hits this immediately.
+All three relay edge functions import ethers via esm.sh:
+
+```ts
+import { ethers } from "https://esm.sh/ethers@6.13.0";
+```
+
+esm.sh's bundle of ethers transitively pulls `ws`, which has optional native deps `bufferutil` and `utf-8-validate`. esm.sh's denonext build references them as package.json sub-modules that aren't actually published in that path, so Deno's edge-runtime fails the resolve at boot. This is a known esm.sh + ws issue and is fixed by switching to the `npm:` specifier, which lets Deno's npm resolver mark those optional deps as truly optional.
 
 ## Fix
 
-Edit `src/components/governance/ActiveProposalsList.tsx` → `handleCancelPending`:
+Switch the ethers import in all three relay functions from esm.sh to npm:
 
-1. Before calling `getConnectedSigner()`, check `walletService.getAddress()`. If null, `await walletService.loadWallet()`.
-2. If `loadWallet()` returns null (Secure Enclave empty / biometric refused), surface a clear toast: "Wallet locked — open Wallet tab to unlock, then retry cancel." and bail without throwing into stage telemetry as a hard error.
-3. Re-check `getConnectedSigner()` after the load. Keep the existing `sameEvmAddress` proposer guard.
-4. Apply the same lazy-load guard to the in-dialog cancel button path (same function, so one fix covers both call sites at lines 879 and 966).
+```ts
+import { ethers } from "npm:ethers@6.13.0";
+```
 
-No backend, no relayer, no schema changes. UI/wallet-bootstrap only.
+Files:
+- `supabase/functions/relay-governance-action/index.ts` (line 13)
+- `supabase/functions/relay-delegation/index.ts` (line 13)
+- `supabase/functions/relay-usdc-transfer/index.ts` (line 11)
+
+No code logic changes — the ethers v6 API surface is identical between the two specifiers.
+
+If a stale `supabase/functions/deno.lock` exists after the swap and the deploy still fails, delete it so edge-runtime regenerates a clean lockfile against the npm specifier.
 
 ## Out of scope
 
-- Re-introducing a relayer-signed cancel. Not possible with the current Governor without a guardian role; would require a contract change.
-- Changing Secure Enclave / biometric prompt behavior.
+- The client-side cancel flow in `ActiveProposalsList.tsx` (already correct — uses the in-app wallet, not this edge function).
+- Any change to relayer signing semantics. Governor.cancel still must be signed by the proposer; this fix only unblocks the other relay actions (`APPROVE_AND_EXECUTE`, `delegateBySig`, USDC transfers) that legitimately go through the relayer.
