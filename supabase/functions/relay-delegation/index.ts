@@ -10,7 +10,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { ethers } from "https://esm.sh/ethers@6.13.0";
+import { ethers } from "npm:ethers@6.13.0";
 
 const IDIA_DELEGATE_ABI = [
   "function delegateBySig(address delegatee, uint256 nonce, uint256 expiry, uint8 v, bytes32 r, bytes32 s)",
