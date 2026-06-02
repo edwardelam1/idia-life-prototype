@@ -269,6 +269,8 @@ export const ProposalCard: React.FC<{
   >(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [nowTick, setNowTick] = useState(0);
+  // Bumped every time a vote is mirrored — forces VoterLedger to re-pull.
+  const [ledgerNonce, setLedgerNonce] = useState(0);
   useEffect(() => {
     const iv = setInterval(() => setNowTick((n) => n + 1), 30000);
     return () => clearInterval(iv);
