@@ -1831,8 +1831,9 @@ export type Database = {
           created_at: string | null
           credits_spent: number
           id: string
-          proposal_id: string | null
-          proposal_ref: string
+          proposal_id: string
+          snapshot_block: number | null
+          snapshot_voting_power: number | null
           user_id: string | null
           vote_type: string | null
           vote_weight: number
@@ -1843,8 +1844,9 @@ export type Database = {
           created_at?: string | null
           credits_spent: number
           id?: string
-          proposal_id?: string | null
-          proposal_ref: string
+          proposal_id: string
+          snapshot_block?: number | null
+          snapshot_voting_power?: number | null
           user_id?: string | null
           vote_type?: string | null
           vote_weight: number
@@ -1855,21 +1857,14 @@ export type Database = {
           created_at?: string | null
           credits_spent?: number
           id?: string
-          proposal_id?: string | null
-          proposal_ref?: string
+          proposal_id?: string
+          snapshot_block?: number | null
+          snapshot_voting_power?: number | null
           user_id?: string | null
           vote_type?: string | null
           vote_weight?: number
         }
-        Relationships: [
-          {
-            foreignKeyName: "dao_votes_proposal_id_fkey"
-            columns: ["proposal_id"]
-            isOneToOne: false
-            referencedRelation: "dao_proposals"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       data_connections: {
         Row: {

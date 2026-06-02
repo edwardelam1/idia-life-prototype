@@ -226,6 +226,138 @@ export function sortByGovernanceOrder(a: Proposal, b: Proposal, chainStates: Map
 }
 
 
+// ── Per-proposal voter ledger ──
+// Pulls every dao_votes row for this proposal, joins wallets via the
+// member_wallet_directory view, and renders snapshot-locked weights. Sorted
+// by snapshot_voting_power desc (NULLs last) — legacy rows fall back to
+// vote_weight with a faint tag.
+const VoterLedger: React.FC<{ proposalId: string; refreshKey: number }> = ({
+  proposalId,
+  refreshKey,
+}) => {
+  type Row = {
+    user_id: string;
+    vote_type: string;
+    vote_weight: number | null;
+    snapshot_voting_power: number | null;
+    snapshot_block: number | null;
+    created_at: string | null;
+    wallet?: string | null;
+  };
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data: votes, error } = await (supabase as any)
+          .from("dao_votes")
+          .select("user_id, vote_type, vote_weight, snapshot_voting_power, snapshot_block, created_at")
+          .eq("proposal_id", proposalId)
+          .order("snapshot_voting_power", { ascending: false, nullsFirst: false });
+        if (error) throw error;
+        const userIds = Array.from(new Set((votes || []).map((v: any) => v.user_id).filter(Boolean)));
+        let walletMap = new Map<string, string>();
+        if (userIds.length > 0) {
+          const { data: wallets } = await (supabase as any)
+            .from("member_wallet_directory")
+            .select("user_id, wallet_address")
+            .in("user_id", userIds);
+          (wallets || []).forEach((w: any) => {
+            if (w?.user_id && w?.wallet_address) walletMap.set(w.user_id, w.wallet_address);
+          });
+        }
+        if (!alive) return;
+        setRows(
+          (votes || []).map((v: any) => ({
+            ...v,
+            wallet: walletMap.get(v.user_id) ?? null,
+          })),
+        );
+      } catch (e) {
+        console.warn("[VOTER_LEDGER] load failed", e);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [proposalId, refreshKey]);
+
+  const fmtWeight = (n: number) =>
+    n >= 1 ? Math.round(n).toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  const shortAddr = (a?: string | null, uid?: string) =>
+    a && /^0x[0-9a-f]{40}$/i.test(a)
+      ? `${a.slice(0, 6)}…${a.slice(-4)}`
+      : `sov:${(uid || "").slice(0, 8)}`;
+
+  return (
+    <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white/40 dark:bg-slate-900/30">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center justify-between px-3 py-2 text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300"
+      >
+        <span>Voter Ledger · {rows.length} cast</span>
+        <span className="text-slate-400">{expanded ? "▾" : "▸"}</span>
+      </button>
+      {expanded && (
+        <div className="px-3 pb-2 space-y-1.5 max-h-60 overflow-y-auto">
+          {loading && <p className="text-[10px] text-muted-foreground">Loading ledger…</p>}
+          {!loading && rows.length === 0 && (
+            <p className="text-[10px] text-muted-foreground">No votes cast yet.</p>
+          )}
+          {!loading &&
+            rows.map((r, i) => {
+              const isFor = r.vote_type === "for";
+              const weight = r.snapshot_voting_power ?? r.vote_weight ?? 0;
+              const isLegacy = r.snapshot_voting_power == null;
+              return (
+                <div
+                  key={`${r.user_id}-${i}`}
+                  className="flex items-center justify-between gap-2 text-[10px] font-mono"
+                >
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <span className={isFor ? "text-emerald-600" : "text-rose-600"}>
+                      {isFor ? "✔" : "✘"}
+                    </span>
+                    <span className="truncate text-slate-700 dark:text-slate-200">
+                      {shortAddr(r.wallet, r.user_id)}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <span
+                      className={`text-[9px] font-black uppercase tracking-widest ${
+                        isFor ? "text-emerald-700" : "text-rose-700"
+                      }`}
+                    >
+                      {isFor ? "FOR" : "AGAINST"}
+                    </span>
+                    <span className="text-slate-800 dark:text-slate-100 font-bold">
+                      {fmtWeight(Number(weight))} IDIA
+                    </span>
+                    {r.snapshot_block != null && (
+                      <span className="text-slate-400 text-[9px]">
+                        @#{r.snapshot_block.toLocaleString()}
+                      </span>
+                    )}
+                    {isLegacy && (
+                      <span className="text-[8px] text-slate-400 uppercase">legacy</span>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const ProposalCard: React.FC<{
   proposal: Proposal;
   balance: number;
@@ -269,6 +401,8 @@ export const ProposalCard: React.FC<{
   >(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [nowTick, setNowTick] = useState(0);
+  // Bumped every time a vote is mirrored — forces VoterLedger to re-pull.
+  const [ledgerNonce, setLedgerNonce] = useState(0);
   useEffect(() => {
     const iv = setInterval(() => setNowTick((n) => n + 1), 30000);
     return () => clearInterval(iv);
@@ -301,12 +435,12 @@ export const ProposalCard: React.FC<{
       s.start({ id: proposal.id });
       try {
         const [{ data: votes }, mine] = await Promise.all([
-          (supabase as any).from("dao_votes").select("vote_type, vote_weight").eq("proposal_ref", proposal.proposal_ref),
+          (supabase as any).from("dao_votes").select("vote_type, vote_weight").eq("proposal_id", proposal.proposal_ref),
           currentUserId
             ? (supabase as any)
                 .from("dao_votes")
                 .select("vote_type")
-                .eq("proposal_ref", proposal.proposal_ref)
+                .eq("proposal_id", proposal.proposal_ref)
                 .eq("user_id", currentUserId)
                 .maybeSingle()
             : Promise.resolve({ data: null }),
@@ -358,7 +492,7 @@ export const ProposalCard: React.FC<{
     tophatOverride: boolean,
   ) => {
     console.log(
-      `[BEGIN] handleCastVote | proposal=${proposal.id} intent=${support} weight=${chosenWeight} override=${tophatOverride}`,
+      `[GOV_VOTE][START] proposal_id=${proposal.on_chain_id ?? proposal.proposal_ref} intent=${support} weight=${chosenWeight} override=${tophatOverride}`,
     );
     const s = stage("VOTE_CAST", `${support.toUpperCase()}${tophatOverride ? "_OVERRIDE" : ""}`);
     s.start({ proposalId: proposal.id, level: ascensionLevel, weight: chosenWeight, tophatOverride });
@@ -525,28 +659,83 @@ export const ProposalCard: React.FC<{
       console.log(`[PROCESS] Relay confirmed`, relayData);
 
       // ── ONLY after on-chain success: mirror the vote into dao_votes ──
+      // Capture the voter's REAL voting power at the proposal's snapshot block
+      // directly from Base RPC. vote_weight stays for legacy/Tophat compat, but
+      // snapshot_voting_power is the auditable bigint that drove the on-chain tally.
+      let snapshotPower: number | null = null;
+      if (!tophatOverride && ballotSig?.signerAddress && chain.snapshotBlock != null) {
+        try {
+          console.log(
+            `[GOV_VOTE][RPC_QUERY][START] getVotes voter=${ballotSig.signerAddress} @snapshot=${chain.snapshotBlock}`,
+          );
+          const networkKey = ACTIVE_DEPLOYMENT === "mainnet" ? "base" : "baseSepolia";
+          const network = NETWORKS[networkKey];
+          const rpcUrl = (import.meta.env.VITE_ALCHEMY_RPC_URL as string | undefined) || network.rpcUrl;
+          const provider = new ethers.JsonRpcProvider(rpcUrl, network.chainId);
+          const govRead = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, provider);
+          const raw = await govRead.getVotes(ballotSig.signerAddress, chain.snapshotBlock);
+          snapshotPower = Number(ethers.formatUnits(raw, 18));
+          console.log(`[GOV_VOTE][RPC_QUERY][END:OK] weight=${raw.toString()} (${snapshotPower} IDIA)`);
+        } catch (snapErr) {
+          console.warn(`[GOV_VOTE][RPC_QUERY][END:WARN] snapshot getVotes failed`, snapErr);
+        }
+      }
+
+      console.log(`[GOV_VOTE][DB_INSERT][START] dao_votes proposal_id=${proposal.proposal_ref}`);
       const voteRow: Record<string, unknown> = {
-        proposal_ref: proposal.proposal_ref,
+        proposal_id: proposal.proposal_ref,
         user_id: user.id,
         vote_type: support,
         vote_weight: chosenWeight,
+        snapshot_voting_power: snapshotPower,
+        snapshot_block: chain.snapshotBlock ?? null,
         credits_spent: tophatOverride ? 0 : 1,
         aca_hash_key: hash,
         aca_payload: payload,
       };
-      if (UUID_RE.test(proposal.proposal_ref)) voteRow.proposal_id = proposal.proposal_ref;
       const { error: voteError } = await (supabase as any).from("dao_votes").insert(voteRow);
       if (voteError) {
         if (voteError.code === "23505") {
           // Chain accepted but mirror already exists — safe to surface as success
           setHasVoted(support);
+          console.log(`[GOV_VOTE][DB_INSERT][END:DUPLICATE] mirror already present`);
         } else {
-          console.error(`[VOTE_CAST] MIRROR_FAILED (chain succeeded)`, voteError);
+          console.error(`[GOV_VOTE][DB_INSERT][END:FAIL] (chain succeeded)`, voteError);
           toast({
             title: "Vote anchored, mirror lagging",
             description: "On-chain vote succeeded. The off-chain mirror will reconcile shortly.",
           });
         }
+      } else {
+        console.log(`[GOV_VOTE][DB_INSERT][END:OK] vote ledger row synchronized`);
+      }
+
+      // ── 1. INSTANT optimistic UI bump (no RPC, no await) ──
+      const optimisticWeight = snapshotPower ?? Number(chosenWeight) ?? 0;
+      console.log(`[GOV_VOTE][OPTIMISTIC][APPLY] +${optimisticWeight} on ${support}`);
+      setChain((prev) => ({
+        ...prev,
+        forVotes:     support === "for"     ? prev.forVotes     + optimisticWeight : prev.forVotes,
+        againstVotes: support === "against" ? prev.againstVotes + optimisticWeight : prev.againstVotes,
+      }));
+      setLedgerNonce((n) => n + 1);
+
+      // ── 2. Authoritative refresh — deferred so Base Mainnet propagates ──
+      if (proposal.on_chain_id) {
+        const onChainIdForRefresh = proposal.on_chain_id;
+        console.log(`[GOV_VOTE][CHAIN_REFRESH][SCHEDULED] +1500ms`);
+        setTimeout(async () => {
+          console.log(`[GOV_VOTE][CHAIN_REFRESH][START]`);
+          try {
+            const cs = await readChainState(onChainIdForRefresh);
+            setChain(cs);
+            console.log(
+              `[GOV_VOTE][CHAIN_REFRESH][END:OK] for=${cs.forVotes} against=${cs.againstVotes}`,
+            );
+          } catch (refreshErr) {
+            console.warn(`[GOV_VOTE][CHAIN_REFRESH][END:WARN]`, refreshErr);
+          }
+        }, 1500);
       }
 
       // Burn 1 IDIA from wallet for standard votes only
@@ -578,7 +767,7 @@ export const ProposalCard: React.FC<{
       onChanged();
       s.ok();
     } catch (e: any) {
-      console.error(`[STALL DETECTED] Vote exception: ${e.message}`);
+      console.error(`[GOV_VOTE][FATAL_FAIL] vote pipeline stalled or rejected:`, e?.message || e);
       s.fail(e);
       toast({ title: "Submission Failed", description: e.message, variant: "destructive" });
     } finally {
@@ -597,7 +786,7 @@ export const ProposalCard: React.FC<{
       const { data: latest } = await (supabase as any)
         .from("dao_votes")
         .select("id")
-        .eq("proposal_ref", proposal.proposal_ref)
+        .eq("proposal_id", proposal.proposal_ref)
         .limit(1);
       if ((latest || []).length > 0) {
         toast({
@@ -1016,6 +1205,7 @@ export const ProposalCard: React.FC<{
             })()}
 
             {QuorumBar}
+            <VoterLedger proposalId={proposal.proposal_ref} refreshKey={ledgerNonce} />
             {DeadlinePill}
 
             {isProposer && isPendingForViewer && proposal.on_chain_id && (
