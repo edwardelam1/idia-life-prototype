@@ -1205,6 +1205,7 @@ export const ProposalCard: React.FC<{
             })()}
 
             {QuorumBar}
+            <VoterLedger proposalId={proposal.proposal_ref} refreshKey={ledgerNonce} />
             {DeadlinePill}
 
             {isProposer && isPendingForViewer && proposal.on_chain_id && (
