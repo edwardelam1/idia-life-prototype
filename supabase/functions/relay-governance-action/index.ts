@@ -600,4 +600,11 @@ serve(async (req) => {
       500,
     );
   }
+  } catch (error: any) {
+    console.error("[GOV_RELAY][FATAL_CRASH] Uncaught exception in edge function:", error?.message || error, error?.stack);
+    return new Response(
+      JSON.stringify({ error: "Internal Server Error", details: error?.message }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
 });
