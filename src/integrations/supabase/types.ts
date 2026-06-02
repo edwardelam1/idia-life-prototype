@@ -2020,6 +2020,13 @@ export type Database = {
             foreignKeyName: "data_sources_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "member_wallet_directory"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "data_sources_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
@@ -2751,7 +2758,21 @@ export type Database = {
             foreignKeyName: "endorsements_endorsee_id_fkey"
             columns: ["endorsee_id"]
             isOneToOne: false
+            referencedRelation: "member_wallet_directory"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "endorsements_endorsee_id_fkey"
+            columns: ["endorsee_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "endorsements_endorser_id_fkey"
+            columns: ["endorser_id"]
+            isOneToOne: false
+            referencedRelation: "member_wallet_directory"
             referencedColumns: ["user_id"]
           },
           {
@@ -3050,7 +3071,21 @@ export type Database = {
             foreignKeyName: "friends_user_id_1_fkey"
             columns: ["user_id_1"]
             isOneToOne: false
+            referencedRelation: "member_wallet_directory"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "friends_user_id_1_fkey"
+            columns: ["user_id_1"]
+            isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "friends_user_id_2_fkey"
+            columns: ["user_id_2"]
+            isOneToOne: false
+            referencedRelation: "member_wallet_directory"
             referencedColumns: ["user_id"]
           },
           {
@@ -3324,7 +3359,21 @@ export type Database = {
             foreignKeyName: "good_deeds_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "member_wallet_directory"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "good_deeds_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "good_deeds_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "member_wallet_directory"
             referencedColumns: ["user_id"]
           },
           {
@@ -4340,6 +4389,13 @@ export type Database = {
           version?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "legal_agreements_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "member_wallet_directory"
+            referencedColumns: ["user_id"]
+          },
           {
             foreignKeyName: "legal_agreements_user_id_fkey"
             columns: ["user_id"]
@@ -5376,6 +5432,13 @@ export type Database = {
             foreignKeyName: "platform_users_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
+            referencedRelation: "member_wallet_directory"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "platform_users_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
@@ -5507,7 +5570,21 @@ export type Database = {
             foreignKeyName: "praises_praised_id_fkey"
             columns: ["praised_id"]
             isOneToOne: false
+            referencedRelation: "member_wallet_directory"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "praises_praised_id_fkey"
+            columns: ["praised_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "praises_praiser_id_fkey"
+            columns: ["praiser_id"]
+            isOneToOne: false
+            referencedRelation: "member_wallet_directory"
             referencedColumns: ["user_id"]
           },
           {
@@ -5944,6 +6021,13 @@ export type Database = {
             foreignKeyName: "pulse_survey_responses_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "member_wallet_directory"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "pulse_survey_responses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
@@ -5981,6 +6065,13 @@ export type Database = {
           title?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "pulse_surveys_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "member_wallet_directory"
+            referencedColumns: ["user_id"]
+          },
           {
             foreignKeyName: "pulse_surveys_created_by_fkey"
             columns: ["created_by"]
@@ -6870,6 +6961,13 @@ export type Database = {
             foreignKeyName: "social_analytics_consent_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
+            referencedRelation: "member_wallet_directory"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "social_analytics_consent_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
@@ -6904,6 +7002,13 @@ export type Database = {
           weekly_interactions_count?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "social_health_metrics_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "member_wallet_directory"
+            referencedColumns: ["user_id"]
+          },
           {
             foreignKeyName: "social_health_metrics_user_id_fkey"
             columns: ["user_id"]
@@ -7656,6 +7761,13 @@ export type Database = {
             foreignKeyName: "trust_circle_members_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "member_wallet_directory"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "trust_circle_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
@@ -7690,6 +7802,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "trust_circles_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "member_wallet_directory"
+            referencedColumns: ["user_id"]
+          },
           {
             foreignKeyName: "trust_circles_owner_id_fkey"
             columns: ["owner_id"]
@@ -8026,6 +8145,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "interests"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_interests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "member_wallet_directory"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "user_interests_user_id_fkey"
@@ -8490,6 +8616,13 @@ export type Database = {
             foreignKeyName: "wallets_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
+            referencedRelation: "member_wallet_directory"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "wallets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
@@ -8820,6 +8953,21 @@ export type Database = {
         Row: {
           data_category: string | null
           total_records: number | null
+        }
+        Relationships: []
+      }
+      member_wallet_directory: {
+        Row: {
+          user_id: string | null
+          wallet_address: string | null
+        }
+        Insert: {
+          user_id?: string | null
+          wallet_address?: string | null
+        }
+        Update: {
+          user_id?: string | null
+          wallet_address?: string | null
         }
         Relationships: []
       }

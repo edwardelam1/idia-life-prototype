@@ -90,7 +90,7 @@ const CommitteeRosterModal: React.FC<Props> = ({
       let wallets: Record<string, string | null> = {};
       if (userIds.length > 0) {
         const { data: profs } = await (supabase as any)
-          .from("profiles")
+          .from("member_wallet_directory")
           .select("user_id, wallet_address")
           .in("user_id", userIds);
         (profs || []).forEach((p: any) => (wallets[p.user_id] = p.wallet_address ?? null));
