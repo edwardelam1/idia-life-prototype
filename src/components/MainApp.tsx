@@ -191,6 +191,21 @@ const MainApp = () => {
           onDismiss={dismissNudge}
           onCreateWallet={handleCreateWalletFromNudge}
         />
+        <SelfDelegateEducationModal
+          isVisible={showSelfDelegateEdu}
+          onDismiss={() => {
+            setShowSelfDelegateEdu(false);
+            if (selfDelegateEduAddress) {
+              try {
+                localStorage.setItem(
+                  `idia_self_delegate_edu_seen_v1:${selfDelegateEduAddress.toLowerCase()}`,
+                  "1",
+                );
+              } catch {}
+            }
+          }}
+          onGoToWallet={() => setActiveTab("wallet")}
+        />
       </div>
     </FriendAssistantProvider>
   );
