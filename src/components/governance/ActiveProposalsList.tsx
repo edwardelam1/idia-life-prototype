@@ -525,28 +525,83 @@ export const ProposalCard: React.FC<{
       console.log(`[PROCESS] Relay confirmed`, relayData);
 
       // ── ONLY after on-chain success: mirror the vote into dao_votes ──
+      // Capture the voter's REAL voting power at the proposal's snapshot block
+      // directly from Base RPC. vote_weight stays for legacy/Tophat compat, but
+      // snapshot_voting_power is the auditable bigint that drove the on-chain tally.
+      let snapshotPower: number | null = null;
+      if (!tophatOverride && ballotSig?.signerAddress && chain.snapshotBlock != null) {
+        try {
+          console.log(
+            `[GOV_VOTE][RPC_QUERY][START] getVotes voter=${ballotSig.signerAddress} @snapshot=${chain.snapshotBlock}`,
+          );
+          const networkKey = ACTIVE_DEPLOYMENT === "mainnet" ? "base" : "baseSepolia";
+          const network = NETWORKS[networkKey];
+          const rpcUrl = (import.meta.env.VITE_ALCHEMY_RPC_URL as string | undefined) || network.rpcUrl;
+          const provider = new ethers.JsonRpcProvider(rpcUrl, network.chainId);
+          const govRead = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, provider);
+          const raw = await govRead.getVotes(ballotSig.signerAddress, chain.snapshotBlock);
+          snapshotPower = Number(ethers.formatUnits(raw, 18));
+          console.log(`[GOV_VOTE][RPC_QUERY][END:OK] weight=${raw.toString()} (${snapshotPower} IDIA)`);
+        } catch (snapErr) {
+          console.warn(`[GOV_VOTE][RPC_QUERY][END:WARN] snapshot getVotes failed`, snapErr);
+        }
+      }
+
+      console.log(`[GOV_VOTE][DB_INSERT][START] dao_votes proposal_id=${proposal.proposal_ref}`);
       const voteRow: Record<string, unknown> = {
-        proposal_ref: proposal.proposal_ref,
+        proposal_id: proposal.proposal_ref,
         user_id: user.id,
         vote_type: support,
         vote_weight: chosenWeight,
+        snapshot_voting_power: snapshotPower,
+        snapshot_block: chain.snapshotBlock ?? null,
         credits_spent: tophatOverride ? 0 : 1,
         aca_hash_key: hash,
         aca_payload: payload,
       };
-      if (UUID_RE.test(proposal.proposal_ref)) voteRow.proposal_id = proposal.proposal_ref;
       const { error: voteError } = await (supabase as any).from("dao_votes").insert(voteRow);
       if (voteError) {
         if (voteError.code === "23505") {
           // Chain accepted but mirror already exists — safe to surface as success
           setHasVoted(support);
+          console.log(`[GOV_VOTE][DB_INSERT][END:DUPLICATE] mirror already present`);
         } else {
-          console.error(`[VOTE_CAST] MIRROR_FAILED (chain succeeded)`, voteError);
+          console.error(`[GOV_VOTE][DB_INSERT][END:FAIL] (chain succeeded)`, voteError);
           toast({
             title: "Vote anchored, mirror lagging",
             description: "On-chain vote succeeded. The off-chain mirror will reconcile shortly.",
           });
         }
+      } else {
+        console.log(`[GOV_VOTE][DB_INSERT][END:OK] vote ledger row synchronized`);
+      }
+
+      // ── 1. INSTANT optimistic UI bump (no RPC, no await) ──
+      const optimisticWeight = snapshotPower ?? Number(chosenWeight) ?? 0;
+      console.log(`[GOV_VOTE][OPTIMISTIC][APPLY] +${optimisticWeight} on ${support}`);
+      setChain((prev) => ({
+        ...prev,
+        forVotes:     support === "for"     ? prev.forVotes     + optimisticWeight : prev.forVotes,
+        againstVotes: support === "against" ? prev.againstVotes + optimisticWeight : prev.againstVotes,
+      }));
+      setLedgerNonce((n) => n + 1);
+
+      // ── 2. Authoritative refresh — deferred so Base Mainnet propagates ──
+      if (proposal.on_chain_id) {
+        const onChainIdForRefresh = proposal.on_chain_id;
+        console.log(`[GOV_VOTE][CHAIN_REFRESH][SCHEDULED] +1500ms`);
+        setTimeout(async () => {
+          console.log(`[GOV_VOTE][CHAIN_REFRESH][START]`);
+          try {
+            const cs = await readChainState(onChainIdForRefresh);
+            setChain(cs);
+            console.log(
+              `[GOV_VOTE][CHAIN_REFRESH][END:OK] for=${cs.forVotes} against=${cs.againstVotes}`,
+            );
+          } catch (refreshErr) {
+            console.warn(`[GOV_VOTE][CHAIN_REFRESH][END:WARN]`, refreshErr);
+          }
+        }, 1500);
       }
 
       // Burn 1 IDIA from wallet for standard votes only
