@@ -160,6 +160,19 @@ serve(async (req) => {
       if (!acaHash || typeof acaHash !== "string") {
         return jsonResponse({ error: "Missing acaHash", failed_at: stage }, 400);
       }
+      // Standard (non-override) votes are gasless: client MUST supply an
+      // EIP-712 Ballot signature. Tophat override skips this — Treasury weight.
+      if (tophatOverride !== true) {
+        const vOk = typeof sigV === "number" || typeof sigV === "string";
+        const rOk = typeof sigR === "string" && sigR.startsWith("0x");
+        const sOk = typeof sigS === "string" && sigS.startsWith("0x");
+        if (!vOk || !rOk || !sOk) {
+          return jsonResponse(
+            { error: "Missing EIP-712 Ballot signature (v,r,s) for gasless vote.", failed_at: stage },
+            400,
+          );
+        }
+      }
     }
 
     // CANCEL_PROPOSAL-specific validation
