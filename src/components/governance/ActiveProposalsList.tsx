@@ -507,20 +507,11 @@ export const ProposalCard: React.FC<{
       return;
     }
 
-    // 0a. Voting-window gate — chain.state must be Active (1). Pending (0) reverts
-    // on-chain. We refuse the click locally so no optimistic UI ever flashes.
-    if (chain.state !== 1) {
-      toast({
-        title: "Voting not open",
-        description:
-          chain.state === 0
-            ? "This proposal is still in the Pending window. Try again once voting opens."
-            : "Voting is closed for this proposal.",
-        variant: "destructive",
-      });
-      s.fail("voting_not_open");
-      return;
-    }
+    // Voting-window gate is now performed against a FRESH on-chain read inside
+    // the pre-flight block (post-signBallot). React state may be stale across
+    // the Pending → Active boundary, so we never trust `chain.state` here.
+
+
 
 
     // Tophat override requires L3 clearance (server-validated again in edge fn)
