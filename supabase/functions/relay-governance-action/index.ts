@@ -18,8 +18,12 @@ const ESCROW_ABI = [
 
 const GOVERNOR_ABI = [
   "function castVote(uint256 proposalId, uint8 support) returns (uint256)",
+  "function castVoteBySig(uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s) returns (uint256)",
   "function state(uint256 proposalId) view returns (uint8)",
   "function proposalProposer(uint256 proposalId) view returns (address)",
+  "function proposalSnapshot(uint256 proposalId) view returns (uint256)",
+  "function getVotes(address account, uint256 blockNumber) view returns (uint256)",
+  "function hasVoted(uint256 proposalId, address account) view returns (bool)",
   "function cancel(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) returns (uint256)",
 ];
 
