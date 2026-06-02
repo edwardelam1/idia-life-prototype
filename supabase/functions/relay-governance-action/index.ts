@@ -454,6 +454,7 @@ serve(async (req) => {
         `[GOV_RELAY][${tag}][${stage}][START] castVote(${onchainId}, ${supportValue}) -> ${networkConfig.governor}`,
       );
       const gov = new ethers.Contract(networkConfig.governor, GOVERNOR_ABI, relayerWallet);
+      console.log(`[GOV_RELAY][${tag}][${stage}][AWAIT_SUBMIT_START] gov.castVote()`);
       const tx = await gov.castVote(onchainId, supportValue);
       console.log(`[GOV_RELAY][${tag}][${stage}] Tx submitted: ${tx.hash}`);
 
