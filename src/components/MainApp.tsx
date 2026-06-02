@@ -61,9 +61,19 @@ const MainApp = () => {
 
   useEffect(() => {
     const handleVaultLinked = (event: any) => {
-      console.log("[SYNC] Immediate Vault Hydration:", event.detail.address);
+      const address: string | undefined = event?.detail?.address;
+      console.log("[SYNC] Immediate Vault Hydration:", address);
       setIsProvisioned((prev) => ({ ...prev, wallet: true }));
       setNudgeDismissed(true);
+      if (address) {
+        try {
+          const key = `idia_self_delegate_edu_seen_v1:${address.toLowerCase()}`;
+          if (localStorage.getItem(key) !== "1") {
+            setSelfDelegateEduAddress(address);
+            setShowSelfDelegateEdu(true);
+          }
+        } catch {}
+      }
     };
     window.addEventListener("vault-linked", handleVaultLinked);
     return () => window.removeEventListener("vault-linked", handleVaultLinked);
