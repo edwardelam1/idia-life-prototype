@@ -360,7 +360,7 @@ export const ProposalCard: React.FC<{
     tophatOverride: boolean,
   ) => {
     console.log(
-      `[BEGIN] handleCastVote | proposal=${proposal.id} intent=${support} weight=${chosenWeight} override=${tophatOverride}`,
+      `[GOV_VOTE][START] proposal_id=${proposal.on_chain_id ?? proposal.proposal_ref} intent=${support} weight=${chosenWeight} override=${tophatOverride}`,
     );
     const s = stage("VOTE_CAST", `${support.toUpperCase()}${tophatOverride ? "_OVERRIDE" : ""}`);
     s.start({ proposalId: proposal.id, level: ascensionLevel, weight: chosenWeight, tophatOverride });
