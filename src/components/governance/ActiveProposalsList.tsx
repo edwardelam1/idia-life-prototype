@@ -301,12 +301,12 @@ export const ProposalCard: React.FC<{
       s.start({ id: proposal.id });
       try {
         const [{ data: votes }, mine] = await Promise.all([
-          (supabase as any).from("dao_votes").select("vote_type, vote_weight").eq("proposal_ref", proposal.proposal_ref),
+          (supabase as any).from("dao_votes").select("vote_type, vote_weight").eq("proposal_id", proposal.proposal_ref),
           currentUserId
             ? (supabase as any)
                 .from("dao_votes")
                 .select("vote_type")
-                .eq("proposal_ref", proposal.proposal_ref)
+                .eq("proposal_id", proposal.proposal_ref)
                 .eq("user_id", currentUserId)
                 .maybeSingle()
             : Promise.resolve({ data: null }),
