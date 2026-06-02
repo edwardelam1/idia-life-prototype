@@ -1262,7 +1262,13 @@ export const ProposalCard: React.FC<{
             })()}
 
             {QuorumBar}
+            {isSubmitting && (
+              <p className="text-[11px] text-muted-foreground animate-pulse">
+                Verifying on-chain settlement…
+              </p>
+            )}
             <VoterLedger proposalId={proposal.proposal_ref} refreshKey={ledgerNonce} />
+
             {DeadlinePill}
 
             {isProposer && isPendingForViewer && proposal.on_chain_id && (
