@@ -654,7 +654,7 @@ export const ProposalCard: React.FC<{
       const { data: latest } = await (supabase as any)
         .from("dao_votes")
         .select("id")
-        .eq("proposal_ref", proposal.proposal_ref)
+        .eq("proposal_id", proposal.proposal_ref)
         .limit(1);
       if ((latest || []).length > 0) {
         toast({
