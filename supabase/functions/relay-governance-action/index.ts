@@ -493,15 +493,96 @@ serve(async (req) => {
         console.log(`[GOV_RELAY][TOPHAT_OVERRIDE][${stage}][SUCCESS] hats=${hats.map((h: any) => h.hat_type).join(",")}`);
       }
 
-      // STAGE 4: BROADCAST_TRANSACTION — Treasury/Relayer wallet casts the vote
+      // STAGE 3.7: PREFLIGHT_SNAPSHOT — gasless path only. Hard-stop any
+      // wallet that had zero voting weight at the snapshot block (or has
+      // already voted) BEFORE the relayer wastes a single wei of gas.
+      let preflightAddr: string | null = null;
+      if (!overrideAuthorized) {
+        stage = "PREFLIGHT_SNAPSHOT";
+        console.log(`[GOV_RELAY][STANDARD_VOTE][${stage}][START]`);
+        const govRead = new ethers.Contract(networkConfig.governor, GOVERNOR_ABI, provider);
+        const snapshotBlock = await withTimeout(
+          govRead.proposalSnapshot(onchainId),
+          8_000,
+          "governor.proposalSnapshot()",
+        );
+
+        let checkAddr: string | undefined =
+          typeof voterAddress === "string" && voterAddress.startsWith("0x")
+            ? voterAddress
+            : undefined;
+        if (!checkAddr) {
+          const { data: profile } = await supabaseAdmin
+            .from("profiles")
+            .select("wallet_address")
+            .eq("id", userId)
+            .maybeSingle();
+          checkAddr = (profile?.wallet_address as string | undefined) ?? undefined;
+        }
+        if (!checkAddr || !ethers.isAddress(checkAddr)) {
+          console.error(
+            `[GOV_RELAY][STANDARD_VOTE][${stage}][FATAL] No wallet address resolvable for user ${userId}.`,
+          );
+          return jsonResponse(
+            { error: "No sovereign wallet on profile for snapshot verification.", failed_at: stage },
+            400,
+          );
+        }
+        preflightAddr = checkAddr;
+
+        // 1. Strict weight enforcement — zero weight is a fatal rejection.
+        const weight = await withTimeout(
+          govRead.getVotes(checkAddr, snapshotBlock),
+          8_000,
+          "governor.getVotes()",
+        );
+
+        if (weight === 0n) {
+          console.error(
+            `[GOV_RELAY][STANDARD_VOTE][${stage}][FATAL] Wallet ${checkAddr} attempted to vote with 0 weight at block ${snapshotBlock}. Reverting.`,
+          );
+          return jsonResponse(
+            {
+              error: "Wallet has zero voting weight for this proposal snapshot. Access denied.",
+              failed_at: stage,
+            },
+            409,
+          );
+        }
+
+        // 2. Double-vote protection — only runs if they have weight.
+        const alreadyVoted = await withTimeout(
+          govRead.hasVoted(onchainId, checkAddr),
+          8_000,
+          "governor.hasVoted()",
+        );
+        if (alreadyVoted) {
+          console.warn(
+            `[GOV_RELAY][STANDARD_VOTE][${stage}][WARN] Wallet ${checkAddr} has already cast a ballot.`,
+          );
+          return jsonResponse(
+            { error: "Wallet has already voted on this proposal.", failed_at: stage },
+            409,
+          );
+        }
+
+        console.log(
+          `[GOV_RELAY][STANDARD_VOTE][${stage}][SUCCESS] Wallet ${checkAddr} verified with weight: ${weight.toString()}`,
+        );
+      }
+
+      // STAGE 4: BROADCAST_TRANSACTION — Treasury/Relayer wallet broadcasts the vote
       stage = "BROADCAST_TRANSACTION";
       const tag = overrideAuthorized ? "TOPHAT_OVERRIDE" : "STANDARD_VOTE";
+      const via = overrideAuthorized ? "castVote" : "castVoteBySig";
       console.log(
-        `[GOV_RELAY][${tag}][${stage}][START] castVote(${onchainId}, ${supportValue}) -> ${networkConfig.governor}`,
+        `[GOV_RELAY][${tag}][${stage}][START] ${via}(${onchainId}, ${supportValue}) -> ${networkConfig.governor}`,
       );
       const gov = new ethers.Contract(networkConfig.governor, GOVERNOR_ABI, relayerWallet);
-      console.log(`[GOV_RELAY][${tag}][${stage}][AWAIT_SUBMIT_START] gov.castVote()`);
-      const tx = await gov.castVote(onchainId, supportValue);
+      console.log(`[GOV_RELAY][${tag}][${stage}][AWAIT_SUBMIT_START] gov.${via}()`);
+      const tx = overrideAuthorized
+        ? await gov.castVote(onchainId, supportValue)
+        : await gov.castVoteBySig(onchainId, supportValue, Number(sigV), sigR, sigS);
       console.log(`[GOV_RELAY][${tag}][${stage}] Tx submitted: ${tx.hash}`);
 
       stage = "AWAIT_CONFIRMATION";
