@@ -85,7 +85,18 @@ serve(async (req) => {
       return jsonResponse({ error: "Missing user authentication token.", failed_at: stage }, 401);
     }
 
-    const body = await req.json().catch(() => ({}));
+    console.log(
+      `[GOV_RELAY][${stage}][HEADERS] method=${req.method} content-type=${req.headers.get("content-type")} content-length=${req.headers.get("content-length")}`,
+    );
+    console.log(`[GOV_RELAY][${stage}][AWAIT_JSON_START] Awaiting req.json()`);
+    let body: any;
+    try {
+      body = await withTimeout(req.json(), 10_000, "req.json()");
+      console.log(`[GOV_RELAY][${stage}][AWAIT_JSON_END] Successfully parsed body`);
+    } catch (e: any) {
+      console.error(`[GOV_RELAY][${stage}][JSON_ERROR]`, e?.message || e);
+      return jsonResponse({ error: "Invalid JSON body", failed_at: stage }, 400);
+    }
     const {
       actionType,
       escrowTarget,
