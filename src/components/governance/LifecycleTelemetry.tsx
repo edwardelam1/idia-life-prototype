@@ -114,10 +114,11 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
     (async () => {
       // BLOCK 1: TALLY (Supabase) + QUORUM (direct RPC)
       try {
+        const voteKey = proposal.on_chain_id ?? proposal.id;
         const { data } = await supabase
           .from("dao_votes")
-          .select("vote_type, vote_weight")
-          .eq("proposal_id", proposal.id);
+          .select("vote_type, vote_weight, snapshot_voting_power")
+          .eq("proposal_id", voteKey);
         const rows = (data || []) as { vote_type: string; vote_weight?: number }[];
         if (alive) {
           const f = rows.filter((r) => r.vote_type === "for").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0);
