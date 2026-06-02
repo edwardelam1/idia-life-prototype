@@ -88,10 +88,12 @@ serve(async (req) => {
     const maxDbAttempts = 3;
     while (dbAttempts < maxDbAttempts) {
       dbAttempts++;
+      // Non-terminal Governor states: 0=Pending, 1=Active, 5=Queued.
+      // Terminal (skip): 2=Canceled, 3=Defeated, 4=Succeeded, 6=Expired, 7=Executed.
       const { data, error } = await supabaseAdmin
         .from("governance_proposals")
-        .select("id, proposal_id, description, targets, callvalues, calldatas")
-        .or("state.is.null,state_name.eq.Unknown")
+        .select("proposal_id, description, targets, callvalues, calldatas")
+        .in("state", [0, 1, 5])
         .limit(25);
 
       if (error) {
