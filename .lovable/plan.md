@@ -1,44 +1,114 @@
-# Fix relay edge function "module not found" errors
+# Plan: Granular Telemetry for `relay-governance-action` Silent Stall (v2)
 
-## Symptom
+## Goal
+Pinpoint exactly where the function hangs by instrumenting every async boundary from request receipt through the first blockchain RPC round-trip, with hard timeouts so the worker can never silently hang to `EarlyDrop`.
 
-Edge function (deployment `66cd0c5f...` — `relay-governance-action`) logs:
+## Scope
+Single file: `supabase/functions/relay-governance-action/index.ts`. Pure observability + defensive timeout wrappers. No business-logic changes.
 
-```
-module "/utf-8-validate@5.0.10/denonext/package.json" not found
-module "/bufferutil@4.1.0/denonext/package.json" not found
-```
-
-These fire on cold start and break the function before it can handle the request — which is why the recent cancel/relay attempts surface as opaque edge errors.
-
-## Root cause
-
-All three relay edge functions import ethers via esm.sh:
-
+## Helper: shared timeout race
+Add a tiny helper near the top of the file so every suspect await uses the same pattern:
 ```ts
-import { ethers } from "https://esm.sh/ethers@6.13.0";
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+    ),
+  ]);
+}
 ```
 
-esm.sh's bundle of ethers transitively pulls `ws`, which has optional native deps `bufferutil` and `utf-8-validate`. esm.sh's denonext build references them as package.json sub-modules that aren't actually published in that path, so Deno's edge-runtime fails the resolve at boot. This is a known esm.sh + ws issue and is fixed by switching to the `npm:` specifier, which lets Deno's npm resolver mark those optional deps as truly optional.
+## Changes
 
-## Fix
-
-Switch the ethers import in all three relay functions from esm.sh to npm:
-
+### 1. Granular body parsing (STAGE: PARSE_REQUEST)
+Replace `const body = await req.json().catch(() => ({}));` with:
 ```ts
-import { ethers } from "npm:ethers@6.13.0";
+console.log(
+  `[GOV_RELAY][PARSE_REQUEST][HEADERS] method=${req.method} content-type=${req.headers.get("content-type")} content-length=${req.headers.get("content-length")}`,
+);
+console.log("[GOV_RELAY][PARSE_REQUEST][AWAIT_JSON_START] Awaiting req.json()");
+let body: any;
+try {
+  body = await withTimeout(req.json(), 10_000, "req.json()");
+  console.log("[GOV_RELAY][PARSE_REQUEST][AWAIT_JSON_END] Successfully parsed body");
+} catch (e: any) {
+  console.error("[GOV_RELAY][PARSE_REQUEST][JSON_ERROR]", e?.message || e);
+  return jsonResponse({ error: "Invalid JSON body", failed_at: "PARSE_REQUEST" }, 400);
+}
 ```
 
-Files:
-- `supabase/functions/relay-governance-action/index.ts` (line 13)
-- `supabase/functions/relay-delegation/index.ts` (line 13)
-- `supabase/functions/relay-usdc-transfer/index.ts` (line 11)
+### 2. Granular auth round-trip (STAGE: VERIFY_IDENTITY)
+The existing `supabaseAdmin.auth.getClaims(token)` is another silent-hang candidate. Wrap and log:
+```ts
+console.log("[GOV_RELAY][VERIFY_IDENTITY][AWAIT_CLAIMS_START]");
+const { data: claimsData, error: claimsError } = await withTimeout(
+  supabaseAdmin.auth.getClaims(token),
+  8_000,
+  "auth.getClaims()",
+);
+console.log(`[GOV_RELAY][VERIFY_IDENTITY][AWAIT_CLAIMS_END] error=${!!claimsError}`);
+```
 
-No code logic changes — the ethers v6 API surface is identical between the two specifiers.
+### 3. Granular RPC provider + first read (STAGE: CONNECT_BLOCKCHAIN)
+Currently the provider is built and `provider.getBalance()` is awaited with zero per-step telemetry. Replace the `CONNECT_BLOCKCHAIN` block with explicit boundaries:
+```ts
+console.log("[GOV_RELAY][RPC_SETUP][START] Resolving RPC URL");
+const networkConfig = NETWORKS[networkId]!;
+const rpcUrl = Deno.env.get("ALCHEMY_BASE_RPC_URL") || networkConfig.rpcUrlFallback;
+console.log(`[GOV_RELAY][RPC_SETUP][URL] using=${rpcUrl.includes("alchemy") ? "alchemy" : "public-base"}`);
 
-If a stale `supabase/functions/deno.lock` exists after the swap and the deploy still fails, delete it so edge-runtime regenerates a clean lockfile against the npm specifier.
+const relayerKey = Deno.env.get("RELAYER_PRIVATE_KEY");
+if (!relayerKey) {
+  return jsonResponse({ error: "RELAYER_PRIVATE_KEY unbound.", failed_at: stage }, 500);
+}
 
-## Out of scope
+console.log("[GOV_RELAY][RPC_SETUP][PROVIDER_INIT_START]");
+const provider = new ethers.JsonRpcProvider(rpcUrl);
+console.log("[GOV_RELAY][RPC_SETUP][PROVIDER_INIT_END]");
 
-- The client-side cancel flow in `ActiveProposalsList.tsx` (already correct — uses the in-app wallet, not this edge function).
-- Any change to relayer signing semantics. Governor.cancel still must be signed by the proposer; this fix only unblocks the other relay actions (`APPROVE_AND_EXECUTE`, `delegateBySig`, USDC transfers) that legitimately go through the relayer.
+console.log("[GOV_RELAY][RPC_SETUP][WALLET_BIND_START]");
+const relayerWallet = new ethers.Wallet(relayerKey, provider);
+console.log(`[GOV_RELAY][RPC_SETUP][WALLET_BIND_END] address=${relayerWallet.address}`);
+
+console.log("[GOV_RELAY][RPC_SETUP][GET_BALANCE_START]");
+const gasBalance = await withTimeout(
+  provider.getBalance(relayerWallet.address),
+  8_000,
+  "provider.getBalance()",
+);
+console.log(`[GOV_RELAY][RPC_SETUP][GET_BALANCE_END] balance=${ethers.formatEther(gasBalance)} ETH`);
+if (gasBalance === 0n) {
+  return jsonResponse({ error: "Relayer wallet has no gas funds.", failed_at: stage }, 500);
+}
+```
+
+### 4. Granular first contract read for CANCEL_PROPOSAL
+The `Promise.all([govRead.state(...), govRead.proposalProposer(...)])` is the first real on-chain call in that branch. Wrap with telemetry + timeout:
+```ts
+console.log(`[GOV_RELAY][CONTRACT_READ][START] state(${onchainId}) + proposalProposer(${onchainId})`);
+const [s, p] = await withTimeout(
+  Promise.all([govRead.state(onchainId), govRead.proposalProposer(onchainId)]),
+  10_000,
+  "governor.state+proposer",
+);
+console.log(`[GOV_RELAY][CONTRACT_READ][END] state=${Number(s)} proposer=${p}`);
+```
+
+### 5. Granular broadcast boundaries (all three branches)
+Both `castVote()`, `cancel()`, and `approveAndExecute()` already log "Tx submitted" after the await returns — but never log the moment they enter the await. Add a `[BROADCAST_TRANSACTION][AWAIT_SUBMIT_START]` line immediately before each contract call, mirroring the existing `[Tx submitted]` line. Keep the existing post-submit and `tx.wait()` logs as-is — no timeout on `tx.wait()` (legitimate Base block times can exceed 8s).
+
+## Out of Scope
+- No changes to other relay functions (`relay-delegation`, `relay-usdc-transfer`). Once we identify the stall, mirror the pattern.
+- No client-side changes to `governanceRelay.ts`.
+- No retry/backoff logic — just observability + fail-fast timeouts.
+
+## Verification
+1. Deploy.
+2. Trigger the failing governance action.
+3. Inspect edge logs — the last successful `[*_END]` log identifies the exact suspect. Expected diagnostic outcomes:
+   - Stops after `[PARSE_REQUEST][HEADERS]` with no `[AWAIT_JSON_END]` → body stream stall (likely caller-side).
+   - `[JSON_ERROR] req.json() timed out after 10000ms` → confirmed body hang, fix caller.
+   - Stops after `[AWAIT_CLAIMS_START]` → Supabase auth round-trip hang.
+   - Stops after `[PROVIDER_INIT_END]` with no `[GET_BALANCE_END]` → RPC endpoint (Alchemy or public Base) unreachable from edge runtime.
+   - `[GET_BALANCE_END]` reached but `[CONTRACT_READ][END]` never → governor read reverting/hanging.

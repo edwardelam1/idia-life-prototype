@@ -59,6 +59,16 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   });
 }
 
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+    ),
+  ]);
+}
+
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -75,7 +85,18 @@ serve(async (req) => {
       return jsonResponse({ error: "Missing user authentication token.", failed_at: stage }, 401);
     }
 
-    const body = await req.json().catch(() => ({}));
+    console.log(
+      `[GOV_RELAY][${stage}][HEADERS] method=${req.method} content-type=${req.headers.get("content-type")} content-length=${req.headers.get("content-length")}`,
+    );
+    console.log(`[GOV_RELAY][${stage}][AWAIT_JSON_START] Awaiting req.json()`);
+    let body: any;
+    try {
+      body = await withTimeout(req.json(), 10_000, "req.json()");
+      console.log(`[GOV_RELAY][${stage}][AWAIT_JSON_END] Successfully parsed body`);
+    } catch (e: any) {
+      console.error(`[GOV_RELAY][${stage}][JSON_ERROR]`, e?.message || e);
+      return jsonResponse({ error: "Invalid JSON body", failed_at: stage }, 400);
+    }
     const {
       actionType,
       escrowTarget,
@@ -156,7 +177,13 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabaseAdmin.auth.getClaims(token);
+    console.log(`[GOV_RELAY][${stage}][AWAIT_CLAIMS_START]`);
+    const { data: claimsData, error: claimsError } = await withTimeout(
+      supabaseAdmin.auth.getClaims(token),
+      8_000,
+      "auth.getClaims()",
+    );
+    console.log(`[GOV_RELAY][${stage}][AWAIT_CLAIMS_END] error=${!!claimsError}`);
     if (claimsError || !claimsData?.claims?.sub) {
       return jsonResponse({ error: "Session verification failed.", failed_at: stage }, 401);
     }
@@ -169,16 +196,27 @@ serve(async (req) => {
 
     const networkConfig = NETWORKS[networkId]!;
     const rpcUrl = Deno.env.get("ALCHEMY_BASE_RPC_URL") || networkConfig.rpcUrlFallback;
+    console.log(`[GOV_RELAY][RPC_SETUP][URL] using=${rpcUrl.includes("alchemy") ? "alchemy" : "public-base"}`);
     const relayerKey = Deno.env.get("RELAYER_PRIVATE_KEY");
     if (!relayerKey) {
       return jsonResponse({ error: "RELAYER_PRIVATE_KEY unbound.", failed_at: stage }, 500);
     }
 
+    console.log(`[GOV_RELAY][RPC_SETUP][PROVIDER_INIT_START]`);
     const provider = new ethers.JsonRpcProvider(rpcUrl);
+    console.log(`[GOV_RELAY][RPC_SETUP][PROVIDER_INIT_END]`);
+
+    console.log(`[GOV_RELAY][RPC_SETUP][WALLET_BIND_START]`);
     const relayerWallet = new ethers.Wallet(relayerKey, provider);
-    const gasBalance = await provider.getBalance(relayerWallet.address);
-    console.log(`[GOV_RELAY][${stage}] Relayer ${relayerWallet.address}`);
-    console.log(`[GOV_RELAY][${stage}] Gas balance ${ethers.formatEther(gasBalance)} ETH`);
+    console.log(`[GOV_RELAY][RPC_SETUP][WALLET_BIND_END] address=${relayerWallet.address}`);
+
+    console.log(`[GOV_RELAY][RPC_SETUP][GET_BALANCE_START]`);
+    const gasBalance = await withTimeout(
+      provider.getBalance(relayerWallet.address),
+      8_000,
+      "provider.getBalance()",
+    );
+    console.log(`[GOV_RELAY][RPC_SETUP][GET_BALANCE_END] balance=${ethers.formatEther(gasBalance)} ETH`);
     if (gasBalance === 0n) {
       return jsonResponse({ error: "Relayer wallet has no gas funds.", failed_at: stage }, 500);
     }
@@ -233,12 +271,18 @@ serve(async (req) => {
       let chainState: number;
       let onchainProposer: string;
       try {
-        const [s, p] = await Promise.all([
-          govRead.state(onchainId),
-          govRead.proposalProposer(onchainId),
-        ]);
+        console.log(`[GOV_RELAY][${TAG}][CONTRACT_READ][START] state(${onchainId}) + proposalProposer(${onchainId})`);
+        const [s, p] = await withTimeout(
+          Promise.all([
+            govRead.state(onchainId),
+            govRead.proposalProposer(onchainId),
+          ]),
+          10_000,
+          "governor.state+proposer",
+        );
         chainState = Number(s);
         onchainProposer = String(p);
+        console.log(`[GOV_RELAY][${TAG}][CONTRACT_READ][END] state=${chainState} proposer=${onchainProposer}`);
       } catch (readErr: any) {
         console.error(`[GOV_RELAY][${TAG}][${stage}] chain read failed: ${readErr.message}`);
         return jsonResponse({ error: "Could not read proposal state on-chain.", failed_at: stage }, 502);
@@ -293,6 +337,7 @@ serve(async (req) => {
       const gov = new ethers.Contract(networkConfig.governor, GOVERNOR_ABI, relayerWallet);
       let tx;
       try {
+        console.log(`[GOV_RELAY][${TAG}][${stage}][AWAIT_SUBMIT_START] gov.cancel()`);
         tx = await gov.cancel(targets, values, calldatas, descriptionHash);
       } catch (txErr: any) {
         console.error(`[GOV_RELAY][${TAG}][${stage}] cancel() reverted: ${txErr.message}`);
@@ -409,6 +454,7 @@ serve(async (req) => {
         `[GOV_RELAY][${tag}][${stage}][START] castVote(${onchainId}, ${supportValue}) -> ${networkConfig.governor}`,
       );
       const gov = new ethers.Contract(networkConfig.governor, GOVERNOR_ABI, relayerWallet);
+      console.log(`[GOV_RELAY][${tag}][${stage}][AWAIT_SUBMIT_START] gov.castVote()`);
       const tx = await gov.castVote(onchainId, supportValue);
       console.log(`[GOV_RELAY][${tag}][${stage}] Tx submitted: ${tx.hash}`);
 
@@ -465,6 +511,7 @@ serve(async (req) => {
     );
 
     const escrowContract = new ethers.Contract(targetContractAddress, ESCROW_ABI, relayerWallet);
+    console.log(`[GOV_RELAY][${stage}][AWAIT_SUBMIT_START] escrow.approveAndExecute()`);
     const tx = await escrowContract.approveAndExecute(onchainId);
     console.log(`[GOV_RELAY][${stage}] Tx submitted: ${tx.hash}`);
 
