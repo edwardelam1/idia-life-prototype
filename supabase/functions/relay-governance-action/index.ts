@@ -70,6 +70,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 
 
 serve(async (req) => {
+  try {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   console.log("[GOV_RELAY][INIT] Inbound governance relay request received.");
@@ -111,6 +112,7 @@ serve(async (req) => {
       title,
       description,
     } = body ?? {};
+    console.log(`[GOV_RELAY][${stage}][DESTRUCTURE_OK] keys=${Object.keys(body ?? {}).join(",")}`);
 
     if (!actionType || !ALLOWED_ACTIONS.has(actionType)) {
       return jsonResponse({ error: `Invalid actionType: ${actionType}`, failed_at: stage }, 400);
@@ -121,16 +123,19 @@ serve(async (req) => {
     if (proposalId === undefined || proposalId === null) {
       return jsonResponse({ error: "Missing proposalId", failed_at: stage }, 400);
     }
+    console.log(`[GOV_RELAY][${stage}][ACTION_VALIDATED] actionType=${actionType} escrowTarget=${escrowTarget ?? "n/a"}`);
     let onchainId: bigint;
     try {
       onchainId = BigInt(proposalId);
     } catch {
       return jsonResponse({ error: `proposalId must be numeric: ${proposalId}`, failed_at: stage }, 400);
     }
+    console.log(`[GOV_RELAY][${stage}][PROPOSAL_BIGINT_OK] onchainId=${onchainId}`);
     const networkId = Number(chainId ?? 8453);
     if (networkId !== 8453) {
       return jsonResponse({ error: `Unsupported chainId: ${networkId}`, failed_at: stage }, 400);
     }
+    console.log(`[GOV_RELAY][${stage}][CHAIN_VALIDATED] networkId=${networkId}`);
 
     // CAST_VOTE-specific validation
     let supportValue: 0 | 1 | 2 = 0;
@@ -164,6 +169,7 @@ serve(async (req) => {
         return jsonResponse({ error: "Missing acaPayload", failed_at: stage }, 400);
       }
     }
+    console.log(`[GOV_RELAY][${stage}][BRANCH_VALIDATED] branch=${actionType}`);
     console.log(
       `[GOV_RELAY][${stage}][SUCCESS] action=${actionType} proposalId=${onchainId} chainId=${networkId} override=${!!tophatOverride}`,
     );
@@ -172,22 +178,41 @@ serve(async (req) => {
     stage = "VERIFY_IDENTITY";
     console.log(`[GOV_RELAY][${stage}][START] Confirming session validity via Supabase Auth.`);
 
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    console.log(
+      `[GOV_RELAY][${stage}][ENV_CHECK] hasUrl=${!!SUPABASE_URL} hasServiceKey=${!!SERVICE_ROLE_KEY}`,
     );
+    if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+      return jsonResponse({ error: "Supabase env vars missing.", failed_at: stage }, 500);
+    }
+
+    console.log(`[GOV_RELAY][${stage}][CREATE_CLIENT_START]`);
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+    console.log(`[GOV_RELAY][${stage}][CREATE_CLIENT_END]`);
+
     const token = authHeader.replace("Bearer ", "");
-    console.log(`[GOV_RELAY][${stage}][AWAIT_CLAIMS_START]`);
-    const { data: claimsData, error: claimsError } = await withTimeout(
-      supabaseAdmin.auth.getClaims(token),
-      8_000,
-      "auth.getClaims()",
+    console.log(`[GOV_RELAY][${stage}][TOKEN_EXTRACT_OK] tokenLen=${token.length}`);
+    console.log(
+      `[GOV_RELAY][${stage}][AUTH_API_PROBE] hasAuth=${!!supabaseAdmin.auth} hasGetUser=${typeof supabaseAdmin.auth?.getUser === "function"}`,
     );
-    console.log(`[GOV_RELAY][${stage}][AWAIT_CLAIMS_END] error=${!!claimsError}`);
-    if (claimsError || !claimsData?.claims?.sub) {
+
+    console.log(`[GOV_RELAY][${stage}][AWAIT_CLAIMS_START]`);
+    const { data: userData, error: userError } = await withTimeout(
+      supabaseAdmin.auth.getUser(token),
+      8_000,
+      "auth.getUser()",
+    );
+    console.log(`[GOV_RELAY][${stage}][AWAIT_CLAIMS_END] error=${!!userError}`);
+    if (userError || !userData?.user?.id) {
       return jsonResponse({ error: "Session verification failed.", failed_at: stage }, 401);
     }
-    const userId = claimsData.claims.sub;
+    const userId = userData.user.id;
     console.log(`[GOV_RELAY][${stage}][SUCCESS] Authorized user ${userId}`);
 
     // ─── STAGE 3: CONNECT_BLOCKCHAIN ────────────────────────────────────────
@@ -573,6 +598,13 @@ serve(async (req) => {
     return jsonResponse(
       { error: err.message || "Governance relay failed.", failed_at: stage },
       500,
+    );
+  }
+  } catch (error: any) {
+    console.error("[GOV_RELAY][FATAL_CRASH] Uncaught exception in edge function:", error?.message || error, error?.stack);
+    return new Response(
+      JSON.stringify({ error: "Internal Server Error", details: error?.message }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
