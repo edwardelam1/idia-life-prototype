@@ -177,7 +177,13 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabaseAdmin.auth.getClaims(token);
+    console.log(`[GOV_RELAY][${stage}][AWAIT_CLAIMS_START]`);
+    const { data: claimsData, error: claimsError } = await withTimeout(
+      supabaseAdmin.auth.getClaims(token),
+      8_000,
+      "auth.getClaims()",
+    );
+    console.log(`[GOV_RELAY][${stage}][AWAIT_CLAIMS_END] error=${!!claimsError}`);
     if (claimsError || !claimsData?.claims?.sub) {
       return jsonResponse({ error: "Session verification failed.", failed_at: stage }, 401);
     }
