@@ -196,16 +196,27 @@ serve(async (req) => {
 
     const networkConfig = NETWORKS[networkId]!;
     const rpcUrl = Deno.env.get("ALCHEMY_BASE_RPC_URL") || networkConfig.rpcUrlFallback;
+    console.log(`[GOV_RELAY][RPC_SETUP][URL] using=${rpcUrl.includes("alchemy") ? "alchemy" : "public-base"}`);
     const relayerKey = Deno.env.get("RELAYER_PRIVATE_KEY");
     if (!relayerKey) {
       return jsonResponse({ error: "RELAYER_PRIVATE_KEY unbound.", failed_at: stage }, 500);
     }
 
+    console.log(`[GOV_RELAY][RPC_SETUP][PROVIDER_INIT_START]`);
     const provider = new ethers.JsonRpcProvider(rpcUrl);
+    console.log(`[GOV_RELAY][RPC_SETUP][PROVIDER_INIT_END]`);
+
+    console.log(`[GOV_RELAY][RPC_SETUP][WALLET_BIND_START]`);
     const relayerWallet = new ethers.Wallet(relayerKey, provider);
-    const gasBalance = await provider.getBalance(relayerWallet.address);
-    console.log(`[GOV_RELAY][${stage}] Relayer ${relayerWallet.address}`);
-    console.log(`[GOV_RELAY][${stage}] Gas balance ${ethers.formatEther(gasBalance)} ETH`);
+    console.log(`[GOV_RELAY][RPC_SETUP][WALLET_BIND_END] address=${relayerWallet.address}`);
+
+    console.log(`[GOV_RELAY][RPC_SETUP][GET_BALANCE_START]`);
+    const gasBalance = await withTimeout(
+      provider.getBalance(relayerWallet.address),
+      8_000,
+      "provider.getBalance()",
+    );
+    console.log(`[GOV_RELAY][RPC_SETUP][GET_BALANCE_END] balance=${ethers.formatEther(gasBalance)} ETH`);
     if (gasBalance === 0n) {
       return jsonResponse({ error: "Relayer wallet has no gas funds.", failed_at: stage }, 500);
     }
