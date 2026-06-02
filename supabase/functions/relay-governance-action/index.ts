@@ -511,6 +511,7 @@ serve(async (req) => {
     );
 
     const escrowContract = new ethers.Contract(targetContractAddress, ESCROW_ABI, relayerWallet);
+    console.log(`[GOV_RELAY][${stage}][AWAIT_SUBMIT_START] escrow.approveAndExecute()`);
     const tx = await escrowContract.approveAndExecute(onchainId);
     console.log(`[GOV_RELAY][${stage}] Tx submitted: ${tx.hash}`);
 
