@@ -1,62 +1,35 @@
-# Self-Delegate Onboarding + Readiness-Aware Button
+## Fix: Remove strict `voteWeight` validation in `relay-governance-action`
 
-Two scoped UI changes on the Wallet screen. No business logic or contract changes.
+The CAST_VOTE branch currently rejects requests with `Invalid voteWeight: 0` because the frontend no longer sends a weight (OpenZeppelin Governor calculates it from the snapshot block). Remove the hard requirement while preserving telemetry, timeout guards, and audit metadata.
 
-## 1. New modal: `SelfDelegateEducationModal`
+### Change (single file)
 
-**File:** `src/components/wallet/SelfDelegateEducationModal.tsx` (new)
+`supabase/functions/relay-governance-action/index.ts`, lines ~140–155:
 
-Glassmorphic dialog (matches `NoWalletNudge` style — teal→amber gradient header, white card) with:
+- Keep the `support` validation (must be 0 | 1 | 2) and the `acaHash` check.
+- Remove the `voteWeightNum <= 0` / `!Number.isFinite` rejection.
+- Still parse `voteWeight` permissively (`Number(voteWeight)` → `0` if missing/NaN) so it can be attached to the `transactions` audit metadata as an informational field only.
 
-- Title: "Claim Your Voice"
-- Body copy (verbatim from request):
-  > "You've just added a wallet! To obtain governance power of the IDIA Protocol you must have at least 1 IDIA Token and Base ETH (Gas): ~0.0001 ETH (less than $0.05) to Self-Delegate.
-  >
-  > Self-Delegating is how you Claim Your Voice in the IDIA Protocol. Pressing the 'Self-Delegate' button after you have the necessary crypto assigns your voting weight to your wallet.
-  >
-  > You will be responsible for reviewing proposals and casting your own votes."
-- Two requirement chips: `≥ 1 IDIA` and `≥ 0.0001 ETH (Base)`
-- Buttons: "Got it" (dismiss) and "Go to Wallet" (dismiss + ensure overview tab + scroll to Self-Delegate button)
+Resulting block:
 
-## 2. Trigger — once per wallet, after provisioning
+```ts
+if (actionType === "CAST_VOTE") {
+  if (support !== 0 && support !== 1 && support !== 2) {
+    return jsonResponse({ error: `Invalid support value: ${support}`, failed_at: stage }, 400);
+  }
+  supportValue = support as 0 | 1 | 2;
+  // voteWeight is informational only; contract reads weight from snapshot.
+  const parsed = Number(voteWeight);
+  voteWeightNum = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  if (!acaHash || typeof acaHash !== "string") {
+    return jsonResponse({ error: "Missing acaHash", failed_at: stage }, 400);
+  }
+}
+```
 
-**File:** `src/components/MainApp.tsx` (edit)
+### Out of scope
+- No change to `gov.castVote(onchainId, support)` execution.
+- No change to telemetry, timeouts, auth, client init, CANCEL_PROPOSAL / APPROVE_AND_EXECUTE branches, or audit insert (it already references `voteWeightNum`, which now safely defaults to 0).
 
-- Already listens for `vault-linked` events (dispatched from `handleCreateWallet`, `handleImportWallet`, and `vaultGuard.syncWalletToSupabase`).
-- Add a sibling state `showSelfDelegateEdu` and set true on `vault-linked`, gated by `localStorage` key `idia_self_delegate_edu_seen_v1:<address>` so each new wallet sees it once.
-- Render `<SelfDelegateEducationModal />` alongside `NoWalletNudge`.
-- On dismiss: write the localStorage flag.
-
-## 3. Readiness-aware Self-Delegate button
-
-**File:** `src/components/enhanced/EnhancedWalletDashboard.tsx` (edit lines ~615–625)
-
-Compute three booleans from already-available `balances` and `delegatee`:
-
-- `hasIdia = Number(balances?.idia?.balanceFormatted ?? 0) >= 1`
-- `hasGas = Number(balances?.eth?.balanceFormatted ?? 0) >= 0.0001`
-- `isSelfDelegated = delegatee?.toLowerCase() === wallet?.address?.toLowerCase()`
-
-Button states (single button, no logic change to `handleDelegateVotes`):
-
-| State | Label | Style | Disabled |
-|---|---|---|---|
-| Already self-delegated | "Re-Delegate to Self" | `variant="outline"` (current) | no |
-| Ready (`hasIdia && hasGas`, not delegated) | "Self-Delegate — Claim Your Voice" | filled gradient (teal→amber), subtle pulse ring | no |
-| Not ready | "Self-Delegate (need ≥1 IDIA & ~0.0001 ETH)" | `variant="outline"` muted | no (still clickable — `handleDelegateVotes` already toasts insufficient-funds errors gracefully) |
-
-Add a small helper line under the button only in the "Not ready" state listing the missing item(s): e.g. "Missing: 0.7 IDIA, 0.00009 ETH". Use existing text-muted-foreground tokens.
-
-## Out of scope
-
-- No change to `governanceService`, `useWallet`, `relay-*` edge functions, or contracts.
-- No change to `ActivateVotingPowerCard` in the Governance screen (covers same flow there separately).
-- No new env vars, secrets, or migrations.
-
-## Verification
-
-1. Fresh user creates a wallet → modal appears once; reload → not shown again.
-2. Import existing wallet → modal appears once for that address.
-3. Wallet with 0 IDIA / 0 ETH → button shows "need ≥1 IDIA & ~0.0001 ETH" + missing summary.
-4. Wallet with 1 IDIA + 0.0001 ETH (not delegated) → button switches to gradient "Claim Your Voice" state.
-5. After successful self-delegation → button reads "Re-Delegate to Self".
+### Verify
+Deploy `relay-governance-action` → cast a vote → confirm logs reach `[BRANCH_VALIDATED] branch=CAST_VOTE` and proceed past `VERIFY_IDENTITY` instead of returning 400.

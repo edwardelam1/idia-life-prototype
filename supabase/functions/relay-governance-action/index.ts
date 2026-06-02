@@ -145,10 +145,10 @@ serve(async (req) => {
         return jsonResponse({ error: `Invalid support value: ${support}`, failed_at: stage }, 400);
       }
       supportValue = support as 0 | 1 | 2;
-      voteWeightNum = Number(voteWeight);
-      if (!Number.isFinite(voteWeightNum) || voteWeightNum <= 0) {
-        return jsonResponse({ error: `Invalid voteWeight: ${voteWeight}`, failed_at: stage }, 400);
-      }
+      // voteWeight is informational only — OpenZeppelin Governor reads weight
+      // from the snapshot block on-chain. Do NOT reject when missing/zero.
+      const parsedWeight = Number(voteWeight);
+      voteWeightNum = Number.isFinite(parsedWeight) && parsedWeight > 0 ? parsedWeight : 0;
       if (!acaHash || typeof acaHash !== "string") {
         return jsonResponse({ error: "Missing acaHash", failed_at: stage }, 400);
       }
