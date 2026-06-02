@@ -82,23 +82,47 @@ serve(async (req) => {
     const gov = new ethers.Contract(GOVERNOR_ADDRESS, GOVERNOR_ABI, provider);
 
     // ── LOAD_PENDING ────────────────────────────────────────────────
-    console.log("[INDEXER][LOAD_PENDING][START] Scanning governance_proposals for unanchored rows.");
-    const { data: pendingRows, error: loadErr } = await supabaseAdmin
-      .from("governance_proposals")
-      .select("proposal_id, description, targets, callvalues, calldatas, state, state_name")
-      .or("state.is.null,state_name.eq.Unknown")
-      .limit(25);
+    console.log("[INDEXER][LOAD_PENDING][START] Fetching un-indexed rows from governance_proposals");
+    let pendingRows: any[] = [];
+    let dbAttempts = 0;
+    const maxDbAttempts = 3;
+    while (dbAttempts < maxDbAttempts) {
+      dbAttempts++;
+      const { data, error } = await supabaseAdmin
+        .from("governance_proposals")
+        .select("id, proposal_id, description, targets, callvalues, calldatas")
+        .or("state.is.null,state_name.eq.Unknown")
+        .limit(25);
 
-    if (loadErr) {
-      console.error("[INDEXER][LOAD_PENDING][FATAL]", loadErr.message);
-      return jsonResponse({ error: "load_pending_failed", details: loadErr.message }, 500);
+      if (error) {
+        console.error(`[INDEXER][LOAD_PENDING][FATAL] Database query error:`, error);
+        return jsonResponse({ error: error.message }, 500);
+      }
+
+      if (data && data.length > 0) {
+        pendingRows = data;
+        break;
+      }
+
+      if (dbAttempts < maxDbAttempts) {
+        console.log(
+          `[INDEXER][LOAD_PENDING][RETRY] 0 rows found. Attempt ${dbAttempts}/${maxDbAttempts}. Waiting 1500ms for DB write to commit...`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
     }
 
-    const rows = pendingRows ?? [];
-    console.log(`[INDEXER][LOAD_PENDING][END:OK] ${rows.length} pending row(s) selected.`);
-    if (rows.length === 0) {
-      return jsonResponse({ ok: true, processed: 0, anchored: [], failed: [] });
+    console.log(
+      `[INDEXER][LOAD_PENDING][END:OK] ${pendingRows.length} pending row(s) selected after ${dbAttempts} check(s).`,
+    );
+    if (pendingRows.length === 0) {
+      return jsonResponse(
+        { ok: true, processed: 0, message: "No pending rows found to reconcile." },
+        200,
+      );
     }
+
+    const rows = pendingRows;
 
     const anchored: Array<{ proposal_id: string; state: number; state_name: string }> = [];
     const failed: Array<{ proposal_id: string; reason: string }> = [];
