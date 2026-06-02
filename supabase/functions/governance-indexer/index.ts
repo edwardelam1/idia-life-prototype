@@ -88,10 +88,12 @@ serve(async (req) => {
     const maxDbAttempts = 3;
     while (dbAttempts < maxDbAttempts) {
       dbAttempts++;
+      // Non-terminal Governor states: 0=Pending, 1=Active, 5=Queued.
+      // Terminal (skip): 2=Canceled, 3=Defeated, 4=Succeeded, 6=Expired, 7=Executed.
       const { data, error } = await supabaseAdmin
         .from("governance_proposals")
-        .select("id, proposal_id, description, targets, callvalues, calldatas")
-        .or("state.is.null,state_name.eq.Unknown")
+        .select("proposal_id, description, targets, callvalues, calldatas")
+        .in("state", [0, 1, 5])
         .limit(25);
 
       if (error) {
@@ -202,16 +204,13 @@ serve(async (req) => {
       const update: Record<string, unknown> = {
         state: stateInt,
         state_name: stateName,
-        updated_at: new Date().toISOString(),
       };
       if (snapshot != null) update.vote_start = Number(snapshot);
       if (deadline != null) update.vote_end = Number(deadline);
       if (proposer) update.proposer = proposer;
-      if (votes) {
-        update.against_votes = ethers.formatEther(votes[0]);
-        update.for_votes = ethers.formatEther(votes[1]);
-        update.abstain_votes = ethers.formatEther(votes[2]);
-      }
+      // NOTE: governance_proposals has no vote-tally columns (against/for/abstain)
+      // and no updated_at column per the authoritative schema. Do not write them.
+      void votes;
 
       console.log(`[INDEXER][DB_WRITE][START] proposal_id=${pid} → ${stateName}(${stateInt})`);
       const { error: updateErr } = await supabaseAdmin
