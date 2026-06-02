@@ -271,12 +271,18 @@ serve(async (req) => {
       let chainState: number;
       let onchainProposer: string;
       try {
-        const [s, p] = await Promise.all([
-          govRead.state(onchainId),
-          govRead.proposalProposer(onchainId),
-        ]);
+        console.log(`[GOV_RELAY][${TAG}][CONTRACT_READ][START] state(${onchainId}) + proposalProposer(${onchainId})`);
+        const [s, p] = await withTimeout(
+          Promise.all([
+            govRead.state(onchainId),
+            govRead.proposalProposer(onchainId),
+          ]),
+          10_000,
+          "governor.state+proposer",
+        );
         chainState = Number(s);
         onchainProposer = String(p);
+        console.log(`[GOV_RELAY][${TAG}][CONTRACT_READ][END] state=${chainState} proposer=${onchainProposer}`);
       } catch (readErr: any) {
         console.error(`[GOV_RELAY][${TAG}][${stage}] chain read failed: ${readErr.message}`);
         return jsonResponse({ error: "Could not read proposal state on-chain.", failed_at: stage }, 502);
