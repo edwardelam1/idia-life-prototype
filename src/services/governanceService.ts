@@ -469,6 +469,58 @@ async getCurrentQuorum(): Promise<string> {
     return { hash: tx.hash };
   }
 
+  /**
+   * Gasless EIP-712 Ballot signing for OpenZeppelin Governor's `castVoteBySig`.
+   * The user's local signer signs offline; the relayer broadcasts the tx.
+   */
+  async signBallot(
+    proposalId: string | number | bigint,
+    support: 0 | 1 | 2,
+  ): Promise<{ v: number; r: string; s: string; signerAddress: string }> {
+    const signer = walletService.getConnectedSigner();
+    if (!signer) throw new Error('Wallet not connected');
+    const signerAddress = await signer.getAddress();
+
+    const provider = this.getProvider();
+    let governorName = 'IDIAGovernor';
+    try {
+      const govRead = new ethers.Contract(
+        PROTOCOL.governor,
+        ['function name() view returns (string)'],
+        provider,
+      );
+      governorName = await govRead.name();
+    } catch {
+      // fallback retained
+    }
+
+    const chainId = ACTIVE_DEPLOYMENT === 'mainnet' ? 8453 : 84532;
+    const domain = {
+      name: governorName,
+      version: '1',
+      chainId,
+      verifyingContract: PROTOCOL.governor,
+    };
+    const types = {
+      Ballot: [
+        { name: 'proposalId', type: 'uint256' },
+        { name: 'support', type: 'uint8' },
+      ],
+    };
+    const value = { proposalId: BigInt(proposalId).toString(), support };
+
+    console.log('[CAST_VOTE_BY_SIG] signing EIP-712 Ballot', {
+      signerAddress,
+      proposalId: value.proposalId,
+      support,
+      governorName,
+      chainId,
+    });
+    const signature = await (signer as any).signTypedData(domain, types, value);
+    const sig = ethers.Signature.from(signature);
+    return { v: sig.v, r: sig.r, s: sig.s, signerAddress };
+  }
+
   // ── Write: Delegate ───────────────────────────────────────
 
   async delegate(delegatee: string): Promise<{ hash: string }> {
