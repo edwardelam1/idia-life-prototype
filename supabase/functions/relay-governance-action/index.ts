@@ -115,6 +115,10 @@ serve(async (req) => {
       acaPayload,
       title,
       description,
+      v: sigV,
+      r: sigR,
+      s: sigS,
+      voterAddress,
     } = body ?? {};
     console.log(`[GOV_RELAY][${stage}][DESTRUCTURE_OK] keys=${Object.keys(body ?? {}).join(",")}`);
 
