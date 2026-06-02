@@ -455,7 +455,32 @@ export const ProposalCard: React.FC<{
       }
 
       const chainSupport = support === "for" ? 1 : 0;
-      const relayPayload = {
+
+      // Gasless EIP-712 Ballot signature for standard voters. Tophat override
+      // skips this entirely — the Treasury wallet carries its own weight via castVote().
+      let ballotSig: { v: number; r: string; s: string; signerAddress: string } | null = null;
+      if (!tophatOverride) {
+        const sigStage = stage("GOV_UI", "SIGN_BALLOT");
+        sigStage.start({ proposalId: proposal.on_chain_id, support: chainSupport });
+        try {
+          ballotSig = await governanceService.signBallot(proposal.on_chain_id, chainSupport as 0 | 1);
+          sigStage.ok({ signerAddress: ballotSig.signerAddress, v: ballotSig.v });
+        } catch (sigErr: any) {
+          sigStage.fail(sigErr);
+          const msg = String(sigErr?.message || "");
+          toast({
+            title: "Signature cancelled",
+            description: /reject|denied|user/i.test(msg)
+              ? "You declined the wallet signature."
+              : "Could not sign the ballot. Please retry.",
+            variant: "destructive",
+          });
+          s.fail(sigErr);
+          return;
+        }
+      }
+
+      const relayPayload: Record<string, unknown> = {
         actionType: "CAST_VOTE",
         proposalId: proposal.on_chain_id,
         support: chainSupport,
@@ -464,6 +489,12 @@ export const ProposalCard: React.FC<{
         acaHash: hash,
         chainId: 8453,
       };
+      if (ballotSig) {
+        relayPayload.v = ballotSig.v;
+        relayPayload.r = ballotSig.r;
+        relayPayload.s = ballotSig.s;
+        relayPayload.voterAddress = ballotSig.signerAddress;
+      }
       console.log(`[PROCESS] Invoking relay-governance-action`, relayPayload);
       const { data: relayData, error: relayErr } = await supabase.functions.invoke(
         "relay-governance-action",
