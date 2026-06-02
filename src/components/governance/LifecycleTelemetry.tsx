@@ -119,10 +119,12 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
           .from("dao_votes")
           .select("vote_type, vote_weight, snapshot_voting_power")
           .eq("proposal_id", voteKey);
-        const rows = (data || []) as { vote_type: string; vote_weight?: number }[];
+        const rows = (data || []) as { vote_type: string; vote_weight?: number; snapshot_voting_power?: number | null }[];
         if (alive) {
-          const f = rows.filter((r) => r.vote_type === "for").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0);
-          const a = rows.filter((r) => r.vote_type === "against").reduce((acc, r) => acc + Number(r.vote_weight ?? 1), 0);
+          const weightOf = (r: { vote_weight?: number; snapshot_voting_power?: number | null }) =>
+            Number(r.snapshot_voting_power ?? r.vote_weight ?? 1);
+          const f = rows.filter((r) => r.vote_type === "for").reduce((acc, r) => acc + weightOf(r), 0);
+          const a = rows.filter((r) => r.vote_type === "against").reduce((acc, r) => acc + weightOf(r), 0);
           setForVotes(f);
           setAgainstVotes(a);
         }
