@@ -550,6 +550,9 @@ export const ProposalCard: React.FC<{
     }
 
     setIsSubmitting(true);
+    console.log(
+      `[GOV_VOTE][PRE_FLIGHT][START] proposal_id=${proposal.on_chain_id} support=${support} snapshot_block=${chain.snapshotBlock} override=${tophatOverride}`,
+    );
     try {
       const {
         data: { user },
@@ -605,6 +608,79 @@ export const ProposalCard: React.FC<{
         }
       }
 
+      // ── PRE-FLIGHT GATES (Cryptographic Fidelity) ──
+      // Trap the three deterministic castVoteWithReason reverts BEFORE invoking
+      // the relayer — Pending proposal, zero snapshot weight, already voted.
+      // RPC failures here are non-fatal: we log [END:WARN] and proceed, letting
+      // the relay's own simulation be the final word.
+      const networkKey = ACTIVE_DEPLOYMENT === "mainnet" ? "base" : "baseSepolia";
+      const network = NETWORKS[networkKey];
+      const rpcUrl = (import.meta.env.VITE_ALCHEMY_RPC_URL as string | undefined) || network.rpcUrl;
+      const provider = new ethers.JsonRpcProvider(rpcUrl, network.chainId);
+      const govRead = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, provider);
+
+      let liveChain: ChainState | null = null;
+      let snapshotPower: number | null = null;
+      try {
+        liveChain = await readChainState(proposal.on_chain_id);
+        if (liveChain.state !== 1) {
+          toast({
+            title: "Voting not open",
+            description:
+              liveChain.state === 0
+                ? "Voting has not started yet. This proposal is pending its snapshot block."
+                : "Voting is closed for this proposal.",
+            variant: "destructive",
+          });
+          console.error(`[GOV_VOTE][PRE_FLIGHT][END:FAIL] state=${liveChain.state}`);
+          s.fail(`state_${liveChain.state}`);
+          return;
+        }
+
+        // Zero-snapshot-weight guard (skipped for Tophat override — Treasury supplies weight)
+        if (!tophatOverride && ballotSig?.signerAddress && liveChain.snapshotBlock != null) {
+          const rawSnap = await govRead.getVotes(ballotSig.signerAddress, liveChain.snapshotBlock);
+          if (BigInt(rawSnap) === 0n) {
+            console.error(
+              `[GOV_VOTE][PRE_FLIGHT][END:FAIL] zero_snapshot_power voter=${ballotSig.signerAddress} @block=${liveChain.snapshotBlock}`,
+            );
+            toast({
+              title: "No voting power at snapshot",
+              description: "Your account held 0 IDIA voting power at this proposal's snapshot checkpoint.",
+              variant: "destructive",
+            });
+            s.fail("zero_snapshot_power");
+            return;
+          }
+          snapshotPower = Number(ethers.formatUnits(rawSnap, 18));
+          console.log(`[GOV_VOTE][PRE_FLIGHT] snapshot_power=${snapshotPower} IDIA`);
+        }
+
+        // Already-voted guard (both paths)
+        const voterForCheck = tophatOverride ? PROTOCOL.treasury : ballotSig!.signerAddress;
+        const already = await govRead.hasVoted(proposal.on_chain_id, voterForCheck);
+        if (already) {
+          console.error(`[GOV_VOTE][PRE_FLIGHT][END:FAIL] already_voted voter=${voterForCheck}`);
+          toast({
+            title: "Vote already recorded",
+            description: "This wallet has already cast a vote on-chain for this proposal.",
+            variant: "destructive",
+          });
+          setHasVoted(support);
+          s.fail("already_voted");
+          return;
+        }
+
+        console.log(`[GOV_VOTE][PRE_FLIGHT][END:OK] all gates passed`);
+      } catch (preflightErr) {
+        // Network/RPC failure — log warning and proceed. Relay simulation is the final word.
+        console.warn(`[GOV_VOTE][PRE_FLIGHT][END:WARN] proceeding despite RPC error`, preflightErr);
+      }
+
+      // Authoritative baseline tally for the post-relay chain-truth poll.
+      // If pre-flight RPC failed, fall back to last-known React state.
+      const initialTally: ChainState = liveChain ?? chain;
+
       const relayPayload: Record<string, unknown> = {
         actionType: "CAST_VOTE",
         proposalId: proposal.on_chain_id,
@@ -640,7 +716,7 @@ export const ProposalCard: React.FC<{
         }
         console.error(`[VOTE_CAST] RELAY_FAILED`, relayErr || relayData);
         toast({
-          title: tophatOverride ? "Override failed" : "On-chain vote failed",
+          title: tophatOverride ? "Override failed" : "Transaction Failed on-chain",
           description: friendly,
           variant: "destructive",
         });
@@ -650,28 +726,7 @@ export const ProposalCard: React.FC<{
       console.log(`[PROCESS] Relay confirmed`, relayData);
 
       // ── ONLY after on-chain success: mirror the vote into dao_votes ──
-      // Capture the voter's REAL voting power at the proposal's snapshot block
-      // directly from Base RPC. vote_weight stays for legacy/Tophat compat, but
-      // snapshot_voting_power is the auditable bigint that drove the on-chain tally.
-      let snapshotPower: number | null = null;
-      if (!tophatOverride && ballotSig?.signerAddress && chain.snapshotBlock != null) {
-        try {
-          console.log(
-            `[GOV_VOTE][RPC_QUERY][START] getVotes voter=${ballotSig.signerAddress} @snapshot=${chain.snapshotBlock}`,
-          );
-          const networkKey = ACTIVE_DEPLOYMENT === "mainnet" ? "base" : "baseSepolia";
-          const network = NETWORKS[networkKey];
-          const rpcUrl = (import.meta.env.VITE_ALCHEMY_RPC_URL as string | undefined) || network.rpcUrl;
-          const provider = new ethers.JsonRpcProvider(rpcUrl, network.chainId);
-          const govRead = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, provider);
-          const raw = await govRead.getVotes(ballotSig.signerAddress, chain.snapshotBlock);
-          snapshotPower = Number(ethers.formatUnits(raw, 18));
-          console.log(`[GOV_VOTE][RPC_QUERY][END:OK] weight=${raw.toString()} (${snapshotPower} IDIA)`);
-        } catch (snapErr) {
-          console.warn(`[GOV_VOTE][RPC_QUERY][END:WARN] snapshot getVotes failed`, snapErr);
-        }
-      }
-
+      // snapshot_voting_power was captured during pre-flight directly from Base RPC.
       console.log(`[GOV_VOTE][DB_INSERT][START] dao_votes proposal_id=${proposal.proposal_ref}`);
       const voteRow: Record<string, unknown> = {
         proposal_id: proposal.proposal_ref,
@@ -679,7 +734,7 @@ export const ProposalCard: React.FC<{
         vote_type: support,
         vote_weight: chosenWeight,
         snapshot_voting_power: snapshotPower,
-        snapshot_block: chain.snapshotBlock ?? null,
+        snapshot_block: initialTally.snapshotBlock ?? null,
         credits_spent: tophatOverride ? 0 : 1,
         aca_hash_key: hash,
         aca_payload: payload,
@@ -687,7 +742,6 @@ export const ProposalCard: React.FC<{
       const { error: voteError } = await (supabase as any).from("dao_votes").insert(voteRow);
       if (voteError) {
         if (voteError.code === "23505") {
-          // Chain accepted but mirror already exists — safe to surface as success
           setHasVoted(support);
           console.log(`[GOV_VOTE][DB_INSERT][END:DUPLICATE] mirror already present`);
         } else {
@@ -700,34 +754,46 @@ export const ProposalCard: React.FC<{
       } else {
         console.log(`[GOV_VOTE][DB_INSERT][END:OK] vote ledger row synchronized`);
       }
-
-      // ── 1. INSTANT optimistic UI bump (no RPC, no await) ──
-      const optimisticWeight = snapshotPower ?? Number(chosenWeight) ?? 0;
-      console.log(`[GOV_VOTE][OPTIMISTIC][APPLY] +${optimisticWeight} on ${support}`);
-      setChain((prev) => ({
-        ...prev,
-        forVotes:     support === "for"     ? prev.forVotes     + optimisticWeight : prev.forVotes,
-        againstVotes: support === "against" ? prev.againstVotes + optimisticWeight : prev.againstVotes,
-      }));
       setLedgerNonce((n) => n + 1);
 
-      // ── 2. Authoritative refresh — deferred so Base Mainnet propagates ──
-      if (proposal.on_chain_id) {
-        const onChainIdForRefresh = proposal.on_chain_id;
-        console.log(`[GOV_VOTE][CHAIN_REFRESH][SCHEDULED] +1500ms`);
-        setTimeout(async () => {
-          console.log(`[GOV_VOTE][CHAIN_REFRESH][START]`);
-          try {
-            const cs = await readChainState(onChainIdForRefresh);
-            setChain(cs);
-            console.log(
-              `[GOV_VOTE][CHAIN_REFRESH][END:OK] for=${cs.forVotes} against=${cs.againstVotes}`,
-            );
-          } catch (refreshErr) {
-            console.warn(`[GOV_VOTE][CHAIN_REFRESH][END:WARN]`, refreshErr);
+      // ── AUTHORITATIVE CHAIN-TRUTH POLL (no optimism, no simulation) ──
+      // Exponential backoff up to ~10s. We refuse to update displayed tallies
+      // until Base RPC reports an aggregate that differs from the pre-vote
+      // snapshot. The Principle of Cryptographic Fidelity in code.
+      console.log(`[GOV_VOTE][CHAIN_REFRESH][START] polling for on-chain settlement`);
+      const pollDelays = [500, 750, 1000, 1500, 2000, 2500, 1750]; // ~10s total
+      let confirmed: ChainState | null = null;
+      for (let i = 0; i < pollDelays.length; i++) {
+        await new Promise((r) => setTimeout(r, pollDelays[i]));
+        console.log(`[GOV_VOTE][POLL][TICK] attempt=${i + 1}/${pollDelays.length}`);
+        try {
+          const live = await readChainState(proposal.on_chain_id);
+          if (
+            live.forVotes !== initialTally.forVotes ||
+            live.againstVotes !== initialTally.againstVotes
+          ) {
+            confirmed = live;
+            break;
           }
-        }, 1500);
+        } catch (tickErr) {
+          console.warn(`[GOV_VOTE][POLL][TICK_ERR]`, tickErr);
+        }
       }
+      if (confirmed) {
+        setChain(confirmed);
+        console.log(
+          `[GOV_VOTE][CHAIN_REFRESH][END:OK] for=${confirmed.forVotes} against=${confirmed.againstVotes}`,
+        );
+      } else {
+        console.error(`[GOV_VOTE][CHAIN_REFRESH][END:FAIL] poll exhausted (no tally transition in 10s)`);
+        toast({
+          title: "Transaction not confirmed on-chain",
+          description:
+            "We could not verify your vote on Base within 10 seconds. Refresh shortly to see the latest tally.",
+          variant: "destructive",
+        });
+      }
+
 
       // Burn 1 IDIA from wallet for standard votes only
       if (!tophatOverride) {
