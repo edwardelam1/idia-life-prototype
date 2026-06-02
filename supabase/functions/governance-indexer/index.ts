@@ -204,16 +204,13 @@ serve(async (req) => {
       const update: Record<string, unknown> = {
         state: stateInt,
         state_name: stateName,
-        updated_at: new Date().toISOString(),
       };
       if (snapshot != null) update.vote_start = Number(snapshot);
       if (deadline != null) update.vote_end = Number(deadline);
       if (proposer) update.proposer = proposer;
-      if (votes) {
-        update.against_votes = ethers.formatEther(votes[0]);
-        update.for_votes = ethers.formatEther(votes[1]);
-        update.abstain_votes = ethers.formatEther(votes[2]);
-      }
+      // NOTE: governance_proposals has no vote-tally columns (against/for/abstain)
+      // and no updated_at column per the authoritative schema. Do not write them.
+      void votes;
 
       console.log(`[INDEXER][DB_WRITE][START] proposal_id=${pid} → ${stateName}(${stateInt})`);
       const { error: updateErr } = await supabaseAdmin
