@@ -605,6 +605,8 @@ serve(async (req) => {
             support: supportValue,
             vote_weight: voteWeightNum,
             tophat_override: overrideAuthorized,
+            voter_address: preflightAddr,
+            via,
             aca_hash: acaHash,
             action_type: actionType,
             chain_id: networkId,
