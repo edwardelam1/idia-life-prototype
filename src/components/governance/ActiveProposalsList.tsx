@@ -635,7 +635,7 @@ export const ProposalCard: React.FC<{
       onChanged();
       s.ok();
     } catch (e: any) {
-      console.error(`[STALL DETECTED] Vote exception: ${e.message}`);
+      console.error(`[GOV_VOTE][FATAL_FAIL] vote pipeline stalled or rejected:`, e?.message || e);
       s.fail(e);
       toast({ title: "Submission Failed", description: e.message, variant: "destructive" });
     } finally {
