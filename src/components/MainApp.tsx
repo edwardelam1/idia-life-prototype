@@ -12,6 +12,7 @@ import Header from "./Header";
 import { FriendAssistantProvider } from "./FriendAssistant";
 import WelcomeSequence from "./life/WelcomeSequence";
 import NoWalletNudge from "./wallet/NoWalletNudge";
+import SelfDelegateEducationModal from "./wallet/SelfDelegateEducationModal";
 import { IDIA_PAY_RELEASE_DATE } from "@/config/release";
 
 const MainApp = () => {
@@ -30,6 +31,8 @@ const MainApp = () => {
 
   const { profile, loading: profileLoading } = useEnhancedProfile();
   const [isProvisioned, setIsProvisioned] = useState({ wallet: false, fbo: false });
+  const [showSelfDelegateEdu, setShowSelfDelegateEdu] = useState(false);
+  const [selfDelegateEduAddress, setSelfDelegateEduAddress] = useState<string | null>(null);
 
   // 1. Calculate release status
   const isPayReady = useMemo(() => new Date() >= IDIA_PAY_RELEASE_DATE, []);
@@ -60,9 +63,19 @@ const MainApp = () => {
 
   useEffect(() => {
     const handleVaultLinked = (event: any) => {
-      console.log("[SYNC] Immediate Vault Hydration:", event.detail.address);
+      const address: string | undefined = event?.detail?.address;
+      console.log("[SYNC] Immediate Vault Hydration:", address);
       setIsProvisioned((prev) => ({ ...prev, wallet: true }));
       setNudgeDismissed(true);
+      if (address) {
+        try {
+          const key = `idia_self_delegate_edu_seen_v1:${address.toLowerCase()}`;
+          if (localStorage.getItem(key) !== "1") {
+            setSelfDelegateEduAddress(address);
+            setShowSelfDelegateEdu(true);
+          }
+        } catch {}
+      }
     };
     window.addEventListener("vault-linked", handleVaultLinked);
     return () => window.removeEventListener("vault-linked", handleVaultLinked);
@@ -177,6 +190,21 @@ const MainApp = () => {
           isVisible={showNudge}
           onDismiss={dismissNudge}
           onCreateWallet={handleCreateWalletFromNudge}
+        />
+        <SelfDelegateEducationModal
+          isVisible={showSelfDelegateEdu}
+          onDismiss={() => {
+            setShowSelfDelegateEdu(false);
+            if (selfDelegateEduAddress) {
+              try {
+                localStorage.setItem(
+                  `idia_self_delegate_edu_seen_v1:${selfDelegateEduAddress.toLowerCase()}`,
+                  "1",
+                );
+              } catch {}
+            }
+          }}
+          onGoToWallet={() => setActiveTab("wallet")}
         />
       </div>
     </FriendAssistantProvider>

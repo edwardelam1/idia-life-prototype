@@ -612,17 +612,51 @@ const EnhancedWalletDashboard: React.FC = () => {
                   })()}
                 </div>
 
-                {/* Self-delegate — always visible; opens import modal if no local keys */}
-                <Button variant="outline" onClick={handleDelegateVotes} className="w-full">
-                  <Vote className="w-4 h-4 mr-2" />
-                  {(() => {
-                    const d = (delegatee ?? walletBalance?.delegatee ?? "").toLowerCase();
-                    const me = (wallet?.address ?? displayAddress ?? "").toLowerCase();
-                    return d && me && d === me
-                      ? "Re-Delegate to Self"
-                      : "Activate Voting Power (Self-Delegate)";
-                  })()}
-                </Button>
+                {/* Self-delegate — readiness-aware; opens import modal if no local keys */}
+                {(() => {
+                  const idiaAmount = balances?.idia
+                    ? Number(balances.idia.balanceFormatted)
+                    : Number(walletBalance?.idia_token_balance ?? 0);
+                  const ethAmount = balances?.eth
+                    ? Number(balances.eth.balanceFormatted)
+                    : Number(walletBalance?.eth_balance ?? 0);
+                  const hasIdia = idiaAmount >= 1;
+                  const hasGas = ethAmount >= 0.0001;
+                  const d = (delegatee ?? walletBalance?.delegatee ?? "").toLowerCase();
+                  const me = (wallet?.address ?? displayAddress ?? "").toLowerCase();
+                  const isSelfDelegated = !!d && !!me && d === me;
+                  const isReady = hasIdia && hasGas && !isSelfDelegated;
+
+                  const missing: string[] = [];
+                  if (!hasIdia) missing.push(`${(1 - idiaAmount).toFixed(2)} IDIA`);
+                  if (!hasGas) missing.push(`${(0.0001 - ethAmount).toFixed(6)} ETH`);
+
+                  let label = "Self-Delegate (need ≥1 IDIA & ~0.0001 ETH)";
+                  if (isSelfDelegated) label = "Re-Delegate to Self";
+                  else if (isReady) label = "Self-Delegate — Claim Your Voice";
+
+                  return (
+                    <div className="space-y-1.5">
+                      <Button
+                        onClick={handleDelegateVotes}
+                        variant={isReady ? "default" : "outline"}
+                        className={
+                          isReady
+                            ? "w-full bg-gradient-to-r from-teal-600 to-amber-500 hover:from-teal-700 hover:to-amber-600 text-white font-black shadow-lg shadow-amber-500/30 ring-2 ring-amber-300/40 animate-pulse"
+                            : "w-full"
+                        }
+                      >
+                        <Vote className="w-4 h-4 mr-2" />
+                        {label}
+                      </Button>
+                      {!isSelfDelegated && !isReady && missing.length > 0 && (
+                        <p className="text-[10px] text-muted-foreground text-center">
+                          Missing: {missing.join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
