@@ -226,6 +226,138 @@ export function sortByGovernanceOrder(a: Proposal, b: Proposal, chainStates: Map
 }
 
 
+// ── Per-proposal voter ledger ──
+// Pulls every dao_votes row for this proposal, joins wallets via the
+// member_wallet_directory view, and renders snapshot-locked weights. Sorted
+// by snapshot_voting_power desc (NULLs last) — legacy rows fall back to
+// vote_weight with a faint tag.
+const VoterLedger: React.FC<{ proposalId: string; refreshKey: number }> = ({
+  proposalId,
+  refreshKey,
+}) => {
+  type Row = {
+    user_id: string;
+    vote_type: string;
+    vote_weight: number | null;
+    snapshot_voting_power: number | null;
+    snapshot_block: number | null;
+    created_at: string | null;
+    wallet?: string | null;
+  };
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data: votes, error } = await (supabase as any)
+          .from("dao_votes")
+          .select("user_id, vote_type, vote_weight, snapshot_voting_power, snapshot_block, created_at")
+          .eq("proposal_id", proposalId)
+          .order("snapshot_voting_power", { ascending: false, nullsFirst: false });
+        if (error) throw error;
+        const userIds = Array.from(new Set((votes || []).map((v: any) => v.user_id).filter(Boolean)));
+        let walletMap = new Map<string, string>();
+        if (userIds.length > 0) {
+          const { data: wallets } = await (supabase as any)
+            .from("member_wallet_directory")
+            .select("user_id, wallet_address")
+            .in("user_id", userIds);
+          (wallets || []).forEach((w: any) => {
+            if (w?.user_id && w?.wallet_address) walletMap.set(w.user_id, w.wallet_address);
+          });
+        }
+        if (!alive) return;
+        setRows(
+          (votes || []).map((v: any) => ({
+            ...v,
+            wallet: walletMap.get(v.user_id) ?? null,
+          })),
+        );
+      } catch (e) {
+        console.warn("[VOTER_LEDGER] load failed", e);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [proposalId, refreshKey]);
+
+  const fmtWeight = (n: number) =>
+    n >= 1 ? Math.round(n).toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  const shortAddr = (a?: string | null, uid?: string) =>
+    a && /^0x[0-9a-f]{40}$/i.test(a)
+      ? `${a.slice(0, 6)}…${a.slice(-4)}`
+      : `sov:${(uid || "").slice(0, 8)}`;
+
+  return (
+    <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white/40 dark:bg-slate-900/30">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center justify-between px-3 py-2 text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300"
+      >
+        <span>Voter Ledger · {rows.length} cast</span>
+        <span className="text-slate-400">{expanded ? "▾" : "▸"}</span>
+      </button>
+      {expanded && (
+        <div className="px-3 pb-2 space-y-1.5 max-h-60 overflow-y-auto">
+          {loading && <p className="text-[10px] text-muted-foreground">Loading ledger…</p>}
+          {!loading && rows.length === 0 && (
+            <p className="text-[10px] text-muted-foreground">No votes cast yet.</p>
+          )}
+          {!loading &&
+            rows.map((r, i) => {
+              const isFor = r.vote_type === "for";
+              const weight = r.snapshot_voting_power ?? r.vote_weight ?? 0;
+              const isLegacy = r.snapshot_voting_power == null;
+              return (
+                <div
+                  key={`${r.user_id}-${i}`}
+                  className="flex items-center justify-between gap-2 text-[10px] font-mono"
+                >
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <span className={isFor ? "text-emerald-600" : "text-rose-600"}>
+                      {isFor ? "✔" : "✘"}
+                    </span>
+                    <span className="truncate text-slate-700 dark:text-slate-200">
+                      {shortAddr(r.wallet, r.user_id)}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <span
+                      className={`text-[9px] font-black uppercase tracking-widest ${
+                        isFor ? "text-emerald-700" : "text-rose-700"
+                      }`}
+                    >
+                      {isFor ? "FOR" : "AGAINST"}
+                    </span>
+                    <span className="text-slate-800 dark:text-slate-100 font-bold">
+                      {fmtWeight(Number(weight))} IDIA
+                    </span>
+                    {r.snapshot_block != null && (
+                      <span className="text-slate-400 text-[9px]">
+                        @#{r.snapshot_block.toLocaleString()}
+                      </span>
+                    )}
+                    {isLegacy && (
+                      <span className="text-[8px] text-slate-400 uppercase">legacy</span>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const ProposalCard: React.FC<{
   proposal: Proposal;
   balance: number;
