@@ -31,6 +31,8 @@ const MainApp = () => {
 
   const { profile, loading: profileLoading } = useEnhancedProfile();
   const [isProvisioned, setIsProvisioned] = useState({ wallet: false, fbo: false });
+  const [showSelfDelegateEdu, setShowSelfDelegateEdu] = useState(false);
+  const [selfDelegateEduAddress, setSelfDelegateEduAddress] = useState<string | null>(null);
 
   // 1. Calculate release status
   const isPayReady = useMemo(() => new Date() >= IDIA_PAY_RELEASE_DATE, []);
