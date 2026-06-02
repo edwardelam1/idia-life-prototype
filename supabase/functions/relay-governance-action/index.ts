@@ -337,6 +337,7 @@ serve(async (req) => {
       const gov = new ethers.Contract(networkConfig.governor, GOVERNOR_ABI, relayerWallet);
       let tx;
       try {
+        console.log(`[GOV_RELAY][${TAG}][${stage}][AWAIT_SUBMIT_START] gov.cancel()`);
         tx = await gov.cancel(targets, values, calldatas, descriptionHash);
       } catch (txErr: any) {
         console.error(`[GOV_RELAY][${TAG}][${stage}] cancel() reverted: ${txErr.message}`);
