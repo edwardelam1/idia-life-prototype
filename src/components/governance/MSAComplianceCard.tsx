@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Activity, Loader2, Zap, RefreshCw } from "lucide-react";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
 type ChannelId = "bundles" | "api_mcp" | "best_friend_ai" | "egress";
+type Sample = { ts: number; ms: number };
 
 interface ChannelRow {
   id: ChannelId;
