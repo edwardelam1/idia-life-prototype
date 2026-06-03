@@ -24,6 +24,7 @@ import { toast } from "@/hooks/use-toast";
 // IDIA Protocol Components
 import GhostProtocolWrapper from "./GhostProtocol";
 import { GammaPhotosensitivityWarning } from "./GammaPhotosensitivityWarning";
+import InsightsSection from "./insights/InsightsSection";
 
 // --- EXPANDED SOVEREIGN SCHEMA ---
 interface StagedHealthData {
@@ -848,6 +849,10 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
              </div>
           </TabsContent>
         </Tabs>
+
+        <div className="mt-4">
+          <InsightsSection tier="pure_alpha" />
+        </div>
 
         <style>{`
           @keyframes seizure-rgb {
