@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GammaPhotosensitivityWarning } from "./GammaPhotosensitivityWarning";
+import InsightsSection from "./insights/InsightsSection";
 
 // --- TYPES ALIGNED TO SOVEREIGN SCHEMA ---
 interface StagedHealthData {
@@ -351,6 +352,10 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
              </div>
           </TabsContent>
         </Tabs>
+
+        <div className="mt-4">
+          <InsightsSection tier="pro_plus" />
+        </div>
 
         <style>{`
           @keyframes seizure-rgb {

@@ -3797,6 +3797,42 @@ export type Database = {
         }
         Relationships: []
       }
+      insights_cache: {
+        Row: {
+          created_at: string
+          generated_at: string
+          id: string
+          model: string
+          payload: Json
+          source_hash: string
+          tier: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          generated_at?: string
+          id?: string
+          model: string
+          payload: Json
+          source_hash: string
+          tier: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          generated_at?: string
+          id?: string
+          model?: string
+          payload?: Json
+          source_hash?: string
+          tier?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       intent_discovery_sessions: {
         Row: {
           history: Json | null
