@@ -1,59 +1,33 @@
-## Goal
+Refactor `src/components/governance/MSAComplianceCard.tsx` to render four SLA channels instead of three.
 
-Refactor `src/components/governance/MSAComplianceCard.tsx` (the Oracle Telemetry card) to render one unified 30-day latency view sourced from three real shared-schema tables instead of just `api_metrics`. No changes to `TreasuryFlows.tsx`.
+## Channel matrix
 
-## Data sources (verified against live schema)
+| ID | Label | Source | Latency derivation | SLA budget |
+|---|---|---|---|---|
+| bundles | Marketplace Bundles | public.bundle_generation_logs | parseDurationToMs(processing_duration) | 2000 ms |
+| api_mcp | API & MCP Gateways | public.api_metrics where endpoint IN ('mcp-gateway','sql-endpoint') | latency_ms | 500 ms |
+| best_friend_ai | Best Friend AI | public.api_metrics where endpoint = 'best-friend-ai' | latency_ms | 250 ms |
+| egress | Global Egress Delivery | public.egress_logs | settled_at − created_at (ms) | 1500 ms |
 
-1. **Marketplace Bundles** → `public.bundle_generation_logs.processing_duration` (Postgres `interval`).
-   - Returned by PostgREST as ISO 8601 string (e.g. `"00:00:01.234"`). Parse client-side to ms: split `HH:MM:SS.fff`, convert to total ms. Fallback `parseFloat` for plain numerics.
-   - Channel label: `Marketplace Bundles`.
+## Changes (single file)
 
-2. **MCP / API / SQL (Egress)** → `public.egress_logs`, synthesize latency = `new Date(settled_at).getTime() - new Date(created_at).getTime()`. Skip rows where `settled_at` is null.
-   - Channel label: `MCP · Egress Delivery`.
+1. Extend `ChannelId` union to include `api_mcp`. Add `CHANNEL_LABELS` and `SLA_BUDGET_MS` entries for all four channels.
+2. Replace the 3-way `Promise.all` fetch with a 4-way fetch: bundles, api_metrics filtered via `.in('endpoint',['mcp-gateway','sql-endpoint'])`, api_metrics filtered via `.eq('endpoint','best-friend-ai')`, egress_logs.
+3. Wrap per-channel sample-to-row mapping in `React.useMemo` so parsing is not redone on unrelated re-renders. Each channel uses its own parser:
+   - bundles → parseDurationToMs (existing helper, handles ISO 8601, HH:MM:SS, numeric)
+   - api_mcp + best_friend_ai → Number(latency_ms) with Number.isFinite guard
+   - egress → ms delta guarded against null settled_at
+4. Keep `statusFor(avg, target, samples)`; ensure 0-sample channels uniformly return `idle` and render with the existing neutral slate dot and "No Samples" label. No NaN can reach status math.
+5. Realtime socket: no additional table subscriptions needed — the existing channel already listens on bundle_generation_logs, egress_logs, and api_metrics (which feeds both api_mcp and best_friend_ai rows).
+6. Preserve these three console signatures verbatim:
+   - `[ORACLE_TELEMETRY][SHARED_SCHEMA][START] Syncing multi-tenant delivery latency profiles from live tables.`
+   - `[ORACLE_TELEMETRY][SHARED_SCHEMA][SUCCESS] Performance profiles calculated successfully.`
+   - `[ORACLE_TELEMETRY][SHARED_SCHEMA][CRITICAL_FAILURE] Latency collection pass stalled: <err.message>`
+   - Existing `[SOCKET_START|EVENT|STATUS|CLOSE]` bookends remain untouched.
 
-3. **Best Friend AI** → `public.api_metrics` where `endpoint = 'best-friend-ai'`, read `latency_ms` directly.
-   - Channel label: `Best Friend AI`.
+## Scope
 
-All three queries scoped `.gte(<timestamp_col>, now - 30d)`, `.limit(1000)` each.
-
-## Component behavior
-
-- Parallel `Promise.all` of the three queries on mount + on realtime INSERT (debounced 2s) for all three tables.
-- Normalize every row into `{ channel, latency_ms, recorded_at }` via:
-  ```ts
-  const latencyValueMs = Number(
-    row.latency_ms ||
-    (row.processing_duration ? parseDurationToMs(row.processing_duration) : 0) ||
-    (row.settled_at && row.created_at
-      ? new Date(row.settled_at).getTime() - new Date(row.created_at).getTime()
-      : 0)
-  );
-  ```
-- Per-channel aggregate (avg + sample count) rendered as three SLA rows (same visual language as today's card) with `meeting` / `warning` / `breach` thresholds against `SLA_BUDGET_MS` (default 250 ms; per-channel overrides allowed in a const map).
-- Status dot threshold derived from the live aggregate (no mock vars).
-- Empty-state preserved when all three channels return 0 samples.
-
-## Telemetry signatures (replacing current `[GLOBAL_ORACLE_METRICS]` bookends)
-
-```
-[ORACLE_TELEMETRY][SHARED_SCHEMA][START]
-[ORACLE_TELEMETRY][SHARED_SCHEMA][SUCCESS]   // includes per-channel counts
-[ORACLE_TELEMETRY][SHARED_SCHEMA][CRITICAL_FAILURE]
-[ORACLE_TELEMETRY][SHARED_SCHEMA][SOCKET_START|SOCKET_EVENT|SOCKET_STATUS|SOCKET_CLOSE]
-```
-
-## Files touched
-
-- `src/components/governance/MSAComplianceCard.tsx` — full refactor (single file).
-
-## Out of scope
-
-- No DB migrations; all three tables already exist with the referenced columns.
-- No changes to `TreasuryFlows.tsx`, Pro tab, Friend AI, or any other surface.
-- No new UI primitives; reuse the card's existing row layout.
-
-## Verification
-
-- Console shows the four new bookended traces and per-table socket status lines.
-- Each of the three channels renders a row with a real avg-latency number when sample data exists; missing channels show `—` with `No Samples` substatus.
-- Inserting a row into any of the three tables triggers a debounced refresh within ~2s.
+- One file: `src/components/governance/MSAComplianceCard.tsx`
+- No DB migrations, no edge-function changes, no schema changes
+- No changes to TreasuryFlows.tsx, GovernanceScreen.tsx, or any other surface
+- UI primitives unchanged; the 4th row reuses the existing row layout
