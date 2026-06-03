@@ -1,87 +1,59 @@
-# Global Ledger Wiring — TreasuryFlows + MSAComplianceCard
+## Goal
 
-Pivot both governance surfaces off the stagnant diagnostic tables (`dao_treasury_flows`, `dao_msa_metrics`) and onto the live, multi-tenant ledger / telemetry already flowing through the platform. Zero mock data; no schema changes.
+Refactor `src/components/governance/MSAComplianceCard.tsx` (the Oracle Telemetry card) to render one unified 30-day latency view sourced from three real shared-schema tables instead of just `api_metrics`. No changes to `TreasuryFlows.tsx`.
 
-## Verified data sources (live)
+## Data sources (verified against live schema)
 
-- `public.synapse_credit_ledger` — every credit movement in the marketplace billing engine. Columns used: `entry_type`, `amount`, `description`, `metadata`, `created_at`. Observed `entry_type` values today: `deposit`, `CREDIT`, `revenue` (ingress); `USAGE`/`usage`, `DEBIT`, `escrow`, `ADJUSTMENT` (egress). Spec mentions `action_type`/`direction` and `'top_up'`/`'data_purchase'` — the live column is `entry_type` with the values above. Mapping reconciled below.
-- `public.api_metrics` — `endpoint`, `latency_ms`, `status_code`, `timestamp`. Real latency from execution workers; used for the Oracle SLA handshake.
-- `marketplace_purchases` does **not** exist; `marketplace_bundles` is a catalog table with no purchase rows. Data-purchase volume lives entirely in `synapse_credit_ledger` egress entries, which is what we'll sum.
+1. **Marketplace Bundles** → `public.bundle_generation_logs.processing_duration` (Postgres `interval`).
+   - Returned by PostgREST as ISO 8601 string (e.g. `"00:00:01.234"`). Parse client-side to ms: split `HH:MM:SS.fff`, convert to total ms. Fallback `parseFloat` for plain numerics.
+   - Channel label: `Marketplace Bundles`.
 
-## 1. TreasuryFlows refactor (`src/components/governance/TreasuryFlows.tsx`)
+2. **MCP / API / SQL (Egress)** → `public.egress_logs`, synthesize latency = `new Date(settled_at).getTime() - new Date(created_at).getTime()`. Skip rows where `settled_at` is null.
+   - Channel label: `MCP · Egress Delivery`.
 
-- Replace the `dao_treasury_flows` select with:
+3. **Best Friend AI** → `public.api_metrics` where `endpoint = 'best-friend-ai'`, read `latency_ms` directly.
+   - Channel label: `Best Friend AI`.
+
+All three queries scoped `.gte(<timestamp_col>, now - 30d)`, `.limit(1000)` each.
+
+## Component behavior
+
+- Parallel `Promise.all` of the three queries on mount + on realtime INSERT (debounced 2s) for all three tables.
+- Normalize every row into `{ channel, latency_ms, recorded_at }` via:
   ```ts
-  supabase
-    .from("synapse_credit_ledger")
-    .select("id, entry_type, amount, description, metadata, created_at")
-    .gte("created_at", new Date(Date.now() - 30 * 86400000).toISOString())
-    .order("created_at", { ascending: false })
-    .limit(1000);
+  const latencyValueMs = Number(
+    row.latency_ms ||
+    (row.processing_duration ? parseDurationToMs(row.processing_duration) : 0) ||
+    (row.settled_at && row.created_at
+      ? new Date(row.settled_at).getTime() - new Date(row.created_at).getTime()
+      : 0)
+  );
   ```
-- Normalize each row into the existing `Flow` shape:
-  - `direction`: lowercase `entry_type` ∈ {`deposit`,`credit`,`revenue`,`top_up`} → `"in"`; everything else (`usage`,`debit`,`escrow`,`adjustment`,`data_purchase`,`split`,`payout`) → `"out"`.
-  - `amount_usd`: `Math.abs(Number(row.amount))`.
-  - `asset`: `(metadata?.asset as string) ?? "SYN"`.
-  - `counterparty_label`: derived label (see §3).
-  - `recorded_at`: `created_at`.
-- Realtime subscription: swap channel to `synapse_credit_ledger` with `event:'INSERT'`. Re-run the same fetcher on event.
-- Chart aggregation logic is unchanged (buckets by `MM-DD`, sums `in`/`out`).
+- Per-channel aggregate (avg + sample count) rendered as three SLA rows (same visual language as today's card) with `meeting` / `warning` / `breach` thresholds against `SLA_BUDGET_MS` (default 250 ms; per-channel overrides allowed in a const map).
+- Status dot threshold derived from the live aggregate (no mock vars).
+- Empty-state preserved when all three channels return 0 samples.
 
-## 2. MSAComplianceCard refactor (`src/components/governance/MSAComplianceCard.tsx`)
+## Telemetry signatures (replacing current `[GLOBAL_ORACLE_METRICS]` bookends)
 
-- Replace `dao_msa_metrics` select with a 24h roll-up of `api_metrics`:
-  ```ts
-  supabase
-    .from("api_metrics")
-    .select("endpoint, latency_ms, status_code, timestamp")
-    .gte("timestamp", new Date(Date.now() - 86400000).toISOString())
-    .limit(1000);
-  ```
-- Client-side reduce → one synthetic `MSA` row per `endpoint`:
-  - `sla_name`: endpoint.
-  - `current_value`: avg `latency_ms`.
-  - `target_value`: fixed SLA budget per endpoint (constant map, default 250 ms).
-  - `status`: `meeting` if avg ≤ target, `warning` if ≤ 1.5× target, `breach` otherwise. Force `breach` when any 5xx in the window.
-- Realtime channel listens to `api_metrics` inserts (debounced 2 s).
-
-## 3. PII-safe counterparty resolution
-
-Extend `sanitizeCounterparty` with a deterministic fallback derived from `entry_type` (after UUID stripping):
-- `deposit` / `credit` / `revenue` → `"Corporate Capitalization"`
-- `usage` / `debit` → `"Enterprise Data Purchase"`
-- `escrow` → `"Validator Security Fee"`
-- `adjustment` → `"Sovereign Pool Dividend"`
-- default → `"Network Settlement"`
-
-Apply *before* the UUID-stripping fallback so the public Atomic Settlements feed never leaks raw `description`/`metadata` text containing emails, wallet addresses, or user ids. Strip 0x-hex strings of length ≥ 16 in addition to UUIDs.
-
-## 4. Trace telemetry (exact signatures)
-
-TreasuryFlows fetch/socket replaces existing `[TREASURY_FLOWS]` lines with:
-- `[GLOBAL_TREASURY_FLOWS] START: Initializing multi-tenant ledger aggregation pass.`
-- `[GLOBAL_TREASURY_FLOWS] SUCCESS: Gathered total transaction entities for graph matrix extrapolation.`
-- `[GLOBAL_TREASURY_FLOWS] CRITICAL_FAILURE: Global telemetry bridge stalled. Reason: <err.message>`
-- `[GLOBAL_TREASURY_FLOWS] SOCKET_START: Listening for aggregate network modifications on synapse channels.`
-- `[GLOBAL_TREASURY_FLOWS] SOCKET_EVENT: Aggregate ledger mutation detected. Re-extrapolating…`
-- `[GLOBAL_TREASURY_FLOWS] SOCKET_CLOSE: Tearing down aggregate synapse listener.`
-
-MSAComplianceCard gets a parallel `[GLOBAL_ORACLE_METRICS]` bookended set (START / SUCCESS / CRITICAL_FAILURE / SOCKET_START / SOCKET_EVENT / SOCKET_CLOSE).
-
-## 5. Out of scope
-
-- No migrations. `dao_treasury_flows` / `dao_msa_metrics` tables remain in the DB but are no longer read. The `dao-treasury-ingest` edge function is left untouched.
-- No UI/layout changes — same cards, same chart, same list rows.
-- No Pro-tier / Friend-AI changes.
+```
+[ORACLE_TELEMETRY][SHARED_SCHEMA][START]
+[ORACLE_TELEMETRY][SHARED_SCHEMA][SUCCESS]   // includes per-channel counts
+[ORACLE_TELEMETRY][SHARED_SCHEMA][CRITICAL_FAILURE]
+[ORACLE_TELEMETRY][SHARED_SCHEMA][SOCKET_START|SOCKET_EVENT|SOCKET_STATUS|SOCKET_CLOSE]
+```
 
 ## Files touched
 
-- `src/components/governance/TreasuryFlows.tsx`
-- `src/components/governance/MSAComplianceCard.tsx`
+- `src/components/governance/MSAComplianceCard.tsx` — full refactor (single file).
+
+## Out of scope
+
+- No DB migrations; all three tables already exist with the referenced columns.
+- No changes to `TreasuryFlows.tsx`, Pro tab, Friend AI, or any other surface.
+- No new UI primitives; reuse the card's existing row layout.
 
 ## Verification
 
-- Console shows the new bookended traces and a non-zero `SUCCESS` count.
-- Chart 30-day series populated from real `synapse_credit_ledger` rows (currently 139 rows in the table → expect data).
-- Oracle Telemetry lists one row per distinct endpoint in `api_metrics` over 24h, with live latency.
-- No UUIDs, emails, or wallet addresses appear in Recent Atomic Settlements labels.
+- Console shows the four new bookended traces and per-table socket status lines.
+- Each of the three channels renders a row with a real avg-latency number when sample data exists; missing channels show `—` with `No Samples` substatus.
+- Inserting a row into any of the three tables triggers a debounced refresh within ~2s.

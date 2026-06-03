@@ -1,91 +1,185 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Activity, Loader2, Zap, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
-interface MSA {
-  id: string;
+type ChannelId = "bundles" | "egress" | "best_friend_ai";
+
+interface ChannelRow {
+  id: ChannelId;
   sla_name: string;
-  target_value: number | null;
+  target_value: number;
   current_value: number | null;
-  status: "meeting" | "warning" | "breach";
+  sample_count: number;
+  status: "meeting" | "warning" | "breach" | "idle";
 }
 
-// Per-endpoint SLA budget (ms). Anything not listed defaults to 250 ms.
-const SLA_BUDGET_MS: Record<string, number> = {
-  default: 250,
+// Per-channel SLA budget (ms). Tune as the live data calibrates.
+const SLA_BUDGET_MS: Record<ChannelId, number> = {
+  bundles: 2000,
+  egress: 1500,
+  best_friend_ai: 250,
 };
 
-const dotColor = (s: string) =>
+const CHANNEL_LABELS: Record<ChannelId, string> = {
+  bundles: "Marketplace Bundles",
+  egress: "MCP · Egress Delivery",
+  best_friend_ai: "Best Friend AI",
+};
+
+const WINDOW_MS = 30 * 86400_000;
+
+/**
+ * Parse a Postgres `interval` value as returned by PostgREST into milliseconds.
+ * PostgREST returns intervals as strings — most commonly the ISO 8601 form
+ * (e.g. "PT1.234S", "PT2M3.5S") or the legacy "HH:MM:SS.fff" form. We handle
+ * both, plus a plain numeric fallback (seconds).
+ */
+const parseDurationToMs = (raw: unknown): number => {
+  if (raw == null) return 0;
+  if (typeof raw === "number") return raw * 1000; // assume seconds
+  const s = String(raw).trim();
+  if (!s) return 0;
+
+  // ISO 8601 duration: PnYnMnDTnHnMnS — we only care about H/M/S
+  if (/^P/i.test(s)) {
+    const m = s.match(/T(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?/i);
+    if (m) {
+      const h = parseFloat(m[1] || "0");
+      const min = parseFloat(m[2] || "0");
+      const sec = parseFloat(m[3] || "0");
+      return (h * 3600 + min * 60 + sec) * 1000;
+    }
+  }
+
+  // HH:MM:SS(.fff)
+  const hms = s.match(/^(\d+):(\d+):(\d+(?:\.\d+)?)$/);
+  if (hms) {
+    return (parseInt(hms[1], 10) * 3600 + parseInt(hms[2], 10) * 60 + parseFloat(hms[3])) * 1000;
+  }
+
+  // Plain numeric — interpret as seconds
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n * 1000 : 0;
+};
+
+const dotColor = (s: ChannelRow["status"]) =>
   s === "meeting"
     ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
     : s === "warning"
       ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)] animate-pulse"
-      : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)] animate-pulse";
+      : s === "breach"
+        ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)] animate-pulse"
+        : "bg-slate-400";
 
-const textColor = (s: string) =>
+const textColor = (s: ChannelRow["status"]) =>
   s === "meeting"
     ? "text-emerald-700 dark:text-emerald-300"
     : s === "warning"
       ? "text-amber-700 dark:text-amber-300"
-      : "text-red-700 dark:text-red-300";
+      : s === "breach"
+        ? "text-red-700 dark:text-red-300"
+        : "text-slate-500 dark:text-muted-foreground";
 
-const statusLabel = (s: string) =>
-  s === "meeting" ? "Optimal" : s === "warning" ? "Latency Drift" : "SLA Breach";
+const statusLabel = (s: ChannelRow["status"]) =>
+  s === "meeting"
+    ? "Optimal"
+    : s === "warning"
+      ? "Latency Drift"
+      : s === "breach"
+        ? "SLA Breach"
+        : "No Samples";
+
+const statusFor = (avg: number | null, target: number, samples: number): ChannelRow["status"] => {
+  if (!samples || avg == null) return "idle";
+  if (avg > target * 1.5) return "breach";
+  if (avg > target) return "warning";
+  return "meeting";
+};
 
 const MSAComplianceCard: React.FC = () => {
-  const [items, setItems] = useState<MSA[]>([]);
+  const [items, setItems] = useState<ChannelRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const debounceRef = useRef<number | null>(null);
 
-  const fetchMetrics = async (showToast: boolean = false) => {
+  const fetchMetrics = useCallback(async (showToast: boolean = false) => {
     if (showToast) setIsRefreshing(true);
-    console.log("[GLOBAL_ORACLE_METRICS] START: Aggregating 24h execution-worker latency telemetry.");
+    console.log("[ORACLE_TELEMETRY][SHARED_SCHEMA][START] Syncing multi-tenant delivery latency profiles from live tables.");
+
+    const since = new Date(Date.now() - WINDOW_MS).toISOString();
+
     try {
-      const { data, error } = await supabase
-        .from("api_metrics" as any)
-        .select("endpoint, latency_ms, status_code, timestamp")
-        .gte("timestamp", new Date(Date.now() - 86400_000).toISOString())
-        .limit(1000);
+      const [bundlesRes, egressRes, bfaiRes] = await Promise.all([
+        supabase
+          .from("bundle_generation_logs" as any)
+          .select("id, processing_duration, created_at")
+          .gte("created_at", since)
+          .limit(1000),
+        supabase
+          .from("egress_logs" as any)
+          .select("id, created_at, settled_at")
+          .gte("created_at", since)
+          .not("settled_at", "is", null)
+          .limit(1000),
+        supabase
+          .from("api_metrics" as any)
+          .select("id, endpoint, latency_ms, status_code, timestamp")
+          .eq("endpoint", "best-friend-ai")
+          .gte("timestamp", since)
+          .limit(1000),
+      ]);
 
-      if (error) throw error;
+      if (bundlesRes.error) throw bundlesRes.error;
+      if (egressRes.error) throw egressRes.error;
+      if (bfaiRes.error) throw bfaiRes.error;
 
-      const agg: Record<string, { sum: number; n: number; err: boolean }> = {};
-      ((data as any[]) || []).forEach((row) => {
-        const ep = row.endpoint || "unknown";
-        if (!agg[ep]) agg[ep] = { sum: 0, n: 0, err: false };
-        agg[ep].sum += Number(row.latency_ms ?? 0);
-        agg[ep].n += 1;
-        if (Number(row.status_code ?? 0) >= 500) agg[ep].err = true;
-      });
+      // BUNDLES: parse processing_duration interval -> ms
+      const bundleSamples = ((bundlesRes.data as any[]) || [])
+        .map((row) => parseDurationToMs(row.processing_duration))
+        .filter((n) => Number.isFinite(n) && n > 0);
 
-      const rows: MSA[] = Object.entries(agg).map(([endpoint, v]) => {
-        const avg = v.n ? v.sum / v.n : 0;
-        const target = SLA_BUDGET_MS[endpoint] ?? SLA_BUDGET_MS.default;
-        let status: MSA["status"] = "meeting";
-        if (v.err || avg > target * 1.5) status = "breach";
-        else if (avg > target) status = "warning";
+      // EGRESS: settled_at - created_at delta (ms)
+      const egressSamples = ((egressRes.data as any[]) || [])
+        .map((row) => {
+          if (!row.settled_at || !row.created_at) return 0;
+          return new Date(row.settled_at).getTime() - new Date(row.created_at).getTime();
+        })
+        .filter((n) => Number.isFinite(n) && n > 0);
+
+      // BEST FRIEND AI: latency_ms direct
+      const bfaiSamples = ((bfaiRes.data as any[]) || [])
+        .map((row) => Number(row.latency_ms ?? 0))
+        .filter((n) => Number.isFinite(n) && n > 0);
+
+      const avg = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
+
+      const rows: ChannelRow[] = (["bundles", "egress", "best_friend_ai"] as ChannelId[]).map((id) => {
+        const samples = id === "bundles" ? bundleSamples : id === "egress" ? egressSamples : bfaiSamples;
+        const a = avg(samples);
+        const target = SLA_BUDGET_MS[id];
         return {
-          id: endpoint,
-          sla_name: endpoint,
+          id,
+          sla_name: CHANNEL_LABELS[id],
           target_value: target,
-          current_value: avg,
-          status,
+          current_value: a,
+          sample_count: samples.length,
+          status: statusFor(a, target, samples.length),
         };
       });
-      rows.sort((a, b) => (b.current_value ?? 0) - (a.current_value ?? 0));
 
-      console.log(`[GLOBAL_ORACLE_METRICS] SUCCESS: Aggregated ${rows.length} endpoints from ${((data as any[]) || []).length} samples.`);
+      console.log(
+        `[ORACLE_TELEMETRY][SHARED_SCHEMA][SUCCESS] Consolidated performance marks across Bundles, Egress Logs, and AI interaction timelines. counts={bundles:${bundleSamples.length}, egress:${egressSamples.length}, best_friend_ai:${bfaiSamples.length}}`,
+      );
       setItems(rows);
     } catch (err: any) {
-      console.log("[GLOBAL_ORACLE_METRICS] CRITICAL_FAILURE: Global telemetry bridge stalled. Reason: " + err.message);
+      console.error("[ORACLE_TELEMETRY][SHARED_SCHEMA][CRITICAL_FAILURE] Telemetry bridge stalled. Reason: ", err?.message ?? err);
       if (showToast) {
         toast({
           title: "Telemetry Sync Failed",
-          description: "Could not retrieve live execution-worker telemetry.",
+          description: "Could not retrieve shared-schema delivery telemetry.",
           variant: "destructive",
         });
       }
@@ -93,33 +187,45 @@ const MSAComplianceCard: React.FC = () => {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchMetrics();
 
-    console.log("[GLOBAL_ORACLE_METRICS] SOCKET_START: Listening for aggregate execution-worker telemetry.");
+    const scheduleRefetch = (source: string) => {
+      console.log(`[ORACLE_TELEMETRY][SHARED_SCHEMA][SOCKET_EVENT] source=${source}. Debounced re-aggregation queued.`);
+      if (debounceRef.current) window.clearTimeout(debounceRef.current);
+      debounceRef.current = window.setTimeout(() => fetchMetrics(), 2000);
+    };
+
+    console.log("[ORACLE_TELEMETRY][SHARED_SCHEMA][SOCKET_START] Subscribing to bundle_generation_logs, egress_logs, api_metrics.");
     const ch = supabase
-      .channel("global_api_metrics_telemetry")
+      .channel("global_oracle_telemetry_shared_schema")
+      .on(
+        "postgres_changes" as any,
+        { event: "INSERT", schema: "public", table: "bundle_generation_logs" },
+        () => scheduleRefetch("bundle_generation_logs"),
+      )
+      .on(
+        "postgres_changes" as any,
+        { event: "INSERT", schema: "public", table: "egress_logs" },
+        () => scheduleRefetch("egress_logs"),
+      )
       .on(
         "postgres_changes" as any,
         { event: "INSERT", schema: "public", table: "api_metrics" },
-        () => {
-          console.log("[GLOBAL_ORACLE_METRICS] SOCKET_EVENT: New worker sample arrived. Debounced re-aggregation queued.");
-          if (debounceRef.current) window.clearTimeout(debounceRef.current);
-          debounceRef.current = window.setTimeout(() => fetchMetrics(), 2000);
-        },
+        () => scheduleRefetch("api_metrics"),
       )
       .subscribe((status) => {
-        console.log(`[GLOBAL_ORACLE_METRICS] SOCKET_STATUS: Worker socket state -> ${status}`);
+        console.log(`[ORACLE_TELEMETRY][SHARED_SCHEMA][SOCKET_STATUS] Shared-schema socket state -> ${status}`);
       });
 
     return () => {
-      console.log("[GLOBAL_ORACLE_METRICS] SOCKET_CLOSE: Tearing down execution-worker listener.");
+      console.log("[ORACLE_TELEMETRY][SHARED_SCHEMA][SOCKET_CLOSE] Tearing down shared-schema listener.");
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
       supabase.removeChannel(ch);
     };
-  }, []);
+  }, [fetchMetrics]);
 
   if (isLoading) {
     return (
@@ -129,13 +235,15 @@ const MSAComplianceCard: React.FC = () => {
     );
   }
 
+  const totalSamples = items.reduce((a, r) => a + r.sample_count, 0);
+
   return (
     <Card className="rounded-3xl border-teal-50 dark:bg-card dark:border-teal-900/40 shadow-sm overflow-hidden transition-all">
       <CardContent className="p-5 space-y-4">
         <div className="flex items-center justify-between border-b border-teal-50/50 dark:border-teal-900/40 pb-3">
           <h3 className="text-[10px] font-black uppercase tracking-widest text-teal-800 dark:text-teal-200 flex items-center gap-2">
             <Zap size={14} className="text-teal-600 dark:text-teal-300" />
-            Oracle Telemetry · Global Worker Latency
+            Oracle Telemetry · Shared Schema · 30D
           </h3>
           <button
             onClick={() => fetchMetrics(true)}
@@ -145,10 +253,10 @@ const MSAComplianceCard: React.FC = () => {
           </button>
         </div>
 
-        {items.length === 0 ? (
+        {totalSamples === 0 ? (
           <div className="flex flex-col items-center justify-center py-6 opacity-40 space-y-2">
             <Activity className="w-8 h-8 text-slate-400" />
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">No Worker Samples in 24h Window</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">No Channel Samples in 30D Window</p>
           </div>
         ) : (
           <div className="space-y-2.5">
@@ -161,7 +269,9 @@ const MSAComplianceCard: React.FC = () => {
                     ? "bg-teal-50/30 dark:bg-teal-950/20 border-teal-50 dark:border-teal-900/40"
                     : m.status === "warning"
                       ? "bg-amber-50/30 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/40"
-                      : "bg-red-50/30 dark:bg-red-950/20 border-red-100 dark:border-red-900/40",
+                      : m.status === "breach"
+                        ? "bg-red-50/30 dark:bg-red-950/20 border-red-100 dark:border-red-900/40"
+                        : "bg-slate-50/30 dark:bg-muted/20 border-slate-100 dark:border-border",
                 )}
               >
                 <div className="flex items-center gap-3">
@@ -171,20 +281,20 @@ const MSAComplianceCard: React.FC = () => {
                   <div className="space-y-0.5">
                     <span className={cn("text-xs font-bold block truncate max-w-[180px]", textColor(m.status))}>{m.sla_name}</span>
                     <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground block">
-                      Status: {statusLabel(m.status)}
+                      Status: {statusLabel(m.status)} · n={m.sample_count}
                     </span>
                   </div>
                 </div>
 
                 <div className="text-right">
                   <div className="text-sm font-black tracking-tighter text-slate-700 dark:text-foreground">
-                    {m.current_value?.toFixed(1) ?? "—"}
+                    {m.current_value != null ? m.current_value.toFixed(1) : "—"}
                     <span className="text-[10px] text-slate-400 dark:text-muted-foreground font-medium tracking-normal">
-                      {" "}ms / SLA: {m.target_value ?? "—"}
+                      {" "}ms / SLA: {m.target_value}
                     </span>
                   </div>
                   <div className="text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-muted-foreground">
-                    Live Worker Feed
+                    Shared Schema Feed
                   </div>
                 </div>
               </div>
