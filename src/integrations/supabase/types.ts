@@ -9256,6 +9256,7 @@ export type Database = {
           count: number
         }[]
       }
+      get_service_role_key: { Args: never; Returns: string }
       get_synapse_balance: { Args: { uid: string }; Returns: number }
       get_user_business_access: {
         Args: { p_user_id: string }
