@@ -101,8 +101,11 @@ const statusFor = (avg: number | null, target: number, samples: number): Channel
   return "meeting";
 };
 
+type SamplesByChannel = Record<ChannelId, number[]>;
+const EMPTY_SAMPLES: SamplesByChannel = { bundles: [], api_mcp: [], best_friend_ai: [], egress: [] };
+
 const MSAComplianceCard: React.FC = () => {
-  const [items, setItems] = useState<ChannelRow[]>([]);
+  const [samples, setSamples] = useState<SamplesByChannel>(EMPTY_SAMPLES);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const debounceRef = useRef<number | null>(null);
@@ -114,17 +117,17 @@ const MSAComplianceCard: React.FC = () => {
     const since = new Date(Date.now() - WINDOW_MS).toISOString();
 
     try {
-      const [bundlesRes, egressRes, bfaiRes] = await Promise.all([
+      const [bundlesRes, apiMcpRes, bfaiRes, egressRes] = await Promise.all([
         supabase
           .from("bundle_generation_logs" as any)
           .select("id, processing_duration, created_at")
           .gte("created_at", since)
           .limit(1000),
         supabase
-          .from("egress_logs" as any)
-          .select("id, created_at, settled_at")
-          .gte("created_at", since)
-          .not("settled_at", "is", null)
+          .from("api_metrics" as any)
+          .select("id, endpoint, latency_ms, status_code, timestamp")
+          .in("endpoint", ["mcp-gateway", "sql-endpoint"])
+          .gte("timestamp", since)
           .limit(1000),
         supabase
           .from("api_metrics" as any)
@@ -132,18 +135,31 @@ const MSAComplianceCard: React.FC = () => {
           .eq("endpoint", "best-friend-ai")
           .gte("timestamp", since)
           .limit(1000),
+        supabase
+          .from("egress_logs" as any)
+          .select("id, created_at, settled_at")
+          .gte("created_at", since)
+          .not("settled_at", "is", null)
+          .limit(1000),
       ]);
 
       if (bundlesRes.error) throw bundlesRes.error;
-      if (egressRes.error) throw egressRes.error;
+      if (apiMcpRes.error) throw apiMcpRes.error;
       if (bfaiRes.error) throw bfaiRes.error;
+      if (egressRes.error) throw egressRes.error;
 
-      // BUNDLES: parse processing_duration interval -> ms
       const bundleSamples = ((bundlesRes.data as any[]) || [])
         .map((row) => parseDurationToMs(row.processing_duration))
         .filter((n) => Number.isFinite(n) && n > 0);
 
-      // EGRESS: settled_at - created_at delta (ms)
+      const apiMcpSamples = ((apiMcpRes.data as any[]) || [])
+        .map((row) => Number(row.latency_ms ?? 0))
+        .filter((n) => Number.isFinite(n) && n > 0);
+
+      const bfaiSamples = ((bfaiRes.data as any[]) || [])
+        .map((row) => Number(row.latency_ms ?? 0))
+        .filter((n) => Number.isFinite(n) && n > 0);
+
       const egressSamples = ((egressRes.data as any[]) || [])
         .map((row) => {
           if (!row.settled_at || !row.created_at) return 0;
@@ -151,33 +167,15 @@ const MSAComplianceCard: React.FC = () => {
         })
         .filter((n) => Number.isFinite(n) && n > 0);
 
-      // BEST FRIEND AI: latency_ms direct
-      const bfaiSamples = ((bfaiRes.data as any[]) || [])
-        .map((row) => Number(row.latency_ms ?? 0))
-        .filter((n) => Number.isFinite(n) && n > 0);
-
-      const avg = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
-
-      const rows: ChannelRow[] = (["bundles", "egress", "best_friend_ai"] as ChannelId[]).map((id) => {
-        const samples = id === "bundles" ? bundleSamples : id === "egress" ? egressSamples : bfaiSamples;
-        const a = avg(samples);
-        const target = SLA_BUDGET_MS[id];
-        return {
-          id,
-          sla_name: CHANNEL_LABELS[id],
-          target_value: target,
-          current_value: a,
-          sample_count: samples.length,
-          status: statusFor(a, target, samples.length),
-        };
+      console.log("[ORACLE_TELEMETRY][SHARED_SCHEMA][SUCCESS] Performance profiles calculated successfully.");
+      setSamples({
+        bundles: bundleSamples,
+        api_mcp: apiMcpSamples,
+        best_friend_ai: bfaiSamples,
+        egress: egressSamples,
       });
-
-      console.log(
-        `[ORACLE_TELEMETRY][SHARED_SCHEMA][SUCCESS] Consolidated performance marks across Bundles, Egress Logs, and AI interaction timelines. counts={bundles:${bundleSamples.length}, egress:${egressSamples.length}, best_friend_ai:${bfaiSamples.length}}`,
-      );
-      setItems(rows);
     } catch (err: any) {
-      console.error("[ORACLE_TELEMETRY][SHARED_SCHEMA][CRITICAL_FAILURE] Telemetry bridge stalled. Reason: ", err?.message ?? err);
+      console.error("[ORACLE_TELEMETRY][SHARED_SCHEMA][CRITICAL_FAILURE] Latency collection pass stalled: ", err?.message ?? err);
       if (showToast) {
         toast({
           title: "Telemetry Sync Failed",
@@ -190,6 +188,24 @@ const MSAComplianceCard: React.FC = () => {
       setIsRefreshing(false);
     }
   }, []);
+
+  const items = useMemo<ChannelRow[]>(() => {
+    const avg = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
+    return (["bundles", "api_mcp", "best_friend_ai", "egress"] as ChannelId[]).map((id) => {
+      const arr = samples[id] ?? [];
+      const a = avg(arr);
+      const target = SLA_BUDGET_MS[id];
+      return {
+        id,
+        sla_name: CHANNEL_LABELS[id],
+        target_value: target,
+        current_value: a,
+        sample_count: arr.length,
+        status: statusFor(a, target, arr.length),
+      };
+    });
+  }, [samples]);
+
 
   useEffect(() => {
     fetchMetrics();
