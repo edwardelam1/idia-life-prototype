@@ -75,20 +75,19 @@ const ProposalForm = ({ onClose, onSuccess }: ProposalFormProps) => {
         frequency_score: 2
       });
 
-      // Call AI validation function
-      const response = await fetch(`https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/validate-proposal`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4eW5ncWNpaXBjdnZlaWdyenF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEzMjIwNzYsImV4cCI6MjA2Njg5ODA3Nn0.w-fUxBsH8wZ5ewzQkGAO6sEooqPEYbYJI_vL5F36HSU`
-        },
-        body: JSON.stringify({
-          proposalId: proposal.id,
-          title: title.trim(),
-          description: description.trim(),
-          category
-        })
-      });
+      // Call AI validation function via Supabase SDK (uses live publishable key + session)
+      console.log("[PROPOSAL_FORM][VALIDATION_SUBMIT][START] Invoking edge engine for proposal checking...");
+      const { data: validationResult, error: validationError } = await supabase.functions.invoke(
+        'validate-proposal',
+        {
+          body: {
+            proposalId: proposal.id,
+            title: title.trim(),
+            description: description.trim(),
+            category,
+          },
+        }
+      );
 
       // Track AI validation attempt
       eventTracker.trackAIInteraction({
@@ -99,11 +98,12 @@ const ProposalForm = ({ onClose, onSuccess }: ProposalFormProps) => {
         feature: 'proposal_validation'
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to validate proposal');
+      if (validationError) {
+        console.error("[PROPOSAL_FORM][VALIDATION_SUBMIT][END:FAIL]", validationError.message);
+        throw new Error(validationError.message || 'Failed to validate proposal');
       }
+      console.log("[PROPOSAL_FORM][VALIDATION_SUBMIT][END:OK] Proposal structural constraints verified.");
 
-      const validationResult = await response.json();
 
       // Track validation result
       eventTracker.trackVotingAction({

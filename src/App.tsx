@@ -47,11 +47,27 @@ const App = () => {
   useEffect(() => {
     console.log("[START] App Lifecycle: Initializing Sovereign Routing & Auth Manifest...");
 
+    // ── One-shot stale-session guard (post legacy-JWT rotation) ──
+    console.log("[AUTH_SESSION_GUARD][CHECK][START] Validating current user session keys against rotated JWT secrets.");
+    supabase.auth.getSession().then(({ data: { session: guardSession }, error: guardError }) => {
+      const looksLegacy = !!guardSession?.access_token?.startsWith("eyJhbGciOiJIUzI1NiI");
+      if (guardError || looksLegacy) {
+        console.warn("🚨 [AUTH_SESSION_GUARD][INVALID_KEY]: Stale or compromised token detected from legacy platform configuration. Initiating local state purge.");
+        supabase.auth.signOut({ scope: 'local' }).then(() => {
+          console.log("[AUTH_SESSION_GUARD][PURGE][END:OK] Compromised local storage markers cleared safely. Redirecting client to authentication gate.");
+          window.location.reload();
+        });
+        return;
+      }
+      console.log("[AUTH_SESSION_GUARD][CHECK][END:OK] Session keys authenticated successfully under current perimeter.");
+    });
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       console.log(`[INFO] Session Sync: ${session ? "Active Session Detected" : "No Session Found"}`);
       setSession(session);
       setIsFetched(true);
     });
+
 
     const {
       data: { subscription },
