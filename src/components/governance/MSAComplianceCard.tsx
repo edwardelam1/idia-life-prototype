@@ -111,7 +111,7 @@ const statusFor = (avg: number | null, target: number, samples: number): Channel
   return "meeting";
 };
 
-type SamplesByChannel = Record<ChannelId, number[]>;
+type SamplesByChannel = Record<ChannelId, Sample[]>;
 const EMPTY_SAMPLES: SamplesByChannel = { bundles: [], api_mcp: [], best_friend_ai: [], egress: [] };
 
 const MSAComplianceCard: React.FC = () => {
@@ -158,24 +158,32 @@ const MSAComplianceCard: React.FC = () => {
       if (bfaiRes.error) throw bfaiRes.error;
       if (egressRes.error) throw egressRes.error;
 
-      const bundleSamples = ((bundlesRes.data as any[]) || [])
-        .map((row) => parseDurationToMs(row.processing_duration))
-        .filter((n) => Number.isFinite(n) && n > 0);
+      const toSample = (tsRaw: any, ms: number): Sample | null => {
+        if (!Number.isFinite(ms) || ms <= 0 || !tsRaw) return null;
+        const ts = new Date(tsRaw).getTime();
+        if (!Number.isFinite(ts)) return null;
+        return { ts, ms };
+      };
 
-      const apiMcpSamples = ((apiMcpRes.data as any[]) || [])
-        .map((row) => Number(row.latency_ms ?? 0))
-        .filter((n) => Number.isFinite(n) && n > 0);
+      const bundleSamples: Sample[] = ((bundlesRes.data as any[]) || [])
+        .map((row) => toSample(row.created_at, parseDurationToMs(row.processing_duration)))
+        .filter((s): s is Sample => s !== null);
 
-      const bfaiSamples = ((bfaiRes.data as any[]) || [])
-        .map((row) => Number(row.latency_ms ?? 0))
-        .filter((n) => Number.isFinite(n) && n > 0);
+      const apiMcpSamples: Sample[] = ((apiMcpRes.data as any[]) || [])
+        .map((row) => toSample(row.timestamp, Number(row.latency_ms ?? 0)))
+        .filter((s): s is Sample => s !== null);
 
-      const egressSamples = ((egressRes.data as any[]) || [])
+      const bfaiSamples: Sample[] = ((bfaiRes.data as any[]) || [])
+        .map((row) => toSample(row.timestamp, Number(row.latency_ms ?? 0)))
+        .filter((s): s is Sample => s !== null);
+
+      const egressSamples: Sample[] = ((egressRes.data as any[]) || [])
         .map((row) => {
-          if (!row.settled_at || !row.created_at) return 0;
-          return new Date(row.settled_at).getTime() - new Date(row.created_at).getTime();
+          if (!row.settled_at || !row.created_at) return null;
+          const ms = new Date(row.settled_at).getTime() - new Date(row.created_at).getTime();
+          return toSample(row.created_at, ms);
         })
-        .filter((n) => Number.isFinite(n) && n > 0);
+        .filter((s): s is Sample => s !== null);
 
       console.log("[ORACLE_TELEMETRY][SHARED_SCHEMA][SUCCESS] Performance profiles calculated successfully.");
       setSamples({
@@ -200,7 +208,8 @@ const MSAComplianceCard: React.FC = () => {
   }, []);
 
   const items = useMemo<ChannelRow[]>(() => {
-    const avg = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
+    const avg = (arr: Sample[]) =>
+      arr.length ? arr.reduce((a, b) => a + b.ms, 0) / arr.length : null;
     return (["bundles", "api_mcp", "best_friend_ai", "egress"] as ChannelId[]).map((id) => {
       const arr = samples[id] ?? [];
       const a = avg(arr);
@@ -215,6 +224,29 @@ const MSAComplianceCard: React.FC = () => {
       };
     });
   }, [samples]);
+
+  // Per-channel daily-averaged time series for the 30D window. Empty buckets
+  // are omitted so AreaChart doesn't draw flat zero baselines across gaps.
+  const seriesByChannel = useMemo<Record<ChannelId, { day: string; ms: number }[]>>(() => {
+    const out: Record<ChannelId, { day: string; ms: number }[]> = {
+      bundles: [], api_mcp: [], best_friend_ai: [], egress: [],
+    };
+    (Object.keys(samples) as ChannelId[]).forEach((id) => {
+      const buckets: Record<string, { sum: number; n: number }> = {};
+      samples[id].forEach((s) => {
+        const day = new Date(s.ts).toISOString().slice(5, 10);
+        if (!buckets[day]) buckets[day] = { sum: 0, n: 0 };
+        buckets[day].sum += s.ms;
+        buckets[day].n += 1;
+      });
+      out[id] = Object.entries(buckets)
+        .map(([day, { sum, n }]) => ({ day, ms: sum / n }))
+        .sort((a, b) => a.day.localeCompare(b.day));
+    });
+    return out;
+  }, [samples]);
+
+
 
 
   useEffect(() => {
