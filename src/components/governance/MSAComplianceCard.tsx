@@ -33,6 +33,14 @@ const CHANNEL_LABELS: Record<ChannelId, string> = {
   egress: "Global Egress Delivery",
 };
 
+// Per-channel chart stroke + gradient color (HSL friendly to teal/amber palette).
+const CHANNEL_COLOR: Record<ChannelId, string> = {
+  bundles: "hsl(178,42%,42%)",
+  api_mcp: "#0ea5e9",
+  best_friend_ai: "#a855f7",
+  egress: "#f97316",
+};
+
 const WINDOW_MS = 30 * 86400_000;
 
 /**
