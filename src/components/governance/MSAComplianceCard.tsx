@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Activity, Loader2, Zap, AlertOctagon, RefreshCw } from "lucide-react";
+import { Activity, Loader2, Zap, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
@@ -13,6 +13,11 @@ interface MSA {
   status: "meeting" | "warning" | "breach";
 }
 
+// Per-endpoint SLA budget (ms). Anything not listed defaults to 250 ms.
+const SLA_BUDGET_MS: Record<string, number> = {
+  default: 250,
+};
+
 const dotColor = (s: string) =>
   s === "meeting"
     ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
@@ -21,10 +26,10 @@ const dotColor = (s: string) =>
       : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)] animate-pulse";
 
 const textColor = (s: string) =>
-  s === "meeting" 
-    ? "text-emerald-700 dark:text-emerald-300" 
-    : s === "warning" 
-      ? "text-amber-700 dark:text-amber-300" 
+  s === "meeting"
+    ? "text-emerald-700 dark:text-emerald-300"
+    : s === "warning"
+      ? "text-amber-700 dark:text-amber-300"
       : "text-red-700 dark:text-red-300";
 
 const statusLabel = (s: string) =>
@@ -34,57 +39,84 @@ const MSAComplianceCard: React.FC = () => {
   const [items, setItems] = useState<MSA[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const debounceRef = useRef<number | null>(null);
 
   const fetchMetrics = async (showToast: boolean = false) => {
     if (showToast) setIsRefreshing(true);
-    console.log("[NETWORK_TELEMETRY] START: Syncing Oracle performance metrics.");
+    console.log("[GLOBAL_ORACLE_METRICS] START: Aggregating 24h execution-worker latency telemetry.");
     try {
-      const { data, error } = await (supabase as any)
-        .from("dao_msa_metrics")
-        .select("*")
-        .order("measured_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("api_metrics" as any)
+        .select("endpoint, latency_ms, status_code, timestamp")
+        .gte("timestamp", new Date(Date.now() - 86400_000).toISOString())
+        .limit(1000);
 
       if (error) throw error;
 
-      console.log(`[NETWORK_TELEMETRY] SUCCESS: Retrieved ${data?.length || 0} telemetry streams.`);
-      setItems(data || []);
+      const agg: Record<string, { sum: number; n: number; err: boolean }> = {};
+      ((data as any[]) || []).forEach((row) => {
+        const ep = row.endpoint || "unknown";
+        if (!agg[ep]) agg[ep] = { sum: 0, n: 0, err: false };
+        agg[ep].sum += Number(row.latency_ms ?? 0);
+        agg[ep].n += 1;
+        if (Number(row.status_code ?? 0) >= 500) agg[ep].err = true;
+      });
+
+      const rows: MSA[] = Object.entries(agg).map(([endpoint, v]) => {
+        const avg = v.n ? v.sum / v.n : 0;
+        const target = SLA_BUDGET_MS[endpoint] ?? SLA_BUDGET_MS.default;
+        let status: MSA["status"] = "meeting";
+        if (v.err || avg > target * 1.5) status = "breach";
+        else if (avg > target) status = "warning";
+        return {
+          id: endpoint,
+          sla_name: endpoint,
+          target_value: target,
+          current_value: avg,
+          status,
+        };
+      });
+      rows.sort((a, b) => (b.current_value ?? 0) - (a.current_value ?? 0));
+
+      console.log(`[GLOBAL_ORACLE_METRICS] SUCCESS: Aggregated ${rows.length} endpoints from ${((data as any[]) || []).length} samples.`);
+      setItems(rows);
     } catch (err: any) {
-      console.error(`[NETWORK_TELEMETRY] CRITICAL_FAILURE: Sync stalled. Reason: ${err.message}`);
+      console.log("[GLOBAL_ORACLE_METRICS] CRITICAL_FAILURE: Global telemetry bridge stalled. Reason: " + err.message);
       if (showToast) {
         toast({
           title: "Telemetry Sync Failed",
-          description: "Could not retrieve live network performance data.",
+          description: "Could not retrieve live execution-worker telemetry.",
           variant: "destructive",
         });
       }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
-      console.log("[NETWORK_TELEMETRY] END: Sync thread terminated.");
     }
   };
 
   useEffect(() => {
     fetchMetrics();
 
-    // Establish Real-Time Socket Connection
-    console.log("[NETWORK_TELEMETRY] SOCKET_START: Establishing real-time connection to Oracle.");
+    console.log("[GLOBAL_ORACLE_METRICS] SOCKET_START: Listening for aggregate execution-worker telemetry.");
     const ch = supabase
-      .channel("msa_metrics_telemetry")
+      .channel("global_api_metrics_telemetry")
       .on(
-        "postgres_changes" as any, 
-        { event: "*", schema: "public", table: "dao_msa_metrics" }, 
-        (payload) => {
-          console.log("[NETWORK_TELEMETRY] SOCKET_EVENT: Mutation detected. Refreshing...");
-          fetchMetrics();
-        }
+        "postgres_changes" as any,
+        { event: "INSERT", schema: "public", table: "api_metrics" },
+        () => {
+          console.log("[GLOBAL_ORACLE_METRICS] SOCKET_EVENT: New worker sample arrived. Debounced re-aggregation queued.");
+          if (debounceRef.current) window.clearTimeout(debounceRef.current);
+          debounceRef.current = window.setTimeout(() => fetchMetrics(), 2000);
+        },
       )
       .subscribe((status) => {
-        console.log(`[NETWORK_TELEMETRY] SOCKET_STATUS: Oracle socket state -> ${status}`);
+        console.log(`[GLOBAL_ORACLE_METRICS] SOCKET_STATUS: Worker socket state -> ${status}`);
       });
 
     return () => {
-      console.log("[NETWORK_TELEMETRY] SOCKET_CLOSE: Tearing down connection.");
+      console.log("[GLOBAL_ORACLE_METRICS] SOCKET_CLOSE: Tearing down execution-worker listener.");
+      if (debounceRef.current) window.clearTimeout(debounceRef.current);
       supabase.removeChannel(ch);
     };
   }, []);
@@ -103,9 +135,9 @@ const MSAComplianceCard: React.FC = () => {
         <div className="flex items-center justify-between border-b border-teal-50/50 dark:border-teal-900/40 pb-3">
           <h3 className="text-[10px] font-black uppercase tracking-widest text-teal-800 dark:text-teal-200 flex items-center gap-2">
             <Zap size={14} className="text-teal-600 dark:text-teal-300" />
-            Oracle Telemetry · Global Hub Egress
+            Oracle Telemetry · Global Worker Latency
           </h3>
-          <button 
+          <button
             onClick={() => fetchMetrics(true)}
             className="text-teal-600 hover:text-teal-800 transition-colors"
           >
@@ -116,7 +148,7 @@ const MSAComplianceCard: React.FC = () => {
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-6 opacity-40 space-y-2">
             <Activity className="w-8 h-8 text-slate-400" />
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Awaiting Oracle Handshake</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">No Worker Samples in 24h Window</p>
           </div>
         ) : (
           <div className="space-y-2.5">
@@ -137,7 +169,7 @@ const MSAComplianceCard: React.FC = () => {
                     <span className={cn("absolute w-2 h-2 rounded-full", dotColor(m.status))} />
                   </div>
                   <div className="space-y-0.5">
-                    <span className={cn("text-xs font-bold block", textColor(m.status))}>{m.sla_name}</span>
+                    <span className={cn("text-xs font-bold block truncate max-w-[180px]", textColor(m.status))}>{m.sla_name}</span>
                     <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground block">
                       Status: {statusLabel(m.status)}
                     </span>
@@ -152,7 +184,7 @@ const MSAComplianceCard: React.FC = () => {
                     </span>
                   </div>
                   <div className="text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-muted-foreground">
-                    Live Oracle Feed
+                    Live Worker Feed
                   </div>
                 </div>
               </div>
