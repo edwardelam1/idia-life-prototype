@@ -19,14 +19,16 @@ interface ChannelRow {
 // Per-channel SLA budget (ms). Tune as the live data calibrates.
 const SLA_BUDGET_MS: Record<ChannelId, number> = {
   bundles: 2000,
-  egress: 1500,
+  api_mcp: 500,
   best_friend_ai: 250,
+  egress: 1500,
 };
 
 const CHANNEL_LABELS: Record<ChannelId, string> = {
   bundles: "Marketplace Bundles",
-  egress: "MCP · Egress Delivery",
+  api_mcp: "API & MCP Gateways",
   best_friend_ai: "Best Friend AI",
+  egress: "Global Egress Delivery",
 };
 
 const WINDOW_MS = 30 * 86400_000;
