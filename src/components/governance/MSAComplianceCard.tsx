@@ -319,47 +319,111 @@ const MSAComplianceCard: React.FC = () => {
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">No Channel Samples in 30D Window</p>
           </div>
         ) : (
-          <div className="space-y-2.5">
-            {items.map((m) => (
-              <div
-                key={m.id}
-                className={cn(
-                  "flex items-center justify-between p-3 rounded-xl border transition-colors",
-                  m.status === "meeting"
-                    ? "bg-teal-50/30 dark:bg-teal-950/20 border-teal-50 dark:border-teal-900/40"
-                    : m.status === "warning"
-                      ? "bg-amber-50/30 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/40"
-                      : m.status === "breach"
-                        ? "bg-red-50/30 dark:bg-red-950/20 border-red-100 dark:border-red-900/40"
-                        : "bg-slate-50/30 dark:bg-muted/20 border-slate-100 dark:border-border",
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="relative flex items-center justify-center w-3 h-3">
-                    <span className={cn("absolute w-2 h-2 rounded-full", dotColor(m.status))} />
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className={cn("text-xs font-bold block truncate max-w-[180px]", textColor(m.status))}>{m.sla_name}</span>
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground block">
-                      Status: {statusLabel(m.status)} · n={m.sample_count}
-                    </span>
-                  </div>
-                </div>
+          <div className="space-y-3">
+            {items.map((m) => {
+              const series = seriesByChannel[m.id];
+              const color = CHANNEL_COLOR[m.id];
+              const gradId = `oracleArea_${m.id}`;
+              return (
+                <div
+                  key={m.id}
+                  className={cn(
+                    "p-3 rounded-xl border transition-colors space-y-2",
+                    m.status === "meeting"
+                      ? "bg-teal-50/30 dark:bg-teal-950/20 border-teal-50 dark:border-teal-900/40"
+                      : m.status === "warning"
+                        ? "bg-amber-50/30 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/40"
+                        : m.status === "breach"
+                          ? "bg-red-50/30 dark:bg-red-950/20 border-red-100 dark:border-red-900/40"
+                          : "bg-slate-50/30 dark:bg-muted/20 border-slate-100 dark:border-border",
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex items-center justify-center w-3 h-3">
+                        <span className={cn("absolute w-2 h-2 rounded-full", dotColor(m.status))} />
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className={cn("text-xs font-bold block truncate max-w-[180px]", textColor(m.status))}>{m.sla_name}</span>
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground block">
+                          Status: {statusLabel(m.status)} · n={m.sample_count}
+                        </span>
+                      </div>
+                    </div>
 
-                <div className="text-right">
-                  <div className="text-sm font-black tracking-tighter text-slate-700 dark:text-foreground">
-                    {m.current_value != null ? m.current_value.toFixed(1) : "—"}
-                    <span className="text-[10px] text-slate-400 dark:text-muted-foreground font-medium tracking-normal">
-                      {" "}ms / SLA: {m.target_value}
-                    </span>
+                    <div className="text-right">
+                      <div className="text-sm font-black tracking-tighter text-slate-700 dark:text-foreground">
+                        {m.current_value != null ? m.current_value.toFixed(1) : "—"}
+                        <span className="text-[10px] text-slate-400 dark:text-muted-foreground font-medium tracking-normal">
+                          {" "}ms / SLA: {m.target_value}
+                        </span>
+                      </div>
+                      <div className="text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-muted-foreground">
+                        Shared Schema Feed
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-muted-foreground">
-                    Shared Schema Feed
-                  </div>
+
+                  {series.length >= 2 ? (
+                    <div className="h-20 -mx-1">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={series} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={color} stopOpacity={0.55} />
+                              <stop offset="100%" stopColor={color} stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <XAxis
+                            dataKey="day"
+                            tick={{ fontSize: 8, fill: "#94a3b8", fontWeight: 700 }}
+                            stroke="transparent"
+                            tickMargin={4}
+                            interval="preserveStartEnd"
+                            minTickGap={24}
+                          />
+                          <YAxis hide domain={[0, (dataMax: number) => Math.max(dataMax, m.target_value) * 1.1]} />
+                          <Tooltip
+                            contentStyle={{
+                              fontSize: 11,
+                              borderRadius: 12,
+                              background: "hsl(var(--popover))",
+                              border: "1px solid hsl(var(--border))",
+                              color: "hsl(var(--popover-foreground))",
+                              boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                            }}
+                            itemStyle={{ fontWeight: 800, color: "hsl(var(--popover-foreground))" }}
+                            formatter={(v: any) => [`${Number(v).toFixed(1)} ms`, "Avg Latency"]}
+                          />
+                          <ReferenceLine
+                            y={m.target_value}
+                            stroke="#94a3b8"
+                            strokeDasharray="3 3"
+                            strokeWidth={1}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="ms"
+                            name="Avg Latency"
+                            stroke={color}
+                            strokeWidth={2}
+                            fill={`url(#${gradId})`}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="h-20 flex items-center justify-center">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-muted-foreground">
+                        {series.length === 1 ? "Single Sample · Awaiting Trend" : "No Trend Data"}
+                      </span>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
+
         )}
       </CardContent>
     </Card>
