@@ -1,93 +1,87 @@
-# AI Personalization & Predictive Insights — Pro Series (3 Tiers, Live Wire)
+# Global Ledger Wiring — TreasuryFlows + MSAComplianceCard
 
-Correction: insights belong in the **Pro tab dashboards**, not the Data tab. Data tab stays connections-only. Pro tab remains hidden from the bottom nav (no change to `isPayReady` gating) and Friend AI remains unmounted — but the three tier dashboards (`HRIDashboard`, `CPMDashboard`, `PureAlphaDashboard`) get live AI insights wired in now so they're ready when Pro is revealed. Zero mock data — every value comes from `staged_health_data` / `raw_health_data` + behavioral signals; empty state is explicit ("Awaiting first sync"), never fabricated.
+Pivot both governance surfaces off the stagnant diagnostic tables (`dao_treasury_flows`, `dao_msa_metrics`) and onto the live, multi-tenant ledger / telemetry already flowing through the platform. Zero mock data; no schema changes.
 
-## Tier-layered insights (all inside Pro tab dashboards)
+## Verified data sources (live)
 
-| Tier | Dashboard | Insights added |
-|---|---|---|
-| `pro` | `HRIDashboard` | Stress/fatigue 24h forecast, 7/30d longitudinal trend, 1 explainable recommendation, smart-intervention nudge |
-| `pro_plus` | `CPMDashboard` | All of `pro` + personalized coaching plan, agentic assistant card (multi-turn via `ai-chat`), clinical-style report block (PDF-ready markup) |
-| `pure_alpha` | `PureAlphaDashboard` | All of `pro_plus` + enterprise/cohort wellness analytics (aggregated, RLS-respecting) |
+- `public.synapse_credit_ledger` — every credit movement in the marketplace billing engine. Columns used: `entry_type`, `amount`, `description`, `metadata`, `created_at`. Observed `entry_type` values today: `deposit`, `CREDIT`, `revenue` (ingress); `USAGE`/`usage`, `DEBIT`, `escrow`, `ADJUSTMENT` (egress). Spec mentions `action_type`/`direction` and `'top_up'`/`'data_purchase'` — the live column is `entry_type` with the values above. Mapping reconciled below.
+- `public.api_metrics` — `endpoint`, `latency_ms`, `status_code`, `timestamp`. Real latency from execution workers; used for the Oracle SLA handshake.
+- `marketplace_purchases` does **not** exist; `marketplace_bundles` is a catalog table with no purchase rows. Data-purchase volume lives entirely in `synapse_credit_ledger` egress entries, which is what we'll sum.
 
-`ProScreen.tsx` routing is untouched — each tier already mounts its dashboard. We only extend the three dashboard components.
+## 1. TreasuryFlows refactor (`src/components/governance/TreasuryFlows.tsx`)
 
-## Backend
-
-**New edge function `predictive-insights`** (`verify_jwt = true`):
-- Pulls last 30/90d (tier-dependent) from `staged_health_data` + `raw_health_data` + behavioral signals (governance/wallet activity timestamps as low-signal behavioral input — no PII).
-- Computes deterministic features server-side (rolling HRV avg, sleep deficit, HR baseline drift, activity cadence, audio-exposure load, walking-asymmetry trend).
-- Calls Lovable AI Gateway (`google/gemini-3-flash-preview`, `reasoning: { effort: "low" }`) with structured tool-calling. Returns:
+- Replace the `dao_treasury_flows` select with:
+  ```ts
+  supabase
+    .from("synapse_credit_ledger")
+    .select("id, entry_type, amount, description, metadata, created_at")
+    .gte("created_at", new Date(Date.now() - 30 * 86400000).toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1000);
   ```
-  { forecast: {stress_24h, fatigue_24h, confidence},
-    trends: [{metric, window, slope, interpretation}],
-    recommendation: {title, body, evidence_refs},
-    intervention: {trigger, action, urgency},
-    coaching?: {...},        // pro_plus+
-    clinical_report?: {...}, // pro_plus+
-    cohort?: {...} }         // pure_alpha
+- Normalize each row into the existing `Flow` shape:
+  - `direction`: lowercase `entry_type` ∈ {`deposit`,`credit`,`revenue`,`top_up`} → `"in"`; everything else (`usage`,`debit`,`escrow`,`adjustment`,`data_purchase`,`split`,`payout`) → `"out"`.
+  - `amount_usd`: `Math.abs(Number(row.amount))`.
+  - `asset`: `(metadata?.asset as string) ?? "SYN"`.
+  - `counterparty_label`: derived label (see §3).
+  - `recorded_at`: `created_at`.
+- Realtime subscription: swap channel to `synapse_credit_ledger` with `event:'INSERT'`. Re-run the same fetcher on event.
+- Chart aggregation logic is unchanged (buckets by `MM-DD`, sums `in`/`out`).
+
+## 2. MSAComplianceCard refactor (`src/components/governance/MSAComplianceCard.tsx`)
+
+- Replace `dao_msa_metrics` select with a 24h roll-up of `api_metrics`:
+  ```ts
+  supabase
+    .from("api_metrics")
+    .select("endpoint, latency_ms, status_code, timestamp")
+    .gte("timestamp", new Date(Date.now() - 86400000).toISOString())
+    .limit(1000);
   ```
-- Accepts `?tier=pro|pro_plus|pure_alpha`; server re-validates against `user_subscriptions` (never trusts client tier).
-- Writes to new `insights_cache` table; idempotent on `source_hash` (sha256 of inputs + tier + model) to avoid re-billing.
-- Returns `{ from_cache, payload }`. Surfaces 402/429 from gateway verbatim with toast-friendly error.
+- Client-side reduce → one synthetic `MSA` row per `endpoint`:
+  - `sla_name`: endpoint.
+  - `current_value`: avg `latency_ms`.
+  - `target_value`: fixed SLA budget per endpoint (constant map, default 250 ms).
+  - `status`: `meeting` if avg ≤ target, `warning` if ≤ 1.5× target, `breach` otherwise. Force `breach` when any 5xx in the window.
+- Realtime channel listens to `api_metrics` inserts (debounced 2 s).
 
-**New table `public.insights_cache`** (migration):
-- Fields: `user_id`, `tier`, `payload jsonb`, `source_hash text unique-per-user`, `model text`, `generated_at`.
-- RLS: user SELECT own; INSERT/UPDATE only via service_role (edge function).
-- Full GRANT block per house rules (`authenticated` SELECT, `service_role` ALL, no `anon`).
+## 3. PII-safe counterparty resolution
 
-Zero-PII compliant — payload references metric IDs/timestamps/derived scores only.
+Extend `sanitizeCounterparty` with a deterministic fallback derived from `entry_type` (after UUID stripping):
+- `deposit` / `credit` / `revenue` → `"Corporate Capitalization"`
+- `usage` / `debit` → `"Enterprise Data Purchase"`
+- `escrow` → `"Validator Security Fee"`
+- `adjustment` → `"Sovereign Pool Dividend"`
+- default → `"Network Settlement"`
 
-## Frontend
+Apply *before* the UUID-stripping fallback so the public Atomic Settlements feed never leaks raw `description`/`metadata` text containing emails, wallet addresses, or user ids. Strip 0x-hex strings of length ≥ 16 in addition to UUIDs.
 
-**New `src/hooks/useInsights.ts`**
-- `useInsights(tier)` → invokes `predictive-insights` via `supabase.functions.invoke`.
-- Subscribes to `staged_health_data` INSERT for current user → debounced (60s) re-invoke.
-- Returns `{ payload, loading, error, refresh }`.
-- Bookended telemetry: `[INSIGHTS][FETCH][START]` / `[END:OK|FAIL]` via `stage()` from `src/lib/stageLogger.ts`.
+## 4. Trace telemetry (exact signatures)
 
-**New `src/components/pro/insights/` folder**
-- `ForecastCard.tsx` — stress/fatigue 24h with confidence bar
-- `TrendCard.tsx` — longitudinal trend sparkline (uses derived points only, no random)
-- `RecommendationCard.tsx` — explainable text + evidence chip links
-- `InterventionCard.tsx` — smart-intervention nudge
-- `CoachingCard.tsx` — pro_plus+
-- `AgenticAssistantCard.tsx` — pro_plus+ (delegates to existing `ai-chat` function, **not** Friend orb)
-- `ClinicalReportCard.tsx` — pro_plus+ (markdown render of report block)
-- `CohortAnalyticsCard.tsx` — pure_alpha
-- All cards use Holographic Shell tokens already in place — no custom colors, semantic tokens only.
+TreasuryFlows fetch/socket replaces existing `[TREASURY_FLOWS]` lines with:
+- `[GLOBAL_TREASURY_FLOWS] START: Initializing multi-tenant ledger aggregation pass.`
+- `[GLOBAL_TREASURY_FLOWS] SUCCESS: Gathered total transaction entities for graph matrix extrapolation.`
+- `[GLOBAL_TREASURY_FLOWS] CRITICAL_FAILURE: Global telemetry bridge stalled. Reason: <err.message>`
+- `[GLOBAL_TREASURY_FLOWS] SOCKET_START: Listening for aggregate network modifications on synapse channels.`
+- `[GLOBAL_TREASURY_FLOWS] SOCKET_EVENT: Aggregate ledger mutation detected. Re-extrapolating…`
+- `[GLOBAL_TREASURY_FLOWS] SOCKET_CLOSE: Tearing down aggregate synapse listener.`
 
-**Dashboard wiring (the only touched component files):**
-- `src/components/pro/HRIDashboard.tsx` — append Forecast / Trend / Recommendation / Intervention beneath existing HRI metrics; preserves current `staged_health_data` realtime channel.
-- `src/components/pro/CPMDashboard.tsx` — append all `pro` cards + Coaching + AgenticAssistant + ClinicalReport.
-- `src/components/pro/PureAlphaDashboard.tsx` — append everything above + CohortAnalytics.
+MSAComplianceCard gets a parallel `[GLOBAL_ORACLE_METRICS]` bookended set (START / SUCCESS / CRITICAL_FAILURE / SOCKET_START / SOCKET_EVENT / SOCKET_CLOSE).
 
-Each dashboard renders an explicit empty state when `useInsights` returns no payload (no synced data yet) — "Awaiting first sync from Apple Health / Google Fit / Ford."
+## 5. Out of scope
 
-## Untouched
+- No migrations. `dao_treasury_flows` / `dao_msa_metrics` tables remain in the DB but are no longer read. The `dao-treasury-ingest` edge function is left untouched.
+- No UI/layout changes — same cards, same chart, same list rows.
+- No Pro-tier / Friend-AI changes.
 
-- `MainApp.tsx` tab list (Pro stays hidden behind `isPayReady`)
-- `ProScreen.tsx` routing
-- `SovereignAuth` gate
-- `FriendAssistantProvider` (no orb mount)
-- `DataDashboard.tsx` (connections only — per directive)
-- `release.ts`
+## Files touched
 
-## Files
-
-- `supabase/functions/predictive-insights/index.ts` (new)
-- `supabase/config.toml` (register function)
-- Migration: `insights_cache` + RLS + GRANTs
-- `src/hooks/useInsights.ts` (new)
-- `src/components/pro/insights/*.tsx` (new folder, ~8 small cards)
-- `src/components/pro/HRIDashboard.tsx` (append insights section)
-- `src/components/pro/CPMDashboard.tsx` (append insights section)
-- `src/components/pro/PureAlphaDashboard.tsx` (append insights section)
+- `src/components/governance/TreasuryFlows.tsx`
+- `src/components/governance/MSAComplianceCard.tsx`
 
 ## Verification
 
-1. Force-mount Pro tab locally (temporarily flip `isPayReady` in dev only) → with no synced data: empty-state visible on all three dashboards, no fabricated numbers.
-2. Trigger Apple Health sync → realtime subscription fires → forecast/trend cards populate within ~60s.
-3. `idia_dev_tier` = `pro` shows base set; `pro_plus` adds coaching/agentic/clinical; `pure_alpha` adds cohort.
-4. `grep -rn "Math.random\|mock\|fake" supabase/functions/predictive-insights src/components/pro/insights` → zero hits.
-5. Pro tab still hidden in nav, Data tab unchanged, Friend orb still not mounted.
+- Console shows the new bookended traces and a non-zero `SUCCESS` count.
+- Chart 30-day series populated from real `synapse_credit_ledger` rows (currently 139 rows in the table → expect data).
+- Oracle Telemetry lists one row per distinct endpoint in `api_metrics` over 24h, with live latency.
+- No UUIDs, emails, or wallet addresses appear in Recent Atomic Settlements labels.

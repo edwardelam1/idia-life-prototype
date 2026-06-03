@@ -13,20 +13,40 @@ interface Flow {
   amount_usd: number;
   counterparty_label: string | null;
   recorded_at: string;
+  entry_type: string;
 }
 
-// Strip any UUID substrings from counterparty labels so we never leak a user GUID
-// in the public Atomic Settlements feed. The on-ledger record is unchanged.
+// Ingress = corporate capitalization into the synapse credit pool.
+// Egress = data-purchase, escrow, adjustment, or payout drain.
+const INGRESS_TYPES = new Set(["deposit", "credit", "revenue", "top_up"]);
+
+// Strip UUIDs AND long hex strings (0x… wallet addresses, tx hashes) so the
+// public Atomic Settlements feed never leaks a user GUID or on-chain identity.
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-const sanitizeCounterparty = (label: string | null, fallback: string): string => {
+const LONG_HEX_RE = /\b0x[0-9a-f]{16,}\b/gi;
+const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/gi;
+
+const entryTypeFallback = (entryType: string): string => {
+  const t = (entryType || "").toLowerCase();
+  if (t === "deposit" || t === "credit" || t === "revenue" || t === "top_up") return "Corporate Capitalization";
+  if (t === "usage" || t === "debit" || t === "data_purchase") return "Enterprise Data Purchase";
+  if (t === "escrow") return "Validator Security Fee";
+  if (t === "adjustment" || t === "split" || t === "payout") return "Sovereign Pool Dividend";
+  return "Network Settlement";
+};
+
+const sanitizeCounterparty = (label: string | null, entryType: string): string => {
+  const fallback = entryTypeFallback(entryType);
   if (!label) return fallback;
   const cleaned = label
     .replace(UUID_RE, "")
+    .replace(LONG_HEX_RE, "")
+    .replace(EMAIL_RE, "")
     .replace(/\(\s*\)/g, "")
     .replace(/\[\s*\]/g, "")
     .replace(/[:\s\-–—]+$/g, "")
     .trim();
-  return cleaned.length ? cleaned : "Contributor Yield";
+  return cleaned.length ? cleaned : fallback;
 };
 
 const TreasuryFlows: React.FC = () => {
@@ -37,70 +57,81 @@ const TreasuryFlows: React.FC = () => {
     let isMounted = true;
 
     const fetchFlows = async () => {
-      console.log("[TREASURY_FLOWS] START: Syncing Delaware treasury telemetry.");
+      console.log("[GLOBAL_TREASURY_FLOWS] START: Initializing multi-tenant ledger aggregation pass.");
       try {
         const { data, error } = await supabase
-          .from("dao_treasury_flows" as any)
-          .select("*")
-          .gte("recorded_at", new Date(Date.now() - 30 * 86400_000).toISOString())
-          .order("recorded_at", { ascending: false });
+          .from("synapse_credit_ledger" as any)
+          .select("id, entry_type, amount, description, metadata, created_at")
+          .gte("created_at", new Date(Date.now() - 30 * 86400_000).toISOString())
+          .order("created_at", { ascending: false })
+          .limit(1000);
 
         if (error) throw error;
 
+        const normalized: Flow[] = ((data as any[]) || []).map((row) => {
+          const entryType = String(row.entry_type ?? "").toLowerCase();
+          const direction: "in" | "out" = INGRESS_TYPES.has(entryType) ? "in" : "out";
+          const meta = (row.metadata ?? {}) as Record<string, any>;
+          return {
+            id: row.id,
+            direction,
+            asset: (meta.asset as string) ?? "SYN",
+            amount_usd: Math.abs(Number(row.amount ?? 0)),
+            counterparty_label: row.description ?? null,
+            recorded_at: row.created_at,
+            entry_type: entryType,
+          };
+        });
+
         if (isMounted) {
-          console.log(`[TREASURY_FLOWS] SUCCESS: Retrieved ${data?.length || 0} ledger entries for the 30-day window.`);
-          setFlows((data as any) || []);
+          console.log(
+            `[GLOBAL_TREASURY_FLOWS] SUCCESS: Gathered total transaction entities for graph matrix extrapolation. count=${normalized.length}`,
+          );
+          setFlows(normalized);
         }
       } catch (err: any) {
-        console.error(`[TREASURY_FLOWS] CRITICAL_FAILURE: Telemetry sync stalled. Reason: ${err.message}`);
+        console.log("[GLOBAL_TREASURY_FLOWS] CRITICAL_FAILURE: Global telemetry bridge stalled. Reason: " + err.message);
         toast({
           title: "Treasury Sync Failed",
-          description: "Could not retrieve corporate financial telemetry.",
+          description: "Could not retrieve global ledger telemetry.",
           variant: "destructive",
         });
       } finally {
-        if (isMounted) {
-          setIsLoading(false);
-          console.log("[TREASURY_FLOWS] END: Sync execution thread terminated.");
-        }
+        if (isMounted) setIsLoading(false);
       }
     };
 
-    // Initial Fetch
     fetchFlows();
 
-    // Establish Real-Time Socket Connection
-    console.log("[TREASURY_FLOWS] SOCKET_START: Establishing real-time connection to Delaware Treasury.");
+    console.log("[GLOBAL_TREASURY_FLOWS] SOCKET_START: Listening for aggregate network modifications on synapse channels.");
     const ch = supabase
-      .channel("treasury_flows_telemetry")
-      .on("postgres_changes" as any, { event: "*", schema: "public", table: "dao_treasury_flows" }, (payload) => {
-        console.log(
-          "[TREASURY_FLOWS] SOCKET_EVENT: Real-time financial mutation detected. Re-evaluating chart data...",
-          payload,
-        );
-        fetchFlows();
-      })
+      .channel("global_synapse_ledger_telemetry")
+      .on(
+        "postgres_changes" as any,
+        { event: "INSERT", schema: "public", table: "synapse_credit_ledger" },
+        () => {
+          console.log("[GLOBAL_TREASURY_FLOWS] SOCKET_EVENT: Aggregate ledger mutation detected. Re-extrapolating…");
+          fetchFlows();
+        },
+      )
       .subscribe((status) => {
-        console.log(`[TREASURY_FLOWS] SOCKET_STATUS: Treasury socket state -> ${status}`);
+        console.log(`[GLOBAL_TREASURY_FLOWS] SOCKET_STATUS: Synapse socket state -> ${status}`);
       });
 
     return () => {
       isMounted = false;
-      console.log("[TREASURY_FLOWS] SOCKET_CLOSE: Tearing down real-time connection.");
+      console.log("[GLOBAL_TREASURY_FLOWS] SOCKET_CLOSE: Tearing down aggregate synapse listener.");
       supabase.removeChannel(ch);
     };
   }, []);
 
   const series = React.useMemo(() => {
-    console.log("[TREASURY_FLOWS] CALC: Computing 30-day chart aggregation matrix.");
     const buckets: Record<string, { day: string; in: number; out: number }> = {};
-
     [...flows].reverse().forEach((f) => {
       const day = new Date(f.recorded_at).toISOString().slice(5, 10);
       if (!buckets[day]) buckets[day] = { day, in: 0, out: 0 };
-      buckets[day][f.direction] += Number(f.amount_usd);
+      buckets[day][f.direction] += f.amount_usd;
     });
-
     return Object.values(buckets);
   }, [flows]);
 
@@ -110,7 +141,7 @@ const TreasuryFlows: React.FC = () => {
         <CardContent className="p-8 flex flex-col items-center justify-center space-y-3">
           <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
           <p className="text-[9px] font-black uppercase tracking-widest text-teal-700/50">
-            Auditing Treasury Ledger...
+            Aggregating Global Ledger…
           </p>
         </CardContent>
       </Card>
@@ -123,15 +154,15 @@ const TreasuryFlows: React.FC = () => {
         <div className="flex items-center justify-between border-b border-teal-50/50 dark:border-teal-900/40 pb-3">
           <h3 className="text-[10px] font-black uppercase tracking-widest text-teal-800 dark:text-teal-200 flex items-center gap-2">
             <TrendingUp size={14} className="text-teal-600 dark:text-teal-300" />
-            Treasury Flows · 30D Window
+            Global Treasury Flows · 30D Window
           </h3>
-          <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-muted-foreground">USD / Stablecoins</div>
+          <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-muted-foreground">Synapse Credits</div>
         </div>
 
         {series.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 opacity-40 space-y-2">
             <Activity className="w-8 h-8 text-slate-400" />
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Awaiting Oracle Ingest</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">No Ledger Activity in Window</p>
           </div>
         ) : (
           <>
@@ -165,22 +196,8 @@ const TreasuryFlows: React.FC = () => {
                     }}
                     itemStyle={{ fontWeight: 800, color: "hsl(var(--popover-foreground))" }}
                   />
-                  <Area
-                    type="monotone"
-                    dataKey="in"
-                    name="Ingress"
-                    stroke="hsl(178,42%,32%)"
-                    strokeWidth={2}
-                    fill="url(#gIn)"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="out"
-                    name="Egress"
-                    stroke="#f97316"
-                    strokeWidth={2}
-                    fill="url(#gOut)"
-                  />
+                  <Area type="monotone" dataKey="in" name="Ingress" stroke="hsl(178,42%,32%)" strokeWidth={2} fill="url(#gIn)" />
+                  <Area type="monotone" dataKey="out" name="Egress" stroke="#f97316" strokeWidth={2} fill="url(#gOut)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -198,13 +215,17 @@ const TreasuryFlows: React.FC = () => {
                     <div
                       className={cn(
                         "p-1.5 rounded-lg",
-                        f.direction === "in" ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-300" : "bg-orange-50 dark:bg-orange-950/40 text-orange-500 dark:text-orange-300",
+                        f.direction === "in"
+                          ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-300"
+                          : "bg-orange-50 dark:bg-orange-950/40 text-orange-500 dark:text-orange-300",
                       )}
                     >
                       {f.direction === "in" ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />}
                     </div>
                     <div className="space-y-0.5">
-                      <span className="text-xs font-bold text-slate-800 dark:text-foreground block">{sanitizeCounterparty(f.counterparty_label, f.asset)}</span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-foreground block">
+                        {sanitizeCounterparty(f.counterparty_label, f.entry_type)}
+                      </span>
                       <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-muted-foreground block">
                         {new Date(f.recorded_at).toLocaleDateString()}
                       </span>
@@ -216,7 +237,8 @@ const TreasuryFlows: React.FC = () => {
                       f.direction === "in" ? "text-emerald-700 dark:text-emerald-300" : "text-slate-700 dark:text-foreground",
                     )}
                   >
-                    {f.direction === "in" ? "+" : "-"}${Number(f.amount_usd).toLocaleString()}
+                    {f.direction === "in" ? "+" : "-"}
+                    {f.amount_usd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                   </span>
                 </div>
               ))}
