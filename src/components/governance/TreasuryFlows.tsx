@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { TrendingUp, ArrowDownRight, ArrowUpRight, Loader2, Activity } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { ResponsiveContainer, AreaChart, Area, XAxis, Tooltip } from "recharts";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
@@ -185,6 +185,8 @@ const TreasuryFlows: React.FC = () => {
                     stroke="transparent"
                     tickMargin={8}
                   />
+                  <YAxis yAxisId="in" hide domain={[0, "dataMax"]} />
+                  <YAxis yAxisId="out" hide orientation="right" domain={[0, "dataMax"]} />
                   <Tooltip
                     contentStyle={{
                       fontSize: 11,
@@ -196,8 +198,8 @@ const TreasuryFlows: React.FC = () => {
                     }}
                     itemStyle={{ fontWeight: 800, color: "hsl(var(--popover-foreground))" }}
                   />
-                  <Area type="monotone" dataKey="in" name="Ingress" stroke="hsl(178,42%,32%)" strokeWidth={2} fill="url(#gIn)" />
-                  <Area type="monotone" dataKey="out" name="Egress" stroke="#f97316" strokeWidth={2} fill="url(#gOut)" />
+                  <Area yAxisId="in" type="monotone" dataKey="in" name="Ingress" stroke="hsl(178,42%,32%)" strokeWidth={2} fill="url(#gIn)" />
+                  <Area yAxisId="out" type="monotone" dataKey="out" name="Egress" stroke="#f97316" strokeWidth={2} fill="url(#gOut)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
