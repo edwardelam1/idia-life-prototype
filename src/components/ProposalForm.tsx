@@ -45,8 +45,10 @@ const ProposalForm = ({ onClose, onSuccess }: ProposalFormProps) => {
     }
 
     setIsSubmitting(true);
+    console.log("[PROPOSAL_SUBMIT][FORM_DISPATCH][START] Form submission initiated.");
 
     try {
+
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) throw new Error('User not authenticated');
