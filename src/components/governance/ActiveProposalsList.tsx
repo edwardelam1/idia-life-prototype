@@ -812,9 +812,14 @@ export const ProposalCard: React.FC<{
         if (burnError) console.warn("[VOTE_CAST] BURN_WARNING", burnError.message);
       }
 
+      const appliedWeight = tophatOverride
+        ? numericVotingPower
+        : (snapshotPower ?? numericVotingPower);
+      setVotedWeight(appliedWeight);
       setHasVoted(support);
       setVoteCount((c) => c + 1);
       setVoteDialogOpen(false);
+
 
       // Center-screen vote blast — auto-dismisses after 2.6s
       const weightLabel = tophatOverride
