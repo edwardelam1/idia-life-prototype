@@ -377,8 +377,10 @@ export const ProposalCard: React.FC<{
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [hasVoted, setHasVoted] = useState<null | "for" | "against">(null);
+  const [votedWeight, setVotedWeight] = useState<number | null>(null);
   const [voteCount, setVoteCount] = useState<number>(0);
   const [loadingMeta, setLoadingMeta] = useState(true);
+
   const [chain, setChain] = useState<ChainState>(fallbackState ?? {
     snapshotBlock: null,
     deadlineBlock: null,
@@ -439,7 +441,7 @@ export const ProposalCard: React.FC<{
           currentUserId
             ? (supabase as any)
                 .from("dao_votes")
-                .select("vote_type")
+                .select("vote_type, snapshot_voting_power, vote_weight")
                 .eq("proposal_id", proposal.proposal_ref)
                 .eq("user_id", currentUserId)
                 .maybeSingle()
@@ -448,8 +450,14 @@ export const ProposalCard: React.FC<{
         if (!alive) return;
         const rows = (votes || []) as { vote_type: string; vote_weight?: number }[];
         setVoteCount(rows.length);
-        setHasVoted(((mine as any)?.data?.vote_type as "for" | "against") ?? null);
+        const mineRow = (mine as any)?.data as { vote_type?: string; snapshot_voting_power?: number | null; vote_weight?: number | null } | null;
+        setHasVoted((mineRow?.vote_type as "for" | "against") ?? null);
+        if (mineRow) {
+          const w = mineRow.snapshot_voting_power ?? mineRow.vote_weight ?? null;
+          setVotedWeight(w != null ? Number(w) : null);
+        }
         s.ok();
+
       } catch (e) {
         s.fail(e);
       } finally {
@@ -804,9 +812,14 @@ export const ProposalCard: React.FC<{
         if (burnError) console.warn("[VOTE_CAST] BURN_WARNING", burnError.message);
       }
 
+      const appliedWeight = tophatOverride
+        ? numericVotingPower
+        : (snapshotPower ?? numericVotingPower);
+      setVotedWeight(appliedWeight);
       setHasVoted(support);
       setVoteCount((c) => c + 1);
       setVoteDialogOpen(false);
+
 
       // Center-screen vote blast — auto-dismisses after 2.6s
       const weightLabel = tophatOverride
@@ -1166,8 +1179,12 @@ export const ProposalCard: React.FC<{
               {hasVoted && !isFinal && (
                 <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-teal-200 text-teal-700 bg-teal-50 dark:bg-teal-950/30 dark:text-teal-200 dark:border-teal-900/50">
                   Voted · {hasVoted.toUpperCase()}
+                  {votedWeight != null && (
+                    <> · {new Intl.NumberFormat().format(Math.floor(votedWeight))} IDIA</>
+                  )}
                 </span>
               )}
+
               <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
                 · {voteCount} intent{voteCount === 1 ? "" : "s"}
               </span>
@@ -1293,10 +1310,14 @@ export const ProposalCard: React.FC<{
                 <div className="flex-1">
                   <p className="text-[10px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-200">
                     Vote Recorded · {hasVoted.toUpperCase()}
+                    {votedWeight != null && (
+                      <> · {new Intl.NumberFormat().format(Math.floor(votedWeight))} IDIA</>
+                    )}
                   </p>
                 </div>
               </div>
             )}
+
 
             {!hasVoted && !isFinal && chain.state === 1 && (
               <div className="p-4 bg-teal-50/50 dark:bg-teal-950/30 rounded-2xl border border-teal-100/50 dark:border-teal-900/50 space-y-3">

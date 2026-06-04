@@ -102,9 +102,14 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
 
       let chainResult: { hash: string; proposalId?: string };
       try {
+        console.log("[PROPOSAL_SUBMIT][MODAL_DISPATCH][START] Forwarding sanitized payload to governance service.");
         chainResult = await governanceService.propose(saltedDescription);
+        console.log("[PROPOSAL_SUBMIT][MODAL_DISPATCH][SUCCESS] Governance service returned chain receipt.", {
+          hash: chainResult.hash,
+          proposalId: chainResult.proposalId,
+        });
       } catch (chainErr: any) {
-        console.error("[PROPOSAL_SUBMIT] CHAIN_FAIL:", chainErr);
+        console.error("[PROPOSAL_SUBMIT][MODAL_DISPATCH][FATAL_FAIL]", chainErr?.message ?? chainErr);
         const code = chainErr?.code;
         let friendly = chainErr?.shortMessage || chainErr?.message || "Unknown chain error.";
         if (code === "ACTION_REJECTED" || code === 4001 || /user rejected/i.test(friendly)) {
@@ -124,6 +129,7 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
         setIsSubmitting(false);
         return;
       }
+
 
       const txHash = chainResult.hash;
       const onChainProposalId = chainResult.proposalId || "";
