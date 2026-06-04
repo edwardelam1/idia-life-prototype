@@ -630,7 +630,7 @@ async getCurrentQuorum(): Promise<string> {
 
     const strictInterface = new ethers.Interface(STRICT_CAST_VOTE_BY_SIG_ABI);
     const castVoteBySig = strictInterface.getFunction('castVoteBySig(uint256,uint8,uint8,bytes32,bytes32)');
-    if (castVoteBySig?.selector !== '0x8fe3c6f6') {
+    if (castVoteBySig?.selector !== '0x3bccf4fd') {
       throw new Error(`Unexpected castVoteBySig selector: ${castVoteBySig?.selector}`);
     }
 
