@@ -404,19 +404,38 @@ async getCurrentQuorum(): Promise<string> {
     const signer = walletService.getConnectedSigner();
     if (!signer) throw new Error('Wallet not connected');
 
+    console.log("[PROPOSAL_SUBMIT][ALIGNMENT][START] Compiling and sanitizing calldata vectors.");
+    const cleanTargets = targets.map((t) => ethers.getAddress(t.trim()));
+    const cleanValues = values.map((v) => BigInt(v));
+    const cleanCalldatas = calldatas.map((c) => (c.startsWith('0x') ? c : `0x${c}`));
+    if (
+      cleanTargets.length !== cleanValues.length ||
+      cleanTargets.length !== cleanCalldatas.length
+    ) {
+      console.error("🚨 [PROPOSAL_SUBMIT][ALIGNMENT][FAIL] Mismatched array parameter metrics.");
+      throw new Error("Array length mismatch: targets, values, and calldatas must align.");
+    }
+    const cleanDescription = description.trim();
+    console.log("[PROPOSAL_SUBMIT][ALIGNMENT][SUCCESS]", {
+      targets: cleanTargets,
+      values: cleanValues.map(String),
+      calldatas: cleanCalldatas,
+      description: cleanDescription,
+    });
+
     const gov = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, signer);
-    const tx = await gov.propose(
-      targets,
-      values.map(v => BigInt(v)),
-      calldatas,
-      description,
-    );
-    const receipt = await tx.wait();
-
-    const proposalId = this.extractProposalIdFromReceipt(receipt);
-
-    this.triggerIndexer().catch(() => {});
-    return { hash: tx.hash, proposalId };
+    console.log("[PROPOSAL_SUBMIT][RELAY_DISPATCH][START] Broadcasting 4-argument payload to contract address...");
+    try {
+      const tx = await gov.propose(cleanTargets, cleanValues, cleanCalldatas, cleanDescription);
+      const receipt = await tx.wait();
+      console.log("[PROPOSAL_SUBMIT][RELAY_DISPATCH][SUCCESS] On-chain proposal initialized successfully.");
+      const proposalId = this.extractProposalIdFromReceipt(receipt);
+      this.triggerIndexer().catch(() => {});
+      return { hash: tx.hash, proposalId };
+    } catch (err: any) {
+      console.error("[PROPOSAL_SUBMIT][RELAY_DISPATCH][FATAL_FAIL] Core transaction thread snapped. Reason: ", err?.message ?? err);
+      throw err;
+    }
   }
 
   // ── Write: Create proposal with custom timing ─────────────
@@ -432,21 +451,49 @@ async getCurrentQuorum(): Promise<string> {
     const signer = walletService.getConnectedSigner();
     if (!signer) throw new Error('Wallet not connected');
 
-    const gov = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, signer);
-    const tx = await gov.proposeWithTiming(
-      targets,
-      values.map(v => BigInt(v)),
-      calldatas,
-      description,
+    console.log("[PROPOSAL_SUBMIT][ALIGNMENT][START] Compiling and sanitizing calldata vectors (timed).");
+    const cleanTargets = targets.map((t) => ethers.getAddress(t.trim()));
+    const cleanValues = values.map((v) => BigInt(v));
+    const cleanCalldatas = calldatas.map((c) => (c.startsWith('0x') ? c : `0x${c}`));
+    if (
+      cleanTargets.length !== cleanValues.length ||
+      cleanTargets.length !== cleanCalldatas.length
+    ) {
+      console.error("🚨 [PROPOSAL_SUBMIT][ALIGNMENT][FAIL] Mismatched array parameter metrics (timed).");
+      throw new Error("Array length mismatch: targets, values, and calldatas must align.");
+    }
+    const cleanDescription = description.trim();
+    console.log("[PROPOSAL_SUBMIT][ALIGNMENT][SUCCESS] (timed)", {
+      targets: cleanTargets,
+      values: cleanValues.map(String),
+      calldatas: cleanCalldatas,
+      description: cleanDescription,
       customDelay,
       customPeriod,
-    );
-    const receipt = await tx.wait();
-    const proposalId = this.extractProposalIdFromReceipt(receipt);
+    });
 
-    this.triggerIndexer().catch(() => {});
-    return { hash: tx.hash, proposalId };
+    const gov = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, signer);
+    console.log("[PROPOSAL_SUBMIT][RELAY_DISPATCH][START] Broadcasting timed payload to contract address...");
+    try {
+      const tx = await gov.proposeWithTiming(
+        cleanTargets,
+        cleanValues,
+        cleanCalldatas,
+        cleanDescription,
+        customDelay,
+        customPeriod,
+      );
+      const receipt = await tx.wait();
+      console.log("[PROPOSAL_SUBMIT][RELAY_DISPATCH][SUCCESS] On-chain timed proposal initialized successfully.");
+      const proposalId = this.extractProposalIdFromReceipt(receipt);
+      this.triggerIndexer().catch(() => {});
+      return { hash: tx.hash, proposalId };
+    } catch (err: any) {
+      console.error("[PROPOSAL_SUBMIT][RELAY_DISPATCH][FATAL_FAIL] Timed transaction thread snapped. Reason: ", err?.message ?? err);
+      throw err;
+    }
   }
+
 
   // ── Write: Cast vote ──────────────────────────────────────
 
