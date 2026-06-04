@@ -1310,10 +1310,14 @@ export const ProposalCard: React.FC<{
                 <div className="flex-1">
                   <p className="text-[10px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-200">
                     Vote Recorded · {hasVoted.toUpperCase()}
+                    {votedWeight != null && (
+                      <> · {new Intl.NumberFormat().format(Math.floor(votedWeight))} IDIA</>
+                    )}
                   </p>
                 </div>
               </div>
             )}
+
 
             {!hasVoted && !isFinal && chain.state === 1 && (
               <div className="p-4 bg-teal-50/50 dark:bg-teal-950/30 rounded-2xl border border-teal-100/50 dark:border-teal-900/50 space-y-3">
