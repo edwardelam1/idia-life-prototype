@@ -564,6 +564,26 @@ async getCurrentQuorum(): Promise<string> {
       chainId,
     });
     const signature = await (signer as any).signTypedData(domain, types, value);
+
+    // Client-side EIP-712 recovery — catches domain separator drift (wrong
+    // governorName, wrong chainId, wrong verifyingContract) BEFORE the relayer
+    // burns an estimateGas call that will revert with an opaque CALL_EXCEPTION.
+    try {
+      const recovered = ethers.verifyTypedData(domain, types, value, signature);
+      if (recovered.toLowerCase() !== signerAddress.toLowerCase()) {
+        console.error(
+          `🚨 [GOV_VOTE][PRE_FLIGHT][SIGN][FAIL] recovered=${recovered} expected=${signerAddress} governorName=${governorName} chainId=${chainId}`,
+        );
+        throw new Error(
+          'EIP-712 domain separator mismatch — local signature recovery failed.',
+        );
+      }
+      console.log('[GOV_VOTE][PRE_FLIGHT][SIGN][SUCCESS]', { signerAddress, governorName, chainId });
+    } catch (verifyErr: any) {
+      if (verifyErr?.message?.includes('EIP-712 domain separator mismatch')) throw verifyErr;
+      console.warn('[GOV_VOTE][PRE_FLIGHT][SIGN][WARN] verifyTypedData threw', verifyErr);
+    }
+
     const sig = ethers.Signature.from(signature);
     return { v: sig.v, r: sig.r, s: sig.s, signerAddress };
   }
