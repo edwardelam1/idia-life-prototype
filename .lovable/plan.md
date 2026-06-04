@@ -1,102 +1,58 @@
-# Security Hardening Plan — RLS Lockdown + ACA Read Model
+# Security Hardening Plan — Revised
 
-## Governing rules (from your directive)
+Changes vs prior plan (rest is unchanged and re-stated below for completeness).
 
-1. **Unauthenticated (`anon` / `public` role) users can do NOTHING. Ever.** Every policy currently bound to `{public}` gets rewritten or dropped.
-2. **Any authenticated user may READ any table that carries an `aca_hash_key`** — but the owning `user_id` / `platform_guid` / `pseudo_user_id` UUID must be **masked** in the response so PII linkage is preserved.
-3. Writes to financial / governance / system tables stay **service_role only**.
-4. Users may still write their *own* rows where the existing product flow requires it (ratings, device_events, profile-owned data) — but never financial balances or ledger entries.
+## Revisions
+
+- **`device_provisioning_blueprints`** — restricted to **IDIA C-suite / superusers only**, not business members. Uses the existing `public.is_csuite(auth.uid())` security-definer function. All four CRUD policies bound to `authenticated` and gated by `is_csuite(auth.uid())`. Service role retains full access.
+  - *Open question:* you said "csuite **and** superusers". The DB currently only exposes `is_csuite()`. Should I treat "superuser" as a synonym for csuite, or do you want a second gate (e.g. a new `is_superuser()` check against a different role)? I'll proceed with `is_csuite()` only unless you say otherwise.
+- **`api_metrics`** — global read for any signed-in user. Policy: `FOR SELECT TO authenticated USING (true)`. Service role retains full ALL.
 
 ---
 
-## Part 1 — Kill every `{public}` (anon-reachable) policy flagged by the scanner
+## Part 1 — Kill every anon ({public}) policy
 
-Drop and replace these policies. Each replacement is `TO service_role USING (true) WITH CHECK (true)` unless noted.
-
-| Table | Current bad policy | Action |
-|---|---|---|
-| `usdc_payments` | `Service role can update payments` (public, UPDATE true) | DROP → recreate `TO service_role` only |
-| `fiat_ledger` | `Service role can insert fiat ledger entries` (public, INSERT true) | DROP → recreate `TO service_role` only |
-| `raw_app_data` | `System can manage staged app data` (public, ALL) | DROP → recreate `TO service_role` only |
-| `social_health_metrics` | `System can manage social health metrics` (public, ALL) | DROP → recreate `TO service_role`; keep owner SELECT policy |
-| `business_processing_queue` | `Allow all operations for service role…` (public, ALL) | DROP → recreate `TO service_role` |
-| `lifestyle_processing_queue` | same pattern | DROP → recreate `TO service_role` |
-| `sync_logs` | `Allow service role to manage sync logs` (public, ALL) | DROP → recreate `TO service_role` |
-| `governance_proposals` | `Service role can insert / update proposals` (public) | DROP both → recreate `TO service_role` |
-| `governance_indexer_state` | `Service role can update indexer state` (public) | DROP → recreate `TO service_role` |
-| `processed_operator_telemetry` | `Service roles can update spatial telemetry` (public) | DROP → recreate `TO service_role` |
-| `cross_platform_insights` | `Allow authenticated read…` (public SELECT) | DROP → recreate `TO authenticated` |
-| `production_queue` | `Production staff can view queue` (public SELECT) | DROP → recreate `TO authenticated` scoped by business membership via `is_business_member()` |
-| `staged_business_data` | `Allow authenticated read…` (public SELECT) | DROP → recreate `TO authenticated` (or scoped by `is_business_member` if `business_id` present) |
-
-## Part 2 — Plug financial self-mutation holes
+Drop and recreate `TO service_role` (or `authenticated` for read-only views of non-sensitive data):
 
 | Table | Action |
 |---|---|
-| `wallets` | DROP `MVP_Client_Sync_Policy` + `Users can update their own wallet`. Authenticated users get **SELECT-only** on their own row. All balance mutations stay in existing SECURITY DEFINER functions (`increment_wallet_cash`, `increment_life_cash`, `decrement_hub_cash`, etc.) which run as service_role. |
-| `synapse_credit_ledger` | DROP `Users can insert their own ledger entries`. Authenticated users keep **SELECT** on their own rows. Inserts only via `service_role` / SECURITY DEFINER functions (the existing `calculate_synapse_running_balance` trigger already handles balance integrity server-side). |
-| `device_provisioning_blueprints` | DROP all four `true` policies. Recreate the 4 CRUD policies `TO authenticated` with `USING (public.is_business_member(business_id))` and matching `WITH CHECK` for INSERT/UPDATE. |
-| `api_metrics` | DROP `Allow authenticated read access on api_metrics`. Recreate as `TO authenticated USING (user_id = auth.uid())`. Add a service_role ALL policy for backend writers. |
-| `system_configs` | DROP `Allow authenticated read-only access`. Recreate as `TO service_role` only. (If the frontend needs feature flags, we'll surface them via a dedicated edge function — flag this for follow-up rather than re-exposing the table.) |
+| `usdc_payments` | UPDATE → service_role only |
+| `fiat_ledger` | INSERT → service_role only |
+| `raw_app_data` | ALL → service_role only |
+| `social_health_metrics` | ALL → service_role; keep owner SELECT (rebound to `authenticated`) |
+| `business_processing_queue` | ALL → service_role; drop public SELECT |
+| `lifestyle_processing_queue` | ALL → service_role; drop public SELECT |
+| `sync_logs` | ALL → service_role; drop public SELECT |
+| `governance_proposals` | INSERT/UPDATE → service_role; SELECT → authenticated |
+| `governance_indexer_state` | ALL → service_role |
+| `processed_operator_telemetry` | UPDATE → service_role; SELECT own → authenticated |
+| `cross_platform_insights` | ALL → service_role; SELECT → authenticated |
+| `production_queue` | SELECT → authenticated |
+| `staged_business_data` | ALL → service_role; SELECT → authenticated |
+
+## Part 2 — Financial / sensitive lockdown
+
+| Table | Action |
+|---|---|
+| `wallets` | Drop `MVP_Client_Sync_Policy` and `Users can update their own wallet`. Authenticated users keep SELECT on their own row only. Balance changes only via existing SECURITY DEFINER functions. |
+| `synapse_credit_ledger` | Drop `Users can insert their own ledger entries`. Authenticated users keep SELECT on their own rows. |
+| `device_provisioning_blueprints` | **Revised:** drop all 4 existing policies. Recreate 4 CRUD policies `TO authenticated` gated by `public.is_csuite(auth.uid())`. |
+| `api_metrics` | **Revised:** drop existing policy. Recreate `FOR SELECT TO authenticated USING (true)` (global read). Add `FOR ALL TO service_role`. |
+| `system_configs` | Drop authenticated read. Recreate ALL → service_role only. |
 
 ## Part 3 — ACA-tagged tables: universal authenticated read with UUID masking
 
-Per your rule: any authenticated user may read any row of any table that carries an `aca_hash_key`, but the owning UUID columns must be **masked**.
+Unchanged from prior plan.
 
-Approach — do NOT loosen RLS on the raw tables themselves. Instead:
+1. New helper `public.mask_owner(uuid) → text` — `SECURITY INVOKER`, `IMMUTABLE`, `search_path=public`, returns `sha256(uuid::text || 'IDIA_VIEW_SALT_V1')` hex. Execute revoked from `PUBLIC, anon`; granted to `authenticated, service_role`.
+2. Create `WITH (security_invoker = true)` views `public.<table>_public` for every ACA-tagged table (committee_applications, dao_proposals, dao_vetoes, dao_votes, data_lineage_index, governance_ledger, hat_recall_petitions, hat_recall_signatures, proposal_comments, proposal_signatures, raw_app_data, raw_health_data, staged_health_data, staged_lifestyle_data, synapse_controller, user_aca_records). Each view replaces owner UUIDs (`user_id`, `pseudo_user_id`, `platform_guid`, `entity_id`, `sovereign_uuid`, `proposer_id`, `author_id`, `actor_id`, `petitioner_id`, `signer_id`, `escalated_by`) with `mask_owner(...)` and exposes everything else.
+3. `REVOKE ALL … FROM PUBLIC, anon; GRANT SELECT … TO authenticated` on every view.
+4. Add `FOR SELECT TO authenticated USING (true)` on each underlying ACA-tagged table so the security-invoker view can satisfy RLS for any signed-in caller. Owner-specific policies remain intact.
 
-1. Identify every public-schema table that has an `aca_hash_key` column. Known set from the codebase: `user_aca_records`, `staged_health_data`, `data_lineage_index`, `egress_logs`, `delt_transfers`, `raw_health_data` (via downstream), plus any other matches discovered by introspection at migration time.
-2. For each such table, create a companion **view** `public.<table>_public` that:
-   - Selects all columns **except** raw owner UUIDs (`user_id`, `platform_guid`, `pseudo_user_id`, `owner_id`, `customer_id`).
-   - Replaces each owner UUID with a deterministic mask: `encode(sha256((coalesce(user_id::text,'') || 'IDIA_VIEW_SALT')::bytea), 'hex')` aliased as `masked_owner`. Reuses the same masking salt across all views so a single user maps to the same `masked_owner` everywhere (community-wide cross-referencing without PII).
-   - Views are defined `WITH (security_invoker = true)` so they respect the caller's RLS (avoiding the `SUPA_security_definer_view` lint).
-3. Grant `SELECT` on each `_public` view to `authenticated` only (never `anon`).
-4. Add a permissive `SELECT` RLS policy `TO authenticated USING (true)` on each underlying ACA-tagged table — but only after confirming the view is the *only* exposed surface (raw tables get no `GRANT SELECT TO authenticated` if they aren't already granted). Where the raw table is already accessible to its owner, keep that owner-scoped policy alongside.
-5. Frontend continues to use the raw table for the owner's own data (existing RLS), and switches to `<table>_public` when displaying community/feed views.
+## Out of scope / dashboard-only follow-ups
 
-## Part 4 — Realtime channel authorization
-
-Add RLS on `realtime.messages` restricting subscriptions: an authenticated user can only `SELECT` realtime messages whose `topic` either (a) starts with their own `auth.uid()::text`, or (b) corresponds to a public `_public` view topic. Anon gets nothing. This closes the cross-user financial/governance leak from `synapse_credit_ledger`, `egress_logs`, `dao_votes`, etc.
-
-## Part 5 — Misc lint cleanup tied to this migration
-
-- Set `search_path = public` on any new SECURITY DEFINER functions we add (UUID masking helper).
-- Revoke `EXECUTE … FROM PUBLIC, anon` on the masking helper; grant only to `authenticated, service_role`.
-- Public storage bucket listing + leaked-password protection + Postgres upgrade are out of scope for this SQL pass (require dashboard toggles); will be reported back as follow-ups.
+- Leaked-password protection toggle, Postgres version upgrade, public storage bucket listing review, `realtime.messages` channel authorization (reserved schema — needs separate handling).
 
 ---
 
-## Technical detail — migration shape
-
-Single migration file containing, in order:
-
-```text
-1. CREATE OR REPLACE FUNCTION public.mask_owner(uuid) → text
-   - SECURITY INVOKER, IMMUTABLE, search_path=public
-   - Returns encode(sha256((uuid::text||'IDIA_VIEW_SALT')::bytea),'hex')
-   - REVOKE EXECUTE FROM PUBLIC, anon; GRANT TO authenticated, service_role
-
-2. For each table in Part 1/2: DROP POLICY … ; CREATE POLICY … TO service_role / authenticated as specified.
-
-3. For each ACA-tagged table:
-     CREATE OR REPLACE VIEW public.<t>_public WITH (security_invoker = true) AS
-       SELECT <non-PII cols>, public.mask_owner(user_id) AS masked_owner
-       FROM public.<t>;
-     REVOKE ALL ON public.<t>_public FROM PUBLIC, anon;
-     GRANT SELECT ON public.<t>_public TO authenticated;
-     -- plus a SELECT-true policy TO authenticated on the underlying table if needed by the view.
-
-4. realtime.messages RLS: enable + add topic-scoped policy TO authenticated, no anon access.
-```
-
-Every new/modified policy is bound to `authenticated` or `service_role` — `{public}` is never used.
-
-## Out of scope / follow-ups (will report after migration)
-
-- Dashboard toggles: enable leaked-password protection, upgrade Postgres.
-- Storage bucket listing policy (needs per-bucket review).
-- Replacing any frontend code paths that currently read raw ACA-tagged tables for community views — switch them to the new `_public` views once the migration lands.
-
----
-
-**Approve this plan to proceed.** On approval I'll (a) introspect the live schema to enumerate every `aca_hash_key`-bearing table, (b) emit one comprehensive migration, and (c) re-run the security scan to confirm all errors clear.
+**Approve to proceed.** I'll emit one comprehensive migration and re-run the security scan.
