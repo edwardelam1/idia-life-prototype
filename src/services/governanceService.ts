@@ -62,11 +62,14 @@ export interface StrictCastVoteBySigRelayPayload {
   actionType: 'CAST_VOTE';
   proposalId: string;
   support: 0 | 1 | 2;
+  voteWeight: string;
+  tophatOverride: false;
+  voterAddress: string;
+  acaHash: string;
+  chainId: number;
   v: number;
   r: string;
   s: string;
-  voterAddress: string;
-  acaHash: string;
 }
 
 // ── Service ──────────────────────────────────────────────────────────
