@@ -441,7 +441,7 @@ export const ProposalCard: React.FC<{
           currentUserId
             ? (supabase as any)
                 .from("dao_votes")
-                .select("vote_type")
+                .select("vote_type, snapshot_voting_power, vote_weight")
                 .eq("proposal_id", proposal.proposal_ref)
                 .eq("user_id", currentUserId)
                 .maybeSingle()
@@ -450,8 +450,14 @@ export const ProposalCard: React.FC<{
         if (!alive) return;
         const rows = (votes || []) as { vote_type: string; vote_weight?: number }[];
         setVoteCount(rows.length);
-        setHasVoted(((mine as any)?.data?.vote_type as "for" | "against") ?? null);
+        const mineRow = (mine as any)?.data as { vote_type?: string; snapshot_voting_power?: number | null; vote_weight?: number | null } | null;
+        setHasVoted((mineRow?.vote_type as "for" | "against") ?? null);
+        if (mineRow) {
+          const w = mineRow.snapshot_voting_power ?? mineRow.vote_weight ?? null;
+          setVotedWeight(w != null ? Number(w) : null);
+        }
         s.ok();
+
       } catch (e) {
         s.fail(e);
       } finally {
