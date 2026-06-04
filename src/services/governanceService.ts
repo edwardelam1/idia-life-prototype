@@ -50,6 +50,25 @@ export interface GovernorParams {
   isPaused: boolean;
 }
 
+export interface GaslessBallotSignature {
+  signature: string;
+  v: number;
+  r: string;
+  s: string;
+  signerAddress: string;
+}
+
+export interface StrictCastVoteBySigRelayPayload {
+  actionType: 'CAST_VOTE';
+  proposalId: string;
+  support: 0 | 1 | 2;
+  v: number;
+  r: string;
+  s: string;
+  voterAddress: string;
+  acaHash: string;
+}
+
 // ── Service ──────────────────────────────────────────────────────────
 
 // Module-level caches (shared across all proposal cards) so we don't hammer
