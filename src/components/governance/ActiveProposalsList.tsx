@@ -705,6 +705,11 @@ export const ProposalCard: React.FC<{
         relayPayload.voterAddress = ballotSig.signerAddress;
       }
       console.log(`[PROCESS] Invoking relay-governance-action`, relayPayload);
+      console.log("[GOV_VOTE][RELAY_BROADCAST][START]", {
+        proposalId: proposal.on_chain_id,
+        support: chainSupport,
+        tophatOverride: !!tophatOverride,
+      });
       const { data: relayData, error: relayErr } = await supabase.functions.invoke(
         "relay-governance-action",
         { body: relayPayload },
@@ -723,6 +728,7 @@ export const ProposalCard: React.FC<{
           friendly = "Relayer is out of gas. Notify an operator.";
         }
         console.error(`[VOTE_CAST] RELAY_FAILED`, relayErr || relayData);
+        console.error("[GOV_VOTE][RELAY_BROADCAST][FATAL_FAIL]", raw);
         toast({
           title: tophatOverride ? "Override failed" : "Transaction Failed on-chain",
           description: friendly,
@@ -732,6 +738,7 @@ export const ProposalCard: React.FC<{
         return; // NO dao_votes insert, NO state flip
       }
       console.log(`[PROCESS] Relay claimed success`, relayData);
+      console.log("[GOV_VOTE][RELAY_BROADCAST][SUCCESS]", { tx_hash: (relayData as any)?.tx_hash });
 
       // ── AUTHORITATIVE CHAIN-TRUTH GATE (must pass BEFORE any mirror) ──
       // Hard gate: refuse to mirror, burn, or flip UI state until Base RPC
