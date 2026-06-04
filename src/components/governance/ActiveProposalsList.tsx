@@ -594,7 +594,7 @@ export const ProposalCard: React.FC<{
 
       // Gasless EIP-712 Ballot signature for standard voters. Tophat override
       // skips this entirely — the Treasury wallet carries its own weight via castVote().
-      let ballotSig: { v: number; r: string; s: string; signerAddress: string } | null = null;
+      let ballotSig: Awaited<ReturnType<typeof governanceService.signBallot>> | null = null;
       if (!tophatOverride) {
         const sigStage = stage("GOV_UI", "SIGN_BALLOT");
         sigStage.start({ proposalId: proposal.on_chain_id, support: chainSupport });
@@ -691,7 +691,7 @@ export const ProposalCard: React.FC<{
 
       const relayPayload: Record<string, unknown> = {
         actionType: "CAST_VOTE",
-        proposalId: proposal.on_chain_id,
+        proposalId: proposal.on_chain_id.toString(),
         support: chainSupport,
         voteWeight: chosenWeight,
         tophatOverride: !!tophatOverride,
@@ -699,12 +699,18 @@ export const ProposalCard: React.FC<{
         chainId: 8453,
       };
       if (ballotSig) {
-        relayPayload.v = ballotSig.v;
-        relayPayload.r = ballotSig.r;
-        relayPayload.s = ballotSig.s;
-        relayPayload.voterAddress = ballotSig.signerAddress;
+        Object.assign(
+          relayPayload,
+          governanceService.compileStrictCastVoteBySigRelayPayload(
+            proposal.on_chain_id,
+            chainSupport as 0 | 1,
+            ballotSig,
+            hash,
+          ),
+        );
       }
       console.log(`[PROCESS] Invoking relay-governance-action`, relayPayload);
+      console.log("[GOV_VOTE][RELAY_DISPATCH][START] Shipping 5-argument gasless vote payload to Deno runtime handler...");
       console.log("[GOV_VOTE][RELAY_BROADCAST][START]", {
         proposalId: proposal.on_chain_id,
         support: chainSupport,
@@ -729,6 +735,7 @@ export const ProposalCard: React.FC<{
         }
         console.error(`[VOTE_CAST] RELAY_FAILED`, relayErr || relayData);
         console.error("[GOV_VOTE][RELAY_BROADCAST][FATAL_FAIL]", raw);
+        console.error("[GOV_VOTE][RELAY_DISPATCH][FATAL_FAIL] Gasless vote propagation collapsed. Reason: ", raw);
         toast({
           title: tophatOverride ? "Override failed" : "Transaction Failed on-chain",
           description: friendly,
@@ -738,6 +745,7 @@ export const ProposalCard: React.FC<{
         return; // NO dao_votes insert, NO state flip
       }
       console.log(`[PROCESS] Relay claimed success`, relayData);
+      console.log("[GOV_VOTE][RELAY_DISPATCH][SUCCESS] On-chain gasless signature vote verified and indexed.");
       console.log("[GOV_VOTE][RELAY_BROADCAST][SUCCESS]", { tx_hash: (relayData as any)?.tx_hash });
 
       // ── AUTHORITATIVE CHAIN-TRUTH GATE (must pass BEFORE any mirror) ──

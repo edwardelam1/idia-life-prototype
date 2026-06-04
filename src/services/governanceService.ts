@@ -50,6 +50,25 @@ export interface GovernorParams {
   isPaused: boolean;
 }
 
+export interface GaslessBallotSignature {
+  signature: string;
+  v: number;
+  r: string;
+  s: string;
+  signerAddress: string;
+}
+
+export interface StrictCastVoteBySigRelayPayload {
+  actionType: 'CAST_VOTE';
+  proposalId: string;
+  support: 0 | 1 | 2;
+  v: number;
+  r: string;
+  s: string;
+  voterAddress: string;
+  acaHash: string;
+}
+
 // ── Service ──────────────────────────────────────────────────────────
 
 // Module-level caches (shared across all proposal cards) so we don't hammer
@@ -59,6 +78,9 @@ export interface GovernorParams {
 const QUORUM_TTL_MS = 60_000;
 const _quorumCache = new Map<string, { value: string; at: number }>();
 const _inflight = new Map<string, Promise<string>>();
+const STRICT_CAST_VOTE_BY_SIG_ABI = [
+  'function castVoteBySig(uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s) returns (uint256)',
+];
 
 class GovernanceService {
 
@@ -533,7 +555,7 @@ async getCurrentQuorum(): Promise<string> {
   async signBallot(
     proposalId: string | number | bigint,
     support: 0 | 1 | 2,
-  ): Promise<{ v: number; r: string; s: string; signerAddress: string }> {
+  ): Promise<GaslessBallotSignature> {
     const signer = walletService.getConnectedSigner();
     if (!signer) throw new Error('Wallet not connected');
     const signerAddress = await signer.getAddress();
@@ -595,7 +617,50 @@ async getCurrentQuorum(): Promise<string> {
     }
 
     const sig = ethers.Signature.from(signature);
-    return { v: sig.v, r: sig.r, s: sig.s, signerAddress };
+    return { signature, v: sig.v, r: sig.r, s: sig.s, signerAddress };
+  }
+
+  compileStrictCastVoteBySigRelayPayload(
+    proposalId: string | number | bigint,
+    support: 0 | 1 | 2,
+    ballot: GaslessBallotSignature,
+    acaHash: string,
+  ): StrictCastVoteBySigRelayPayload {
+    console.log('[GOV_VOTE][ALIGNMENT][START] Sanitizing vote signature parameter vectors.');
+
+    const strictInterface = new ethers.Interface(STRICT_CAST_VOTE_BY_SIG_ABI);
+    const castVoteBySig = strictInterface.getFunction('castVoteBySig(uint256,uint8,uint8,bytes32,bytes32)');
+    if (castVoteBySig?.selector !== '0x3bccf4fd') {
+      throw new Error(`Unexpected castVoteBySig selector: ${castVoteBySig?.selector}`);
+    }
+
+    // Split signature into explicit uint8/bytes32 types. Only the OpenZeppelin
+    // v4 5-argument vector is allowed through this relay payload.
+    const sig = ethers.Signature.from(ballot.signature);
+    const cleanV = sig.v;
+    const cleanR = sig.r;
+    const cleanS = sig.s;
+    const cleanSupport = Number(support) as 0 | 1 | 2;
+    if (cleanSupport !== 0 && cleanSupport !== 1 && cleanSupport !== 2) {
+      throw new Error(`Invalid vote support value: ${support}`);
+    }
+
+    const explicitPayload: StrictCastVoteBySigRelayPayload = {
+      actionType: 'CAST_VOTE',
+      proposalId: proposalId.toString(),
+      support: cleanSupport,
+      v: cleanV,
+      r: cleanR,
+      s: cleanS,
+      voterAddress: ballot.signerAddress.toLowerCase(),
+      acaHash,
+    };
+
+    console.log(
+      '[GOV_VOTE][ALIGNMENT][SUCCESS] 5-argument parameters mapped cleanly for relay dispatch:',
+      JSON.stringify(explicitPayload),
+    );
+    return explicitPayload;
   }
 
   // ── Write: Delegate ───────────────────────────────────────
