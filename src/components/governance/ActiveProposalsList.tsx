@@ -377,8 +377,10 @@ export const ProposalCard: React.FC<{
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [hasVoted, setHasVoted] = useState<null | "for" | "against">(null);
+  const [votedWeight, setVotedWeight] = useState<number | null>(null);
   const [voteCount, setVoteCount] = useState<number>(0);
   const [loadingMeta, setLoadingMeta] = useState(true);
+
   const [chain, setChain] = useState<ChainState>(fallbackState ?? {
     snapshotBlock: null,
     deadlineBlock: null,
