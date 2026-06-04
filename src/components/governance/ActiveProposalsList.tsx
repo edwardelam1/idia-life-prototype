@@ -723,43 +723,12 @@ export const ProposalCard: React.FC<{
         s.fail(relayErr || "relay_no_success");
         return; // NO dao_votes insert, NO state flip
       }
-      console.log(`[PROCESS] Relay confirmed`, relayData);
+      console.log(`[PROCESS] Relay claimed success`, relayData);
 
-      // ── ONLY after on-chain success: mirror the vote into dao_votes ──
-      // snapshot_voting_power was captured during pre-flight directly from Base RPC.
-      console.log(`[GOV_VOTE][DB_INSERT][START] dao_votes proposal_id=${proposal.proposal_ref}`);
-      const voteRow: Record<string, unknown> = {
-        proposal_id: proposal.proposal_ref,
-        user_id: user.id,
-        vote_type: support,
-        vote_weight: chosenWeight,
-        snapshot_voting_power: snapshotPower,
-        snapshot_block: initialTally.snapshotBlock ?? null,
-        credits_spent: tophatOverride ? 0 : 1,
-        aca_hash_key: hash,
-        aca_payload: payload,
-      };
-      const { error: voteError } = await (supabase as any).from("dao_votes").insert(voteRow);
-      if (voteError) {
-        if (voteError.code === "23505") {
-          setHasVoted(support);
-          console.log(`[GOV_VOTE][DB_INSERT][END:DUPLICATE] mirror already present`);
-        } else {
-          console.error(`[GOV_VOTE][DB_INSERT][END:FAIL] (chain succeeded)`, voteError);
-          toast({
-            title: "Vote anchored, mirror lagging",
-            description: "On-chain vote succeeded. The off-chain mirror will reconcile shortly.",
-          });
-        }
-      } else {
-        console.log(`[GOV_VOTE][DB_INSERT][END:OK] vote ledger row synchronized`);
-      }
-      setLedgerNonce((n) => n + 1);
-
-      // ── AUTHORITATIVE CHAIN-TRUTH POLL (no optimism, no simulation) ──
-      // Exponential backoff up to ~10s. We refuse to update displayed tallies
-      // until Base RPC reports an aggregate that differs from the pre-vote
-      // snapshot. The Principle of Cryptographic Fidelity in code.
+      // ── AUTHORITATIVE CHAIN-TRUTH GATE (must pass BEFORE any mirror) ──
+      // Hard gate: refuse to mirror, burn, or flip UI state until Base RPC
+      // reports a tally transition vs. the pre-vote snapshot. No off-chain
+      // fallback exists. If the chain doesn't move, the vote did not happen.
       console.log(`[GOV_VOTE][CHAIN_REFRESH][START] polling for on-chain settlement`);
       const pollDelays = [500, 750, 1000, 1500, 2000, 2500, 1750]; // ~10s total
       let confirmed: ChainState | null = null;
@@ -779,21 +748,52 @@ export const ProposalCard: React.FC<{
           console.warn(`[GOV_VOTE][POLL][TICK_ERR]`, tickErr);
         }
       }
-      if (confirmed) {
-        setChain(confirmed);
-        console.log(
-          `[GOV_VOTE][CHAIN_REFRESH][END:OK] for=${confirmed.forVotes} against=${confirmed.againstVotes}`,
-        );
-      } else {
-        console.error(`[GOV_VOTE][CHAIN_REFRESH][END:FAIL] poll exhausted (no tally transition in 10s)`);
+      if (!confirmed) {
+        console.error(`[GOV_VOTE][CHAIN_REFRESH][END:FAIL] poll exhausted — vote REJECTED, no mirror written`);
         toast({
-          title: "Transaction not confirmed on-chain",
+          title: "Vote Rejected — Not Confirmed On-Chain",
           description:
-            "We could not verify your vote on Base within 10 seconds. Refresh shortly to see the latest tally.",
+            "Base RPC did not report a tally change within 10s. No off-chain mirror was written. Try again.",
           variant: "destructive",
         });
+        s.fail("chain_no_transition");
+        return; // NO dao_votes insert, NO burn, NO state flip
       }
+      setChain(confirmed);
+      console.log(
+        `[GOV_VOTE][CHAIN_REFRESH][END:OK] for=${confirmed.forVotes} against=${confirmed.againstVotes}`,
+      );
 
+      // ── Chain confirmed → mirror the vote into dao_votes ──
+      // snapshot_voting_power was captured during pre-flight directly from Base RPC.
+      console.log(`[GOV_VOTE][DB_INSERT][START] dao_votes proposal_id=${proposal.proposal_ref}`);
+      const voteRow: Record<string, unknown> = {
+        proposal_id: proposal.proposal_ref,
+        user_id: user.id,
+        vote_type: support,
+        vote_weight: chosenWeight,
+        snapshot_voting_power: snapshotPower,
+        snapshot_block: initialTally.snapshotBlock ?? null,
+        credits_spent: tophatOverride ? 0 : 1,
+        aca_hash_key: hash,
+        aca_payload: payload,
+      };
+      const { error: voteError } = await (supabase as any).from("dao_votes").insert(voteRow);
+      if (voteError) {
+        if (voteError.code === "23505") {
+          console.log(`[GOV_VOTE][DB_INSERT][END:DUPLICATE] mirror already present`);
+        } else {
+          console.error(`[GOV_VOTE][DB_INSERT][END:FAIL]`, voteError);
+          toast({
+            title: "Mirror Write Failed",
+            description: "On-chain vote landed but the ledger mirror failed. Contact an operator.",
+            variant: "destructive",
+          });
+        }
+      } else {
+        console.log(`[GOV_VOTE][DB_INSERT][END:OK] vote ledger row synchronized`);
+      }
+      setLedgerNonce((n) => n + 1);
 
       // Burn 1 IDIA from wallet for standard votes only
       if (!tophatOverride) {
