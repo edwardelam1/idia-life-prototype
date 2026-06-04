@@ -423,10 +423,20 @@ async getCurrentQuorum(): Promise<string> {
       description: cleanDescription,
     });
 
-    const gov = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, signer);
-    console.log("[PROPOSAL_SUBMIT][RELAY_DISPATCH][START] Broadcasting 4-argument payload to contract address...");
+    // Strict OZ v4 ABI — only the canonical 4-arg propose. Prevents ethers
+    // from ever resolving to the Bravo-style 5-arg overload (selector
+    // 0x3bccf4fd) that the IDIAGovernor contract does NOT implement.
+    const STRICT_PROPOSE_ABI = [
+      "function propose(address[] targets, uint256[] values, bytes[] calldatas, string description) returns (uint256)",
+    ];
+    const gov = new ethers.Contract(PROTOCOL.governor, STRICT_PROPOSE_ABI, signer);
+    const proposeFn = gov.getFunction("propose(address[],uint256[],bytes[],string)");
+    console.log("[PROPOSAL_SUBMIT][RELAY_DISPATCH][START] Broadcasting strict 4-argument payload.", {
+      selector: proposeFn.fragment.selector,
+      signature: proposeFn.fragment.format("sighash"),
+    });
     try {
-      const tx = await gov.propose(cleanTargets, cleanValues, cleanCalldatas, cleanDescription);
+      const tx = await proposeFn(cleanTargets, cleanValues, cleanCalldatas, cleanDescription);
       const receipt = await tx.wait();
       console.log("[PROPOSAL_SUBMIT][RELAY_DISPATCH][SUCCESS] On-chain proposal initialized successfully.");
       const proposalId = this.extractProposalIdFromReceipt(receipt);
