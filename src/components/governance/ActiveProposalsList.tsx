@@ -594,7 +594,7 @@ export const ProposalCard: React.FC<{
 
       // Gasless EIP-712 Ballot signature for standard voters. Tophat override
       // skips this entirely — the Treasury wallet carries its own weight via castVote().
-      let ballotSig: { v: number; r: string; s: string; signerAddress: string } | null = null;
+      let ballotSig: Awaited<ReturnType<typeof governanceService.signBallot>> | null = null;
       if (!tophatOverride) {
         const sigStage = stage("GOV_UI", "SIGN_BALLOT");
         sigStage.start({ proposalId: proposal.on_chain_id, support: chainSupport });
