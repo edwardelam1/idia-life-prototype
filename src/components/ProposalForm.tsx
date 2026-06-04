@@ -116,6 +116,7 @@ const ProposalForm = ({ onClose, onSuccess }: ProposalFormProps) => {
         frequency_score: 2
       });
 
+      console.log("[PROPOSAL_SUBMIT][FORM_DISPATCH][SUCCESS] Proposal pipeline completed.");
       toast({
         title: "Proposal submitted!",
         description: `Your proposal has been ${validationResult.status}. ${validationResult.feedback}`,
@@ -124,7 +125,8 @@ const ProposalForm = ({ onClose, onSuccess }: ProposalFormProps) => {
       onSuccess();
       onClose();
     } catch (error: any) {
-      console.error('Error submitting proposal:', error);
+      console.error("[PROPOSAL_SUBMIT][FORM_DISPATCH][FATAL_FAIL]", error?.message ?? error);
+
       
       // Track error through synapse
       eventTracker.trackVotingAction({
