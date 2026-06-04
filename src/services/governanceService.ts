@@ -62,11 +62,14 @@ export interface StrictCastVoteBySigRelayPayload {
   actionType: 'CAST_VOTE';
   proposalId: string;
   support: 0 | 1 | 2;
+  voteWeight: string;
+  tophatOverride: false;
+  voterAddress: string;
+  acaHash: string;
+  chainId: number;
   v: number;
   r: string;
   s: string;
-  voterAddress: string;
-  acaHash: string;
 }
 
 // ── Service ──────────────────────────────────────────────────────────
@@ -625,8 +628,10 @@ async getCurrentQuorum(): Promise<string> {
     support: 0 | 1 | 2,
     ballot: GaslessBallotSignature,
     acaHash: string,
+    voteWeight: number | string = 0,
+    chainId: number = ACTIVE_DEPLOYMENT === 'mainnet' ? 8453 : 84532,
   ): StrictCastVoteBySigRelayPayload {
-    console.log('[GOV_VOTE][ALIGNMENT][START] Sanitizing vote signature parameter vectors.');
+    console.log('[GOV_VOTE][ALIGNMENT][START] Checking signature structure configurations.');
 
     const strictInterface = new ethers.Interface(STRICT_CAST_VOTE_BY_SIG_ABI);
     const castVoteBySig = strictInterface.getFunction('castVoteBySig(uint256,uint8,uint8,bytes32,bytes32)');
@@ -634,33 +639,35 @@ async getCurrentQuorum(): Promise<string> {
       throw new Error(`Unexpected castVoteBySig selector: ${castVoteBySig?.selector}`);
     }
 
-    // Split signature into explicit uint8/bytes32 types. Only the OpenZeppelin
-    // v4 5-argument vector is allowed through this relay payload.
-    const sig = ethers.Signature.from(ballot.signature);
-    const cleanV = sig.v;
-    const cleanR = sig.r;
-    const cleanS = sig.s;
+    // Re-derive v/r/s from the raw signature string to guarantee no positional
+    // shift leaks `v` into `support` (or vice versa) during JSON serialization.
+    const signatureObject = ethers.Signature.from(ballot.signature);
     const cleanSupport = Number(support) as 0 | 1 | 2;
     if (cleanSupport !== 0 && cleanSupport !== 1 && cleanSupport !== 2) {
       throw new Error(`Invalid vote support value: ${support}`);
     }
 
-    const explicitPayload: StrictCastVoteBySigRelayPayload = {
+    // Explicit, lowercase, standalone property paths. Order here matches the
+    // edge-function destructure exactly to make drift trivially auditable.
+    const secureRelayBody: StrictCastVoteBySigRelayPayload = {
       actionType: 'CAST_VOTE',
       proposalId: proposalId.toString(),
       support: cleanSupport,
-      v: cleanV,
-      r: cleanR,
-      s: cleanS,
+      voteWeight: voteWeight.toString(),
+      tophatOverride: false,
       voterAddress: ballot.signerAddress.toLowerCase(),
       acaHash,
+      chainId,
+      v: signatureObject.v,
+      r: signatureObject.r,
+      s: signatureObject.s,
     };
 
     console.log(
-      '[GOV_VOTE][ALIGNMENT][SUCCESS] 5-argument parameters mapped cleanly for relay dispatch:',
-      JSON.stringify(explicitPayload),
+      '[GOV_VOTE][ALIGNMENT][SUCCESS] JSON packet configured for relayer body payload: ',
+      JSON.stringify(secureRelayBody),
     );
-    return explicitPayload;
+    return secureRelayBody;
   }
 
   // ── Write: Delegate ───────────────────────────────────────

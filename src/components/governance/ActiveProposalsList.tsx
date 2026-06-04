@@ -689,25 +689,30 @@ export const ProposalCard: React.FC<{
       // If pre-flight RPC failed, fall back to last-known React state.
       const initialTally: ChainState = liveChain ?? chain;
 
-      const relayPayload: Record<string, unknown> = {
-        actionType: "CAST_VOTE",
-        proposalId: proposal.on_chain_id.toString(),
-        support: chainSupport,
-        voteWeight: chosenWeight,
-        tophatOverride: !!tophatOverride,
-        acaHash: hash,
-        chainId: 8453,
-      };
+      // Build the relay body explicitly per-branch. No merging, no positional
+      // overlays — `support` and `v` are bound by name to prevent any
+      // serialization-order leak from shifting `v` (27/28) into `support`.
+      let relayPayload: Record<string, unknown>;
       if (ballotSig) {
-        Object.assign(
-          relayPayload,
-          governanceService.compileStrictCastVoteBySigRelayPayload(
-            proposal.on_chain_id,
-            chainSupport as 0 | 1,
-            ballotSig,
-            hash,
-          ),
-        );
+        relayPayload = { ...governanceService.compileStrictCastVoteBySigRelayPayload(
+          proposal.on_chain_id,
+          chainSupport as 0 | 1,
+          ballotSig,
+          hash,
+          chosenWeight,
+          8453,
+        ) };
+      } else {
+        // Tophat override path — Treasury wallet carries weight, no v/r/s.
+        relayPayload = {
+          actionType: "CAST_VOTE",
+          proposalId: proposal.on_chain_id.toString(),
+          support: Number(chainSupport),
+          voteWeight: chosenWeight.toString(),
+          tophatOverride: true,
+          acaHash: hash,
+          chainId: 8453,
+        };
       }
       console.log(`[PROCESS] Invoking relay-governance-action`, relayPayload);
       console.log("[GOV_VOTE][RELAY_DISPATCH][START] Shipping 5-argument gasless vote payload to Deno runtime handler...");

@@ -191,6 +191,11 @@ serve(async (req) => {
       }
     }
     console.log(`[GOV_RELAY][${stage}][BRANCH_VALIDATED] branch=${actionType}`);
+    if (actionType === "CAST_VOTE") {
+      console.log(
+        `[GOV_RELAY][${stage}][VOTE_INGEST_LAYOUT] support=${support} sigV=${sigV} hasR=${typeof sigR === "string" && sigR.startsWith("0x")} hasS=${typeof sigS === "string" && sigS.startsWith("0x")} voterAddress=${voterAddress ?? "(missing)"} tophatOverride=${!!tophatOverride}`,
+      );
+    }
     console.log(
       `[GOV_RELAY][${stage}][SUCCESS] action=${actionType} proposalId=${onchainId} chainId=${networkId} override=${!!tophatOverride}`,
     );
