@@ -1,33 +1,52 @@
-Refactor `src/components/governance/MSAComplianceCard.tsx` to render four SLA channels instead of three.
+# Vote relay diagnostic hardening
 
-## Channel matrix
+Good news up front: 2 of the 3 prescribed gates are already live. Only one new check is actually needed.
 
-| ID | Label | Source | Latency derivation | SLA budget |
-|---|---|---|---|---|
-| bundles | Marketplace Bundles | public.bundle_generation_logs | parseDurationToMs(processing_duration) | 2000 ms |
-| api_mcp | API & MCP Gateways | public.api_metrics where endpoint IN ('mcp-gateway','sql-endpoint') | latency_ms | 500 ms |
-| best_friend_ai | Best Friend AI | public.api_metrics where endpoint = 'best-friend-ai' | latency_ms | 250 ms |
-| egress | Global Egress Delivery | public.egress_logs | settled_at − created_at (ms) | 1500 ms |
+## What's already in place (no change)
 
-## Changes (single file)
+- **Snapshot-block voting-power guard** — `ActiveProposalsList.tsx:649-665` already calls `govRead.getVotes(signerAddress, liveChain.snapshotBlock)`, blocks the vote with a "No voting power at snapshot" toast if it's `0n`, and logs `[GOV_VOTE][PRE_FLIGHT][END:FAIL] zero_snapshot_power …`. Nothing to add for point #2.
+- **Already-voted guard** — `:668-680` short-circuits if `hasVoted` returns true.
+- **Voting-state guard** — `:634-646` blocks if proposal state ≠ Active.
+- **2-field OZ v4 `Ballot` struct** — `governanceService.ts:551-557` stays exactly as-is. No `voter`/`expiry` fields.
 
-1. Extend `ChannelId` union to include `api_mcp`. Add `CHANNEL_LABELS` and `SLA_BUDGET_MS` entries for all four channels.
-2. Replace the 3-way `Promise.all` fetch with a 4-way fetch: bundles, api_metrics filtered via `.in('endpoint',['mcp-gateway','sql-endpoint'])`, api_metrics filtered via `.eq('endpoint','best-friend-ai')`, egress_logs.
-3. Wrap per-channel sample-to-row mapping in `React.useMemo` so parsing is not redone on unrelated re-renders. Each channel uses its own parser:
-   - bundles → parseDurationToMs (existing helper, handles ISO 8601, HH:MM:SS, numeric)
-   - api_mcp + best_friend_ai → Number(latency_ms) with Number.isFinite guard
-   - egress → ms delta guarded against null settled_at
-4. Keep `statusFor(avg, target, samples)`; ensure 0-sample channels uniformly return `idle` and render with the existing neutral slate dot and "No Samples" label. No NaN can reach status math.
-5. Realtime socket: no additional table subscriptions needed — the existing channel already listens on bundle_generation_logs, egress_logs, and api_metrics (which feeds both api_mcp and best_friend_ai rows).
-6. Preserve these three console signatures verbatim:
-   - `[ORACLE_TELEMETRY][SHARED_SCHEMA][START] Syncing multi-tenant delivery latency profiles from live tables.`
-   - `[ORACLE_TELEMETRY][SHARED_SCHEMA][SUCCESS] Performance profiles calculated successfully.`
-   - `[ORACLE_TELEMETRY][SHARED_SCHEMA][CRITICAL_FAILURE] Latency collection pass stalled: <err.message>`
-   - Existing `[SOCKET_START|EVENT|STATUS|CLOSE]` bookends remain untouched.
+## What this plan changes
 
-## Scope
+### 1. Client-side `ethers.verifyTypedData` round-trip (new)
 
-- One file: `src/components/governance/MSAComplianceCard.tsx`
-- No DB migrations, no edge-function changes, no schema changes
-- No changes to TreasuryFlows.tsx, GovernanceScreen.tsx, or any other surface
-- UI primitives unchanged; the 4th row reuses the existing row layout
+In `src/services/governanceService.ts`, inside `signBallot(...)` immediately after `const signature = await signer.signTypedData(...)`:
+
+- Call `ethers.verifyTypedData(domain, types, value, signature)` and compare lower-cased against `signerAddress`.
+- On mismatch: log `🚨 [GOV_VOTE][PRE_FLIGHT][SIGN][FAIL] recovered=<x> expected=<y> governorName=<n> chainId=<c>` and throw `EIP-712 domain separator mismatch — local signature recovery failed.`
+- On match: log `[GOV_VOTE][PRE_FLIGHT][SIGN][SUCCESS]`.
+
+This catches a wrong `governorName` (e.g. `gov.name()` returns something other than the contract's hardcoded EIP712 name) **before** burning a relayer-side `estimateGas` call, and surfaces the real root cause in a single log line.
+
+### 2. Relay-broadcast bookend logs (new)
+
+In `ActiveProposalsList.tsx` around the `supabase.functions.invoke("relay-governance-action", …)` call (currently `:707-711`), wrap with:
+
+- Before invoke: `console.log("[GOV_VOTE][RELAY_BROADCAST][START]", { proposalId, support: chainSupport, tophatOverride })`
+- On success (`relayData?.success`): `console.log("[GOV_VOTE][RELAY_BROADCAST][SUCCESS]", { tx_hash: relayData.tx_hash })`
+- On error (existing `relayErr || !relayData?.success` branch): `console.error("[GOV_VOTE][RELAY_BROADCAST][FATAL_FAIL]", raw)`
+
+Existing `stage("GOV_UI", "RELAY_INVOKE")` tracer remains untouched alongside these.
+
+## What this plan does NOT change
+
+- `GOVERNOR_ABI` and the relay edge function — both correctly target OZ v4 `castVoteBySig(uint256,uint8,uint8,bytes32,bytes32)`.
+- The `Ballot` typehash — adding `voter`/`expiry` would change the struct hash and break recovery for every vote. Confirmed in earlier exchange.
+- The relayer hot wallet broadcasting on behalf of the user — that is the intended `castVoteBySig` design; signer ≠ msg.sender is correct.
+- No edge-function changes, no DB migration, no UI restructuring.
+
+## Files touched (2)
+
+- `src/services/governanceService.ts` — add 6-10 lines inside `signBallot`.
+- `src/components/governance/ActiveProposalsList.tsx` — add 3 bookend log lines around the relay invoke.
+
+## Expected outcome
+
+Next failed vote will produce **one** of these definitive signals in the console instead of the opaque `CALL_EXCEPTION`:
+
+- `[GOV_VOTE][PRE_FLIGHT][SIGN][FAIL] recovered=0x000…000 …` → wrong `governorName`/domain → fix domain string.
+- `[GOV_VOTE][PRE_FLIGHT][END:FAIL] zero_snapshot_power …` → user delegated after snapshot → already handled with a toast.
+- `[GOV_VOTE][RELAY_BROADCAST][FATAL_FAIL] <raw governor revert>` → on-chain revert reason surfaced verbatim (e.g. `GovernorInvalidSignature`, `GovernorAlreadyCastVote`, quorum/threshold issue) → actionable next step.
