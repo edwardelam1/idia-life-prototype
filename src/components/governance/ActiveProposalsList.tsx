@@ -694,14 +694,14 @@ export const ProposalCard: React.FC<{
       // serialization-order leak from shifting `v` (27/28) into `support`.
       let relayPayload: Record<string, unknown>;
       if (ballotSig) {
-        relayPayload = governanceService.compileStrictCastVoteBySigRelayPayload(
+        relayPayload = { ...governanceService.compileStrictCastVoteBySigRelayPayload(
           proposal.on_chain_id,
           chainSupport as 0 | 1,
           ballotSig,
           hash,
           chosenWeight,
           8453,
-        );
+        ) };
       } else {
         // Tophat override path — Treasury wallet carries weight, no v/r/s.
         relayPayload = {
