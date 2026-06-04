@@ -1179,8 +1179,12 @@ export const ProposalCard: React.FC<{
               {hasVoted && !isFinal && (
                 <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-teal-200 text-teal-700 bg-teal-50 dark:bg-teal-950/30 dark:text-teal-200 dark:border-teal-900/50">
                   Voted · {hasVoted.toUpperCase()}
+                  {votedWeight != null && (
+                    <> · {new Intl.NumberFormat().format(Math.floor(votedWeight))} IDIA</>
+                  )}
                 </span>
               )}
+
               <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
                 · {voteCount} intent{voteCount === 1 ? "" : "s"}
               </span>
