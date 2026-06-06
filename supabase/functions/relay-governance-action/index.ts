@@ -147,12 +147,24 @@ serve(async (req) => {
 
     // CAST_VOTE-specific validation
     let supportValue: 0 | 1 | 2 = 0;
+    let signatureV: 27 | 28 | null = null;
     let voteWeightNum = 0;
     if (actionType === "CAST_VOTE") {
-      if (support !== 0 && support !== 1 && support !== 2) {
+      const normalizedSupport = support === undefined || support === null ? NaN : Number(support);
+      const normalizedSigV = sigV === undefined || sigV === null ? NaN : Number(sigV);
+      console.log(
+        `[GOV_RELAY][${stage}][VOTE_NORMALIZE] rawSupport=${support} normalizedSupport=${normalizedSupport} rawSigV=${sigV} normalizedSigV=${normalizedSigV} hasR=${typeof sigR === "string" && sigR.startsWith("0x")} hasS=${typeof sigS === "string" && sigS.startsWith("0x")}`,
+      );
+      if (support === undefined || support === null) {
+        return jsonResponse({ error: "Missing support value before vote serialization.", failed_at: stage }, 400);
+      }
+      if (normalizedSupport === 27 || normalizedSupport === 28) {
+        return jsonResponse({ error: `Signature v shifted into support slot: ${normalizedSupport}`, failed_at: stage }, 400);
+      }
+      if (normalizedSupport !== 0 && normalizedSupport !== 1 && normalizedSupport !== 2) {
         return jsonResponse({ error: `Invalid support value: ${support}`, failed_at: stage }, 400);
       }
-      supportValue = support as 0 | 1 | 2;
+      supportValue = normalizedSupport as 0 | 1 | 2;
       // voteWeight is informational only — OpenZeppelin Governor reads weight
       // from the snapshot block on-chain. Do NOT reject when missing/zero.
       const parsedWeight = Number(voteWeight);
@@ -163,15 +175,16 @@ serve(async (req) => {
       // Standard (non-override) votes are gasless: client MUST supply an
       // EIP-712 Ballot signature. Tophat override skips this — Treasury weight.
       if (tophatOverride !== true) {
-        const vOk = typeof sigV === "number" || typeof sigV === "string";
+        const vOk = normalizedSigV === 27 || normalizedSigV === 28;
         const rOk = typeof sigR === "string" && sigR.startsWith("0x");
         const sOk = typeof sigS === "string" && sigS.startsWith("0x");
         if (!vOk || !rOk || !sOk) {
           return jsonResponse(
-            { error: "Missing EIP-712 Ballot signature (v,r,s) for gasless vote.", failed_at: stage },
+            { error: `Invalid or missing EIP-712 Ballot signature (v,r,s). v=${sigV}`, failed_at: stage },
             400,
           );
         }
+        signatureV = normalizedSigV as 27 | 28;
       }
     }
 
@@ -193,7 +206,7 @@ serve(async (req) => {
     console.log(`[GOV_RELAY][${stage}][BRANCH_VALIDATED] branch=${actionType}`);
     if (actionType === "CAST_VOTE") {
       console.log(
-        `[GOV_RELAY][${stage}][VOTE_INGEST_LAYOUT] support=${support} sigV=${sigV} hasR=${typeof sigR === "string" && sigR.startsWith("0x")} hasS=${typeof sigS === "string" && sigS.startsWith("0x")} voterAddress=${voterAddress ?? "(missing)"} tophatOverride=${!!tophatOverride}`,
+        `[GOV_RELAY][${stage}][VOTE_INGEST_LAYOUT] rawSupport=${support} normalizedSupport=${supportValue} rawSigV=${sigV} normalizedSigV=${signatureV ?? "n/a"} hasR=${typeof sigR === "string" && sigR.startsWith("0x")} hasS=${typeof sigS === "string" && sigS.startsWith("0x")} voterAddress=${voterAddress ?? "(missing)"} tophatOverride=${!!tophatOverride}`,
       );
     }
     console.log(
@@ -587,7 +600,7 @@ serve(async (req) => {
       console.log(`[GOV_RELAY][${tag}][${stage}][AWAIT_SUBMIT_START] gov.${via}()`);
       const tx = overrideAuthorized
         ? await gov.castVote(onchainId, supportValue)
-        : await gov.castVoteBySig(onchainId, supportValue, Number(sigV), sigR, sigS);
+        : await gov.castVoteBySig(onchainId, supportValue, signatureV, sigR, sigS);
       console.log(`[GOV_RELAY][${tag}][${stage}] Tx submitted: ${tx.hash}`);
 
       stage = "AWAIT_CONFIRMATION";

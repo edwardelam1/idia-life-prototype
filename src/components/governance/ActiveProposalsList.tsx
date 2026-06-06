@@ -9,6 +9,7 @@ import { generateACAHash } from "@/utils/acaGenerator";
 import { recordACA } from "@/utils/acaLedger";
 import { stage } from "@/lib/stageLogger";
 import { governanceService, type ProposalOnChain } from "@/services/governanceService";
+import { relayCastVoteBySig } from "@/services/governanceRelay";
 import ActivateVotingPowerCard from "./ActivateVotingPowerCard";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -689,42 +690,48 @@ export const ProposalCard: React.FC<{
       // If pre-flight RPC failed, fall back to last-known React state.
       const initialTally: ChainState = liveChain ?? chain;
 
-      // Build the relay body explicitly per-branch. No merging, no positional
-      // overlays — `support` and `v` are bound by name to prevent any
-      // serialization-order leak from shifting `v` (27/28) into `support`.
-      let relayPayload: Record<string, unknown>;
+      const normalizedSupport = Number(chainSupport);
+      if (normalizedSupport !== 0 && normalizedSupport !== 1 && normalizedSupport !== 2) {
+        throw new Error(`Invalid vote support before relay dispatch: ${normalizedSupport}`);
+      }
+      if (ballotSig && normalizedSupport === Number(ballotSig.v)) {
+        throw new Error(`Vote payload alignment failure: support=${normalizedSupport} v=${ballotSig.v}`);
+      }
+
+      let relayData: any;
+      let relayErr: any;
       if (ballotSig) {
-        relayPayload = { ...governanceService.compileStrictCastVoteBySigRelayPayload(
-          proposal.on_chain_id,
-          chainSupport as 0 | 1,
-          ballotSig,
-          hash,
-          chosenWeight,
-          8453,
-        ) };
+        const relayResponse = await relayCastVoteBySig({
+          proposalId: proposal.on_chain_id,
+          support: normalizedSupport as 0 | 1 | 2,
+          voteWeight: chosenWeight,
+          rawSignatureString: ballotSig.signature,
+          signerAddress: ballotSig.signerAddress,
+          acaHash: hash,
+          chainId: 8453,
+        });
+        relayData = relayResponse.data;
+        relayErr = relayResponse.error;
       } else {
         // Tophat override path — Treasury wallet carries weight, no v/r/s.
-        relayPayload = {
+        const relayPayload = {
           actionType: "CAST_VOTE",
           proposalId: proposal.on_chain_id.toString(),
-          support: Number(chainSupport),
+          support: normalizedSupport,
           voteWeight: chosenWeight.toString(),
           tophatOverride: true,
           acaHash: hash,
           chainId: 8453,
         };
+        console.log(`[PROCESS] Invoking relay-governance-action`, relayPayload);
+        console.log("[GOV_VOTE][RELAY_DISPATCH][START] Shipping tophat override vote payload to Deno runtime handler...");
+        const relayResponse = await supabase.functions.invoke(
+          "relay-governance-action",
+          { body: relayPayload },
+        );
+        relayData = relayResponse.data;
+        relayErr = relayResponse.error;
       }
-      console.log(`[PROCESS] Invoking relay-governance-action`, relayPayload);
-      console.log("[GOV_VOTE][RELAY_DISPATCH][START] Shipping 5-argument gasless vote payload to Deno runtime handler...");
-      console.log("[GOV_VOTE][RELAY_BROADCAST][START]", {
-        proposalId: proposal.on_chain_id,
-        support: chainSupport,
-        tophatOverride: !!tophatOverride,
-      });
-      const { data: relayData, error: relayErr } = await supabase.functions.invoke(
-        "relay-governance-action",
-        { body: relayPayload },
-      );
       if (relayErr || !relayData?.success) {
         const raw = (relayErr as any)?.context?.error
           || (relayErr as any)?.message

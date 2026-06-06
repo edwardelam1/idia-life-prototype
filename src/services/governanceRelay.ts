@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { stage } from "@/lib/stageLogger";
+import { ethers } from "ethers";
 
 const SUPABASE_URL = "https://zxyngqciipcvveigrzqt.supabase.co";
 
@@ -28,6 +29,68 @@ export interface GovernanceRelayResult {
   block_number: number;
   target_contract: string;
   network: string;
+}
+
+export interface CastVoteBySigRelayParams {
+  proposalId: string | number | bigint;
+  support: 0 | 1 | 2;
+  voteWeight?: string | number;
+  rawSignatureString: string;
+  signerAddress: string;
+  acaHash: string;
+  chainId?: number;
+}
+
+export async function relayCastVoteBySig(params: CastVoteBySigRelayParams) {
+  console.log("[GOV_VOTE][NET_DISPATCH][START] Marshalling literal body fields for edge consumption.");
+
+  const cleanSupport = Number(params.support);
+  if (cleanSupport !== 0 && cleanSupport !== 1 && cleanSupport !== 2) {
+    throw new Error(`Invalid support value before relay dispatch: ${params.support}`);
+  }
+
+  const signatureObject = ethers.Signature.from(params.rawSignatureString);
+  const verifiedHttpBody = {
+    actionType: "CAST_VOTE",
+    proposalId: String(params.proposalId),
+    support: cleanSupport,
+    voteWeight: String(params.voteWeight || "0"),
+    tophatOverride: false,
+    voterAddress: String(params.signerAddress).toLowerCase(),
+    acaHash: String(params.acaHash),
+    chainId: params.chainId ?? 8453,
+    v: Number(signatureObject.v),
+    r: String(signatureObject.r),
+    s: String(signatureObject.s),
+  };
+
+  if (verifiedHttpBody.support === verifiedHttpBody.v || verifiedHttpBody.support === 27 || verifiedHttpBody.support === 28) {
+    throw new Error(`Vote payload alignment failure: support=${verifiedHttpBody.support} v=${verifiedHttpBody.v}`);
+  }
+  if (verifiedHttpBody.v !== 27 && verifiedHttpBody.v !== 28) {
+    throw new Error(`Invalid EIP-712 signature v before relay dispatch: ${verifiedHttpBody.v}`);
+  }
+
+  console.log("[GOV_VOTE][NET_DISPATCH] Raw serialization printout check: ", JSON.stringify(verifiedHttpBody));
+  console.log("[GOV_VOTE][RELAY_BROADCAST][START] Pushing explicit 5-argument layout payload to Deno edge gateway.");
+
+  try {
+    const response = await supabase.functions.invoke("relay-governance-action", {
+      body: verifiedHttpBody,
+    });
+    if (response.error || !(response.data as any)?.success) {
+      console.error(
+        "[GOV_VOTE][RELAY_BROADCAST][FATAL_FAIL] Core transaction thread dropped. Reason: ",
+        response.error?.message || (response.data as any)?.error || "relay_no_success",
+      );
+    } else {
+      console.log("[GOV_VOTE][RELAY_BROADCAST][SUCCESS] Gasless transaction processed. Hash: " + (response.data as any)?.tx_hash);
+    }
+    return response;
+  } catch (err: any) {
+    console.error("[GOV_VOTE][RELAY_BROADCAST][FATAL_FAIL] Core transaction thread dropped. Reason: ", err?.message || err);
+    throw err;
+  }
 }
 
 /**
