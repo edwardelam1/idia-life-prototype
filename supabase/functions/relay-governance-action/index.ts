@@ -600,7 +600,7 @@ serve(async (req) => {
       console.log(`[GOV_RELAY][${tag}][${stage}][AWAIT_SUBMIT_START] gov.${via}()`);
       const tx = overrideAuthorized
         ? await gov.castVote(onchainId, supportValue)
-        : await gov.castVoteBySig(onchainId, supportValue, Number(sigV), sigR, sigS);
+        : await gov.castVoteBySig(onchainId, supportValue, signatureV, sigR, sigS);
       console.log(`[GOV_RELAY][${tag}][${stage}] Tx submitted: ${tx.hash}`);
 
       stage = "AWAIT_CONFIRMATION";
