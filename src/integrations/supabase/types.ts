@@ -2260,6 +2260,57 @@ export type Database = {
         }
         Relationships: []
       }
+      distribution_jobs: {
+        Row: {
+          batch_size: number
+          batches_completed: number
+          batches_failed: number
+          completed_at: string | null
+          created_at: string
+          error_log: Json | null
+          id: string
+          job_type: string
+          last_processed_index: number
+          started_at: string | null
+          status: string
+          total_investors: number
+          total_tokens_sent: string
+          updated_at: string
+        }
+        Insert: {
+          batch_size?: number
+          batches_completed?: number
+          batches_failed?: number
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json | null
+          id?: string
+          job_type: string
+          last_processed_index?: number
+          started_at?: string | null
+          status?: string
+          total_investors?: number
+          total_tokens_sent?: string
+          updated_at?: string
+        }
+        Update: {
+          batch_size?: number
+          batches_completed?: number
+          batches_failed?: number
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json | null
+          id?: string
+          job_type?: string
+          last_processed_index?: number
+          started_at?: string | null
+          status?: string
+          total_investors?: number
+          total_tokens_sent?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       economic_impact_metrics: {
         Row: {
           business_id: string | null
@@ -3098,6 +3149,93 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      funding_contributions: {
+        Row: {
+          block_number: number
+          created_at: string
+          id: string
+          investor_address: string
+          log_index: number
+          total_contributed: number
+          tx_hash: string
+          usdc_amount: number
+          usdc_amount_raw: string
+        }
+        Insert: {
+          block_number: number
+          created_at?: string
+          id?: string
+          investor_address: string
+          log_index?: number
+          total_contributed: number
+          tx_hash: string
+          usdc_amount: number
+          usdc_amount_raw: string
+        }
+        Update: {
+          block_number?: number
+          created_at?: string
+          id?: string
+          investor_address?: string
+          log_index?: number
+          total_contributed?: number
+          tx_hash?: string
+          usdc_amount?: number
+          usdc_amount_raw?: string
+        }
+        Relationships: []
+      }
+      funding_distributions: {
+        Row: {
+          block_number: number
+          created_at: string
+          id: string
+          immediate_amount: string
+          investor_address: string
+          investor_index: number
+          tx_hash: string
+          vesting_amount: string
+        }
+        Insert: {
+          block_number: number
+          created_at?: string
+          id?: string
+          immediate_amount: string
+          investor_address: string
+          investor_index: number
+          tx_hash: string
+          vesting_amount: string
+        }
+        Update: {
+          block_number?: number
+          created_at?: string
+          id?: string
+          immediate_amount?: string
+          investor_address?: string
+          investor_index?: number
+          tx_hash?: string
+          vesting_amount?: string
+        }
+        Relationships: []
+      }
+      funding_indexer_state: {
+        Row: {
+          id: string
+          last_scanned_block: number
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          last_scanned_block?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          last_scanned_block?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       geospatial_analytics: {
         Row: {
@@ -8570,6 +8708,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      vesting_pushes: {
+        Row: {
+          amount: string
+          beneficiary_address: string
+          block_number: number
+          created_at: string
+          id: string
+          months_unlocked: number
+          total_claimed: string
+          tx_hash: string
+        }
+        Insert: {
+          amount: string
+          beneficiary_address: string
+          block_number: number
+          created_at?: string
+          id?: string
+          months_unlocked: number
+          total_claimed: string
+          tx_hash: string
+        }
+        Update: {
+          amount?: string
+          beneficiary_address?: string
+          block_number?: number
+          created_at?: string
+          id?: string
+          months_unlocked?: number
+          total_claimed?: string
+          tx_hash?: string
+        }
+        Relationships: []
       }
       vulture_provenance_ledger: {
         Row: {
