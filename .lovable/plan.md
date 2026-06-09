@@ -1,41 +1,54 @@
-Implement a strict end-to-end vote relay mapping that removes the remaining spread/wrapper risk and makes `support` and `v` impossible to collide.
+# Fix: `CHAIN_MISSING_ID` after successful propose tx
 
-1. Update `src/services/governanceRelay.ts`
-   - Add a dedicated `relayCastVoteBySig()` function for `CAST_VOTE` only.
-   - Accept scalar inputs, not a prebuilt payload object: `proposalId`, `support`, `voteWeight`, `rawSignatureString`, `signerAddress`, `acaHash`, `chainId`.
-   - Build `verifiedHttpBody` inline with literal lowercase keys only:
-     - `actionType`, `proposalId`, `support`, `voteWeight`, `tophatOverride`, `voterAddress`, `acaHash`, `chainId`, `v`, `r`, `s`.
-   - Use `ethers.Signature.from(rawSignatureString)` inside this function so `v/r/s` are derived at the final network boundary.
-   - Dispatch directly with `supabase.functions.invoke("relay-governance-action", { body: verifiedHttpBody })`.
-   - Add the requested logs:
-     - `[GOV_VOTE][NET_DISPATCH][START] Marshalling literal body fields for edge consumption.`
-     - `[GOV_VOTE][NET_DISPATCH] Raw serialization printout check: ...`
-     - `[GOV_VOTE][RELAY_BROADCAST][START] Pushing explicit 5-argument layout payload to Deno edge gateway.`
-     - `[GOV_VOTE][RELAY_BROADCAST][SUCCESS] Gasless transaction processed. Hash: ...`
-     - `[GOV_VOTE][RELAY_BROADCAST][FATAL_FAIL] Core transaction thread dropped. Reason: ...`
+## Root cause
 
-2. Update `src/components/governance/ActiveProposalsList.tsx`
-   - Remove the remaining `{ ...governanceService.compileStrictCastVoteBySigRelayPayload(...) }` spread in the standard gasless vote path.
-   - Call `relayCastVoteBySig()` with explicit scalar arguments instead of passing a dynamic container into `supabase.functions.invoke`.
-   - Keep the Tophat override path separate with its own literal body and no `v/r/s` fields.
-   - Add a pre-dispatch assertion that rejects if `support` is not `0 | 1 | 2` or if `support === ballotSig.v`, catching the exact `v=28` shift before network transit.
+The on-chain `propose()` call succeeds (tx hash returned, no revert). The frontend log proves it:
 
-3. Update `src/services/governanceService.ts`
-   - Keep `signBallot()` as the signer/typed-data verifier.
-   - Simplify or stop using `compileStrictCastVoteBySigRelayPayload()` for network dispatch so no generated interface payload can bypass the final literal mapper.
-   - Leave selector verification for `castVoteBySig(uint256,uint8,uint8,bytes32,bytes32)` in place as a local sanity check.
+```
+[PROPOSAL_SUBMIT][RELAY_DISPATCH][SUCCESS] On-chain proposal initialized successfully.
+[DEBUG_TX_LOGS] Event Parsed: undefined
+[PROPOSAL_SUBMIT][MODAL_DISPATCH][SUCCESS] ... proposalId: undefined
+```
 
-4. Tighten `supabase/functions/relay-governance-action/index.ts`
-   - Normalize `support` and `sigV` from the raw body immediately after parsing.
-   - Log both raw and normalized values before validation.
-   - Hard-return `400` before any `ethers.Contract` call if:
-     - `support` is missing,
-     - `support` is not `0`, `1`, or `2`,
-     - `support` is `27` or `28`, indicating signature shift,
-     - `sigV` is not `27` or `28` for standard votes.
-   - Keep the contract call explicit: `gov.castVoteBySig(onchainId, normalizedSupport, normalizedV, sigR, sigS)`.
+`extractProposalIdFromReceipt()` walks `receipt.logs` and calls `govInterface.parseLog(...)` against `GOVERNOR_ABI` from `src/config/contracts.ts`. That ABI (lines 137–155) contains **only function fragments — no events**. With no `ProposalCreated` event in the interface, `parseLog` returns `null` for every log, so `proposalId` is never populated. The modal then trips its `CHAIN_MISSING_ID` hard gate and rejects the write to `dao_proposals`, even though the proposal is live on-chain.
 
-5. Verify with targeted checks
-   - Confirm the final client serialization log prints `support: 0|1|2` and `v: 27|28` as separate lowercase keys.
-   - Confirm the edge log prints matching raw and normalized values before the contract call.
-   - No migrations or schema changes are needed.
+This is not a payload/selector problem — the previous 4-arg selector fix (`0x7d5e81e2`) is working correctly. This is purely a receipt-decoding gap.
+
+## Fix
+
+Two small, surgical changes in `src/config/contracts.ts` and `src/services/governanceService.ts`. No edge function, no DB, no UI changes.
+
+### 1. `src/config/contracts.ts` — add the OZ v4 ProposalCreated event to `GOVERNOR_ABI`
+
+Append the canonical OpenZeppelin v4 Governor event signature so `ethers.Interface` can decode it:
+
+```
+"event ProposalCreated(uint256 proposalId, address proposer, address[] targets, uint256[] values, string[] signatures, bytes[] calldatas, uint256 voteStart, uint256 voteEnd, string description)"
+```
+
+(OZ v4 emits a `string[] signatures` field that is always empty for the 4-arg `propose`, but the event topic/data layout requires it for correct ABI decoding.)
+
+### 2. `src/services/governanceService.ts` — add a deterministic fallback in `extractProposalIdFromReceipt()`
+
+Even with the event in the ABI, add a safety net so we never again return `undefined` from a successful tx:
+
+- Keep the existing log-parse loop (now it will actually match `ProposalCreated`).
+- If no `ProposalCreated` is found, compute the proposalId locally using the OZ v4 formula:
+  `keccak256(abi.encode(targets, values, calldatas, keccak256(bytes(description))))` → `BigInt` → string.
+- Use `ethers.AbiCoder.defaultAbiCoder().encode([...], [...])` + `ethers.keccak256` to compute it. This matches `Governor.hashProposal(...)` 1:1.
+- The function needs the original `targets / values / calldatas / description` to compute the fallback, so pass them through from `propose()` and `proposeWithTiming()` into `extractProposalIdFromReceipt()` (extend its signature).
+
+Keep all existing `[DEBUG_TX_LOGS]` and `[PROPOSAL_SUBMIT]` log lines; add one new line on the fallback branch:
+`console.log("[DEBUG_TX_LOGS] proposalId derived via hashProposal fallback:", id);`
+
+## Why this is safe
+
+- ABI-level event addition cannot affect on-chain behavior.
+- The fallback only runs when event decoding fails, and it produces the exact same id the Governor contract assigns (`hashProposal` is deterministic on OZ v4).
+- The `CHAIN_MISSING_ID` gate in `CreateDaoProposalModal.tsx` stays in place — it just stops false-firing.
+
+## Out of scope
+
+- No changes to `propose()` payload, selector, or 4-arg enforcement.
+- No changes to `relay-governance-action` edge function.
+- No changes to vote-relay path.

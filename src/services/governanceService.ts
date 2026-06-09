@@ -464,7 +464,13 @@ async getCurrentQuorum(): Promise<string> {
       const tx = await proposeFn(cleanTargets, cleanValues, cleanCalldatas, cleanDescription);
       const receipt = await tx.wait();
       console.log("[PROPOSAL_SUBMIT][RELAY_DISPATCH][SUCCESS] On-chain proposal initialized successfully.");
-      const proposalId = this.extractProposalIdFromReceipt(receipt);
+      const proposalId = this.extractProposalIdFromReceipt(
+        receipt,
+        cleanTargets,
+        cleanValues.map((v) => v.toString()),
+        cleanCalldatas,
+        cleanDescription,
+      );
       this.triggerIndexer().catch(() => {});
       return { hash: tx.hash, proposalId };
     } catch (err: any) {
@@ -520,7 +526,13 @@ async getCurrentQuorum(): Promise<string> {
       );
       const receipt = await tx.wait();
       console.log("[PROPOSAL_SUBMIT][RELAY_DISPATCH][SUCCESS] On-chain timed proposal initialized successfully.");
-      const proposalId = this.extractProposalIdFromReceipt(receipt);
+      const proposalId = this.extractProposalIdFromReceipt(
+        receipt,
+        cleanTargets,
+        cleanValues.map((v) => v.toString()),
+        cleanCalldatas,
+        cleanDescription,
+      );
       this.triggerIndexer().catch(() => {});
       return { hash: tx.hash, proposalId };
     } catch (err: any) {
@@ -766,7 +778,13 @@ async getCurrentQuorum(): Promise<string> {
 
   // ── Helpers ───────────────────────────────────────────────
 
-  private extractProposalIdFromReceipt(receipt: ethers.TransactionReceipt): string | undefined {
+  private extractProposalIdFromReceipt(
+    receipt: ethers.TransactionReceipt,
+    targets?: string[],
+    values?: string[],
+    calldatas?: string[],
+    description?: string,
+  ): string | undefined {
     try {
       const govInterface = new ethers.Interface(GOVERNOR_ABI);
       for (const log of receipt.logs) {
@@ -781,6 +799,22 @@ async getCurrentQuorum(): Promise<string> {
       }
     } catch (e) {
       console.error("[DEBUG_TX_LOGS] Parse failed:", e);
+    }
+
+    // Fallback: compute proposalId deterministically using OZ v4 hashProposal formula.
+    if (targets && values && calldatas && description !== undefined) {
+      try {
+        const descHash = ethers.keccak256(ethers.toUtf8Bytes(description));
+        const encoded = ethers.AbiCoder.defaultAbiCoder().encode(
+          ['address[]', 'uint256[]', 'bytes[]', 'bytes32'],
+          [targets, values.map((v) => BigInt(v)), calldatas, descHash],
+        );
+        const id = BigInt(ethers.keccak256(encoded)).toString();
+        console.log("[DEBUG_TX_LOGS] proposalId derived via hashProposal fallback:", id);
+        return id;
+      } catch (e) {
+        console.error("[DEBUG_TX_LOGS] hashProposal fallback failed:", e);
+      }
     }
     return undefined;
   }
