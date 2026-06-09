@@ -526,7 +526,13 @@ async getCurrentQuorum(): Promise<string> {
       );
       const receipt = await tx.wait();
       console.log("[PROPOSAL_SUBMIT][RELAY_DISPATCH][SUCCESS] On-chain timed proposal initialized successfully.");
-      const proposalId = this.extractProposalIdFromReceipt(receipt);
+      const proposalId = this.extractProposalIdFromReceipt(
+        receipt,
+        cleanTargets,
+        cleanValues.map((v) => v.toString()),
+        cleanCalldatas,
+        cleanDescription,
+      );
       this.triggerIndexer().catch(() => {});
       return { hash: tx.hash, proposalId };
     } catch (err: any) {
