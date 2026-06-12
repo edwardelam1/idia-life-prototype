@@ -14,7 +14,7 @@ import { ACTIVE_DEPLOYMENT, IS_TESTNET, PROTOCOL } from './contracts';
 // ─── Payment feature gate ───────────────────────────────────────────
 // USDC transfers are only enabled on testnet until legal approval.
 // When ready for mainnet payments, set this to true.
-export const USDC_PAYMENTS_ENABLED = IS_TESTNET;
+export const USDC_PAYMENTS_ENABLED = true;
 // ─────────────────────────────────────────────────────────────────────
 
 export interface USDCNetworkConfig {
