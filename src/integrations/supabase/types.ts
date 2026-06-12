@@ -2384,6 +2384,8 @@ export type Database = {
           liability_token_hash: string | null
           manifest_hashes: string[] | null
           metadata: Json | null
+          nft_mint_note: string | null
+          nft_minted: boolean | null
           on_chain_status: string | null
           on_chain_tx_hash: string | null
           pseudo_user_id: string | null
@@ -2418,6 +2420,8 @@ export type Database = {
           liability_token_hash?: string | null
           manifest_hashes?: string[] | null
           metadata?: Json | null
+          nft_mint_note?: string | null
+          nft_minted?: boolean | null
           on_chain_status?: string | null
           on_chain_tx_hash?: string | null
           pseudo_user_id?: string | null
@@ -2452,6 +2456,8 @@ export type Database = {
           liability_token_hash?: string | null
           manifest_hashes?: string[] | null
           metadata?: Json | null
+          nft_mint_note?: string | null
+          nft_minted?: boolean | null
           on_chain_status?: string | null
           on_chain_tx_hash?: string | null
           pseudo_user_id?: string | null
@@ -5374,6 +5380,48 @@ export type Database = {
           },
         ]
       }
+      pending_nft_mints: {
+        Row: {
+          aca_hashes: string[]
+          bundle_ref: string | null
+          buyer_id: string | null
+          created_at: string
+          egress_id: string
+          id: string
+          liability_token_hash: string | null
+          minted_at: string | null
+          owner_guid: string
+          status: string
+          tx_hash: string | null
+        }
+        Insert: {
+          aca_hashes: string[]
+          bundle_ref?: string | null
+          buyer_id?: string | null
+          created_at?: string
+          egress_id: string
+          id?: string
+          liability_token_hash?: string | null
+          minted_at?: string | null
+          owner_guid: string
+          status?: string
+          tx_hash?: string | null
+        }
+        Update: {
+          aca_hashes?: string[]
+          bundle_ref?: string | null
+          buyer_id?: string | null
+          created_at?: string
+          egress_id?: string
+          id?: string
+          liability_token_hash?: string | null
+          minted_at?: string | null
+          owner_guid?: string
+          status?: string
+          tx_hash?: string | null
+        }
+        Relationships: []
+      }
       performance_metrics: {
         Row: {
           additional_data: Json | null
@@ -6994,6 +7042,24 @@ export type Database = {
           silver_sentinel?: boolean | null
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      settlement_locks: {
+        Row: {
+          lock_key: string
+          locked_at: string
+          run_id: string
+        }
+        Insert: {
+          lock_key: string
+          locked_at?: string
+          run_id: string
+        }
+        Update: {
+          lock_key?: string
+          locked_at?: string
+          run_id?: string
         }
         Relationships: []
       }
