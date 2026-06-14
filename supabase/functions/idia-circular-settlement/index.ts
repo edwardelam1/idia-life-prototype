@@ -15,10 +15,14 @@ declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
 const REVENUE_SPLIT = { CORPORATE: 0.6, WAR_CHEST: 0.1, DATA_YIELD: 0.3 };
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
-// Network — single canonical Alchemy URL. BASE_RPC_URL has been retired to prevent
-// out-of-sequence collisions from two parallel RPC env vars resolving to the same upstream.
-const PROD_ALCHEMY_URL = "https://base-mainnet.g.alchemy.com/v2/jKAs5SHfEFihKOngFIL2N";
+// Network — single canonical Alchemy URL, injected exclusively via secret.
+// Hardcoded plaintext keys are forbidden in source; the function must stall
+// loudly at init if the credential is missing.
 const ALCHEMY_BASE_RPC_URL = Deno.env.get("ALCHEMY_BASE_RPC_URL");
+if (!ALCHEMY_BASE_RPC_URL) {
+  console.error(`[FATAL STALL: INIT] Missing ALCHEMY_BASE_RPC_URL.`);
+  throw new Error("Missing RPC credentials.");
+}
 
 // Protocol contracts — Base Mainnet (mirrors src/config/contracts.ts)
 const REGISTRY_ADDRESS = "0x137D913d89d0D6a5b2d1Db76173770C94d25387B";
@@ -174,11 +178,26 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
     console.info(`[BEGIN: circular-settlement] Pulse detected. runId=${runCorrelationId} ts=${Date.now()}`);
 
     currentStep = "SUPABASE_CLIENT_INIT";
+    console.info(`[BEGIN: ${currentStep}] Instantiating Supabase client payload...`);
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseKey = Deno.env.get("IDIA_SECRET_KEY");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!supabaseUrl || !supabaseKey) throw new Error("Missing SUPABASE_URL or IDIA_SECRET_KEY.");
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    if (!supabaseUrl || !supabaseKey) {
+      console.error(
+        `[FATAL STALL: ${currentStep}] Missing environment variables for DB transport. Cannot construct client. ` +
+          `SUPABASE_URL_present=${!!supabaseUrl} SUPABASE_SERVICE_ROLE_KEY_present=${!!supabaseKey}`,
+      );
+      throw new Error("Missing database connection credentials.");
+    }
+
+    let supabase;
+    try {
+      supabase = createClient(supabaseUrl, supabaseKey);
+      console.info(`[END: ${currentStep}] Supabase client instantiated successfully.`);
+    } catch (clientErr: any) {
+      console.error(`[FATAL STALL: ${currentStep}] Failed to initialize Supabase client: ${clientErr.message}`);
+      throw clientErr;
+    }
 
     currentStep = "EXTRACTING_PAYLOAD";
     const { total_fiat_amount, buyer_id, contributing_users, payment_reference, location_string } = payoutData;
@@ -196,8 +215,8 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
     const formattedKey = rawKey.trim().startsWith("0x") ? rawKey.trim() : `0x${rawKey.trim()}`;
     const account = privateKeyToAccount(formattedKey as `0x${string}`);
 
-    const activeRpcUrl = ALCHEMY_BASE_RPC_URL || PROD_ALCHEMY_URL;
-    console.log(`[REGIONAL_ROUTING][TRANSPORT_BINDING] Launching wallet client. Route Vector: ${activeRpcUrl}`);
+    const activeRpcUrl = ALCHEMY_BASE_RPC_URL;
+    console.log(`[REGIONAL_ROUTING][TRANSPORT_BINDING] Launching wallet client via injected RPC secret.`);
 
     const client = createWalletClient({
       account,
