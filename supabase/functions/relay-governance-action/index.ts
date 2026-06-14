@@ -598,9 +598,29 @@ serve(async (req) => {
       );
       const gov = new ethers.Contract(networkConfig.governor, GOVERNOR_ABI, relayerWallet);
       console.log(`[GOV_RELAY][${tag}][${stage}][AWAIT_SUBMIT_START] gov.${via}()`);
-      const tx = overrideAuthorized
-        ? await gov.castVote(onchainId, supportValue)
-        : await gov.castVoteBySig(onchainId, supportValue, signatureV, sigR, sigS);
+      let tx;
+      if (overrideAuthorized) {
+        tx = await gov.castVote(onchainId, supportValue);
+      } else {
+        if (signatureV === null) {
+          return jsonResponse({ error: "Missing EIP-712 signature v for gasless vote.", failed_at: stage }, 400);
+        }
+        console.log("[GOV_VOTE][ALIGNMENT][START] Enforcing OZ v4 selector for gasless vote.");
+        const fragment = "function castVoteBySig(uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s)";
+        const iface = new ethers.Interface([fragment]);
+        const encodedData = iface.encodeFunctionData("castVoteBySig", [
+          onchainId,
+          supportValue,
+          Number(signatureV),
+          String(sigR),
+          String(sigS),
+        ]);
+        console.log("[GOV_VOTE][ALIGNMENT][SUCCESS] Generated Data Payload:", encodedData);
+        tx = await relayerWallet.sendTransaction({
+          to: networkConfig.governor,
+          data: encodedData,
+        });
+      }
       console.log(`[GOV_RELAY][${tag}][${stage}] Tx submitted: ${tx.hash}`);
 
       stage = "AWAIT_CONFIRMATION";

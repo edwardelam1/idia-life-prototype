@@ -643,13 +643,10 @@ async getCurrentQuorum(): Promise<string> {
     voteWeight: number | string = 0,
     chainId: number = ACTIVE_DEPLOYMENT === 'mainnet' ? 8453 : 84532,
   ): StrictCastVoteBySigRelayPayload {
-    console.log('[GOV_VOTE][ALIGNMENT][START] Checking signature structure configurations.');
+    console.log('[GOV_VOTE][ALIGNMENT][START] Enforcing OZ v4 selector for gasless vote.');
 
-    const strictInterface = new ethers.Interface(STRICT_CAST_VOTE_BY_SIG_ABI);
-    const castVoteBySig = strictInterface.getFunction('castVoteBySig(uint256,uint8,uint8,bytes32,bytes32)');
-    if (castVoteBySig?.selector !== '0x3bccf4fd') {
-      throw new Error(`Unexpected castVoteBySig selector: ${castVoteBySig?.selector}`);
-    }
+    const fragment = 'function castVoteBySig(uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s)';
+    const strictInterface = new ethers.Interface([fragment]);
 
     // Re-derive v/r/s from the raw signature string to guarantee no positional
     // shift leaks `v` into `support` (or vice versa) during JSON serialization.
@@ -658,6 +655,15 @@ async getCurrentQuorum(): Promise<string> {
     if (cleanSupport !== 0 && cleanSupport !== 1 && cleanSupport !== 2) {
       throw new Error(`Invalid vote support value: ${support}`);
     }
+    const encodedData = strictInterface.encodeFunctionData('castVoteBySig', [
+      BigInt(proposalId),
+      cleanSupport,
+      Number(signatureObject.v),
+      String(signatureObject.r),
+      String(signatureObject.s),
+    ]);
+
+    console.log('[GOV_VOTE][ALIGNMENT][SUCCESS] Generated Data Payload:', encodedData);
 
     // Explicit, lowercase, standalone property paths. Order here matches the
     // edge-function destructure exactly to make drift trivially auditable.
@@ -670,9 +676,9 @@ async getCurrentQuorum(): Promise<string> {
       voterAddress: ballot.signerAddress.toLowerCase(),
       acaHash,
       chainId,
-      v: signatureObject.v,
-      r: signatureObject.r,
-      s: signatureObject.s,
+      v: Number(signatureObject.v),
+      r: String(signatureObject.r),
+      s: String(signatureObject.s),
     };
 
     console.log(
