@@ -444,7 +444,7 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
             user_id: contributor.user_id,
             amount: perContributorYield,
             entry_type: "deposit",
-            transaction_type: "DATA_SALE_PAYOUT",
+            transaction_type: "data_sale_payout",
             status: yieldStatus,
             blockchain_tx_hash: yieldHash,
             is_settled: true,
