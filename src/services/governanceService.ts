@@ -564,6 +564,60 @@ async getCurrentQuorum(): Promise<string> {
   }
 
   /**
+   * Resolves the authoritative EIP-712 domain for the Governor contract.
+   * Prefers EIP-5267 `eip712Domain()` (OZ v4.7+) which returns the exact tuple
+   * used by `_domainSeparatorV4()` on-chain. Falls back to `name()` + hardcoded
+   * `version="1"` + ACTIVE_DEPLOYMENT chainId only if the contract pre-dates 5267.
+   */
+  private async getGovernorEip712Domain(): Promise<{
+    name: string;
+    version: string;
+    chainId: number;
+    verifyingContract: string;
+    source: 'chain' | 'fallback';
+  }> {
+    const provider = this.getProvider();
+    const EIP5267_ABI = [
+      'function eip712Domain() view returns (bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)',
+    ];
+    try {
+      const gov = new ethers.Contract(PROTOCOL.governor, EIP5267_ABI, provider);
+      const res = await gov.eip712Domain();
+      const resolved = {
+        name: String(res[1]),
+        version: String(res[2]),
+        chainId: Number(res[3]),
+        verifyingContract: String(res[4]),
+        source: 'chain' as const,
+      };
+      console.log('[GOV_VOTE][DOMAIN][CHAIN_TRUTH]', resolved);
+      return resolved;
+    } catch (err: any) {
+      console.warn('[GOV_VOTE][DOMAIN][FALLBACK] eip712Domain() unavailable, deriving manually:', err?.shortMessage || err?.message);
+      let name = 'IDIAGovernor';
+      try {
+        const gov = new ethers.Contract(
+          PROTOCOL.governor,
+          ['function name() view returns (string)'],
+          provider,
+        );
+        name = (await gov.name()) || name;
+      } catch {
+        /* keep default */
+      }
+      const fallback = {
+        name,
+        version: '1',
+        chainId: ACTIVE_DEPLOYMENT === 'mainnet' ? 8453 : 84532,
+        verifyingContract: PROTOCOL.governor,
+        source: 'fallback' as const,
+      };
+      console.log('[GOV_VOTE][DOMAIN][FALLBACK] resolved', fallback);
+      return fallback;
+    }
+  }
+
+  /**
    * Gasless EIP-712 Ballot signing for OpenZeppelin Governor's `castVoteBySig`.
    * The user's local signer signs offline; the relayer broadcasts the tx.
    */
@@ -575,26 +629,17 @@ async getCurrentQuorum(): Promise<string> {
     if (!signer) throw new Error('Wallet not connected');
     const signerAddress = await signer.getAddress();
 
-    const provider = this.getProvider();
-    let governorName = 'IDIAGovernor';
-    try {
-      const govRead = new ethers.Contract(
-        PROTOCOL.governor,
-        ['function name() view returns (string)'],
-        provider,
-      );
-      governorName = await govRead.name();
-    } catch {
-      // fallback retained
-    }
-
-    const chainId = ACTIVE_DEPLOYMENT === 'mainnet' ? 8453 : 84532;
+    const chainTruth = await this.getGovernorEip712Domain();
     const domain = {
-      name: governorName,
-      version: '1',
-      chainId,
-      verifyingContract: PROTOCOL.governor,
+      name: chainTruth.name,
+      version: chainTruth.version,
+      chainId: chainTruth.chainId,
+      verifyingContract: chainTruth.verifyingContract,
     };
+    console.log(
+      `[GOV_VOTE][DOMAIN][AUDIT] name=${domain.name} version=${domain.version} chainId=${domain.chainId} verifyingContract=${domain.verifyingContract} source=${chainTruth.source}`,
+    );
+
     const types = {
       Ballot: [
         { name: 'proposalId', type: 'uint256' },
@@ -607,29 +652,14 @@ async getCurrentQuorum(): Promise<string> {
       signerAddress,
       proposalId: value.proposalId,
       support,
-      governorName,
-      chainId,
+      domain,
     });
     const signature = await (signer as any).signTypedData(domain, types, value);
 
-    // Client-side EIP-712 recovery — catches domain separator drift (wrong
-    // governorName, wrong chainId, wrong verifyingContract) BEFORE the relayer
-    // burns an estimateGas call that will revert with an opaque CALL_EXCEPTION.
-    try {
-      const recovered = ethers.verifyTypedData(domain, types, value, signature);
-      if (recovered.toLowerCase() !== signerAddress.toLowerCase()) {
-        console.error(
-          `🚨 [GOV_VOTE][PRE_FLIGHT][SIGN][FAIL] recovered=${recovered} expected=${signerAddress} governorName=${governorName} chainId=${chainId}`,
-        );
-        throw new Error(
-          'EIP-712 domain separator mismatch — local signature recovery failed.',
-        );
-      }
-      console.log('[GOV_VOTE][PRE_FLIGHT][SIGN][SUCCESS]', { signerAddress, governorName, chainId });
-    } catch (verifyErr: any) {
-      if (verifyErr?.message?.includes('EIP-712 domain separator mismatch')) throw verifyErr;
-      console.warn('[GOV_VOTE][PRE_FLIGHT][SIGN][WARN] verifyTypedData threw', verifyErr);
-    }
+    // NOTE: ethers.verifyTypedData() recovers the signer using the same domain
+    // we just signed against — it cannot detect on-chain separator drift. We
+    // intentionally skip that check and trust eip712Domain() chain-truth instead.
+    console.log('[GOV_VOTE][PRE_FLIGHT][SIGN][SKIP] reason="local recovery cannot validate on-chain separator; trusting eip712Domain() chain-truth instead"');
 
     const sig = ethers.Signature.from(signature);
     return { signature, v: sig.v, r: sig.r, s: sig.s, signerAddress };
