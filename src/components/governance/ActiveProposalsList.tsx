@@ -733,23 +733,40 @@ export const ProposalCard: React.FC<{
         relayErr = relayResponse.error;
       }
       if (relayErr || !relayData?.success) {
-        const raw = (relayErr as any)?.context?.error
+        // 🚨 SUPABASE HTTP ERROR UNPACKING
+        // Supabase FunctionsHttpError traps the raw Response on relayErr.context.
+        // We must await .json() to surface the rich JSON payload (decoded_error,
+        // error_selector, args) produced by relay-governance-action.
+        let customPayload: any = null;
+        const ctx: any = (relayErr as any)?.context;
+        if (ctx && typeof ctx.json === "function") {
+          customPayload = await ctx.json().catch(() => null);
+        } else if (ctx?.error || ctx?.decoded_error || ctx?.error_selector) {
+          customPayload = ctx; // already parsed
+        }
+
+        const raw = customPayload?.decoded_error
+          || customPayload?.error
           || (relayErr as any)?.message
           || (relayData as any)?.error
           || "Governor rejected the vote.";
+
         let friendly = raw;
-        if (/UnexpectedProposalState|Pending|not.*open/i.test(raw)) {
+        if (customPayload?.error_selector === "0x94ab6c07" || /GovernorInvalidSignature/.test(raw)) {
+          friendly = "Signature mismatch (0x94ab6c07). Ensure your wallet is signing the proposalId as a BigInt integer, not a string.";
+        } else if (/UnexpectedProposalState|Pending|not.*open/i.test(raw)) {
           friendly = "Voting is not open yet. Try again once the snapshot block is reached.";
         } else if (/already.*voted|hasVoted/i.test(raw)) {
           friendly = "This wallet has already voted on-chain for this proposal.";
         } else if (/gas/i.test(raw)) {
           friendly = "Relayer is out of gas. Notify an operator.";
         }
-        console.error(`[VOTE_CAST] RELAY_FAILED`, relayErr || relayData);
+
+        console.error(`[VOTE_CAST] RELAY_FAILED Payload:`, customPayload || relayErr);
         console.error("[GOV_VOTE][RELAY_BROADCAST][FATAL_FAIL]", raw);
         console.error("[GOV_VOTE][RELAY_DISPATCH][FATAL_FAIL] Gasless vote propagation collapsed. Reason: ", raw);
         toast({
-          title: tophatOverride ? "Override failed" : "Transaction Failed on-chain",
+          title: tophatOverride ? "Override failed" : "Transaction Failed",
           description: friendly,
           variant: "destructive",
         });
