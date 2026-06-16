@@ -428,14 +428,15 @@ serve(async (req) => {
       // STAGE 5: BROADCAST_TRANSACTION
       stage = "BROADCAST_TRANSACTION";
       const gov = new ethers.Contract(networkConfig.governor, GOVERNOR_ABI, relayerWallet);
-      let tx;
+      let tx: any;
+      let receipt: any;
       try {
         console.log(`[GOV_RELAY][${TAG}][${stage}][AWAIT_SUBMIT_START] gov.cancel()`);
         tx = await gov.cancel(targets, values, calldatas, descriptionHash);
         console.log(`[GOV_RELAY][${TAG}][${stage}] Tx submitted: ${tx.hash}`);
 
         stage = "AWAIT_CONFIRMATION";
-        const receipt = await tx.wait();
+        receipt = await tx.wait();
         console.log(`[GOV_RELAY][${TAG}][${stage}][SUCCESS] Block ${receipt.blockNumber}`);
       } catch (txErr: any) {
         const { name: decodedName, args: decodedArgs, selector } = decodeGovernorRevert(txErr);
@@ -456,6 +457,7 @@ serve(async (req) => {
           409,
         );
       }
+
 
 
       // STAGE 6: RECONCILE_DATABASE — flip row + ACA ledger + audit log
