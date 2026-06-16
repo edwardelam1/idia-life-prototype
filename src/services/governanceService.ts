@@ -645,7 +645,7 @@ async getCurrentQuorum(): Promise<string> {
         { name: 'support', type: 'uint8' },
       ],
     };
-    const value = { proposalId: BigInt(proposalId).toString(), support };
+    const value = { proposalId: BigInt(proposalId), support };
 
     console.log('[CAST_VOTE_BY_SIG] signing EIP-712 Ballot', {
       signerAddress,
