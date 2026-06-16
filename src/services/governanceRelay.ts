@@ -35,6 +35,7 @@ export interface CastVoteBySigRelayParams {
   proposalId: string | number | bigint;
   support: 0 | 1 | 2;
   voteWeight?: string | number;
+  /** Raw 65-byte hex signature from the wallet (0x-prefixed, 132 chars). */
   rawSignatureString: string;
   signerAddress: string;
   acaHash: string;
@@ -43,22 +44,23 @@ export interface CastVoteBySigRelayParams {
 
 export async function relayCastVoteBySig(params: CastVoteBySigRelayParams) {
   console.log("[GOV_VOTE][NET_DISPATCH][START] Marshalling literal body fields for edge consumption.");
-  console.log("[GOV_VOTE][ALIGNMENT][START] Enforcing OZ v4 selector for gasless vote.");
+  console.log("[GOV_VOTE][ALIGNMENT][START] Enforcing OZ v5 selector for gasless vote.");
 
   const cleanSupport = Number(params.support);
   if (cleanSupport !== 0 && cleanSupport !== 1 && cleanSupport !== 2) {
     throw new Error(`Invalid support value before relay dispatch: ${params.support}`);
   }
 
-  const fragment = "function castVoteBySig(uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s)";
+  // OZ v5 castVoteBySig: (uint256 proposalId, uint8 support, address voter, bytes signature)
+  const fragment = "function castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature)";
   const iface = new ethers.Interface([fragment]);
-  const signatureObject = ethers.Signature.from(params.rawSignatureString);
+  const voter = String(params.signerAddress).toLowerCase();
+  const signature = String(params.rawSignatureString);
   const encodedData = iface.encodeFunctionData("castVoteBySig", [
     BigInt(params.proposalId),
     cleanSupport,
-    Number(signatureObject.v),
-    String(signatureObject.r),
-    String(signatureObject.s),
+    voter,
+    signature,
   ]);
   console.log("[GOV_VOTE][ALIGNMENT][SUCCESS] Generated Data Payload:", encodedData);
 
@@ -68,23 +70,15 @@ export async function relayCastVoteBySig(params: CastVoteBySigRelayParams) {
     support: cleanSupport,
     voteWeight: String(params.voteWeight || "0"),
     tophatOverride: false,
-    voterAddress: String(params.signerAddress).toLowerCase(),
+    voterAddress: voter,
+    voter,
     acaHash: String(params.acaHash),
     chainId: params.chainId ?? 8453,
-    v: Number(signatureObject.v),
-    r: String(signatureObject.r),
-    s: String(signatureObject.s),
+    signature,
   };
 
-  if (verifiedHttpBody.support === verifiedHttpBody.v || verifiedHttpBody.support === 27 || verifiedHttpBody.support === 28) {
-    throw new Error(`Vote payload alignment failure: support=${verifiedHttpBody.support} v=${verifiedHttpBody.v}`);
-  }
-  if (verifiedHttpBody.v !== 27 && verifiedHttpBody.v !== 28) {
-    throw new Error(`Invalid EIP-712 signature v before relay dispatch: ${verifiedHttpBody.v}`);
-  }
-
   console.log("[GOV_VOTE][NET_DISPATCH] Raw serialization printout check: ", JSON.stringify(verifiedHttpBody));
-  console.log("[GOV_VOTE][RELAY_BROADCAST][START] Pushing OZ v4 verified payload to relayer.");
+  console.log("[GOV_VOTE][RELAY_BROADCAST][START] Pushing OZ v5 verified payload to relayer.");
 
   try {
     const response = await supabase.functions.invoke("relay-governance-action", {

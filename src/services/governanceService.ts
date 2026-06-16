@@ -65,11 +65,10 @@ export interface StrictCastVoteBySigRelayPayload {
   voteWeight: string;
   tophatOverride: false;
   voterAddress: string;
+  voter: string;
   acaHash: string;
   chainId: number;
-  v: number;
-  r: string;
-  s: string;
+  signature: string;
 }
 
 // ── Service ──────────────────────────────────────────────────────────
@@ -82,7 +81,7 @@ const QUORUM_TTL_MS = 60_000;
 const _quorumCache = new Map<string, { value: string; at: number }>();
 const _inflight = new Map<string, Promise<string>>();
 const STRICT_CAST_VOTE_BY_SIG_ABI = [
-  'function castVoteBySig(uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s) returns (uint256)',
+  'function castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature) returns (uint256)',
 ];
 
 class GovernanceService {
@@ -673,24 +672,25 @@ async getCurrentQuorum(): Promise<string> {
     voteWeight: number | string = 0,
     chainId: number = ACTIVE_DEPLOYMENT === 'mainnet' ? 8453 : 84532,
   ): StrictCastVoteBySigRelayPayload {
-    console.log('[GOV_VOTE][ALIGNMENT][START] Enforcing OZ v4 selector for gasless vote.');
+    console.log('[GOV_VOTE][ALIGNMENT][START] Enforcing OZ v5 selector for gasless vote.');
 
-    const fragment = 'function castVoteBySig(uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s)';
+    // OZ v5 castVoteBySig: (uint256 proposalId, uint8 support, address voter, bytes signature)
+    const fragment = 'function castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature)';
     const strictInterface = new ethers.Interface([fragment]);
 
-    // Re-derive v/r/s from the raw signature string to guarantee no positional
-    // shift leaks `v` into `support` (or vice versa) during JSON serialization.
-    const signatureObject = ethers.Signature.from(ballot.signature);
     const cleanSupport = Number(support) as 0 | 1 | 2;
     if (cleanSupport !== 0 && cleanSupport !== 1 && cleanSupport !== 2) {
       throw new Error(`Invalid vote support value: ${support}`);
     }
+    const voter = ballot.signerAddress.toLowerCase();
+    // Normalize to a serialized 65-byte hex string regardless of how the wallet returned it.
+    const signature = ethers.Signature.from(ballot.signature).serialized;
+
     const encodedData = strictInterface.encodeFunctionData('castVoteBySig', [
       BigInt(proposalId),
       cleanSupport,
-      Number(signatureObject.v),
-      String(signatureObject.r),
-      String(signatureObject.s),
+      voter,
+      signature,
     ]);
 
     console.log('[GOV_VOTE][ALIGNMENT][SUCCESS] Generated Data Payload:', encodedData);
@@ -703,12 +703,11 @@ async getCurrentQuorum(): Promise<string> {
       support: cleanSupport,
       voteWeight: voteWeight.toString(),
       tophatOverride: false,
-      voterAddress: ballot.signerAddress.toLowerCase(),
+      voterAddress: voter,
+      voter,
       acaHash,
       chainId,
-      v: Number(signatureObject.v),
-      r: String(signatureObject.r),
-      s: String(signatureObject.s),
+      signature,
     };
 
     console.log(
