@@ -25,7 +25,43 @@ const GOVERNOR_ABI = [
   "function getVotes(address account, uint256 blockNumber) view returns (uint256)",
   "function hasVoted(uint256 proposalId, address account) view returns (bool)",
   "function cancel(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) returns (uint256)",
+  // OpenZeppelin v5 Governor custom errors — required so ethers can decode
+  // contract reverts (e.g. 0x94ab6c07) instead of dropping them as
+  // "unknown custom error". Any selector not in this list will still surface
+  // as raw hex via err.data in the catch handler below.
+  "error GovernorAlreadyCastVote(address voter)",
+  "error GovernorAlreadyQueuedProposal(uint256 proposalId)",
+  "error GovernorDisabledDeposit()",
+  "error GovernorInsufficientProposerVotes(address proposer, uint256 votes, uint256 threshold)",
+  "error GovernorInvalidProposalLength(uint256 targets, uint256 calldatas, uint256 values)",
+  "error GovernorInvalidQuorumFraction(uint256 quorumNumerator, uint256 quorumDenominator)",
+  "error GovernorInvalidSignature(address voter)",
+  "error GovernorInvalidVoteParams()",
+  "error GovernorInvalidVoteType()",
+  "error GovernorInvalidVotingPeriod(uint256 votingPeriod)",
+  "error GovernorNonexistentProposal(uint256 proposalId)",
+  "error GovernorNotQueuedProposal(uint256 proposalId)",
+  "error GovernorOnlyExecutor(address account)",
+  "error GovernorOnlyProposer(address account)",
+  "error GovernorQueueNotImplemented()",
+  "error GovernorRestrictedProposer(address proposer)",
+  "error GovernorUnexpectedProposalState(uint256 proposalId, uint8 current, bytes32 expectedStates)",
+  "error QueueEmpty()",
+  "error QueueFull()",
 ];
+
+// Decode an ethers v6 contract revert into { name, args, selector } using the
+// fragments registered in GOVERNOR_ABI. Falls back to the 4-byte selector when
+// the revert is not in our ABI so we still log something actionable.
+function decodeGovernorRevert(err: any): { name: string | null; args: string[]; selector: string | null } {
+  const name = err?.revert?.name ?? err?.errorName ?? null;
+  const rawArgs = err?.revert?.args;
+  const args = rawArgs ? Array.from(rawArgs).map((v: unknown) => String(v)) : [];
+  const data: string | undefined = err?.data ?? err?.info?.error?.data ?? err?.error?.data;
+  const selector = typeof data === "string" && data.startsWith("0x") ? data.slice(0, 10) : null;
+  return { name, args, selector };
+}
+
 
 // Default fallback target for basic signaling proposals — matches
 // governanceService.propose() defaults so descriptionHash + arrays line up.
@@ -392,22 +428,37 @@ serve(async (req) => {
       // STAGE 5: BROADCAST_TRANSACTION
       stage = "BROADCAST_TRANSACTION";
       const gov = new ethers.Contract(networkConfig.governor, GOVERNOR_ABI, relayerWallet);
-      let tx;
+      let tx: any;
+      let receipt: any;
       try {
         console.log(`[GOV_RELAY][${TAG}][${stage}][AWAIT_SUBMIT_START] gov.cancel()`);
         tx = await gov.cancel(targets, values, calldatas, descriptionHash);
+        console.log(`[GOV_RELAY][${TAG}][${stage}] Tx submitted: ${tx.hash}`);
+
+        stage = "AWAIT_CONFIRMATION";
+        receipt = await tx.wait();
+        console.log(`[GOV_RELAY][${TAG}][${stage}][SUCCESS] Block ${receipt.blockNumber}`);
       } catch (txErr: any) {
-        console.error(`[GOV_RELAY][${TAG}][${stage}] cancel() reverted: ${txErr.message}`);
+        const { name: decodedName, args: decodedArgs, selector } = decodeGovernorRevert(txErr);
+        console.error(
+          `[GOV_RELAY][${TAG}][FATAL_STALL] cancel() reverted. ` +
+            `Reason: ${decodedName ?? "Unknown"} selector=${selector ?? "n/a"} ` +
+            `args=[${decodedArgs.join(",")}] raw=${txErr?.shortMessage ?? txErr?.message}`,
+        );
         return jsonResponse(
-          { error: "Governor rejected cancel(). Arguments may not match the original propose().", failed_at: stage, detail: txErr.shortMessage || txErr.message },
-          500,
+          {
+            error: "Governor reverted cancel(). Arguments may not match the original propose() or proposal is no longer cancellable.",
+            failed_at: stage,
+            decoded_error: decodedName,
+            decoded_args: decodedArgs,
+            error_selector: selector,
+            detail: txErr.shortMessage || txErr.message,
+          },
+          409,
         );
       }
-      console.log(`[GOV_RELAY][${TAG}][${stage}] Tx submitted: ${tx.hash}`);
 
-      stage = "AWAIT_CONFIRMATION";
-      const receipt = await tx.wait();
-      console.log(`[GOV_RELAY][${TAG}][${stage}][SUCCESS] Block ${receipt.blockNumber}`);
+
 
       // STAGE 6: RECONCILE_DATABASE — flip row + ACA ledger + audit log
       stage = "RECONCILE_DATABASE";
@@ -591,33 +642,57 @@ serve(async (req) => {
       );
       const gov = new ethers.Contract(networkConfig.governor, GOVERNOR_ABI, relayerWallet);
       console.log(`[GOV_RELAY][${tag}][${stage}][AWAIT_SUBMIT_START] gov.${via}()`);
-      let tx;
-      if (overrideAuthorized) {
-        tx = await gov.castVote(onchainId, supportValue);
-      } else {
-        if (!signatureHex) {
-          return jsonResponse({ error: "Missing EIP-712 signature for gasless vote.", failed_at: stage }, 400);
+      let tx: any;
+      let receipt: any;
+      try {
+        if (overrideAuthorized) {
+          tx = await gov.castVote(onchainId, supportValue);
+        } else {
+          if (!signatureHex) {
+            return jsonResponse({ error: "Missing EIP-712 signature for gasless vote.", failed_at: stage }, 400);
+          }
+          console.log("[GOV_VOTE][ALIGNMENT][START] Enforcing OZ v5 selector for gasless vote.");
+          const fragment = "function castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature)";
+          const iface = new ethers.Interface([fragment]);
+          const encodedData = iface.encodeFunctionData("castVoteBySig", [
+            onchainId,
+            supportValue,
+            preflightAddr,
+            signatureHex,
+          ]);
+          console.log("[GOV_VOTE][ALIGNMENT][SUCCESS] Generated Data Payload:", encodedData);
+          tx = await relayerWallet.sendTransaction({
+            to: networkConfig.governor,
+            data: encodedData,
+          });
         }
-        console.log("[GOV_VOTE][ALIGNMENT][START] Enforcing OZ v5 selector for gasless vote.");
-        const fragment = "function castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature)";
-        const iface = new ethers.Interface([fragment]);
-        const encodedData = iface.encodeFunctionData("castVoteBySig", [
-          onchainId,
-          supportValue,
-          preflightAddr,
-          signatureHex,
-        ]);
-        console.log("[GOV_VOTE][ALIGNMENT][SUCCESS] Generated Data Payload:", encodedData);
-        tx = await relayerWallet.sendTransaction({
-          to: networkConfig.governor,
-          data: encodedData,
-        });
-      }
-      console.log(`[GOV_RELAY][${tag}][${stage}] Tx submitted: ${tx.hash}`);
+        console.log(`[GOV_RELAY][${tag}][${stage}] Tx submitted: ${tx.hash}`);
 
-      stage = "AWAIT_CONFIRMATION";
-      const receipt = await tx.wait();
-      console.log(`[GOV_RELAY][${tag}][${stage}][SUCCESS] Block ${receipt.blockNumber}`);
+        stage = "AWAIT_CONFIRMATION";
+        receipt = await tx.wait();
+        console.log(`[GOV_RELAY][${tag}][${stage}][SUCCESS] Block ${receipt.blockNumber}`);
+      } catch (txErr: any) {
+        const { name: decodedName, args: decodedArgs, selector } = decodeGovernorRevert(txErr);
+        console.error(
+          `[GOV_RELAY][${tag}][FATAL_STALL] Governor rejected vote for ${preflightAddr}. ` +
+            `Reason: ${decodedName ?? "Unknown"} selector=${selector ?? "n/a"} ` +
+            `args=[${decodedArgs.join(",")}] raw=${txErr?.shortMessage ?? txErr?.message}`,
+        );
+        return jsonResponse(
+          {
+            error: "Governor reverted the vote transaction.",
+            failed_at: "BROADCAST_TRANSACTION",
+            decoded_error: decodedName,
+            decoded_args: decodedArgs,
+            error_selector: selector,
+            voter: preflightAddr,
+            via,
+            detail: txErr?.shortMessage ?? txErr?.message,
+          },
+          409,
+        );
+      }
+
 
       // STAGE 6: RECONCILE_DATABASE
       stage = "RECONCILE_DATABASE";
