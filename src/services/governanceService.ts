@@ -639,16 +639,35 @@ async getCurrentQuorum(): Promise<string> {
       const proposalIdBig: bigint =
         typeof proposalId === 'bigint' ? proposalId : BigInt(proposalId);
 
-      console.log('[GOV_VOTE][SIGN_BALLOT][STEP_2] Fetching EIP-712 domain truth from blockchain...');
-      const chainTruth = await this.getGovernorEip712Domain();
+      console.log('[GOV_VOTE][SIGN_BALLOT][STEP_2] Fetching dynamic EIP-712 domain truth from Base Mainnet...');
+
+      // 1. Connect directly to the Governor to read its immutable domain strings (EIP-5267).
+      const govRead = new ethers.Contract(
+        PROTOCOL.governor,
+        ['function eip712Domain() view returns (bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)'],
+        (signer as any).provider || this.getProvider(),
+      );
+
+      console.log('[GOV_VOTE][SIGN_BALLOT][STEP_2A] Invoking eip712Domain() on contract:', PROTOCOL.governor);
+      const onChainDomain = await govRead.eip712Domain();
+      console.log('[GOV_VOTE][SIGN_BALLOT][STEP_2B] Raw on-chain domain tuple received:', {
+        fields: onChainDomain.fields,
+        name: onChainDomain.name,
+        version: onChainDomain.version,
+        chainId: onChainDomain.chainId?.toString?.(),
+        verifyingContract: onChainDomain.verifyingContract,
+      });
+
+      // 2. Map the exact on-chain strings to the signing domain.
       const domain = {
-        name: chainTruth.name,
-        version: chainTruth.version,
-        chainId: chainTruth.chainId,
-        verifyingContract: chainTruth.verifyingContract,
+        name: onChainDomain.name,
+        version: onChainDomain.version,
+        chainId: Number(onChainDomain.chainId),
+        verifyingContract: onChainDomain.verifyingContract,
       };
+
       console.log(
-        `[GOV_VOTE][SIGN_BALLOT][DOMAIN_AUDIT] name="${domain.name}" version="${domain.version}" chainId=${domain.chainId} verifyingContract=${domain.verifyingContract} source=${chainTruth.source}`,
+        `[GOV_VOTE][SIGN_BALLOT][DOMAIN_TRUTH] name="${domain.name}" version="${domain.version}" chainId=${domain.chainId} verifyingContract=${domain.verifyingContract}`,
       );
 
       const types = {
@@ -673,7 +692,7 @@ async getCurrentQuorum(): Promise<string> {
       console.log(`[GOV_VOTE][SIGN_BALLOT][PAYLOAD_AUDIT] ProposalId: ${value.proposalId.toString()} (Type: ${typeof value.proposalId})`);
       console.log(`[GOV_VOTE][SIGN_BALLOT][PAYLOAD_AUDIT] Support: ${value.support} (Type: ${typeof value.support})`);
 
-      console.log('[GOV_VOTE][SIGN_BALLOT][STEP_3] Executing signTypedData...');
+      console.log('[GOV_VOTE][SIGN_BALLOT][STEP_3] Executing signTypedData with dynamic domain...');
       const signature = await (signer as any).signTypedData(domain, types, value);
       console.log('[GOV_VOTE][SIGN_BALLOT][STEP_3][SUCCESS] Raw signature acquired:', signature);
 
