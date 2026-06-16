@@ -78,22 +78,43 @@ export async function relayCastVoteBySig(params: CastVoteBySigRelayParams) {
   };
 
   console.log("[GOV_VOTE][NET_DISPATCH] Raw serialization printout check: ", JSON.stringify(verifiedHttpBody));
-  console.log("[GOV_VOTE][RELAY_BROADCAST][START] Pushing OZ v5 verified payload to relayer.");
+  console.log("[GOV_VOTE][RELAY_INVOKE][START] Sending payload to Edge Function.");
 
   try {
     const response = await supabase.functions.invoke("relay-governance-action", {
       body: verifiedHttpBody,
     });
-    if (response.error || !(response.data as any)?.success) {
+    const { data, error } = response;
+
+    if (error) {
+      console.error("[GOV_VOTE][RELAY_INVOKE][FATAL_STALL] Network or Edge Function invocation error:", error);
+    }
+
+    if ((data as any)?.error) {
+      const selector = (data as any)?.error_selector;
+      console.error(
+        `[GOV_VOTE][RELAY_INVOKE][FATAL_STALL] Relayer returned error: ${(data as any).error} | Selector: ${selector}`,
+      );
+      if (selector === "0x94ab6c07") {
+        const sigErr = new Error(
+          "Signature mismatch (0x94ab6c07). Your local wallet key does not map to the active profile address, or the EIP-712 payload was malformed.",
+        );
+        (response as any).error = sigErr;
+      }
+    }
+
+    if (error || !(data as any)?.success) {
       console.error(
         "[GOV_VOTE][RELAY_BROADCAST][FATAL_FAIL] Revert during simulation: ",
-        response.error?.message || (response.data as any)?.error || "relay_no_success",
+        error?.message || (data as any)?.error || "relay_no_success",
       );
     } else {
+      console.log("[GOV_VOTE][RELAY_INVOKE][END] Relayer executed successfully.");
       console.log("[GOV_VOTE][RELAY_BROADCAST][SUCCESS] Transaction confirmed by network.");
     }
     return response;
   } catch (err: any) {
+    console.error("[GOV_VOTE][RELAY_INVOKE][FATAL_STALL] UI caught execution failure:", err?.message || err);
     console.error("[GOV_VOTE][RELAY_BROADCAST][FATAL_FAIL] Revert during simulation: ", err?.message || err);
     throw err;
   }
