@@ -628,6 +628,11 @@ async getCurrentQuorum(): Promise<string> {
     if (!signer) throw new Error('Wallet not connected');
     const signerAddress = await signer.getAddress();
 
+    // Normalize proposalId to a raw BigInt ONCE. Never .toString() / Number()
+    // before signing — uint256 EIP-712 hashing requires the integer itself.
+    const proposalIdBig: bigint =
+      typeof proposalId === 'bigint' ? proposalId : BigInt(proposalId);
+
     const chainTruth = await this.getGovernorEip712Domain();
     const domain = {
       name: chainTruth.name,
@@ -645,11 +650,19 @@ async getCurrentQuorum(): Promise<string> {
         { name: 'support', type: 'uint8' },
       ],
     };
-    const value = { proposalId: BigInt(proposalId), support };
+    const value = { proposalId: proposalIdBig, support };
+
+    // Hard guard — if a regression ever coerces this away from bigint, fail
+    // loudly instead of silently producing a mismatched EIP-712 digest.
+    if (typeof value.proposalId !== 'bigint') {
+      throw new Error(
+        `[GOV_VOTE][SIGN][FATAL] proposalId must be bigint for EIP-712 hashing, got ${typeof value.proposalId}`,
+      );
+    }
 
     console.log('[CAST_VOTE_BY_SIG] signing EIP-712 Ballot', {
       signerAddress,
-      proposalId: value.proposalId,
+      proposalId: proposalIdBig.toString(),
       support,
       domain,
     });
