@@ -642,33 +642,57 @@ serve(async (req) => {
       );
       const gov = new ethers.Contract(networkConfig.governor, GOVERNOR_ABI, relayerWallet);
       console.log(`[GOV_RELAY][${tag}][${stage}][AWAIT_SUBMIT_START] gov.${via}()`);
-      let tx;
-      if (overrideAuthorized) {
-        tx = await gov.castVote(onchainId, supportValue);
-      } else {
-        if (!signatureHex) {
-          return jsonResponse({ error: "Missing EIP-712 signature for gasless vote.", failed_at: stage }, 400);
+      let tx: any;
+      let receipt: any;
+      try {
+        if (overrideAuthorized) {
+          tx = await gov.castVote(onchainId, supportValue);
+        } else {
+          if (!signatureHex) {
+            return jsonResponse({ error: "Missing EIP-712 signature for gasless vote.", failed_at: stage }, 400);
+          }
+          console.log("[GOV_VOTE][ALIGNMENT][START] Enforcing OZ v5 selector for gasless vote.");
+          const fragment = "function castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature)";
+          const iface = new ethers.Interface([fragment]);
+          const encodedData = iface.encodeFunctionData("castVoteBySig", [
+            onchainId,
+            supportValue,
+            preflightAddr,
+            signatureHex,
+          ]);
+          console.log("[GOV_VOTE][ALIGNMENT][SUCCESS] Generated Data Payload:", encodedData);
+          tx = await relayerWallet.sendTransaction({
+            to: networkConfig.governor,
+            data: encodedData,
+          });
         }
-        console.log("[GOV_VOTE][ALIGNMENT][START] Enforcing OZ v5 selector for gasless vote.");
-        const fragment = "function castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature)";
-        const iface = new ethers.Interface([fragment]);
-        const encodedData = iface.encodeFunctionData("castVoteBySig", [
-          onchainId,
-          supportValue,
-          preflightAddr,
-          signatureHex,
-        ]);
-        console.log("[GOV_VOTE][ALIGNMENT][SUCCESS] Generated Data Payload:", encodedData);
-        tx = await relayerWallet.sendTransaction({
-          to: networkConfig.governor,
-          data: encodedData,
-        });
-      }
-      console.log(`[GOV_RELAY][${tag}][${stage}] Tx submitted: ${tx.hash}`);
+        console.log(`[GOV_RELAY][${tag}][${stage}] Tx submitted: ${tx.hash}`);
 
-      stage = "AWAIT_CONFIRMATION";
-      const receipt = await tx.wait();
-      console.log(`[GOV_RELAY][${tag}][${stage}][SUCCESS] Block ${receipt.blockNumber}`);
+        stage = "AWAIT_CONFIRMATION";
+        receipt = await tx.wait();
+        console.log(`[GOV_RELAY][${tag}][${stage}][SUCCESS] Block ${receipt.blockNumber}`);
+      } catch (txErr: any) {
+        const { name: decodedName, args: decodedArgs, selector } = decodeGovernorRevert(txErr);
+        console.error(
+          `[GOV_RELAY][${tag}][FATAL_STALL] Governor rejected vote for ${preflightAddr}. ` +
+            `Reason: ${decodedName ?? "Unknown"} selector=${selector ?? "n/a"} ` +
+            `args=[${decodedArgs.join(",")}] raw=${txErr?.shortMessage ?? txErr?.message}`,
+        );
+        return jsonResponse(
+          {
+            error: "Governor reverted the vote transaction.",
+            failed_at: "BROADCAST_TRANSACTION",
+            decoded_error: decodedName,
+            decoded_args: decodedArgs,
+            error_selector: selector,
+            voter: preflightAddr,
+            via,
+            detail: txErr?.shortMessage ?? txErr?.message,
+          },
+          409,
+        );
+      }
+
 
       // STAGE 6: RECONCILE_DATABASE
       stage = "RECONCILE_DATABASE";
