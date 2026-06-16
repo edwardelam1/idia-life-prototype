@@ -432,18 +432,31 @@ serve(async (req) => {
       try {
         console.log(`[GOV_RELAY][${TAG}][${stage}][AWAIT_SUBMIT_START] gov.cancel()`);
         tx = await gov.cancel(targets, values, calldatas, descriptionHash);
+        console.log(`[GOV_RELAY][${TAG}][${stage}] Tx submitted: ${tx.hash}`);
+
+        stage = "AWAIT_CONFIRMATION";
+        const receipt = await tx.wait();
+        console.log(`[GOV_RELAY][${TAG}][${stage}][SUCCESS] Block ${receipt.blockNumber}`);
       } catch (txErr: any) {
-        console.error(`[GOV_RELAY][${TAG}][${stage}] cancel() reverted: ${txErr.message}`);
+        const { name: decodedName, args: decodedArgs, selector } = decodeGovernorRevert(txErr);
+        console.error(
+          `[GOV_RELAY][${TAG}][FATAL_STALL] cancel() reverted. ` +
+            `Reason: ${decodedName ?? "Unknown"} selector=${selector ?? "n/a"} ` +
+            `args=[${decodedArgs.join(",")}] raw=${txErr?.shortMessage ?? txErr?.message}`,
+        );
         return jsonResponse(
-          { error: "Governor rejected cancel(). Arguments may not match the original propose().", failed_at: stage, detail: txErr.shortMessage || txErr.message },
-          500,
+          {
+            error: "Governor reverted cancel(). Arguments may not match the original propose() or proposal is no longer cancellable.",
+            failed_at: stage,
+            decoded_error: decodedName,
+            decoded_args: decodedArgs,
+            error_selector: selector,
+            detail: txErr.shortMessage || txErr.message,
+          },
+          409,
         );
       }
-      console.log(`[GOV_RELAY][${TAG}][${stage}] Tx submitted: ${tx.hash}`);
 
-      stage = "AWAIT_CONFIRMATION";
-      const receipt = await tx.wait();
-      console.log(`[GOV_RELAY][${TAG}][${stage}][SUCCESS] Block ${receipt.blockNumber}`);
 
       // STAGE 6: RECONCILE_DATABASE — flip row + ACA ledger + audit log
       stage = "RECONCILE_DATABASE";
