@@ -25,7 +25,43 @@ const GOVERNOR_ABI = [
   "function getVotes(address account, uint256 blockNumber) view returns (uint256)",
   "function hasVoted(uint256 proposalId, address account) view returns (bool)",
   "function cancel(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) returns (uint256)",
+  // OpenZeppelin v5 Governor custom errors — required so ethers can decode
+  // contract reverts (e.g. 0x94ab6c07) instead of dropping them as
+  // "unknown custom error". Any selector not in this list will still surface
+  // as raw hex via err.data in the catch handler below.
+  "error GovernorAlreadyCastVote(address voter)",
+  "error GovernorAlreadyQueuedProposal(uint256 proposalId)",
+  "error GovernorDisabledDeposit()",
+  "error GovernorInsufficientProposerVotes(address proposer, uint256 votes, uint256 threshold)",
+  "error GovernorInvalidProposalLength(uint256 targets, uint256 calldatas, uint256 values)",
+  "error GovernorInvalidQuorumFraction(uint256 quorumNumerator, uint256 quorumDenominator)",
+  "error GovernorInvalidSignature(address voter)",
+  "error GovernorInvalidVoteParams()",
+  "error GovernorInvalidVoteType()",
+  "error GovernorInvalidVotingPeriod(uint256 votingPeriod)",
+  "error GovernorNonexistentProposal(uint256 proposalId)",
+  "error GovernorNotQueuedProposal(uint256 proposalId)",
+  "error GovernorOnlyExecutor(address account)",
+  "error GovernorOnlyProposer(address account)",
+  "error GovernorQueueNotImplemented()",
+  "error GovernorRestrictedProposer(address proposer)",
+  "error GovernorUnexpectedProposalState(uint256 proposalId, uint8 current, bytes32 expectedStates)",
+  "error QueueEmpty()",
+  "error QueueFull()",
 ];
+
+// Decode an ethers v6 contract revert into { name, args, selector } using the
+// fragments registered in GOVERNOR_ABI. Falls back to the 4-byte selector when
+// the revert is not in our ABI so we still log something actionable.
+function decodeGovernorRevert(err: any): { name: string | null; args: string[]; selector: string | null } {
+  const name = err?.revert?.name ?? err?.errorName ?? null;
+  const rawArgs = err?.revert?.args;
+  const args = rawArgs ? Array.from(rawArgs).map((v: unknown) => String(v)) : [];
+  const data: string | undefined = err?.data ?? err?.info?.error?.data ?? err?.error?.data;
+  const selector = typeof data === "string" && data.startsWith("0x") ? data.slice(0, 10) : null;
+  return { name, args, selector };
+}
+
 
 // Default fallback target for basic signaling proposals — matches
 // governanceService.propose() defaults so descriptionHash + arrays line up.
