@@ -624,57 +624,72 @@ async getCurrentQuorum(): Promise<string> {
     proposalId: string | number | bigint,
     support: 0 | 1 | 2,
   ): Promise<GaslessBallotSignature> {
-    const signer = walletService.getConnectedSigner();
-    if (!signer) throw new Error('Wallet not connected');
-    const signerAddress = await signer.getAddress();
+    console.log('[GOV_VOTE][SIGN_BALLOT][START] Initiating gasless ballot signature sequence.');
+    try {
+      const signer = walletService.getConnectedSigner();
+      if (!signer) {
+        console.error('[GOV_VOTE][SIGN_BALLOT][FATAL_STALL] Wallet not connected.');
+        throw new Error('Wallet not connected');
+      }
+      const signerAddress = await signer.getAddress();
+      console.log(`[GOV_VOTE][SIGN_BALLOT][STEP_1] Signer resolved: ${signerAddress}`);
 
-    // Normalize proposalId to a raw BigInt ONCE. Never .toString() / Number()
-    // before signing — uint256 EIP-712 hashing requires the integer itself.
-    const proposalIdBig: bigint =
-      typeof proposalId === 'bigint' ? proposalId : BigInt(proposalId);
+      // Normalize proposalId to a raw BigInt ONCE. Never .toString() / Number()
+      // before signing — uint256 EIP-712 hashing requires the integer itself.
+      const proposalIdBig: bigint =
+        typeof proposalId === 'bigint' ? proposalId : BigInt(proposalId);
 
-    const chainTruth = await this.getGovernorEip712Domain();
-    const domain = {
-      name: chainTruth.name,
-      version: chainTruth.version,
-      chainId: chainTruth.chainId,
-      verifyingContract: chainTruth.verifyingContract,
-    };
-    console.log(
-      `[GOV_VOTE][DOMAIN][AUDIT] name=${domain.name} version=${domain.version} chainId=${domain.chainId} verifyingContract=${domain.verifyingContract} source=${chainTruth.source}`,
-    );
-
-    const types = {
-      Ballot: [
-        { name: 'proposalId', type: 'uint256' },
-        { name: 'support', type: 'uint8' },
-      ],
-    };
-    const value = { proposalId: proposalIdBig, support };
-
-    // Hard guard — if a regression ever coerces this away from bigint, fail
-    // loudly instead of silently producing a mismatched EIP-712 digest.
-    if (typeof value.proposalId !== 'bigint') {
-      throw new Error(
-        `[GOV_VOTE][SIGN][FATAL] proposalId must be bigint for EIP-712 hashing, got ${typeof value.proposalId}`,
+      console.log('[GOV_VOTE][SIGN_BALLOT][STEP_2] Fetching EIP-712 domain truth from blockchain...');
+      const chainTruth = await this.getGovernorEip712Domain();
+      const domain = {
+        name: chainTruth.name,
+        version: chainTruth.version,
+        chainId: chainTruth.chainId,
+        verifyingContract: chainTruth.verifyingContract,
+      };
+      console.log(
+        `[GOV_VOTE][SIGN_BALLOT][DOMAIN_AUDIT] name="${domain.name}" version="${domain.version}" chainId=${domain.chainId} verifyingContract=${domain.verifyingContract} source=${chainTruth.source}`,
       );
+
+      const types = {
+        Ballot: [
+          { name: 'proposalId', type: 'uint256' },
+          { name: 'support', type: 'uint8' },
+        ],
+      };
+
+      // CRITICAL: proposalId MUST be raw BigInt (no .toString()) so it hashes as
+      // a 32-byte integer matching the OpenZeppelin v5 contract structure.
+      const value = { proposalId: proposalIdBig, support: Number(support) };
+
+      // Hard guard — if a regression ever coerces this away from bigint, fail
+      // loudly instead of silently producing a mismatched EIP-712 digest.
+      if (typeof value.proposalId !== 'bigint') {
+        throw new Error(
+          `[GOV_VOTE][SIGN_BALLOT][FATAL_STALL] proposalId must be bigint for EIP-712 hashing, got ${typeof value.proposalId}`,
+        );
+      }
+
+      console.log(`[GOV_VOTE][SIGN_BALLOT][PAYLOAD_AUDIT] ProposalId: ${value.proposalId.toString()} (Type: ${typeof value.proposalId})`);
+      console.log(`[GOV_VOTE][SIGN_BALLOT][PAYLOAD_AUDIT] Support: ${value.support} (Type: ${typeof value.support})`);
+
+      console.log('[GOV_VOTE][SIGN_BALLOT][STEP_3] Executing signTypedData...');
+      const signature = await (signer as any).signTypedData(domain, types, value);
+      console.log('[GOV_VOTE][SIGN_BALLOT][STEP_3][SUCCESS] Raw signature acquired:', signature);
+
+      // NOTE: ethers.verifyTypedData() recovers the signer using the same domain
+      // we just signed against — it cannot detect on-chain separator drift. We
+      // intentionally skip that check and trust eip712Domain() chain-truth instead.
+      console.log('[GOV_VOTE][PRE_FLIGHT][SIGN][SKIP] reason="local recovery cannot validate on-chain separator; trusting eip712Domain() chain-truth instead"');
+
+      const sig = ethers.Signature.from(signature);
+      console.log(`[GOV_VOTE][SIGN_BALLOT][END] Ballot signed successfully. v: ${sig.v}, r: ${sig.r}, s: ${sig.s}`);
+
+      return { signature, v: sig.v, r: sig.r, s: sig.s, signerAddress };
+    } catch (error: any) {
+      console.error('[GOV_VOTE][SIGN_BALLOT][FATAL_STALL] Ballot signature sequence failed:', error?.message || error);
+      throw error;
     }
-
-    console.log('[CAST_VOTE_BY_SIG] signing EIP-712 Ballot', {
-      signerAddress,
-      proposalId: proposalIdBig.toString(),
-      support,
-      domain,
-    });
-    const signature = await (signer as any).signTypedData(domain, types, value);
-
-    // NOTE: ethers.verifyTypedData() recovers the signer using the same domain
-    // we just signed against — it cannot detect on-chain separator drift. We
-    // intentionally skip that check and trust eip712Domain() chain-truth instead.
-    console.log('[GOV_VOTE][PRE_FLIGHT][SIGN][SKIP] reason="local recovery cannot validate on-chain separator; trusting eip712Domain() chain-truth instead"');
-
-    const sig = ethers.Signature.from(signature);
-    return { signature, v: sig.v, r: sig.r, s: sig.s, signerAddress };
   }
 
   compileStrictCastVoteBySigRelayPayload(
@@ -685,49 +700,39 @@ async getCurrentQuorum(): Promise<string> {
     voteWeight: number | string = 0,
     chainId: number = ACTIVE_DEPLOYMENT === 'mainnet' ? 8453 : 84532,
   ): StrictCastVoteBySigRelayPayload {
-    console.log('[GOV_VOTE][ALIGNMENT][START] Enforcing OZ v5 selector for gasless vote.');
+    console.log('[GOV_VOTE][COMPILE_PAYLOAD][START] Enforcing strict relay payload architecture.');
+    try {
+      const cleanSupport = Number(support) as 0 | 1 | 2;
+      if (cleanSupport !== 0 && cleanSupport !== 1 && cleanSupport !== 2) {
+        console.error(`[GOV_VOTE][COMPILE_PAYLOAD][FATAL_STALL] Invalid support value: ${support}`);
+        throw new Error(`Invalid vote support value: ${support}`);
+      }
 
-    // OZ v5 castVoteBySig: (uint256 proposalId, uint8 support, address voter, bytes signature)
-    const fragment = 'function castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature)';
-    const strictInterface = new ethers.Interface([fragment]);
+      const voter = ballot.signerAddress.toLowerCase();
+      // Normalize to a serialized 65-byte hex string regardless of how the wallet returned it.
+      const signature = ethers.Signature.from(ballot.signature).serialized;
 
-    const cleanSupport = Number(support) as 0 | 1 | 2;
-    if (cleanSupport !== 0 && cleanSupport !== 1 && cleanSupport !== 2) {
-      throw new Error(`Invalid vote support value: ${support}`);
+      console.log(`[GOV_VOTE][COMPILE_PAYLOAD][DATA] Voter: ${voter}, ChainId: ${chainId}, AcaHash: ${acaHash}`);
+
+      const secureRelayBody: StrictCastVoteBySigRelayPayload = {
+        actionType: 'CAST_VOTE',
+        proposalId: proposalId.toString(),
+        support: cleanSupport,
+        voteWeight: voteWeight.toString(),
+        tophatOverride: false,
+        voterAddress: voter,
+        voter,
+        acaHash,
+        chainId,
+        signature,
+      };
+
+      console.log('[GOV_VOTE][COMPILE_PAYLOAD][END] JSON packet configured successfully.');
+      return secureRelayBody;
+    } catch (error: any) {
+      console.error('[GOV_VOTE][COMPILE_PAYLOAD][FATAL_STALL] Payload compilation failed:', error?.message || error);
+      throw error;
     }
-    const voter = ballot.signerAddress.toLowerCase();
-    // Normalize to a serialized 65-byte hex string regardless of how the wallet returned it.
-    const signature = ethers.Signature.from(ballot.signature).serialized;
-
-    const encodedData = strictInterface.encodeFunctionData('castVoteBySig', [
-      BigInt(proposalId),
-      cleanSupport,
-      voter,
-      signature,
-    ]);
-
-    console.log('[GOV_VOTE][ALIGNMENT][SUCCESS] Generated Data Payload:', encodedData);
-
-    // Explicit, lowercase, standalone property paths. Order here matches the
-    // edge-function destructure exactly to make drift trivially auditable.
-    const secureRelayBody: StrictCastVoteBySigRelayPayload = {
-      actionType: 'CAST_VOTE',
-      proposalId: proposalId.toString(),
-      support: cleanSupport,
-      voteWeight: voteWeight.toString(),
-      tophatOverride: false,
-      voterAddress: voter,
-      voter,
-      acaHash,
-      chainId,
-      signature,
-    };
-
-    console.log(
-      '[GOV_VOTE][ALIGNMENT][SUCCESS] JSON packet configured for relayer body payload: ',
-      JSON.stringify(secureRelayBody),
-    );
-    return secureRelayBody;
   }
 
   // ── Write: Delegate ───────────────────────────────────────
