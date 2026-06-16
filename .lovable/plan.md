@@ -1,26 +1,27 @@
-## Objective
-Fix the `GovernorInvalidSignature` (0x94ab6c07) revert caused by an EIP-712 hash collision between the silent signer and the on-chain Governor contract.
+## Plan — Frontend EIP-712 payload fix (no edge changes)
 
-## Root Cause
-In `src/services/governanceService.ts` at line 648, the EIP-712 typed-data `value` object passes `proposalId` as a JavaScript string (via `.toString()`), while the `Ballot` type declares `proposalId` as `uint256`:
+**Scope:** `src/services/governanceService.ts` only. Do NOT touch `relay-governance-action`. Standard vote path stays on `castVoteBySig`.
 
-```typescript
-const value = { proposalId: BigInt(proposalId).toString(), support };
-```
+### Findings from audit
+- `signBallot()` (line 648) already builds `value = { proposalId: BigInt(proposalId), support }`. Good.
+- BUT the console log on line 652 evaluates `value.proposalId` (a BigInt) inside an object literal — fine.
+- Risk surface: `proposal.on_chain_id` in `ActiveProposalsList.tsx` is passed as a string; `BigInt(string)` is correct, but any upstream `.toString()` or numeric coercion before reaching `signBallot` could silently mangle the uint256.
 
-Ethers hashes the string characters, but the Governor contract reconstructs the digest using the strict 32-byte integer encoding. The resulting hashes never match, so signature recovery yields the wrong address and the contract reverts with `GovernorInvalidSignature`.
+### Changes
+1. **`src/services/governanceService.ts` → `signBallot()` (≈ lines 623–665):**
+   - Normalize input once at the top: `const proposalIdBig = typeof proposalId === "bigint" ? proposalId : BigInt(proposalId);`
+   - Use `proposalIdBig` (raw BigInt) in the `value` object — never `.toString()`, never `Number()`.
+   - Update the debug log to print `proposalIdBig.toString()` only inside the log string (logging only), keeping the signed `value.proposalId` as a pure BigInt.
+   - Add an assertion: if `typeof value.proposalId !== "bigint"` throw before `signTypedData`, so any future regression fails loudly instead of producing a bad EIP-712 hash.
 
-## Fix
-Change line 648 to pass the raw `BigInt` value so ethers encodes it as a proper `uint256`:
+2. **`src/services/governanceService.ts` → `compileStrictCastVoteBySigRelayPayload()` (≈ lines 689–694):**
+   - Confirm the `encodeFunctionData` call already passes `BigInt(proposalId)` (it does). Leave intact.
+   - Keep `secureRelayBody.proposalId: proposalId.toString()` — this is JSON transport only, not the signed payload, and the edge function re-`BigInt()`s it.
 
-```typescript
-const value = { proposalId: BigInt(proposalId), support };
-```
+### Out of scope
+- `supabase/functions/relay-governance-action/index.ts` — unchanged.
+- `castVoteBySig` ABI, relayer broadcast path, role checks, preflight — unchanged.
+- `ActiveProposalsList.tsx` — unchanged (already passes the string on_chain_id, which `BigInt()` accepts correctly).
 
-## Impact
-- The silent wallet's EIP-712 digest will now exactly match the digest reconstructed by the OpenZeppelin v5 Governor on Base Mainnet.
-- The relayer (0xd816D...) will broadcast successfully without `estimateGas` reverts.
-- No other files are affected. The JSON relay payload (`proposalId.toString()` at line 702) can remain a string because it is not part of the cryptographic signing path.
-
-## Verification
-After the change, a gasless vote should proceed through estimateGas, broadcast, and confirmation without hitting `0x94ab6c07`.
+### Verification
+- After change, trigger a standard vote, confirm edge logs show `castVoteBySig` broadcast and no `0x94ab6c07` revert. The EIP-712 digest now matches the on-chain Governor's recovered signer (`0x429F…`).
