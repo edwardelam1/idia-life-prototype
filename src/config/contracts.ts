@@ -154,7 +154,29 @@ export const GOVERNOR_ABI = [
   "function quorum(uint256 blockNumber) view returns (uint256)",
   "function cancel(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) returns (uint256)",
   "event ProposalCreated(uint256 proposalId, address proposer, address[] targets, uint256[] values, string[] signatures, bytes[] calldatas, uint256 voteStart, uint256 voteEnd, string description)",
+  // OpenZeppelin v5 Governor custom errors — required so ethers can decode reverts
+  // instead of logging them as "unknown custom error" hex selectors.
+  "error GovernorAlreadyCastVote(address voter)",
+  "error GovernorAlreadyQueuedProposal(uint256 proposalId)",
+  "error GovernorDisabledDeposit()",
+  "error GovernorInsufficientProposerVotes(address proposer, uint256 votes, uint256 threshold)",
+  "error GovernorInvalidProposalLength(uint256 targets, uint256 calldatas, uint256 values)",
+  "error GovernorInvalidQuorumFraction(uint256 quorumNumerator, uint256 quorumDenominator)",
+  "error GovernorInvalidSignature(address voter)",
+  "error GovernorInvalidVoteParams()",
+  "error GovernorInvalidVoteType()",
+  "error GovernorInvalidVotingPeriod(uint256 votingPeriod)",
+  "error GovernorNonexistentProposal(uint256 proposalId)",
+  "error GovernorNotQueuedProposal(uint256 proposalId)",
+  "error GovernorOnlyExecutor(address account)",
+  "error GovernorOnlyProposer(address account)",
+  "error GovernorQueueNotImplemented()",
+  "error GovernorRestrictedProposer(address proposer)",
+  "error GovernorUnexpectedProposalState(uint256 proposalId, uint8 current, bytes32 expectedStates)",
+  "error QueueEmpty()",
+  "error QueueFull()",
 ];
+
 
 export const REGISTRY_ABI = [
   "function getPoolByLocation(string location) view returns (address)",
