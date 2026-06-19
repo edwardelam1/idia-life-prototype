@@ -31,6 +31,7 @@ interface UseWalletReturn {
   balancesLoading: boolean;
   error: string | null;
   clearError: () => void;
+  provisioningStage: ProvisioningStage;
 
   // --- NETWORK API ---
   activeNetwork: string; // Legacy string format
