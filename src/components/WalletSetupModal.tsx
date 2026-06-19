@@ -172,7 +172,7 @@ const WalletSetupModal: React.FC<Props> = ({
         {step === "creating" && (
           <div className="text-center py-8">
             <div className="w-10 h-10 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-muted-foreground">Generating...</p>
+            <p className="text-muted-foreground">{STAGE_COPY[provisioningStage] ?? "Generating..."}</p>
           </div>
         )}
 
