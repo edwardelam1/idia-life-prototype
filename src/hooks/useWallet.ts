@@ -69,6 +69,7 @@ export function useWallet(): UseWalletReturn {
   const [loading, setLoading] = useState(true);
   const [balancesLoading, setBalancesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [provisioningStage, setProvisioningStage] = useState<ProvisioningStage>('idle');
 
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
   const [isBalanceLoading, setIsBalanceLoading] = useState(false);
