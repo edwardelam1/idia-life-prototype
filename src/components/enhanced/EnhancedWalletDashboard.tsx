@@ -124,6 +124,7 @@ const EnhancedWalletDashboard: React.FC = () => {
     sendNative,
     sendIDIA,
     delegateVotes,
+    provisioningStage,
   } = useWallet();
 
   const hasWallet = wallet !== null;
