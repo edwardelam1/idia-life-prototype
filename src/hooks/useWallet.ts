@@ -150,20 +150,30 @@ export function useWallet(): UseWalletReturn {
   }, [wallet, refreshBalances]);
 
   const createWallet = useCallback(async () => {
-    setLoading(true); 
+    setLoading(true);
     setError(null);
+    setProvisioningStage('idle');
     try {
       const r = await walletService.createWallet();
       setWallet({ address: r.address, activeNetwork: walletService.getActiveNetworkKey() });
       setHasWallet(true);
       setActiveNetwork(walletService.getActiveNetworkKey());
-  
+
+      // Fire-and-forget Drip + Approve + Self-Delegate sequence on Base.
+      // We do NOT block the createWallet return — the modal can show the seed
+      // phrase while provisioning runs in the background.
+      walletService
+        .provisionNewWallet((stage) => setProvisioningStage(stage))
+        .catch((e) => {
+          console.error('[useWallet] provisionNewWallet failed:', e);
+        });
+
       return { address: r.address, mnemonic: r.mnemonic || '' };
-    } catch (e: any) { 
-      setError(e.message); 
-      return null; 
-    } finally { 
-      setLoading(false); 
+    } catch (e: any) {
+      setError(e.message);
+      return null;
+    } finally {
+      setLoading(false);
     }
   }, []);
 
