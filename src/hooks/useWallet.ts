@@ -274,6 +274,7 @@ export function useWallet(): UseWalletReturn {
     balancesLoading,
     error,
     clearError,
+    provisioningStage,
 
     // Network data
     activeNetwork,
