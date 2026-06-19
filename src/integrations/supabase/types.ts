@@ -8850,6 +8850,33 @@ export type Database = {
         }
         Relationships: []
       }
+      wallet_provisioning_logs: {
+        Row: {
+          amount_eth: string
+          created_at: string
+          id: string
+          status: string
+          tx_hash: string
+          wallet_address: string
+        }
+        Insert: {
+          amount_eth: string
+          created_at?: string
+          id?: string
+          status?: string
+          tx_hash: string
+          wallet_address: string
+        }
+        Update: {
+          amount_eth?: string
+          created_at?: string
+          id?: string
+          status?: string
+          tx_hash?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
       wallets: {
         Row: {
           cash_balance: number | null
