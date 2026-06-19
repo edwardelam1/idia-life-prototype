@@ -1007,6 +1007,7 @@ const EnhancedWalletDashboard: React.FC = () => {
         onImportWallet={handleImportWallet}
         getSeedPhrase={handleGetSeedPhrase}
         walletAddress={displayAddress}
+        provisioningStage={provisioningStage}
       />
       <RequestPaymentQR
         isOpen={showRequestPayment}
