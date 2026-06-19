@@ -14,7 +14,25 @@ interface Props {
   onImportWallet: (m: string) => Promise<boolean>;
   getSeedPhrase: () => Promise<string | null>;
   walletAddress?: string | null;
+  provisioningStage?:
+    | "idle"
+    | "requesting_drip"
+    | "awaiting_gas"
+    | "approving_usdc"
+    | "delegating_self"
+    | "done"
+    | "failed";
 }
+
+const STAGE_COPY: Record<string, string> = {
+  idle: "Generating Cryptographic Keys...",
+  requesting_drip: "Generating Cryptographic Keys...",
+  awaiting_gas: "Securing Ecosystem Routing...",
+  approving_usdc: "Securing Ecosystem Routing...",
+  delegating_self: "Finalizing Configuration...",
+  done: "Configuration complete.",
+  failed: "Configuration partially completed — you can finish setup later.",
+};
 
 const WalletSetupModal: React.FC<Props> = ({
   isOpen,
