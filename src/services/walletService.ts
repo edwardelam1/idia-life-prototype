@@ -10,11 +10,28 @@ import { ethers } from 'ethers';
 import { Preferences } from '@capacitor/preferences';
 import { SecureStoragePlugin } from 'capacitor-secure-storage-plugin';
 import { isNative } from './platform';
+import { supabase } from '@/integrations/supabase/client';
 import {
   ACTIVE_DEPLOYMENT,
   IDIA_TOKEN_ABI,
   ERC20_ABI,
 } from '../config/contracts';
+
+export type ProvisioningStage =
+  | 'idle'
+  | 'requesting_drip'
+  | 'awaiting_gas'
+  | 'approving_usdc'
+  | 'delegating_self'
+  | 'done'
+  | 'failed';
+
+export interface ProvisionResult {
+  dripTxHash: string;
+  approveTxHash: string;
+  delegateTxHash: string;
+  relayerAddress: string;
+}
 
 // ── Network Configuration ────────────────────────────────────────────
 
