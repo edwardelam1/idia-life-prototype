@@ -12,6 +12,7 @@ import {
   WalletInfo,
   WalletBalances,
   NetworkConfig,
+  type ProvisioningStage,
 } from '../services/walletService';
 
 // --- Backwards Compatibility Aliases ---
@@ -30,6 +31,7 @@ interface UseWalletReturn {
   balancesLoading: boolean;
   error: string | null;
   clearError: () => void;
+  provisioningStage: ProvisioningStage;
 
   // --- NETWORK API ---
   activeNetwork: string; // Legacy string format
@@ -67,6 +69,7 @@ export function useWallet(): UseWalletReturn {
   const [loading, setLoading] = useState(true);
   const [balancesLoading, setBalancesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [provisioningStage, setProvisioningStage] = useState<ProvisioningStage>('idle');
 
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
   const [isBalanceLoading, setIsBalanceLoading] = useState(false);
@@ -147,20 +150,30 @@ export function useWallet(): UseWalletReturn {
   }, [wallet, refreshBalances]);
 
   const createWallet = useCallback(async () => {
-    setLoading(true); 
+    setLoading(true);
     setError(null);
+    setProvisioningStage('idle');
     try {
       const r = await walletService.createWallet();
       setWallet({ address: r.address, activeNetwork: walletService.getActiveNetworkKey() });
       setHasWallet(true);
       setActiveNetwork(walletService.getActiveNetworkKey());
-  
+
+      // Fire-and-forget Drip + Approve + Self-Delegate sequence on Base.
+      // We do NOT block the createWallet return — the modal can show the seed
+      // phrase while provisioning runs in the background.
+      walletService
+        .provisionNewWallet((stage) => setProvisioningStage(stage))
+        .catch((e) => {
+          console.error('[useWallet] provisionNewWallet failed:', e);
+        });
+
       return { address: r.address, mnemonic: r.mnemonic || '' };
-    } catch (e: any) { 
-      setError(e.message); 
-      return null; 
-    } finally { 
-      setLoading(false); 
+    } catch (e: any) {
+      setError(e.message);
+      return null;
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -261,6 +274,7 @@ export function useWallet(): UseWalletReturn {
     balancesLoading,
     error,
     clearError,
+    provisioningStage,
 
     // Network data
     activeNetwork,

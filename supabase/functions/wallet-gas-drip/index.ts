@@ -84,10 +84,10 @@ Deno.serve(async (req: Request) => {
 
     console.log("[DRIP] <<< END: Drip successful and locked.");
 
-    return new Response(JSON.stringify({ success: true, hash: txHash }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    return new Response(
+      JSON.stringify({ success: true, hash: txHash, relayer_address: account.address }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
+    );
   } catch (error: any) {
     console.error(`🚨 [FATAL EXCEPTION: DRIP] ${error?.message ?? error}`);
     return new Response(JSON.stringify({ error: error?.message ?? "Unknown error" }), {

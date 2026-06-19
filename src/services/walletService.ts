@@ -10,11 +10,28 @@ import { ethers } from 'ethers';
 import { Preferences } from '@capacitor/preferences';
 import { SecureStoragePlugin } from 'capacitor-secure-storage-plugin';
 import { isNative } from './platform';
+import { supabase } from '@/integrations/supabase/client';
 import {
   ACTIVE_DEPLOYMENT,
   IDIA_TOKEN_ABI,
   ERC20_ABI,
 } from '../config/contracts';
+
+export type ProvisioningStage =
+  | 'idle'
+  | 'requesting_drip'
+  | 'awaiting_gas'
+  | 'approving_usdc'
+  | 'delegating_self'
+  | 'done'
+  | 'failed';
+
+export interface ProvisionResult {
+  dripTxHash: string;
+  approveTxHash: string;
+  delegateTxHash: string;
+  relayerAddress: string;
+}
 
 // ── Network Configuration ────────────────────────────────────────────
 
@@ -536,6 +553,114 @@ public getConnectedSigner(networkKey?: string): ethers.Wallet {
       network: net.name,
       blockExplorerUrl: `${net.blockExplorer}/tx/${tx.hash}`,
     };
+  }
+  /**
+   * Drip + Sign onboarding sequence for a freshly-created wallet on Base.
+   *
+   * Steps:
+   *   1. Request gas drip from `wallet-gas-drip` edge function
+   *   2. Poll Base RPC for non-zero ETH balance (2s interval, 30s max)
+   *   3. Broadcast USDC.approve(relayer, MaxUint256)
+   *   4. Broadcast IDIA.delegate(self)
+   *
+   * Telemetry: [WALLET_PROVISION][…]
+   */
+  async provisionNewWallet(
+    onStage?: (stage: ProvisioningStage) => void,
+  ): Promise<ProvisionResult> {
+    const TAG = '[WALLET_PROVISION]';
+    const setStage = (s: ProvisioningStage) => {
+      console.log(`${TAG}[STAGE] ${s}`);
+      onStage?.(s);
+    };
+
+    if (!this.wallet) throw new Error('No wallet loaded');
+    const address = this.wallet.address;
+    const network = this.getActiveNetwork();
+    const { idiaToken, usdc } = this.getTokenAddresses();
+
+    if (network.chainId !== 8453 && network.chainId !== 84532) {
+      throw new Error(`Provisioning only supported on Base networks (got chainId ${network.chainId})`);
+    }
+    if (!usdc || !idiaToken) {
+      throw new Error('USDC or IDIA token not configured for this network');
+    }
+
+    console.log(`${TAG}[START] address=${address} network=${network.name} usdc=${usdc} idia=${idiaToken}`);
+
+    try {
+      // ── 1. Request drip ────────────────────────────────────────
+      setStage('requesting_drip');
+      const { data: dripData, error: dripError } = await supabase.functions.invoke(
+        'wallet-gas-drip',
+        { body: { target_address: address } },
+      );
+      if (dripError) {
+        // 400 from anti-abuse guard means already funded — treat as recoverable.
+        const msg = (dripError as any)?.message || String(dripError);
+        console.warn(`${TAG}[DRIP_REQUEST] non-fatal error: ${msg}`);
+      }
+      const dripTxHash: string = dripData?.hash ?? 'ALREADY_FUNDED';
+      const relayerAddress: string | undefined = dripData?.relayer_address;
+      console.log(`${TAG}[DRIP_REQUEST][OK] hash=${dripTxHash} relayer=${relayerAddress}`);
+
+      // ── 2. Await gas on Base ──────────────────────────────────
+      setStage('awaiting_gas');
+      const provider = this.getProvider();
+      const POLL_INTERVAL_MS = 2000;
+      const MAX_POLLS = 15;
+      let funded = false;
+      for (let i = 0; i < MAX_POLLS; i++) {
+        const bal = await provider.getBalance(address);
+        console.log(`${TAG}[DRIP_POLL] attempt=${i + 1}/${MAX_POLLS} bal=${bal.toString()}`);
+        if (bal > 0n) { funded = true; break; }
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      }
+      if (!funded) throw new Error('Gas drip did not land within 30 seconds');
+
+      // ── 3. USDC.approve(relayer, MaxUint256) ──────────────────
+      setStage('approving_usdc');
+      if (!relayerAddress || !ethers.isAddress(relayerAddress)) {
+        throw new Error('Drip response missing relayer_address');
+      }
+      const signer = this.getSigner();
+      const usdcContract = new ethers.Contract(usdc, ERC20_ABI, signer);
+      console.log(`${TAG}[APPROVE_USDC][START] spender=${relayerAddress}`);
+      const approveTx = await usdcContract.approve(relayerAddress, ethers.MaxUint256);
+      console.log(`${TAG}[APPROVE_USDC][BROADCAST] hash=${approveTx.hash}`);
+      await approveTx.wait();
+      console.log(`${TAG}[APPROVE_USDC][OK]`);
+
+      // ── 4. IDIA.delegate(self) ────────────────────────────────
+      setStage('delegating_self');
+      const idia = new ethers.Contract(idiaToken, IDIA_TOKEN_ABI, signer);
+      console.log(`${TAG}[DELEGATE_SELF][START] delegatee=${address}`);
+      const delegateTx = await idia.delegate(address);
+      console.log(`${TAG}[DELEGATE_SELF][BROADCAST] hash=${delegateTx.hash}`);
+      await delegateTx.wait();
+      console.log(`${TAG}[DELEGATE_SELF][OK]`);
+
+      // Suppress SelfDelegateEducationModal for this wallet — already delegated.
+      try {
+        localStorage.setItem(
+          `idia_self_delegate_edu_seen_v1:${address.toLowerCase()}`,
+          '1',
+        );
+      } catch {}
+
+      setStage('done');
+      console.log(`${TAG}[END:OK]`);
+      return {
+        dripTxHash,
+        approveTxHash: approveTx.hash,
+        delegateTxHash: delegateTx.hash,
+        relayerAddress,
+      };
+    } catch (err: any) {
+      console.error(`${TAG}[END:FAIL] ${err?.message ?? err}`);
+      setStage('failed');
+      throw err;
+    }
   }
 }
 

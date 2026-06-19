@@ -124,6 +124,7 @@ const EnhancedWalletDashboard: React.FC = () => {
     sendNative,
     sendIDIA,
     delegateVotes,
+    provisioningStage,
   } = useWallet();
 
   const hasWallet = wallet !== null;
@@ -1006,6 +1007,7 @@ const EnhancedWalletDashboard: React.FC = () => {
         onImportWallet={handleImportWallet}
         getSeedPhrase={handleGetSeedPhrase}
         walletAddress={displayAddress}
+        provisioningStage={provisioningStage}
       />
       <RequestPaymentQR
         isOpen={showRequestPayment}
