@@ -42,6 +42,7 @@ const WalletSetupModal: React.FC<Props> = ({
   onImportWallet,
   getSeedPhrase,
   walletAddress,
+  provisioningStage = "idle",
 }) => {
   const { toast } = useToast();
   type Step = "intro" | "creating" | "show-seed" | "confirm-seed" | "success" | "import-form" | "loading-seed";
