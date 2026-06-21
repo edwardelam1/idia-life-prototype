@@ -18,7 +18,7 @@ const ESCROW_ABI = [
 
 const GOVERNOR_ABI = [
   "function castVote(uint256 proposalId, uint8 support) returns (uint256)",
-  "function castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature) returns (uint256)",
+  "function castVoteBySig(uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s) returns (uint256)",
   "function state(uint256 proposalId) view returns (uint8)",
   "function proposalProposer(uint256 proposalId) view returns (address)",
   "function proposalSnapshot(uint256 proposalId) view returns (uint256)",
@@ -651,20 +651,18 @@ serve(async (req) => {
           if (!signatureHex) {
             return jsonResponse({ error: "Missing EIP-712 signature for gasless vote.", failed_at: stage }, 400);
           }
-          console.log("[GOV_VOTE][ALIGNMENT][START] Enforcing OZ v5 selector for gasless vote.");
-          const fragment = "function castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature)";
-          const iface = new ethers.Interface([fragment]);
-          const encodedData = iface.encodeFunctionData("castVoteBySig", [
-            onchainId,
-            supportValue,
-            preflightAddr,
-            signatureHex,
-          ]);
-          console.log("[GOV_VOTE][ALIGNMENT][SUCCESS] Generated Data Payload:", encodedData);
-          tx = await relayerWallet.sendTransaction({
-            to: networkConfig.governor,
-            data: encodedData,
-          });
+          console.log("[GOV_VOTE][ALIGNMENT][START] Enforcing OZ v4.9 5-arg castVoteBySig selector for gasless vote.");
+          const sig = ethers.Signature.from(signatureHex);
+          let normalizedV = Number(sig.v);
+          if (normalizedV === 0) normalizedV = 27;
+          if (normalizedV === 1) normalizedV = 28;
+          console.log(
+            `[GOV_RELAY][STANDARD_VOTE][NORMALIZE] Adjusted v from ${sig.v} to ${normalizedV} (r=${sig.r} s=${sig.s})`,
+          );
+          console.log(
+            `[GOV_VOTE][ALIGNMENT][SUCCESS] castVoteBySig(${onchainId}, ${supportValue}, ${normalizedV}, r, s) -> ${networkConfig.governor}`,
+          );
+          tx = await gov.castVoteBySig(onchainId, supportValue, normalizedV, sig.r, sig.s);
         }
         console.log(`[GOV_RELAY][${tag}][${stage}] Tx submitted: ${tx.hash}`);
 
