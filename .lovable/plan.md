@@ -1,23 +1,51 @@
-# Surface granular Governor errors in Active Proposals vote flow
+## Diagnosis
 
-## Problem
-When `relay-governance-action` returns a non-2xx with a rich JSON body (e.g. `{ error_selector: "0x94ab6c07", decoded_error, error }`), the Supabase JS client throws a `FunctionsHttpError` and traps the raw `Response` on `relayErr.context`. The current handler at `src/components/governance/ActiveProposalsList.tsx` lines 735–758 reads `relayErr.context.error` directly (which is `undefined` on a Response object) and falls back to the generic `"Edge Function returned a non-2xx status code"` message, hiding the cryptographic selector from the operator.
+`0x94ab6c07` = `GovernorInvalidSignature(address)` (OZ v4.9). Forensic of the on-chain calldata shows the Governor is v4.9 with the **5-arg** `castVoteBySig(uint256, uint8, uint8, bytes32, bytes32)` (selector `0x3bccf4fd`), and `v` is being delivered as `1`. Solidity's `ecrecover` rejects `v ∈ {0,1}` and returns the zero address, which the contract compares against the expected voter and reverts with `GovernorInvalidSignature`.
 
-## Change (scoped to one file)
-`src/components/governance/ActiveProposalsList.tsx`, replace the error block at lines 735–758:
+Today both `relay-governance-action` and `governanceRelay.ts` encode the **v5 4-arg** variant `castVoteBySig(uint256,uint8,address,bytes)`. We must abandon that path and switch to the v4.9 5-arg ABI everywhere, normalizing `v` before broadcast.
 
-1. Await `relayErr.context.json()` (guarded with try/catch via `.catch(() => null)`) when `context.json` is a function; fall back to `relayErr.context` if it already looks parsed.
-2. Build `raw` from `customPayload.decoded_error || customPayload.error || relayErr.message || relayData.error || "Governor rejected the vote."`.
-3. Add a new branch: if `customPayload.error_selector === "0x94ab6c07"` or `/GovernorInvalidSignature/.test(raw)`, set friendly to:
-   `"Signature mismatch (0x94ab6c07). Ensure your wallet is signing the proposalId as a BigInt integer, not a string."`
-4. Preserve the existing `UnexpectedProposalState`, `already voted`, and `gas` branches.
-5. Log `customPayload || relayErr` so the full decoded payload reaches the browser console.
-6. Keep the toast title behavior (`tophatOverride ? "Override failed" : "Transaction Failed"`), keep `s.fail(...)` and the early `return` — no `dao_votes` insert, no state flip.
+## Changes
 
-## Out of scope
-- `src/services/governanceService.ts` — `signBallot()` already enforces raw `BigInt` for `proposalId` with a runtime guard (applied in the prior turn). No further change needed.
-- `supabase/functions/relay-governance-action/index.ts` — unchanged. The edge function already emits the JSON we want to surface.
-- `src/services/governanceRelay.ts` — the `0x94ab6c07` interception added previously stays; the new UI unpacker is additive and consumes whichever fields arrive.
+### 1. `src/config/contracts.ts` — `GOVERNOR_ABI`
+- Replace the current `castVoteBySig` entry with the v4.9 5-arg signature:
+  `"function castVoteBySig(uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s) returns (uint256)"`
+- Append `"error GovernorInvalidSignature(address voter)"` so ethers can decode reverts instead of printing `0x94ab6c07`.
+
+### 2. `supabase/functions/relay-governance-action/index.ts`
+- Replace the inline 4-arg `fragment` and `iface.encodeFunctionData("castVoteBySig", [onchainId, supportValue, preflightAddr, signatureHex])` block with a 5-arg call.
+- Extract `v, r, s` from `signatureHex` via `ethers.Signature.from(signatureHex)`.
+- Normalize `v`:
+  ```ts
+  let normalizedV = Number(sig.v);
+  if (normalizedV === 0) normalizedV = 27;
+  if (normalizedV === 1) normalizedV = 28;
+  console.log(`[GOV_RELAY][STANDARD_VOTE][NORMALIZE] Adjusted v from ${sig.v} to ${normalizedV}`);
+  ```
+- Broadcast via the contract object (no manual `sendTransaction` needed):
+  `tx = await gov.castVoteBySig(onchainId, supportValue, normalizedV, sig.r, sig.s);`
+- Update the local `GOVERNOR_ABI` declaration at the top of the file (line 21) to the v4.9 5-arg signature AND add `"error GovernorInvalidSignature(address voter)"`.
+- Update log strings that currently say "OZ v5 selector" to "OZ v4.9 5-arg selector" to avoid future misdiagnosis.
+
+### 3. `src/services/governanceRelay.ts` (`relayCastVoteBySig`)
+- The fragment at line 55 and `encodeFunctionData` block at line 59 are dead-code reference encoders (the edge function re-encodes). Still update them to the v4.9 5-arg form for consistency, and import `ethers.Signature.from` to derive `v/r/s` from `params.rawSignatureString` purely for the local console preview log.
+- Keep the existing HTTP body unchanged (it already forwards `signature` as the full hex string; the edge function will split + normalize).
+
+### 4. `src/services/governanceService.ts`
+- `signBallot` already returns `{ signature, v, r, s, signerAddress }` from `ethers.Signature.from(signature)`. No on-chain behavior change needed here; ethers v6 already returns `v` as 27/28, but the relayer will normalize regardless as a defense-in-depth.
+- No edits required unless we want to surface a console line confirming `v ∈ {27,28}` before posting; optional.
+
+### 5. UI surfacing (already covered by `.lovable/plan.md`)
+- The existing scoped edit at `src/components/governance/ActiveProposalsList.tsx` lines 735–758 will now decode `GovernorInvalidSignature` by name (because the ABI knows it), so the "Signature mismatch (0x94ab6c07)…" branch can match on either `customPayload.decoded_error === "GovernorInvalidSignature"` OR `error_selector === "0x94ab6c07"`. Add the name check to that branch for forward compatibility.
 
 ## Verification
-After the edit, retrigger a standard vote against a proposal that reproduces `0x94ab6c07`. Expect: toast description shows the "Signature mismatch (0x94ab6c07)…" string, and the console logs the full `customPayload` object (with `error_selector`, `decoded_error`, `args`, `raw`).
+1. Sign and broadcast a standard (non-tophat) vote on Base Mainnet from the preview.
+2. Confirm in the edge-function logs:
+   - `[GOV_RELAY][STANDARD_VOTE][NORMALIZE] Adjusted v from {0|1} to {27|28}`
+   - `[GOV_RELAY][STANDARD_VOTE][AWAIT_CONFIRMATION][SUCCESS] Block …`
+3. Confirm in the browser console that no `0x94ab6c07` selector is logged; the proposal's For/Against tally increments.
+4. If revert still occurs, the new ABI will print `GovernorInvalidSignature(<voter>)` plainly, isolating any remaining domain-separator drift.
+
+## Out of scope
+- EIP-712 domain construction in `signBallot` (already pulled live from `eip712Domain()` on chain).
+- Tophat `castVote` override path (unaffected).
+- `wallet-gas-drip` and onboarding provisioning flow.
