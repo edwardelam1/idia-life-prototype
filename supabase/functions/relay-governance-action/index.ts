@@ -734,12 +734,33 @@ serve(async (req) => {
           console.log(
             `[GOV_VOTE][ALIGNMENT][SUCCESS] castVoteBySig(${onchainId}, ${supportValue}, ${normalizedV}, r, s) -> ${networkConfig.governor}`,
           );
-          tx = await gov.castVoteBySig(onchainId, supportValue, normalizedV, sig.r, sig.s);
+          console.log("[GOV_RELAY][STANDARD_VOTE][BROADCAST] Forcing execution with hardcoded gas bounds.");
+          tx = await gov.castVoteBySig(onchainId, supportValue, normalizedV, sig.r, sig.s, {
+            gasLimit: 300000,
+          });
         }
         console.log(`[GOV_RELAY][${tag}][${stage}] Tx submitted: ${tx.hash}`);
 
         stage = "AWAIT_CONFIRMATION";
         receipt = await tx.wait();
+        if (receipt.status === 0) {
+          console.error(`[GOV_RELAY][${tag}][AWAIT_CONFIRMATION][REVERT_ON_CHAIN] tx=${tx.hash} block=${receipt.blockNumber} — mined but reverted. Inspect BaseScan trace.`);
+          return jsonResponse(
+            {
+              error: "Vote transaction was mined but reverted on-chain. Inspect BaseScan trace for exact reason.",
+              failed_at: "AWAIT_CONFIRMATION",
+              state_conflict: "onchain_revert",
+              tx_hash: tx.hash,
+              block_number: receipt.blockNumber,
+              voter: preflightAddr,
+              snapshot_block: preflightSnapshotBlock?.toString() ?? null,
+              snapshot_weight: preflightWeight?.toString() ?? null,
+              proposal_state: preflightProposalState,
+              proposal_state_name: preflightProposalState != null ? (PROPOSAL_STATE_NAMES[preflightProposalState] ?? null) : null,
+            },
+            409,
+          );
+        }
         console.log(`[GOV_RELAY][${tag}][${stage}][SUCCESS] Block ${receipt.blockNumber}`);
       } catch (txErr: any) {
         const { name: decodedName, args: decodedArgs, selector } = decodeGovernorRevert(txErr);
@@ -756,6 +777,10 @@ serve(async (req) => {
             decoded_args: decodedArgs,
             error_selector: selector,
             voter: preflightAddr,
+            snapshot_block: preflightSnapshotBlock?.toString() ?? null,
+            snapshot_weight: preflightWeight?.toString() ?? null,
+            proposal_state: preflightProposalState,
+            proposal_state_name: preflightProposalState != null ? (PROPOSAL_STATE_NAMES[preflightProposalState] ?? null) : null,
             via,
             detail: txErr?.shortMessage ?? txErr?.message,
           },
