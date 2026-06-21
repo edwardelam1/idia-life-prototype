@@ -752,8 +752,12 @@ export const ProposalCard: React.FC<{
           || "Governor rejected the vote.";
 
         let friendly = raw;
-        if (customPayload?.error_selector === "0x94ab6c07" || /GovernorInvalidSignature/.test(raw)) {
-          friendly = "Signature mismatch (0x94ab6c07). Ensure your wallet is signing the proposalId as a BigInt integer, not a string.";
+        if (
+          customPayload?.error_selector === "0x94ab6c07" ||
+          customPayload?.decoded_error === "GovernorInvalidSignature" ||
+          /GovernorInvalidSignature/.test(raw)
+        ) {
+          friendly = "Signature mismatch (GovernorInvalidSignature / 0x94ab6c07). The relayer normalized v to 27/28 — if this still appears, the EIP-712 domain or proposalId encoding is drifting from the on-chain Governor.";
         } else if (/UnexpectedProposalState|Pending|not.*open/i.test(raw)) {
           friendly = "Voting is not open yet. Try again once the snapshot block is reached.";
         } else if (/already.*voted|hasVoted/i.test(raw)) {

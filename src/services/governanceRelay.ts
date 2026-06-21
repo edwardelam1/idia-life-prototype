@@ -51,16 +51,21 @@ export async function relayCastVoteBySig(params: CastVoteBySigRelayParams) {
     throw new Error(`Invalid support value before relay dispatch: ${params.support}`);
   }
 
-  // OZ v5 castVoteBySig: (uint256 proposalId, uint8 support, address voter, bytes signature)
-  const fragment = "function castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature)";
+  // OZ v4.9 castVoteBySig: (uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s)
+  const fragment = "function castVoteBySig(uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s)";
   const iface = new ethers.Interface([fragment]);
   const voter = String(params.signerAddress).toLowerCase();
   const signature = String(params.rawSignatureString);
+  const previewSig = ethers.Signature.from(signature);
+  let previewV = Number(previewSig.v);
+  if (previewV === 0) previewV = 27;
+  if (previewV === 1) previewV = 28;
   const encodedData = iface.encodeFunctionData("castVoteBySig", [
     BigInt(params.proposalId),
     cleanSupport,
-    voter,
-    signature,
+    previewV,
+    previewSig.r,
+    previewSig.s,
   ]);
   console.log("[GOV_VOTE][ALIGNMENT][SUCCESS] Generated Data Payload:", encodedData);
 
