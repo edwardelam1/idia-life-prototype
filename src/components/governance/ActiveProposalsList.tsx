@@ -752,7 +752,16 @@ export const ProposalCard: React.FC<{
           || "Governor rejected the vote.";
 
         let friendly = raw;
-        if (
+        const stateConflict = customPayload?.state_conflict;
+        if (stateConflict === "zero_snapshot_power") {
+          friendly = `No voting power at the snapshot block (${customPayload?.snapshot_block ?? "?"}). Delegate IDIA to yourself BEFORE the next proposal is created, then vote on a freshly minted proposal.`;
+        } else if (stateConflict === "already_voted") {
+          friendly = "This wallet has already voted on-chain for this proposal.";
+        } else if (stateConflict === "inactive_proposal") {
+          friendly = `Voting is not open. Proposal state: ${customPayload?.proposal_state_name ?? "unknown"}.`;
+        } else if (stateConflict === "onchain_revert") {
+          friendly = `Vote mined but reverted on-chain (tx ${String(customPayload?.tx_hash || "").slice(0, 10)}…). Open BaseScan for the trace.`;
+        } else if (
           customPayload?.error_selector === "0x94ab6c07" ||
           customPayload?.decoded_error === "GovernorInvalidSignature" ||
           /GovernorInvalidSignature/.test(raw)
