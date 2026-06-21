@@ -16,6 +16,19 @@ const ESCROW_ABI = [
   "function approveAndExecute(uint256 proposalId) external returns (bool)",
 ];
 
+const IDIA_TOKEN_READ_ABI = [
+  "function getPastVotes(address account, uint256 blockNumber) view returns (uint256)",
+  "function getVotes(address account) view returns (uint256)",
+  "function delegates(address account) view returns (address)",
+];
+
+const PROPOSAL_STATE_NAMES = [
+  "Pending", "Active", "Canceled", "Defeated",
+  "Succeeded", "Queued", "Expired", "Executed",
+];
+
+const IDIA_TOKEN_ADDR_FOR_VOTES = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
+
 const GOVERNOR_ABI = [
   "function castVote(uint256 proposalId, uint8 support) returns (uint256)",
   "function castVoteBySig(uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s) returns (uint256)",
@@ -559,15 +572,46 @@ serve(async (req) => {
       // wallet that had zero voting weight at the snapshot block (or has
       // already voted) BEFORE the relayer wastes a single wei of gas.
       let preflightAddr: string | null = null;
+      let preflightSnapshotBlock: bigint | null = null;
+      let preflightWeight: bigint | null = null;
+      let preflightProposalState: number | null = null;
       if (!overrideAuthorized) {
         stage = "PREFLIGHT_SNAPSHOT";
         console.log(`[GOV_RELAY][STANDARD_VOTE][${stage}][START]`);
         const govRead = new ethers.Contract(networkConfig.governor, GOVERNOR_ABI, provider);
+        const tokenRead = new ethers.Contract(IDIA_TOKEN_ADDR_FOR_VOTES, IDIA_TOKEN_READ_ABI, provider);
+
         const snapshotBlock = await withTimeout(
           govRead.proposalSnapshot(onchainId),
           8_000,
           "governor.proposalSnapshot()",
         );
+        preflightSnapshotBlock = BigInt(snapshotBlock);
+
+        // Proposal state check
+        const propState = Number(await withTimeout(
+          govRead.state(onchainId),
+          8_000,
+          "governor.state()",
+        ));
+        preflightProposalState = propState;
+        const propStateName = PROPOSAL_STATE_NAMES[propState] ?? `Unknown(${propState})`;
+        console.log(`[GOV_RELAY][STATE_CHECK] proposal=${onchainId} state=${propState} (${propStateName}) snapshotBlock=${preflightSnapshotBlock}`);
+
+        if (propState !== 1) {
+          console.error(`[GOV_RELAY][STATE_CHECK][FATAL] Proposal not Active. state=${propState} (${propStateName})`);
+          return jsonResponse(
+            {
+              error: `Voting is not open. Proposal state: ${propStateName}.`,
+              failed_at: stage,
+              state_conflict: "inactive_proposal",
+              proposal_state: propState,
+              proposal_state_name: propStateName,
+              snapshot_block: preflightSnapshotBlock.toString(),
+            },
+            409,
+          );
+        }
 
         let checkAddr: string | undefined =
           typeof voterAddress === "string" && voterAddress.startsWith("0x")
@@ -593,20 +637,43 @@ serve(async (req) => {
         preflightAddr = checkAddr;
 
         // 1. Strict weight enforcement — zero weight is a fatal rejection.
-        const weight = await withTimeout(
-          govRead.getVotes(checkAddr, snapshotBlock),
-          8_000,
-          "governor.getVotes()",
-        );
+        // Prefer token.getPastVotes (canonical ERC20Votes); fallback to gov.getVotes.
+        let weight: bigint;
+        try {
+          weight = await withTimeout(
+            tokenRead.getPastVotes(checkAddr, preflightSnapshotBlock),
+            8_000,
+            "token.getPastVotes()",
+          );
+          console.log(`[GOV_RELAY][STATE_CHECK] Voter weight at snapshot block ${preflightSnapshotBlock}: ${weight} (via token.getPastVotes)`);
+        } catch (e: any) {
+          console.warn(`[GOV_RELAY][STATE_CHECK] token.getPastVotes failed, falling back to gov.getVotes: ${e?.message}`);
+          weight = await withTimeout(
+            govRead.getVotes(checkAddr, preflightSnapshotBlock),
+            8_000,
+            "governor.getVotes()",
+          );
+          console.log(`[GOV_RELAY][STATE_CHECK] Voter weight at snapshot block ${preflightSnapshotBlock}: ${weight} (via gov.getVotes)`);
+        }
+        preflightWeight = BigInt(weight);
 
-        if (weight === 0n) {
+        try {
+          const currentDelegate = await tokenRead.delegates(checkAddr);
+          console.log(`[GOV_RELAY][STATE_CHECK] Voter ${checkAddr} current delegate=${currentDelegate}`);
+        } catch { /* non-fatal */ }
+
+        if (preflightWeight === 0n) {
           console.error(
-            `[GOV_RELAY][STANDARD_VOTE][${stage}][FATAL] Wallet ${checkAddr} attempted to vote with 0 weight at block ${snapshotBlock}. Reverting.`,
+            `[GOV_RELAY][STANDARD_VOTE][${stage}][FATAL] Wallet ${checkAddr} attempted to vote with 0 weight at block ${preflightSnapshotBlock}. Reverting.`,
           );
           return jsonResponse(
             {
-              error: "Wallet has zero voting weight for this proposal snapshot. Access denied.",
+              error: "Wallet had zero voting power at this proposal's snapshot block. Delegate to self BEFORE the next proposal is created, then vote on the next one.",
               failed_at: stage,
+              state_conflict: "zero_snapshot_power",
+              snapshot_block: preflightSnapshotBlock.toString(),
+              snapshot_weight: "0",
+              voter: checkAddr,
             },
             409,
           );
@@ -623,13 +690,18 @@ serve(async (req) => {
             `[GOV_RELAY][STANDARD_VOTE][${stage}][WARN] Wallet ${checkAddr} has already cast a ballot.`,
           );
           return jsonResponse(
-            { error: "Wallet has already voted on this proposal.", failed_at: stage },
+            {
+              error: "This wallet has already voted on-chain for this proposal.",
+              failed_at: stage,
+              state_conflict: "already_voted",
+              voter: checkAddr,
+            },
             409,
           );
         }
 
         console.log(
-          `[GOV_RELAY][STANDARD_VOTE][${stage}][SUCCESS] Wallet ${checkAddr} verified with weight: ${weight.toString()}`,
+          `[GOV_RELAY][STANDARD_VOTE][${stage}][SUCCESS] Wallet ${checkAddr} verified weight=${preflightWeight} state=${propStateName}`,
         );
       }
 
