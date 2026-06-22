@@ -1,10 +1,7 @@
-import { Capacitor } from "@capacitor/core";
-import { NativeBiometric } from "capacitor-native-biometric";
-import { Device } from "@capacitor/device";
 import { toast } from "@/hooks/use-toast";
 
 /**
- * IDIA Protocol: Universal ACA Hardware Generator
+ * IDIA Protocol: Localized Native ACA Hardware Generator
  * Mandatory for all Human Touchpoints (Accept, Okay, Link, Transact)
  */
 export const generateACAHash = async (
@@ -12,54 +9,69 @@ export const generateACAHash = async (
   sourceId: string,
   scopes: string[] = ["CONSENT_GENERAL"],
 ): Promise<{ hash: string; payload: any }> => {
-  console.log(`[ACA_HARDWARE] START: Verification sequence for touchpoint: ${sourceId}`);
+  console.log(`🪪 [BEGIN: generateACAHash] Initializing verification sequence for touchpoint: ${sourceId}`);
 
-  const isNative = Capacitor.isNativePlatform();
+  // Detect pure native shell via our custom WKWebView bridge instead of Capacitor
+  const isNative = typeof window !== "undefined" && !!(window as any).webkit?.messageHandlers?.triggerBiologicalCapture;
 
   try {
     let hardwareAttestationId: string;
 
     if (isNative) {
-      // ─── MOBILE HARDWARE ANCHOR (Face ID / Touch ID via Secure Enclave) ───
-      // This forces the physical prompt. No biometric = No hash. No hash = No entry.
-      console.log(`[ACA_HARDWARE] PLATFORM: Native. Requesting hardware attestation.`);
+      console.log(`🪪 [PROCESS: generateACAHash] Environment: Pure Native Shell. Requesting localized hardware lock.`);
 
       try {
-        // Confirm hardware is present and enrolled before prompting
-        const available = await NativeBiometric.isAvailable();
-        if (!available.isAvailable) {
-          throw new Error("BIOMETRIC_HARDWARE_UNAVAILABLE");
-        }
+        console.log(`🪪 [BEGIN: performBiologicalBinding] Triggering Secure Enclave via WKWebView bridge`);
 
-        // Triggers Face ID / Touch ID. Resolves on success, rejects on cancel/failure.
-        await NativeBiometric.verifyIdentity({
-          reason: `Biological anchor required for: ${sourceId}`,
-          title: "Verify Sovereign Intent",
-          subtitle: "Proof of physical presence",
-          description: "Required to write to the IDIA ledger.",
+        // Await the asynchronous hardware result from the Swift shell
+        await new Promise((resolve, reject) => {
+          const handleSuccess = () => {
+            console.log(`🪪 [END: performBiologicalBinding] SUCCESS: Biological signature verified by Secure Enclave.`);
+            cleanup();
+            resolve(true);
+          };
+
+          const handleError = (e: any) => {
+            console.error(
+              `🚨 [FAIL: performBiologicalBinding] ERROR: Native shell rejected biological prompt. Reason: ${e.detail?.error}`,
+            );
+            cleanup();
+            reject(new Error(e.detail?.error || "BIOMETRIC_REJECTED"));
+          };
+
+          const cleanup = () => {
+            window.removeEventListener("biological:capture-success", handleSuccess);
+            window.removeEventListener("biological:capture-error", handleError);
+          };
+
+          // Attach listeners for the native Swift dispatch events
+          window.addEventListener("biological:capture-success", handleSuccess);
+          window.addEventListener("biological:capture-error", handleError);
+
+          // Trigger the hardware
+          (window as any).webkit.messageHandlers.triggerBiologicalCapture.postMessage({});
         });
 
-        // Bind the attestation to this physical device. Device.getId() returns
-        // the IDFV on iOS / a stable hardware id on Android. Combined with the
-        // post-verification timestamp it forms an anchor that only exists
-        // *after* a real Face ID / Touch ID confirmation succeeds.
-        const { identifier } = await Device.getId();
-        hardwareAttestationId = `${identifier}:${Date.now()}:${available.biometryType}`;
+        // Generate a secure local UUID to replace the deprecated Capacitor Device.getId()
+        const secureLocalId = crypto.randomUUID();
+        hardwareAttestationId = `${secureLocalId}:${Date.now()}:NATIVE_ENCLAVE_VERIFIED`;
+        console.log(`🪪 [PROCESS: generateACAHash] Hardware attestation generated: ${hardwareAttestationId}`);
       } catch (nativeErr: any) {
-        console.error(`[ACA_HARDWARE] FATAL: Hardware handshake rejected.`, nativeErr);
+        console.error(`🚨 [FAIL: generateACAHash] FATAL: Hardware handshake rejected by user or system.`);
         throw new Error(`BIOMETRIC_REJECTED:${nativeErr?.message || "unknown"}`);
       }
     } else {
       // ─── WEB / PREVIEW SIMULATION (temporary) ─────────────────────────────
-      console.log("[ACA_HARDWARE] PLATFORM: Web. Generating simulated attestation.");
+      console.log(`🪪 [PROCESS: generateACAHash] Environment: Web/Simulation. Bypassing Secure Enclave.`);
       const randomBytes = crypto.getRandomValues(new Uint8Array(16));
       const randomHex = Array.from(randomBytes)
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
-      hardwareAttestationId = `${randomHex}:${Date.now()}`;
+      hardwareAttestationId = `${randomHex}:${Date.now()}:WEB_SIMULATION`;
     }
 
     // ─── IMMUTABLE PAYLOAD CONSTRUCTION ─────────────────────────────────────
+    console.log(`🪪 [PROCESS: generateACAHash] Constructing immutable payload.`);
     const basePayload = {
       platform_guid: userId,
       source_id: sourceId,
@@ -79,14 +91,16 @@ export const generateACAHash = async (
       aca_hash_key: hashHex,
     };
 
-    console.log(`[ACA_HARDWARE] SUCCESS: Intent anchored. Hash: [${hashHex.substring(0, 8)}]`);
+    console.log(
+      `🪪 [END: generateACAHash] SUCCESS: Intent anchored and signed. ACA Hash: [${hashHex.substring(0, 8)}...]`,
+    );
 
     return {
       hash: hashHex,
       payload: finalPayload,
     };
   } catch (error: any) {
-    console.error(`[ACA_HARDWARE] CRITICAL_FAILURE: ${error.message}`);
+    console.error(`🚨 [FAIL: generateACAHash] CRITICAL_FAILURE: Sequence aborted. Reason: ${error.message}`);
 
     toast({
       title: "Handshake Failed",
