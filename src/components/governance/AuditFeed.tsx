@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, History, Fingerprint, MessageSquare, PenTool, Rocket, Archive, Gavel, FileText, CheckCircle2, Shield } from "lucide-react";
+import { Loader2, History, Fingerprint, MessageSquare, PenTool, Rocket, Archive, Gavel, FileText, CheckCircle2, Shield, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface LedgerRow {
@@ -18,7 +18,7 @@ interface LedgerRow {
 
 const PAGE = 25;
 
-// Dictionary to humanize raw database action types TEST
+// Dictionary to humanize raw database action types
 const getActionConfig = (actionType: string | null) => {
   const type = (actionType || "").toUpperCase();
   if (type.includes("COMMENT")) return { icon: MessageSquare, label: "Deliberation", color: "bg-blue-600", border: "border-blue-200 bg-blue-50/30" };
@@ -117,6 +117,17 @@ const AuditFeed: React.FC = () => {
       <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
         <History size={14} className="text-teal-600" /> Immutable Audit Trail
       </h2>
+
+      {/* Educational Banner */}
+      <div className="flex items-start gap-3 p-3 mx-1 rounded-2xl bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/40 text-teal-800 dark:text-teal-200">
+        <Info size={16} className="mt-0.5 shrink-0 text-teal-600 dark:text-teal-400" />
+        <div className="space-y-1">
+          <p className="text-[10px] font-black uppercase tracking-widest">System of Record</p>
+          <p className="text-[10px] leading-relaxed opacity-90">
+            This ledger cryptographically anchors every action, signature, and state change within the protocol. Each event generates an auditable hash (ACA), ensuring complete legal transparency and preventing unauthorized tampering.
+          </p>
+        </div>
+      </div>
       
       {rows.length === 0 ? (
         <div className="py-10 text-center opacity-40 bg-slate-50 dark:bg-muted/30 rounded-3xl border border-slate-100 dark:border-border">
