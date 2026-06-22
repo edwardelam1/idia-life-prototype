@@ -1,9 +1,10 @@
 /**
  * PaymentTrigger
  *
- * USDC payment initiation via NFC tap (iOS & Android) and MetaMask API integration.
- * - iOS: Routes through the custom Swift WKWebView bridge (`initiateNfcHandshake`)
- * - Android: Routes through the Capacitor IDIANFC plugin
+ * USDC payment initiation via NFC tap (iOS & Android) and WalletConnect/MetaMask.
+ * - iOS: Routes NFC through the custom Swift WKWebView bridge (`initiateNfcHandshake`)
+ * - Android: Routes NFC through the Capacitor IDIANFC plugin
+ * - Web3: Uses WalletConnect to generate deep links intercepted by the native shell
  */
 
 import { useState, useCallback, useEffect } from 'react';
@@ -17,6 +18,9 @@ import { parsePaymentRequest, type PaymentRequest } from '@/config/usdc';
 import IDIANFC from '@/plugins/nfc';
 import USDCPaymentModal from './USDCPaymentModal';
 
+// Web3Modal Imports
+import { createWeb3Modal, defaultConfig, useWeb3Modal, useWeb3ModalAccount } from '@web3modal/ethers/react';
+
 // Extend the Window object to support the custom iOS WebKit bridge
 declare global {
   interface Window {
@@ -29,9 +33,49 @@ declare global {
     };
     onNfcHandshakeComplete?: (response: any) => void;
     onNfcHandshakeError?: (error: string) => void;
-    ethereum?: any;
   }
 }
+
+// ─── Web3Modal Configuration ───────────────────────────────────────
+
+const projectId = '3240014e4de0b34e14e0337f7b25cb63';
+
+// Configure Mainnet (Base)
+const mainnet = {
+  chainId: 8453,
+  name: 'Base',
+  currency: 'ETH',
+  explorerUrl: 'https://basescan.org',
+  rpcUrl: 'https://mainnet.base.org'
+};
+
+// Create a metadata object
+const metadata = {
+  name: 'IDIA Life',
+  description: 'IDIA Sovereign Data Wallet',
+  url: 'https://life.thebigidia.com', 
+  icons: ['https://life.thebigidia.com/favicon.ico']
+};
+
+// Create Ethers config
+const ethersConfig = defaultConfig({
+  metadata,
+  enableEIP6963: true,
+  enableInjected: true,
+  enableCoinbase: true,
+});
+
+// Initialize Modal (outside component to prevent re-renders)
+createWeb3Modal({
+  ethersConfig,
+  chains: [mainnet],
+  projectId,
+  enableAnalytics: false,
+  themeVariables: {
+    '--w3m-color-mix': '#ea580c', // Orange tint to match the UI
+    '--w3m-color-mix-strength': 20
+  }
+});
 
 const PaymentTrigger: React.FC = () => {
   const [isNfcListening, setIsNfcListening] = useState(false);
@@ -39,10 +83,9 @@ const PaymentTrigger: React.FC = () => {
   const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   
-  // MetaMask State
-  const [metaMaskAddress, setMetaMaskAddress] = useState<string | null>(null);
-  const [isMetaMaskConnecting, setIsMetaMaskConnecting] = useState(false);
-  const [metaMaskError, setMetaMaskError] = useState<string | null>(null);
+  // WalletConnect Hooks
+  const { open } = useWeb3Modal();
+  const { address, isConnected } = useWeb3ModalAccount();
 
   // Clean up global iOS callbacks on unmount
   useEffect(() => {
@@ -51,38 +94,6 @@ const PaymentTrigger: React.FC = () => {
       if (window.onNfcHandshakeError) delete window.onNfcHandshakeError;
     };
   }, []);
-
-  // ─── MetaMask Integration ────────────────────────────────────────
-
-  const connectMetaMask = async () => {
-    console.log("[PaymentTrigger][connectMetaMask][START] Initiating MetaMask connection sequence");
-    setIsMetaMaskConnecting(true);
-    setMetaMaskError(null);
-
-    try {
-      if (typeof window.ethereum === 'undefined') {
-        console.error("[PaymentTrigger][connectMetaMask][FATAL_FAIL] window.ethereum is undefined. MetaMask not detected.");
-        throw new Error("MetaMask is not installed or available in this environment.");
-      }
-
-      console.log("[PaymentTrigger][connectMetaMask][RPC_CALL] Executing eth_requestAccounts");
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-
-      if (accounts && accounts.length > 0) {
-        setMetaMaskAddress(accounts[0]);
-        console.log(`[PaymentTrigger][connectMetaMask][END:OK] Successfully bound MetaMask account: ${accounts[0]}`);
-      } else {
-        console.warn("[PaymentTrigger][connectMetaMask][FATAL_FAIL] RPC returned empty accounts array.");
-        throw new Error("No accounts returned from MetaMask.");
-      }
-    } catch (error: any) {
-      console.error(`[PaymentTrigger][connectMetaMask][FATAL_FAIL] Connection aborted: ${error.message}`);
-      setMetaMaskError(error.message || "Failed to connect to MetaMask");
-    } finally {
-      console.log("[PaymentTrigger][connectMetaMask][CLEANUP] Releasing connection lock");
-      setIsMetaMaskConnecting(false);
-    }
-  };
 
   // ─── NFC Tap Handler (iOS & Android) ─────────────────────────────
 
@@ -104,13 +115,11 @@ const PaymentTrigger: React.FC = () => {
         return;
       }
 
-      // Define success callback for Swift to hit
       window.onNfcHandshakeComplete = (response) => {
         console.log('[PaymentTrigger][handleNfcTap][iOS_SUCCESS] Received payload from CoreNFC');
         processRawNfcPayload(response);
       };
 
-      // Define error callback for Swift to hit
       window.onNfcHandshakeError = (errorMsg) => {
         console.error(`[PaymentTrigger][handleNfcTap][iOS_ERROR] CoreNFC failed: ${errorMsg}`);
         if (!errorMsg.toLowerCase().includes('cancel')) {
@@ -119,7 +128,6 @@ const PaymentTrigger: React.FC = () => {
         setIsNfcListening(false);
       };
 
-      // Trigger the Swift layer
       window.webkit.messageHandlers.initiateNfcHandshake.postMessage(payloadConfig);
       return;
     }
@@ -152,8 +160,8 @@ const PaymentTrigger: React.FC = () => {
 
   }, []);
 
-  // Centralized parsing logic for both iOS and Android payloads
   const processRawNfcPayload = (rawPayload: any) => {
+    console.log('[PaymentTrigger][processRawNfcPayload][START] Processing incoming NFC data block');
     try {
       const payloadStr = typeof rawPayload === 'string' ? rawPayload : JSON.stringify(rawPayload);
       console.log(`[PaymentTrigger][processRawNfcPayload] Raw structure: ${payloadStr}`);
@@ -207,7 +215,7 @@ const PaymentTrigger: React.FC = () => {
             </Badge>
           </div>
           <CardDescription className="text-xs">
-            Send live USDC payments via NFC tap or execute via MetaMask. No gas fees — powered by IDIA relay.
+            Send live USDC payments via NFC tap or execute via Web3 wallet. No gas fees — powered by IDIA relay.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -234,38 +242,33 @@ const PaymentTrigger: React.FC = () => {
             </div>
           )}
 
-          {/* MetaMask Web3 Connection */}
+          {/* Web3Modal Connection */}
           <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-            {!metaMaskAddress ? (
+            {!isConnected ? (
               <Button
-                onClick={connectMetaMask}
-                disabled={isMetaMaskConnecting}
+                onClick={() => {
+                  console.log("[PaymentTrigger][Web3Modal][START] User triggered Web3 connection modal");
+                  open();
+                }}
                 variant="outline"
                 className="w-full h-12 flex items-center justify-center gap-2 border-orange-200 hover:bg-orange-50 dark:border-orange-900/50 dark:hover:bg-orange-950/30 text-orange-600 dark:text-orange-500"
               >
-                {isMetaMaskConnecting ? (
-                  <><Loader2 className="w-5 h-5 animate-spin" /> Connecting API...</>
-                ) : (
-                  <><Wallet className="w-5 h-5" /> Connect MetaMask</>
-                )}
+                <Wallet className="w-5 h-5" /> Connect Web3 Wallet
               </Button>
             ) : (
-              <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between">
+              <div 
+                className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                onClick={() => open()} // Opens modal to view balance or disconnect
+              >
                 <div className="flex items-center gap-2">
                   <Wallet className="w-4 h-4 text-orange-500" />
                   <span className="text-xs font-mono text-slate-600 dark:text-slate-400">
-                    {metaMaskAddress.slice(0, 6)}...{metaMaskAddress.slice(-4)}
+                    {address?.slice(0, 6)}...{address?.slice(-4)}
                   </span>
                 </div>
                 <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
-                  SDK Connected
+                  Connected
                 </Badge>
-              </div>
-            )}
-            
-            {metaMaskError && (
-              <div className="p-2 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-300 flex items-start gap-2">
-                <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />{metaMaskError}
               </div>
             )}
           </div>
@@ -278,7 +281,7 @@ const PaymentTrigger: React.FC = () => {
         isOpen={showPaymentModal} 
         onClose={handlePaymentClose} 
         paymentRequest={paymentRequest}
-        connectedWallet={metaMaskAddress}
+        connectedWallet={address}
       />
     </>
   );
