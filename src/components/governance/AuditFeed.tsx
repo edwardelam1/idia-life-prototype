@@ -18,7 +18,7 @@ interface LedgerRow {
 
 const PAGE = 25;
 
-// Dictionary to humanize raw database action types
+// Dictionary to humanize raw database action types TEST
 const getActionConfig = (actionType: string | null) => {
   const type = (actionType || "").toUpperCase();
   if (type.includes("COMMENT")) return { icon: MessageSquare, label: "Deliberation", color: "bg-blue-600", border: "border-blue-200 bg-blue-50/30" };
