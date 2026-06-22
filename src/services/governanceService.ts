@@ -670,16 +670,31 @@ async getCurrentQuorum(): Promise<string> {
         `[GOV_VOTE][SIGN_BALLOT][DOMAIN_TRUTH] name="${domain.name}" version="${domain.version}" chainId=${domain.chainId} verifyingContract=${domain.verifyingContract}`,
       );
 
+      // Fetch the Governor's per-voter nonce for v5 replay protection.
+      const govNonceRead = new ethers.Contract(
+        PROTOCOL.governor,
+        ['function nonces(address) view returns (uint256)'],
+        (signer as any).provider || this.getProvider(),
+      );
+      const voterNonce: bigint = await govNonceRead.nonces(signerAddress);
+
       const types = {
         Ballot: [
           { name: 'proposalId', type: 'uint256' },
           { name: 'support', type: 'uint8' },
+          { name: 'voter', type: 'address' },
+          { name: 'nonce', type: 'uint256' },
         ],
       };
 
       // CRITICAL: proposalId MUST be raw BigInt (no .toString()) so it hashes as
       // a 32-byte integer matching the OpenZeppelin v5 contract structure.
-      const value = { proposalId: proposalIdBig, support: Number(support) };
+      const value = {
+        proposalId: proposalIdBig,
+        support: Number(support),
+        voter: signerAddress,
+        nonce: voterNonce,
+      };
 
       // Hard guard — if a regression ever coerces this away from bigint, fail
       // loudly instead of silently producing a mismatched EIP-712 digest.
@@ -691,6 +706,7 @@ async getCurrentQuorum(): Promise<string> {
 
       console.log(`[GOV_VOTE][SIGN_BALLOT][PAYLOAD_AUDIT] ProposalId: ${value.proposalId.toString()} (Type: ${typeof value.proposalId})`);
       console.log(`[GOV_VOTE][SIGN_BALLOT][PAYLOAD_AUDIT] Support: ${value.support} (Type: ${typeof value.support})`);
+      console.log(`[GOV_VOTE][SIGN_BALLOT][V5_PAYLOAD] voter=${value.voter} nonce=${value.nonce.toString()}`);
 
       console.log('[GOV_VOTE][SIGN_BALLOT][STEP_3] Executing signTypedData with dynamic domain...');
       const signature = await (signer as any).signTypedData(domain, types, value);

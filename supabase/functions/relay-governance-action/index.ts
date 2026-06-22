@@ -749,9 +749,7 @@ serve(async (req) => {
           console.log(
             `[GOV_VOTE][ALIGNMENT][SUCCESS] castVoteBySig(${onchainId}, ${supportValue}, ${preflightAddr}, <bytes>) -> ${networkConfig.governor}`,
           );
-          tx = await gov.castVoteBySig(onchainId, supportValue, preflightAddr, finalSignatureHex, {
-            gasLimit: 300000,
-          });
+          tx = await gov.castVoteBySig(onchainId, supportValue, preflightAddr, finalSignatureHex);
           console.log(`[GOV_RELAY][STANDARD_VOTE][BROADCAST][SUCCESS] Transaction acquired hash: ${tx.hash}`);
         }
         console.log(`[GOV_RELAY][${tag}][${stage}] Tx submitted: ${tx.hash}`);

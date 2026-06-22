@@ -1,39 +1,51 @@
-## Plan
+## Plan: Align EIP-712 Ballot with OpenZeppelin v5 (add voter + nonce)
 
-1. **Restore the Governor v5 vote ABI everywhere**
-   - In `supabase/functions/relay-governance-action/index.ts`, replace the current 5-argument `castVoteBySig(uint256,uint8,uint8,bytes32,bytes32)` entry with the v5 4-argument signature:
-     ```ts
-     castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature)
-     ```
-   - Keep the Governor custom error ABI entries, especially `GovernorInvalidSignature(address)`, so future reverts remain decoded.
-   - In `src/config/contracts.ts`, update the shared frontend `GOVERNOR_ABI` to the same v5 4-argument layout.
+The v5 `castVoteBySig` ABI call now executes on-chain but reverts with `GovernorInvalidSignature` because the frontend still signs the v4 Ballot struct `{proposalId, support}`. v5 requires `{proposalId, support, voter, nonce}` and uses the Governor's own `nonces(address)` for replay protection.
 
-2. **Normalize the raw 65-byte signature hex in the edge function**
-   - Before broadcasting a standard gasless vote, inspect `signatureHex` directly.
-   - If it is a valid 132-character `0x` signature and the final byte is `00` or `01`, mutate only that suffix to `1b` or `1c`.
-   - Log the requested stages:
-     - `[GOV_RELAY][STANDARD_VOTE][NORMALIZE][START]`
-     - `[GOV_RELAY][STANDARD_VOTE][NORMALIZE][SUCCESS]`
-     - `[GOV_RELAY][STANDARD_VOTE][NORMALIZE][SKIP]`
-     - `[GOV_RELAY][STANDARD_VOTE][NORMALIZE][WARN]`
+### 1. `src/config/contracts.ts`
+- Add `"function nonces(address owner) view returns (uint256)"` to `GOVERNOR_ABI` so the frontend can read the Governor nonce (separate from the IDIA token nonce already exposed).
 
-3. **Broadcast with the v5 layout and preserve gas override**
-   - Replace the current `ethers.Signature.from(...); gov.castVoteBySig(onchainId, supportValue, v, r, s, { gasLimit: 300000 })` call with:
-     ```ts
-     gov.castVoteBySig(onchainId, supportValue, preflightAddr, finalSignatureHex, {
-       gasLimit: 300000,
-     })
-     ```
-   - Keep the existing snapshot/state/hasVoted preflight diagnostics and structured error payloads.
-   - Fail safely if the preflight voter address is unavailable before the standard v5 broadcast.
+### 2. `src/services/governanceService.ts` — `signBallot`
+- Before signing, instantiate a read-only Governor contract bound to the signer's provider and fetch the voter nonce:
+  ```ts
+  const govNonceRead = new ethers.Contract(PROTOCOL.governor, ["function nonces(address) view returns (uint256)"], provider);
+  const voterNonce: bigint = await govNonceRead.nonces(signerAddress);
+  ```
+- Replace the Ballot type with the v5 layout:
+  ```ts
+  const types = {
+    Ballot: [
+      { name: 'proposalId', type: 'uint256' },
+      { name: 'support', type: 'uint8' },
+      { name: 'voter', type: 'address' },
+      { name: 'nonce', type: 'uint256' },
+    ],
+  };
+  const value = {
+    proposalId: proposalIdBig,
+    support: Number(support),
+    voter: signerAddress,
+    nonce: voterNonce,
+  };
+  ```
+- Keep the existing dynamic `eip712Domain()` truth fetch, the bigint guard, and the v/r/s decomposition unchanged.
+- Add `[GOV_VOTE][SIGN_BALLOT][V5_PAYLOAD]` log with `voter` and `nonce.toString()` for auditability.
 
-4. **Align the client-side relay preview encoder**
-   - In `src/services/governanceRelay.ts`, change the diagnostic `ethers.Interface` fragment back to the v5 4-argument layout.
-   - Encode with `proposalId`, `support`, `voter`, and the raw signature bytes, without splitting into `v/r/s` on the client.
-   - Leave the HTTP body shape unchanged: the edge function still receives `signature`, `voterAddress`, and `voter`.
+### 3. `supabase/functions/relay-governance-action/index.ts`
+- Remove the `{ gasLimit: 300000 }` override on the standard `castVoteBySig` broadcast:
+  ```ts
+  tx = await gov.castVoteBySig(onchainId, supportValue, preflightAddr, finalSignatureHex);
+  ```
+- Keep the v-byte normalization (`00`/`01` → `1b`/`1c`), preflight snapshot/state/hasVoted checks, structured `state_conflict` payloads, and the `GovernorInvalidSignature` decoder.
+- Leave the EIP-1559 fee bumping (if present) untouched; dynamic estimateGas resumes its role.
 
-5. **Deploy and verify**
-   - Deploy `relay-governance-action` after implementation.
-   - Verify logs show the normalization and v5 broadcast path, especially:
-     - `[GOV_RELAY][STANDARD_VOTE][NORMALIZE][SUCCESS]` or `[SKIP]`
-     - `[GOV_RELAY][STANDARD_VOTE][BROADCAST][START] Pushing v5 payload to EVM mempool.`
+### 4. Deploy & verify
+- Deploy `relay-governance-action`.
+- Cast a fresh vote and confirm:
+  - Browser logs show `[V5_PAYLOAD]` with the voter address and a numeric nonce.
+  - Edge function logs show `[NORMALIZE]` then a successful broadcast without a revert.
+  - On-chain `VoteCast` event appears on BaseScan and the tally updates in the UI.
+
+### Out of scope
+- No changes to `castVoteBySigWithReasonAndParams`, the delegation flow, or the relay HTTP body shape (still ships `signature`, `voterAddress`, `voter`).
+- No ABI changes beyond adding `nonces(address)` to the Governor.
