@@ -1,48 +1,39 @@
 ## Plan
 
-1. **Patch the relayer preflight diagnostics**
-   - In `supabase/functions/relay-governance-action/index.ts`, expand the standard vote preflight to log:
-     - `proposalSnapshot(onchainId)`
-     - `state(onchainId)` with a readable Governor state name
-     - `hasVoted(onchainId, voter)`
-     - voter snapshot weight
-   - Use the IDIA token `getPastVotes(voter, snapshotBlock)` path for the explicit snapshot-weight diagnostic, while keeping a fallback to Governor `getVotes(voter, snapshotBlock)` if needed.
-   - If snapshot weight is `0`, return a `409` with structured fields like `state_conflict: "zero_snapshot_power"`, `snapshot_block`, `snapshot_weight`, and `voter`.
-   - If the voter already voted, return `state_conflict: "already_voted"`.
-   - If proposal state is not `Active` (`1`), return `state_conflict: "inactive_proposal"` with the numeric and readable state.
-
-2. **Force the standard vote broadcast past `estimateGas`**
-   - Update only the standard `castVoteBySig` path to pass hardcoded gas bounds:
+1. **Restore the Governor v5 vote ABI everywhere**
+   - In `supabase/functions/relay-governance-action/index.ts`, replace the current 5-argument `castVoteBySig(uint256,uint8,uint8,bytes32,bytes32)` entry with the v5 4-argument signature:
      ```ts
-     await gov.castVoteBySig(onchainId, supportValue, normalizedV, sig.r, sig.s, {
+     castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature)
+     ```
+   - Keep the Governor custom error ABI entries, especially `GovernorInvalidSignature(address)`, so future reverts remain decoded.
+   - In `src/config/contracts.ts`, update the shared frontend `GOVERNOR_ABI` to the same v5 4-argument layout.
+
+2. **Normalize the raw 65-byte signature hex in the edge function**
+   - Before broadcasting a standard gasless vote, inspect `signatureHex` directly.
+   - If it is a valid 132-character `0x` signature and the final byte is `00` or `01`, mutate only that suffix to `1b` or `1c`.
+   - Log the requested stages:
+     - `[GOV_RELAY][STANDARD_VOTE][NORMALIZE][START]`
+     - `[GOV_RELAY][STANDARD_VOTE][NORMALIZE][SUCCESS]`
+     - `[GOV_RELAY][STANDARD_VOTE][NORMALIZE][SKIP]`
+     - `[GOV_RELAY][STANDARD_VOTE][NORMALIZE][WARN]`
+
+3. **Broadcast with the v5 layout and preserve gas override**
+   - Replace the current `ethers.Signature.from(...); gov.castVoteBySig(onchainId, supportValue, v, r, s, { gasLimit: 300000 })` call with:
+     ```ts
+     gov.castVoteBySig(onchainId, supportValue, preflightAddr, finalSignatureHex, {
        gasLimit: 300000,
-     });
+     })
      ```
-   - Add the requested log line:
-     ```ts
-     [GOV_RELAY][STANDARD_VOTE][BROADCAST] Forcing execution with hardcoded gas bounds.
-     ```
-   - Leave the Tophat override path unchanged unless it hits the same estimation issue later.
+   - Keep the existing snapshot/state/hasVoted preflight diagnostics and structured error payloads.
+   - Fail safely if the preflight voter address is unavailable before the standard v5 broadcast.
 
-3. **Improve returned error payloads for UI/operator diagnosis**
-   - Include the preflight state snapshot in revert responses when available:
-     - `proposal_state`
-     - `proposal_state_name`
-     - `snapshot_block`
-     - `snapshot_weight`
-     - `already_voted`
-   - Preserve existing `decoded_error`, `decoded_args`, and `error_selector` fields.
+4. **Align the client-side relay preview encoder**
+   - In `src/services/governanceRelay.ts`, change the diagnostic `ethers.Interface` fragment back to the v5 4-argument layout.
+   - Encode with `proposalId`, `support`, `voter`, and the raw signature bytes, without splitting into `v/r/s` on the client.
+   - Leave the HTTP body shape unchanged: the edge function still receives `signature`, `voterAddress`, and `voter`.
 
-4. **Update frontend failure copy only where it consumes relay errors**
-   - In `ActiveProposalsList.tsx`, map new `state_conflict` values to precise user-facing toasts:
-     - zero snapshot power
-     - already voted
-     - inactive proposal / voting not open
-   - Avoid writing any off-chain vote mirror unless the existing chain-truth poll confirms a tally change.
-
-5. **Deploy edge function and verify logs**
-   - Deploy `relay-governance-action` after the patch.
-   - Check Supabase function logs for:
-     - `[GOV_RELAY][STATE_CHECK] Voter weight at snapshot block ...`
-     - `[GOV_RELAY][STANDARD_VOTE][BROADCAST] Forcing execution with hardcoded gas bounds.`
-   - If it still reverts, the forced transaction should produce a BaseScan hash/revert trail or the structured preflight payload should identify the state conflict before spend.
+5. **Deploy and verify**
+   - Deploy `relay-governance-action` after implementation.
+   - Verify logs show the normalization and v5 broadcast path, especially:
+     - `[GOV_RELAY][STANDARD_VOTE][NORMALIZE][SUCCESS]` or `[SKIP]`
+     - `[GOV_RELAY][STANDARD_VOTE][BROADCAST][START] Pushing v5 payload to EVM mempool.`
