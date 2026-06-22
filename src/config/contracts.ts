@@ -143,7 +143,7 @@ export const GOVERNOR_ABI = [
   "function propose(address[] targets, uint256[] values, bytes[] calldatas, string description) returns (uint256)",
   "function castVote(uint256 proposalId, uint8 support) returns (uint256)",
   "function castVoteWithReason(uint256 proposalId, uint8 support, string reason) returns (uint256)",
-  "function castVoteBySig(uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s) returns (uint256)",
+  "function castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature) returns (uint256)",
   "function queue(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) returns (uint256)",
   "function execute(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) returns (uint256)",
   "function hasVoted(uint256 proposalId, address account) view returns (bool)",

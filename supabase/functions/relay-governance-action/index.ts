@@ -31,7 +31,7 @@ const IDIA_TOKEN_ADDR_FOR_VOTES = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
 
 const GOVERNOR_ABI = [
   "function castVote(uint256 proposalId, uint8 support) returns (uint256)",
-  "function castVoteBySig(uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s) returns (uint256)",
+  "function castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature) returns (uint256)",
   "function state(uint256 proposalId) view returns (uint8)",
   "function proposalProposer(uint256 proposalId) view returns (address)",
   "function proposalSnapshot(uint256 proposalId) view returns (uint256)",
@@ -723,21 +723,36 @@ serve(async (req) => {
           if (!signatureHex) {
             return jsonResponse({ error: "Missing EIP-712 signature for gasless vote.", failed_at: stage }, 400);
           }
-          console.log("[GOV_VOTE][ALIGNMENT][START] Enforcing OZ v4.9 5-arg castVoteBySig selector for gasless vote.");
-          const sig = ethers.Signature.from(signatureHex);
-          let normalizedV = Number(sig.v);
-          if (normalizedV === 0) normalizedV = 27;
-          if (normalizedV === 1) normalizedV = 28;
+          if (!preflightAddr || !ethers.isAddress(preflightAddr)) {
+            return jsonResponse({ error: "Missing or invalid voter address for v5 castVoteBySig broadcast.", failed_at: stage }, 400);
+          }
+
+          // Surgical v-byte normalization on the raw 65-byte hex suffix.
+          // OZ v5 SignatureChecker requires v ∈ {27, 28}; wallets sometimes emit 0/1.
+          console.log("[GOV_RELAY][STANDARD_VOTE][NORMALIZE][START] Inspecting raw signature hex for y-parity anomalies.");
+          let finalSignatureHex = signatureHex;
+          if (finalSignatureHex && finalSignatureHex.startsWith("0x") && finalSignatureHex.length === 132) {
+            const vHex = finalSignatureHex.slice(-2);
+            let vNum = parseInt(vHex, 16);
+            if (vNum === 0 || vNum === 1) {
+              vNum += 27;
+              finalSignatureHex = finalSignatureHex.slice(0, -2) + vNum.toString(16).padStart(2, "0");
+              console.log(`[GOV_RELAY][STANDARD_VOTE][NORMALIZE][SUCCESS] Mutated signature hex suffix from ${vHex} to ${vNum.toString(16)}`);
+            } else {
+              console.log(`[GOV_RELAY][STANDARD_VOTE][NORMALIZE][SKIP] Signature v-byte is already normalized: ${vNum}`);
+            }
+          } else {
+            console.warn(`[GOV_RELAY][STANDARD_VOTE][NORMALIZE][WARN] Signature length irregular: ${finalSignatureHex?.length}. Proceeding without mutation.`);
+          }
+
+          console.log("[GOV_RELAY][STANDARD_VOTE][BROADCAST][START] Pushing v5 payload to EVM mempool.");
           console.log(
-            `[GOV_RELAY][STANDARD_VOTE][NORMALIZE] Adjusted v from ${sig.v} to ${normalizedV} (r=${sig.r} s=${sig.s})`,
+            `[GOV_VOTE][ALIGNMENT][SUCCESS] castVoteBySig(${onchainId}, ${supportValue}, ${preflightAddr}, <bytes>) -> ${networkConfig.governor}`,
           );
-          console.log(
-            `[GOV_VOTE][ALIGNMENT][SUCCESS] castVoteBySig(${onchainId}, ${supportValue}, ${normalizedV}, r, s) -> ${networkConfig.governor}`,
-          );
-          console.log("[GOV_RELAY][STANDARD_VOTE][BROADCAST] Forcing execution with hardcoded gas bounds.");
-          tx = await gov.castVoteBySig(onchainId, supportValue, normalizedV, sig.r, sig.s, {
+          tx = await gov.castVoteBySig(onchainId, supportValue, preflightAddr, finalSignatureHex, {
             gasLimit: 300000,
           });
+          console.log(`[GOV_RELAY][STANDARD_VOTE][BROADCAST][SUCCESS] Transaction acquired hash: ${tx.hash}`);
         }
         console.log(`[GOV_RELAY][${tag}][${stage}] Tx submitted: ${tx.hash}`);
 
