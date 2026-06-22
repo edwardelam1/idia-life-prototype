@@ -28,7 +28,6 @@ interface Comment {
   author_id: string;
   body: string;
   created_at: string;
-  // Included relational profile data
   profiles?: { wallet_address: string }; 
 }
 
@@ -57,34 +56,76 @@ const MotionThread: React.FC<MotionThreadProps> = ({ proposal, open, onClose, on
   }, [open, proposal?.id]);
 
   const hydrate = async () => {
+    console.log("[MOTION_THREAD][HYDRATE][START] Initiating data hydration sequence.");
     if (!proposal) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    setUserId(user.id);
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log("[MOTION_THREAD][HYDRATE][SKIP] No authenticated user found.");
+        return;
+      }
+      setUserId(user.id);
 
-    const [{ data: hats }, { data: cs }, { data: sigs }] = await Promise.all([
-      (supabase as any).from("dao_hats").select("hat_type").eq("user_id", user.id)
-        .eq("eligibility_status", "active").is("revoked_at", null),
-      // Appended profiles(wallet_address) to the query to fetch the 0x string
-      (supabase as any).from("proposal_comments").select("id, author_id, body, created_at, profiles(wallet_address)")
-        .eq("proposal_id", proposal.id).order("created_at", { ascending: true }),
-      (supabase as any).from("proposal_signatures").select("id, signer_id, signature_type, created_at")
-        .eq("proposal_id", proposal.id),
-    ]);
-    const hatSet = new Set<string>((hats || []).map((h: any) => h.hat_type));
-    setLevel(getAscensionLevel(hatSet));
-    setHasHat(proposal.committee_id ? hatSet.has(proposal.committee_id) : false);
-    setComments(cs || []);
-    setSignatures(sigs || []);
+      console.log("[MOTION_THREAD][HYDRATE][FETCH_CORE][START] Requesting hats, comments, and signatures.");
+      // Decoupled fetch: No strict inline join to prevent foreign key crash
+      const [hatsRes, commentsRes, sigsRes] = await Promise.all([
+        (supabase as any).from("dao_hats").select("hat_type").eq("user_id", user.id)
+          .eq("eligibility_status", "active").is("revoked_at", null),
+        (supabase as any).from("proposal_comments").select("id, author_id, body, created_at")
+          .eq("proposal_id", proposal.id).order("created_at", { ascending: true }),
+        (supabase as any).from("proposal_signatures").select("id, signer_id, signature_type, created_at")
+          .eq("proposal_id", proposal.id),
+      ]);
+      console.log("[MOTION_THREAD][HYDRATE][FETCH_CORE][END:OK] Core telemetry retrieved.");
+
+      const rawComments = commentsRes.data || [];
+      let enrichedComments = rawComments;
+      
+      if (rawComments.length > 0) {
+        console.log("[MOTION_THREAD][HYDRATE][FETCH_PROFILES][START] Resolving wallet addresses for authors.");
+        const uniqueAuthorIds = [...new Set(rawComments.map((c: any) => c.author_id))];
+        
+        const { data: profilesData, error: profileError } = await (supabase as any)
+          .from("profiles")
+          .select("id, wallet_address")
+          .in("id", uniqueAuthorIds);
+
+        if (profileError) {
+          console.error(`[MOTION_THREAD][HYDRATE][FETCH_PROFILES][ERROR] Address resolution failed: ${profileError.message}`);
+        }
+
+        const profileMap = new Map((profilesData || []).map((p: any) => [p.id, p]));
+        enrichedComments = rawComments.map((c: any) => ({
+          ...c,
+          profiles: profileMap.get(c.author_id) || null
+        }));
+        console.log("[MOTION_THREAD][HYDRATE][FETCH_PROFILES][END:OK] Addresses stitched to comments.");
+      }
+
+      const hatSet = new Set<string>((hatsRes.data || []).map((h: any) => h.hat_type));
+      setLevel(getAscensionLevel(hatSet));
+      setHasHat(proposal.committee_id ? hatSet.has(proposal.committee_id) : false);
+      
+      setComments(enrichedComments);
+      setSignatures(sigsRes.data || []);
+      console.log("[MOTION_THREAD][HYDRATE][END:OK] Component state successfully bound.");
+    } catch (err: any) {
+      console.error(`[MOTION_THREAD][HYDRATE][FATAL_FAIL] Hydration collapsed. Reason: ${err.message}`);
+    }
   };
 
   const postComment = async () => {
+    console.log("[MOTION_THREAD][POST_COMMENT][START] Executing comment payload.");
     if (!proposal || !userId || newComment.trim().length < 2) return;
     setBusy(true);
     try {
+      console.log("[MOTION_THREAD][POST_COMMENT][ACA][START] Generating cryptographic intent.");
       const { hash, payload } = await generateACAHash(userId, `motion_comment_${proposal.id}`, [
         "MOTION_COMMENT", "DELIBERATION",
       ]);
+      console.log("[MOTION_THREAD][POST_COMMENT][ACA][END:OK] Hash generated.");
+
       const { error } = await (supabase as any).from("proposal_comments").insert({
         proposal_id: proposal.id,
         author_id: userId,
@@ -92,10 +133,13 @@ const MotionThread: React.FC<MotionThreadProps> = ({ proposal, open, onClose, on
         aca_hash_key: hash,
       });
       if (error) throw error;
+      
       await recordACA({ userId, sourceId: "GOV_MOTION_COMMENT", consentType: "MOTION_COMMENT_V1", hash, payload });
       setNewComment("");
       void hydrate();
+      console.log("[MOTION_THREAD][POST_COMMENT][END:OK] Comment securely committed.");
     } catch (e: any) {
+      console.error(`[MOTION_THREAD][POST_COMMENT][FATAL_FAIL] Execution reverted. Reason: ${e.message}`);
       toast({ title: "Comment failed", description: e.message, variant: "destructive" });
     } finally {
       setBusy(false);
@@ -103,6 +147,7 @@ const MotionThread: React.FC<MotionThreadProps> = ({ proposal, open, onClose, on
   };
 
   const sign = async (signature_type: "endorse" | "object") => {
+    console.log(`[MOTION_THREAD][SIGN][START] Executing ${signature_type.toUpperCase()} protocol.`);
     if (!proposal || !userId) return;
     setBusy(true);
     try {
@@ -116,10 +161,13 @@ const MotionThread: React.FC<MotionThreadProps> = ({ proposal, open, onClose, on
         aca_hash_key: hash,
       });
       if (error) throw error;
+      
       await recordACA({ userId, sourceId: "GOV_MOTION_SIGN", consentType: `MOTION_${signature_type.toUpperCase()}_V1`, hash, payload });
       toast({ title: signature_type === "endorse" ? "Endorsement recorded" : "Objection recorded" });
       void hydrate();
+      console.log(`[MOTION_THREAD][SIGN][END:OK] ${signature_type.toUpperCase()} firmly recorded.`);
     } catch (e: any) {
+      console.error(`[MOTION_THREAD][SIGN][FATAL_FAIL] Signature rejected. Reason: ${e.message}`);
       toast({ title: "Signature failed", description: e.message, variant: "destructive" });
     } finally {
       setBusy(false);
@@ -127,6 +175,7 @@ const MotionThread: React.FC<MotionThreadProps> = ({ proposal, open, onClose, on
   };
 
   const escalate = async () => {
+    console.log("[MOTION_THREAD][ESCALATE][START] Initiating DAO floor escalation.");
     if (!proposal || !userId) return;
     setBusy(true);
     try {
@@ -138,17 +187,19 @@ const MotionThread: React.FC<MotionThreadProps> = ({ proposal, open, onClose, on
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
+      
       toast({ title: "Motion escalated to DAO floor" });
       onChanged?.();
       onClose();
+      console.log("[MOTION_THREAD][ESCALATE][END:OK] Payload escalated successfully.");
     } catch (e: any) {
+      console.error(`[MOTION_THREAD][ESCALATE][FATAL_FAIL] Escalation dropped. Reason: ${e.message}`);
       toast({ title: "Escalate failed", description: e.message, variant: "destructive" });
     } finally {
       setBusy(false);
     }
   };
 
-  // Helper function to format the 0x address securely
   const formatAddress = (c: Comment) => {
     const addr = c.profiles?.wallet_address || c.author_id;
     if (addr.startsWith("0x") && addr.length === 42) {
@@ -165,14 +216,12 @@ const MotionThread: React.FC<MotionThreadProps> = ({ proposal, open, onClose, on
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      {/* Added strict safe-area bounds to prevent iOS header overlap */}
       <SheetContent 
         side="right" 
         className="w-full sm:max-w-md overflow-y-auto pt-[max(env(safe-area-inset-top),3rem)] pb-[max(env(safe-area-inset-bottom),2rem)]"
       >
         <SheetHeader>
           <div className="flex items-center gap-3">
-            {/* Hardcoded backward navigation to bypass hidden shadcn close buttons */}
             <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={onClose}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -244,7 +293,6 @@ const MotionThread: React.FC<MotionThreadProps> = ({ proposal, open, onClose, on
             ) : (
               comments.map((c) => (
                 <div key={c.id} className="rounded-2xl border border-border bg-card/50 p-3 space-y-1">
-                  {/* Now rendering the securely truncated 0x address */}
                   <p className="text-[9px] font-mono text-muted-foreground truncate">{formatAddress(c)}</p>
                   <p className="text-xs whitespace-pre-wrap">{c.body}</p>
                   <p className="text-[9px] text-muted-foreground">{new Date(c.created_at).toLocaleString()}</p>
