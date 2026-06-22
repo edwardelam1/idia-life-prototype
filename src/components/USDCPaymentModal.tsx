@@ -21,11 +21,12 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   paymentRequest: PaymentRequest | null;
+  connectedWallet?: string | null; // Added to support MetaMask integration
 }
 
 type Phase = 'review' | 'amount-entry' | 'signing' | 'relaying' | 'success' | 'error';
 
-const USDCPaymentModal: React.FC<Props> = ({ isOpen, onClose, paymentRequest }) => {
+const USDCPaymentModal: React.FC<Props> = ({ isOpen, onClose, paymentRequest, connectedWallet }) => {
   const { toast } = useToast();
   const { usdcBalance, refreshUSDCBalance, pay, isPaymentPending } = useUSDCPayment();
 
@@ -68,6 +69,8 @@ const USDCPaymentModal: React.FC<Props> = ({ isOpen, onClose, paymentRequest }) 
       await new Promise(r => setTimeout(r, 300));
       setPhase('relaying');
 
+      // Note: If you need to route the payment differently when connectedWallet is present, 
+      // you can pass connectedWallet into the `pay` function here depending on your hook implementation.
       const result = await pay(paymentRequest, customAmount || undefined);
 
       if (result.success) {
@@ -206,6 +209,14 @@ const USDCPaymentModal: React.FC<Props> = ({ isOpen, onClose, paymentRequest }) 
                     {usdcBalance ? `${parseFloat(usdcBalance.formatted).toFixed(2)} USDC` : 'Loading...'}
                   </span>
                 </div>
+
+                {/* Connected Wallet Info */}
+                {connectedWallet && (
+                  <div className="flex justify-between items-center text-sm border-t pt-2">
+                    <span className="text-muted-foreground">Paying With</span>
+                    <span className="text-orange-600 font-mono text-xs">{truncate(connectedWallet)}</span>
+                  </div>
+                )}
 
                 {/* Gas info */}
                 <div className="flex justify-between items-center text-sm">

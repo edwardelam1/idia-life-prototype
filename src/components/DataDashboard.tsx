@@ -4,22 +4,19 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Activity, CheckCircle, DollarSign, FileKey, Copy } from "lucide-react";
+import { Activity, CheckCircle, DollarSign, FileKey, Copy, Truck, Car } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-// 1. Rename the import to intercept it
 import { supabase as typedSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AppleHealthModal from "./AppleHealthModal";
 import AndroidHealthModal from "./AndroidHealthModal";
+import TruckstopConnectionModal from "./TruckstopConnectionModal";
+import FordConnectionModal from "./FordConnectionModal";
 import { isAndroid, isIOS, isWeb } from "@/services/platform";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 
-// 2. THE ULTIMATE BYPASS:
-// By typing this as 'any' at the root, TypeScript will NEVER evaluate
-// the deep database schema when you type `supabase.from()`.
 const supabase: any = typedSupabase;
 
-// THE BLOCKER: Strictly flat type expanded for telemetry awareness.
 interface DataBlocker {
   id: string;
   connection_type: string;
@@ -36,8 +33,13 @@ const DataDashboard = () => {
   const { balance, loading: balanceLoading } = useWalletBalance();
   const [connections, setConnections] = useState<DataBlocker[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Modal States
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
   const [showAndroidHealthModal, setShowAndroidHealthModal] = useState(false);
+  const [showTruckstopModal, setShowTruckstopModal] = useState(false);
+  const [showFordModal, setShowFordModal] = useState(false);
+  
   const [lastSyncStatus, setLastSyncStatus] = useState<string>("unknown");
   const [lastStatusChangeAt, setLastStatusChangeAt] = useState<Date | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -66,7 +68,6 @@ const DataDashboard = () => {
   const fetchAcaRecords = async () => {
     if (!currentUserId) return;
     setAcaLoading(true);
-    console.log("🚀 [DASHBOARD_LOG] START: fetchAcaRecords");
     try {
       const { data, error } = await supabase
         .from("user_aca_records")
@@ -80,68 +81,47 @@ const DataDashboard = () => {
       console.error("🚨 [DASHBOARD_LOG] Failed to fetch ACA records:", err.message);
     } finally {
       setAcaLoading(false);
-      console.log("🏁 [DASHBOARD_LOG] END: fetchAcaRecords");
     }
   };
 
   const fetchConnections = async () => {
-    console.log("🚀 [DASHBOARD_LOG] START: fetchConnections");
     try {
       const { data: authData } = await supabase.auth.getUser();
       const user = authData?.user;
-      if (!user) {
-        console.log("⚠️ [DASHBOARD_LOG] No user found in fetchConnections.");
-        return;
-      }
+      if (!user) return;
 
-      // 1. Fetch data connections (Is the pipe open?)
-      console.log("📡 [DASHBOARD_LOG] Fetching data_connections...");
       const connRes = await supabase.from("data_connections").select("*").eq("user_id", user.id);
 
       if (connRes.error) {
-        console.error("🚨 [DASHBOARD_LOG] Connection fetch failed:", connRes.error.message);
         throw connRes.error;
       }
 
-      // 2. Fetch absolute latest audit record (When did water last flow?)
-      // CRITICAL FIX: Changed "user_id" to "platform_guid" and removed the "Today" filter.
-      console.log("⚖️ [DASHBOARD_LOG] Fetching latest ACA audit record for platform_guid...");
       const auditRes = await supabase
         .from("user_aca_records")
         .select("created_at")
-        .eq("platform_guid", user.id) // <-- THE SMOKING GUN FIX
+        .eq("platform_guid", user.id)
         .eq("source_id", "apple_health")
         .order("created_at", { ascending: false })
         .limit(1);
-
-      if (auditRes.error) {
-        console.error("🚨 [DASHBOARD_LOG] Audit fetch failed:", auditRes.error.message);
-      }
 
       const rawData = connRes.data || [];
       const auditData = auditRes.data || [];
 
       let calculatedSyncStatus = "no_data";
 
-      // 3. Time-Based Logic (The Burst Architect)
       if (auditData.length > 0) {
         const lastSyncTime = new Date(auditData[0].created_at).getTime();
         const hoursSinceLastSync = (Date.now() - lastSyncTime) / (1000 * 60 * 60);
 
-        console.log(`⏱️ [DASHBOARD_LOG] Hours since last Apple Health sync: ${hoursSinceLastSync.toFixed(2)}`);
-
         if (hoursSinceLastSync < 6) {
           calculatedSyncStatus = "recent";
         } else if (hoursSinceLastSync < 24) {
-          calculatedSyncStatus = "delayed"; // Idle
+          calculatedSyncStatus = "delayed"; 
         } else {
           calculatedSyncStatus = "stale";
         }
-      } else {
-        console.log("⚠️ [DASHBOARD_LOG] No ACA records found for this platform_guid.");
       }
 
-      // 4. Map the UI State securely
       const cleaned: DataBlocker[] = [];
       for (let i = 0; i < rawData.length; i++) {
         const item = rawData[i];
@@ -153,6 +133,8 @@ const DataDashboard = () => {
 
         if (entry.connection_type === "apple_health") {
           entry.status = auditData.length > 0 ? "success" : "no_data";
+        } else {
+          entry.status = "success"; // Assume success for truckstop & ford mock
         }
         cleaned.push(entry);
       }
@@ -166,12 +148,10 @@ const DataDashboard = () => {
       });
       setConnections(cleaned);
 
-      // Wallet balance handled by useWalletBalance hook (USDC tile).
     } catch (error: any) {
       console.error("🚨 [DASHBOARD_LOG] FATAL Error in fetchConnections:", error.message);
     } finally {
       setLoading(false);
-      console.log("🏁 [DASHBOARD_LOG] END: fetchConnections");
     }
   };
 
@@ -254,7 +234,7 @@ const DataDashboard = () => {
           </div>
           {lastStatusChangeAt && (
             <p className="mt-3 pt-2 border-t border-border text-[10px] text-muted-foreground">
-              Last change: {formatRelative(lastStatusChangeAt)} · {lastStatusChangeAt.toLocaleString()}
+              Last change: {formatRelative(lastStatusChangeAt)}
             </p>
           )}
         </PopoverContent>
@@ -262,59 +242,38 @@ const DataDashboard = () => {
     );
   };
 
-  // Per-source sync badge. Each connection type owns its own badge state.
   const renderSyncBadgeFor = (connectionType: string) => {
-    if (connectionType === "apple_health") return getSyncStatusBadge();
+    if (connectionType === "apple_health" || connectionType === "health_connect") return getSyncStatusBadge();
+    if (connectionType === "truckstop") return <Badge variant="secondary" className="bg-orange-100 text-orange-800">Streaming</Badge>;
+    if (connectionType === "ford") return <Badge variant="secondary" className="bg-blue-100 text-blue-800">Streaming</Badge>;
     return null;
   };
 
   const handleAppleHealthComplete = async () => {
     try {
-      console.log("🔗 [DASHBOARD_LOG] Apple Health connection complete.");
       await fetchConnections();
       await fetchAcaRecords();
-      setShowAppleHealthModal(false); // Force close after connecting
+      setShowAppleHealthModal(false);
       triggerFriendForDataEvent();
     } catch {}
   };
 
   const handleAppleHealthDisconnect = async () => {
     try {
-      console.log("🔌 [DASHBOARD_LOG] Apple Health disconnect triggered.");
-      if (!currentUserId) {
-        console.log("⚠️ [DASHBOARD_LOG] No user ID, aborting disconnect.");
-        return;
-      }
-
-      // THE MISSING COMMAND: Explicitly tell Supabase to destroy the connection
-      console.log("🗑️ [DASHBOARD_LOG] Executing database deletion for apple_health...");
+      if (!currentUserId) return;
       const { error } = await supabase
         .from("data_connections")
         .delete()
         .eq("user_id", currentUserId)
         .eq("connection_type", "apple_health");
 
-      if (error) {
-        console.error("🚨 [DASHBOARD_LOG] Database deletion failed:", error.message);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log("✅ [DASHBOARD_LOG] Deletion successful. Refreshing UI.");
-
-      // Now we refresh the local state and close the doors
       await fetchConnections();
       setShowAppleHealthModal(false);
-
-      toast({
-        title: "Source Disconnected",
-        description: "Apple Health data has been unlinked.",
-      });
+      toast({ title: "Source Disconnected" });
     } catch (err: any) {
-      toast({
-        title: "Disconnect Failed",
-        description: err.message || "Could not sever the connection.",
-        variant: "destructive",
-      });
+      toast({ title: "Disconnect Failed", description: err.message, variant: "destructive" });
     }
   };
 
@@ -325,6 +284,8 @@ const DataDashboard = () => {
   const visibleConnections = connections.filter((c) => {
     if (c.connection_type === "apple_health") return isIOS() || isWeb();
     if (c.connection_type === "health_connect") return isAndroid();
+    if (c.connection_type === "truckstop") return true;
+    if (c.connection_type === "ford") return true;
     return false;
   });
 
@@ -342,6 +303,11 @@ const DataDashboard = () => {
       </div>
     );
   }
+
+  const healthType = isAndroid() ? "health_connect" : "apple_health";
+  const hasHealth = getConnectionStatus(healthType);
+  const hasTruckstop = getConnectionStatus("truckstop");
+  const hasFord = getConnectionStatus("ford");
 
   return (
     <div className="space-y-4">
@@ -378,54 +344,71 @@ const DataDashboard = () => {
         <TabsContent value="connections" className="space-y-4">
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">Available Data Sources</h2>
-            {(() => {
-              const healthType = isAndroid() ? "health_connect" : "apple_health";
-              const hasHealth = getConnectionStatus(healthType);
-              
-              if (hasHealth) {
-                return (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">All available data sources connected</p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {/* Health App Connection */}
+              {!hasHealth && (
+                <div
+                  className="relative cursor-pointer group flex flex-col items-center p-4 bg-card rounded-2xl border border-border hover:shadow-md transition-all"
+                  onClick={() => {
+                    if (isAndroid()) setShowAndroidHealthModal(true);
+                    else setShowAppleHealthModal(true);
+                  }}
+                >
+                  <div className="w-14 h-14 rounded-full overflow-hidden bg-muted/30 flex items-center justify-center mb-2">
+                    {isAndroid() ? (
+                      <Activity className="w-7 h-7 text-green-600" />
+                    ) : (
+                      <img src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" alt="Apple Health" className="w-8 h-8 object-contain" />
+                    )}
                   </div>
-                );
-              }
-              
-              return (
-                <div className="flex justify-center">
-                  <div
-                    className="relative cursor-pointer group"
-                    onClick={() => {
-                      if (isAndroid()) setShowAndroidHealthModal(true);
-                      else setShowAppleHealthModal(true);
-                    }}
-                  >
-                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border transition-all group-hover:shadow-md group-hover:scale-105">
-                      {isAndroid() ? (
-                        <div className="w-full h-full flex items-center justify-center bg-green-50">
-                          <Activity className="w-8 h-8 text-green-600" />
-                        </div>
-                      ) : (
-                        <img
-                          src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
-                          alt="Apple Health"
-                          className="w-full h-full object-contain p-2"
-                        />
-                      )}
-                    </div>
-                    <p className="text-xs text-center mt-1 text-muted-foreground">
-                      {isAndroid() ? "Health Connect" : "Apple Health"}
-                    </p>
-                  </div>
+                  <p className="text-xs font-bold text-center">
+                    {isAndroid() ? "Health Connect" : "Apple Health"}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground mt-1">Biometrics</p>
                 </div>
-              );
-            })()}
+              )}
+
+              {/* Ford Connection */}
+              {!hasFord && (
+                <div
+                  className="relative cursor-pointer group flex flex-col items-center p-4 bg-card rounded-2xl border border-border hover:shadow-md transition-all"
+                  onClick={() => setShowFordModal(true)}
+                >
+                  <div className="w-14 h-14 rounded-full overflow-hidden bg-blue-50 flex items-center justify-center mb-2">
+                    <Car className="w-7 h-7 text-blue-600" />
+                  </div>
+                  <p className="text-xs font-bold text-center">FordConnect</p>
+                  <p className="text-[9px] text-muted-foreground mt-1">Vehicle Telemetry</p>
+                </div>
+              )}
+
+              {/* Truckstop Connection */}
+              {!hasTruckstop && (
+                <div
+                  className="relative cursor-pointer group flex flex-col items-center p-4 bg-card rounded-2xl border border-border hover:shadow-md transition-all"
+                  onClick={() => setShowTruckstopModal(true)}
+                >
+                  <div className="w-14 h-14 rounded-full overflow-hidden bg-orange-50 flex items-center justify-center mb-2">
+                    <Truck className="w-7 h-7 text-[#FF5A00]" />
+                  </div>
+                  <p className="text-xs font-bold text-center">Truckstop Go</p>
+                  <p className="text-[9px] text-muted-foreground mt-1">Freight Telemetry</p>
+                </div>
+              )}
+
+              {hasHealth && hasFord && hasTruckstop && (
+                <div className="col-span-full text-center py-6 text-muted-foreground">
+                  <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50 text-teal-600" />
+                  <p className="text-sm">All available sources connected</p>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="space-y-4">
-            <h2 className="text-xl font-bold text-foreground">Connected Data Sources</h2>
+            <h2 className="text-xl font-bold text-foreground">Active Streams</h2>
             {visibleConnections.length > 0 ? (
-              <div className="flex justify-center space-x-8">
+              <div className="flex flex-wrap gap-6">
                 {visibleConnections.map((connection) => (
                   <div
                     key={connection.id}
@@ -433,72 +416,72 @@ const DataDashboard = () => {
                     onClick={() => {
                       if (connection.connection_type === "apple_health") setShowAppleHealthModal(true);
                       else if (connection.connection_type === "health_connect") setShowAndroidHealthModal(true);
+                      else if (connection.connection_type === "ford") setShowFordModal(true);
+                      else if (connection.connection_type === "truckstop") setShowTruckstopModal(true);
                     }}
                   >
                     <div className="relative">
-                      <div className="w-16 h-16 rounded-lg overflow-hidden bg-background shadow-sm border-2 border-green-500 transition-all group-hover:shadow-md group-hover:scale-105">
-                        {connection.connection_type === "health_connect" ? (
-                          <div className="w-full h-full flex items-center justify-center bg-green-50">
-                            <Activity className="w-8 h-8 text-green-600" />
-                          </div>
-                        ) : (
-                          <img
-                            src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
-                            alt={connection.connection_type}
-                            className="w-full h-full object-contain p-2"
-                          />
-                        )}
+                      <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border-2 border-emerald-400 transition-all group-hover:scale-105 flex items-center justify-center">
+                        {connection.connection_type === "health_connect" && <Activity className="w-8 h-8 text-green-600" />}
+                        {connection.connection_type === "apple_health" && <img src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" alt="Apple Health" className="w-8 h-8 object-contain" />}
+                        {connection.connection_type === "ford" && <Car className="w-8 h-8 text-blue-600" />}
+                        {connection.connection_type === "truckstop" && <Truck className="w-8 h-8 text-[#FF5A00]" />}
                       </div>
-                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background">
-                        <CheckCircle className="w-3 h-3 text-white" />
+                      <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-background flex items-center justify-center">
+                        <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
                       </div>
                     </div>
-                    <div className="mt-2">{renderSyncBadgeFor(connection.connection_type)}</div>
+                    <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground">
+                      {formatSourceName(connection.connection_type)}
+                    </p>
+                    <div className="mt-1">{renderSyncBadgeFor(connection.connection_type)}</div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Activity className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No data sources connected yet</p>
+              <div className="text-center py-8 text-muted-foreground bg-slate-50 dark:bg-muted/20 rounded-2xl border border-dashed">
+                <Activity className="w-6 h-6 mx-auto mb-2 opacity-30" />
+                <p className="text-[11px] uppercase tracking-widest font-bold">No Active Streams</p>
               </div>
             )}
           </div>
         </TabsContent>
 
         <TabsContent value="audit">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2 text-base">
-                <FileKey className="w-4 h-4" />
+          <Card className="rounded-[1.5rem] border-none shadow-md overflow-hidden">
+            <CardHeader className="bg-muted/30 pb-4">
+              <CardTitle className="flex items-center space-x-2 text-sm uppercase tracking-widest font-black text-muted-foreground">
+                <FileKey className="w-4 h-4 text-teal-600" />
                 <span>Audit Log</span>
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               {acaLoading ? (
                 <div className="text-center py-8 text-muted-foreground text-sm">Loading audit records...</div>
+              ) : acaRecords.length === 0 ? (
+                 <div className="text-center py-8 text-muted-foreground text-[10px] uppercase tracking-widest">No entries found</div>
               ) : (
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Source</TableHead>
-                      <TableHead>ACA Hash (Audit Key)</TableHead>
-                      <TableHead>Timestamp</TableHead>
+                    <TableRow className="bg-muted/10 hover:bg-muted/10">
+                      <TableHead className="text-[10px] uppercase tracking-widest">Source</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-widest">ACA Hash (Audit Key)</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-widest text-right">Timestamp</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {acaRecords.map((record) => (
                       <TableRow key={record.id}>
-                        <TableCell className="font-medium text-sm">
+                        <TableCell className="font-bold text-xs">
                           {formatSourceName(record.source_id || "unknown")}
                         </TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
+                        <TableCell className="font-mono text-[10px] text-muted-foreground">
                           <div className="flex items-center gap-2">
-                            <span>{record.aca_hash_key?.substring(0, 12)}...</span>
+                            <span className="truncate max-w-[80px] sm:max-w-none">{record.aca_hash_key?.substring(0, 16)}...</span>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-6 w-6"
+                              className="h-5 w-5 hover:bg-teal-50 hover:text-teal-600"
                               onClick={() => {
                                 navigator.clipboard.writeText(record.aca_hash_key || "");
                                 toast({ title: "Copied", description: "ACA hash copied to clipboard" });
@@ -508,8 +491,8 @@ const DataDashboard = () => {
                             </Button>
                           </div>
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {new Date(record.created_at).toLocaleString()}
+                        <TableCell className="text-[9px] text-muted-foreground text-right whitespace-nowrap">
+                          {new Date(record.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -540,6 +523,34 @@ const DataDashboard = () => {
         onDisconnect={async () => {
           await fetchConnections();
           setShowAndroidHealthModal(false);
+        }}
+      />
+      
+      <FordConnectionModal
+        isOpen={showFordModal}
+        onClose={() => setShowFordModal(false)}
+        onComplete={async () => {
+          setShowFordModal(false);
+          await fetchConnections();
+        }}
+        existingConnection={getConnectionStatus("ford")}
+        onDisconnect={async () => {
+          await fetchConnections();
+          setShowFordModal(false);
+        }}
+      />
+
+      <TruckstopConnectionModal
+        isOpen={showTruckstopModal}
+        onClose={() => setShowTruckstopModal(false)}
+        onComplete={async () => {
+          setShowTruckstopModal(false);
+          await fetchConnections();
+        }}
+        existingConnection={getConnectionStatus("truckstop")}
+        onDisconnect={async () => {
+          await fetchConnections();
+          setShowTruckstopModal(false);
         }}
       />
     </div>

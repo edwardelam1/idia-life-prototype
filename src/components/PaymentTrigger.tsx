@@ -1,119 +1,197 @@
 /**
  * PaymentTrigger
  *
- * USDC payment initiation via NFC tap (Android only) or QR scan (both platforms).
- * Shows "Coming Soon" when on mainnet (Base), active when on testnet (Base Sepolia).
+ * USDC payment initiation via NFC tap (iOS & Android) and MetaMask API integration.
+ * - iOS: Routes through the custom Swift WKWebView bridge (`initiateNfcHandshake`)
+ * - Android: Routes through the Capacitor IDIANFC plugin
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Nfc, QrCode, Loader2, AlertTriangle, Camera, Clock } from 'lucide-react';
+import { Nfc, Loader2, AlertTriangle, Wallet } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
-import { isAndroid } from '@/services/platform';
-import { parsePaymentRequest, USDC_PAYMENTS_ENABLED, type PaymentRequest } from '@/config/usdc';
+import { isAndroid, isIOS } from '@/services/platform';
+import { parsePaymentRequest, type PaymentRequest } from '@/config/usdc';
 import IDIANFC from '@/plugins/nfc';
 import USDCPaymentModal from './USDCPaymentModal';
+
+// Extend the Window object to support the custom iOS WebKit bridge
+declare global {
+  interface Window {
+    webkit?: {
+      messageHandlers?: {
+        initiateNfcHandshake?: {
+          postMessage: (payload: any) => void;
+        };
+      };
+    };
+    onNfcHandshakeComplete?: (response: any) => void;
+    onNfcHandshakeError?: (error: string) => void;
+    ethereum?: any;
+  }
+}
 
 const PaymentTrigger: React.FC = () => {
   const [isNfcListening, setIsNfcListening] = useState(false);
   const [nfcError, setNfcError] = useState<string | null>(null);
-  const [showQrScanner, setShowQrScanner] = useState(false);
-  const [qrInput, setQrInput] = useState('');
-  const [qrError, setQrError] = useState<string | null>(null);
   const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  
+  // MetaMask State
+  const [metaMaskAddress, setMetaMaskAddress] = useState<string | null>(null);
+  const [isMetaMaskConnecting, setIsMetaMaskConnecting] = useState(false);
+  const [metaMaskError, setMetaMaskError] = useState<string | null>(null);
 
-  // Payments only enabled on testnet builds (controlled by ACTIVE_DEPLOYMENT in contracts.ts)
-  const isPaymentEnabled = USDC_PAYMENTS_ENABLED;
+  // Clean up global iOS callbacks on unmount
+  useEffect(() => {
+    return () => {
+      if (window.onNfcHandshakeComplete) delete window.onNfcHandshakeComplete;
+      if (window.onNfcHandshakeError) delete window.onNfcHandshakeError;
+    };
+  }, []);
 
-  // ─── NFC Tap Handler (Android only) ────────────────────────────
+  // ─── MetaMask Integration ────────────────────────────────────────
+
+  const connectMetaMask = async () => {
+    console.log("[PaymentTrigger][connectMetaMask][START] Initiating MetaMask connection sequence");
+    setIsMetaMaskConnecting(true);
+    setMetaMaskError(null);
+
+    try {
+      if (typeof window.ethereum === 'undefined') {
+        console.error("[PaymentTrigger][connectMetaMask][FATAL_FAIL] window.ethereum is undefined. MetaMask not detected.");
+        throw new Error("MetaMask is not installed or available in this environment.");
+      }
+
+      console.log("[PaymentTrigger][connectMetaMask][RPC_CALL] Executing eth_requestAccounts");
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+
+      if (accounts && accounts.length > 0) {
+        setMetaMaskAddress(accounts[0]);
+        console.log(`[PaymentTrigger][connectMetaMask][END:OK] Successfully bound MetaMask account: ${accounts[0]}`);
+      } else {
+        console.warn("[PaymentTrigger][connectMetaMask][FATAL_FAIL] RPC returned empty accounts array.");
+        throw new Error("No accounts returned from MetaMask.");
+      }
+    } catch (error: any) {
+      console.error(`[PaymentTrigger][connectMetaMask][FATAL_FAIL] Connection aborted: ${error.message}`);
+      setMetaMaskError(error.message || "Failed to connect to MetaMask");
+    } finally {
+      console.log("[PaymentTrigger][connectMetaMask][CLEANUP] Releasing connection lock");
+      setIsMetaMaskConnecting(false);
+    }
+  };
+
+  // ─── NFC Tap Handler (iOS & Android) ─────────────────────────────
 
   const handleNfcTap = useCallback(async () => {
-    if (!isPaymentEnabled) return;
+    console.log('[PaymentTrigger][handleNfcTap][START] Activating NFC hardware polling');
     setNfcError(null);
     setIsNfcListening(true);
 
-    try {
-      if (!Capacitor.isNativePlatform()) {
-        setNfcError('NFC is only available on mobile devices.');
+    const payloadConfig = { aca_hash: 'PAYMENT_INTENT', base_signature: 'pending_payment' };
+
+    // --- iOS WEBKIT BRIDGE PATH ---
+    if (isIOS()) {
+      console.log('[PaymentTrigger][handleNfcTap][iOS] Routing to custom WebKit bridge');
+      
+      if (!window.webkit?.messageHandlers?.initiateNfcHandshake) {
+        console.error('[PaymentTrigger][handleNfcTap][iOS_FAIL] WebKit message handler not found');
+        setNfcError('iOS NFC Bridge not found. Please ensure you are running the IDIA Native App.');
         setIsNfcListening(false);
         return;
       }
 
-      console.log('[PaymentTrigger] Starting NFC reader...');
+      // Define success callback for Swift to hit
+      window.onNfcHandshakeComplete = (response) => {
+        console.log('[PaymentTrigger][handleNfcTap][iOS_SUCCESS] Received payload from CoreNFC');
+        processRawNfcPayload(response);
+      };
 
-      const result = await IDIANFC.beginHandshake({
-        config: { aca_hash: 'PAYMENT_INTENT', base_signature: 'pending_payment' },
-      });
+      // Define error callback for Swift to hit
+      window.onNfcHandshakeError = (errorMsg) => {
+        console.error(`[PaymentTrigger][handleNfcTap][iOS_ERROR] CoreNFC failed: ${errorMsg}`);
+        if (!errorMsg.toLowerCase().includes('cancel')) {
+          setNfcError(errorMsg || 'Failed to read NFC tag');
+        }
+        setIsNfcListening(false);
+      };
 
-      console.log('[PaymentTrigger] NFC result:', result);
+      // Trigger the Swift layer
+      window.webkit.messageHandlers.initiateNfcHandshake.postMessage(payloadConfig);
+      return;
+    }
 
-      // The plugin returns { payload: '{"scanned_intent":"...","aca_hash":"...","timestamp":"..."}' }
-      const payloadStr = typeof result.payload === 'string'
-        ? result.payload
-        : JSON.stringify(result.payload);
+    // --- ANDROID CAPACITOR PATH ---
+    if (isAndroid() && Capacitor.isNativePlatform()) {
+      console.log('[PaymentTrigger][handleNfcTap][Android] Routing to Capacitor plugin');
+      try {
+        const result = await IDIANFC.beginHandshake({ config: payloadConfig });
+        console.log('[PaymentTrigger][handleNfcTap][Android_SUCCESS] Received payload from Capacitor');
+        processRawNfcPayload(result.payload);
+      } catch (e: any) {
+        console.error(`[PaymentTrigger][handleNfcTap][Android_ERROR] Hardware read aborted: ${e.message}`);
+        if (e.message?.includes('cancelled') || e.message?.includes('cancel')) {
+          setNfcError(null);
+        } else if (e.message?.includes('unsupported') || e.message?.includes('disabled')) {
+          setNfcError('NFC is not available or disabled. Check your device settings.');
+        } else {
+          setNfcError(e.message || 'Failed to read NFC tag');
+        }
+        setIsNfcListening(false);
+      }
+      return;
+    }
 
-      console.log('[PaymentTrigger] Raw payload string:', payloadStr);
+    // --- FALLBACK ---
+    console.error('[PaymentTrigger][handleNfcTap][FATAL_FAIL] Execution blocked: Unsupported platform');
+    setNfcError('NFC is only available on iOS and Android mobile devices.');
+    setIsNfcListening(false);
 
-      // Extract scanned_intent from the wrapper
-      let rawPaymentData: string;
+  }, []);
+
+  // Centralized parsing logic for both iOS and Android payloads
+  const processRawNfcPayload = (rawPayload: any) => {
+    try {
+      const payloadStr = typeof rawPayload === 'string' ? rawPayload : JSON.stringify(rawPayload);
+      console.log(`[PaymentTrigger][processRawNfcPayload] Raw structure: ${payloadStr}`);
+
+      let extractedIntent: string;
       try {
         const nfcResult = JSON.parse(payloadStr);
-        rawPaymentData = nfcResult.scanned_intent || payloadStr;
-        console.log('[PaymentTrigger] Extracted scanned_intent:', rawPaymentData);
+        extractedIntent = nfcResult.scanned_intent || payloadStr;
       } catch {
-        rawPaymentData = payloadStr;
-        console.log('[PaymentTrigger] Using raw payload (no JSON wrapper):', rawPaymentData);
+        extractedIntent = payloadStr;
       }
 
-      const parsed = parsePaymentRequest(rawPaymentData);
-      console.log('[PaymentTrigger] Parsed payment request:', parsed);
+      console.log('[PaymentTrigger][processRawNfcPayload] Validating standard USDC payment request');
+      const parsed = parsePaymentRequest(extractedIntent);
 
       if (!parsed) {
+        console.error('[PaymentTrigger][processRawNfcPayload][FATAL_FAIL] Parsing rejected: Invalid USDC request');
         setNfcError('This NFC tag does not contain a valid USDC payment request.');
         setIsNfcListening(false);
         return;
       }
 
+      console.log('[PaymentTrigger][processRawNfcPayload][END:OK] Payment parsed successfully. Hydrating modal.');
       setPaymentRequest(parsed);
       setShowPaymentModal(true);
-    } catch (e: any) {
-      console.error('[PaymentTrigger] NFC error:', e);
-      if (e.message?.includes('cancelled') || e.message?.includes('cancel')) {
-        setNfcError(null);
-      } else if (e.message?.includes('unsupported') || e.message?.includes('disabled')) {
-        setNfcError('NFC is not available or disabled. Check your device settings.');
-      } else {
-        setNfcError(e.message || 'Failed to read NFC tag');
-      }
+    } catch (err: any) {
+      console.error(`[PaymentTrigger][processRawNfcPayload][FATAL_FAIL] Payload processing error: ${err.message}`);
+      setNfcError('An error occurred while processing the NFC payload.');
     } finally {
       setIsNfcListening(false);
     }
-  }, [isPaymentEnabled]);
-
-  // ─── QR Code Handler ──────────────────────────────────────────
-
-  const handleQrSubmit = useCallback(() => {
-    setQrError(null);
-    const trimmed = qrInput.trim();
-    if (!trimmed) { setQrError('Please paste a payment QR code or URL.'); return; }
-
-    const parsed = parsePaymentRequest(trimmed);
-    if (!parsed) { setQrError('Invalid payment code. Expected a USDC payment request.'); return; }
-
-    setPaymentRequest(parsed);
-    setShowPaymentModal(true);
-    setShowQrScanner(false);
-    setQrInput('');
-  }, [qrInput]);
+  };
 
   const handlePaymentClose = useCallback(() => {
+    console.log('[PaymentTrigger][handlePaymentClose][START] Teardown of active payment modal initiated');
     setShowPaymentModal(false);
     setPaymentRequest(null);
+    console.log('[PaymentTrigger][handlePaymentClose][END:OK] State cleared');
   }, []);
 
   return (
@@ -124,83 +202,84 @@ const PaymentTrigger: React.FC = () => {
             <CardTitle className="flex items-center gap-2 text-base">
               Pay with USDC
             </CardTitle>
-            {isPaymentEnabled ? (
-              <Badge variant="secondary" className="bg-purple-100 text-purple-800 text-xs">Testnet</Badge>
-            ) : (
-              <Badge variant="secondary" className="bg-amber-100 text-amber-800 text-xs">Coming Soon</Badge>
-            )}
+            <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 text-white text-xs">
+              Live Mainnet
+            </Badge>
           </div>
           <CardDescription className="text-xs">
-            {isPaymentEnabled
-              ? "Send USDC payments via NFC tap or QR code. No gas fees — powered by IDIA relay."
-              : "Gasless USDC payments are coming soon. This feature is currently in development."}
+            Send live USDC payments via NFC tap or execute via MetaMask. No gas fees — powered by IDIA relay.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {isPaymentEnabled ? (
-            <>
-              {/* NFC Tap — Android only */}
-              {isAndroid() && (
-                <Button
-                  onClick={handleNfcTap}
-                  disabled={isNfcListening}
-                  className="w-full bg-gradient-to-r from-blue-500 to-teal-500 hover:from-blue-600 hover:to-teal-600 text-white h-12"
-                >
-                  {isNfcListening ? (
-                    <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Waiting for NFC tap...</>
-                  ) : (
-                    <><Nfc className="w-5 h-5 mr-2" />Tap to Pay</>
-                  )}
-                </Button>
-              )}
-
+        <CardContent className="space-y-4">
+          
+          {/* NFC Tap — Renders only on iOS or Android */}
+          {(isIOS() || isAndroid()) && (
+            <div className="space-y-2">
+              <Button
+                onClick={handleNfcTap}
+                disabled={isNfcListening}
+                className="w-full bg-gradient-to-r from-blue-500 to-teal-500 hover:from-blue-600 hover:to-teal-600 text-white h-12"
+              >
+                {isNfcListening ? (
+                  <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Waiting for NFC tap...</>
+                ) : (
+                  <><Nfc className="w-5 h-5 mr-2" />Tap to Pay</>
+                )}
+              </Button>
               {nfcError && (
                 <div className="p-2 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-300 flex items-start gap-2">
                   <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />{nfcError}
                 </div>
               )}
-
-              {/* QR Code — both platforms */}
-              <Button variant="outline" onClick={() => setShowQrScanner(true)} className="w-full h-12">
-                <QrCode className="w-5 h-5 mr-2" />Scan Payment QR Code
-              </Button>
-            </>
-          ) : (
-            <div className="text-center py-4 space-y-3">
-              <div className="w-14 h-14 bg-amber-100 dark:bg-amber-900 rounded-full flex items-center justify-center mx-auto">
-                <Clock className="w-7 h-7 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">USDC Payments Coming Soon</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Gasless NFC and QR code payments will be available once approved for production use.
-                </p>
-              </div>
             </div>
           )}
+
+          {/* MetaMask Web3 Connection */}
+          <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            {!metaMaskAddress ? (
+              <Button
+                onClick={connectMetaMask}
+                disabled={isMetaMaskConnecting}
+                variant="outline"
+                className="w-full h-12 flex items-center justify-center gap-2 border-orange-200 hover:bg-orange-50 dark:border-orange-900/50 dark:hover:bg-orange-950/30 text-orange-600 dark:text-orange-500"
+              >
+                {isMetaMaskConnecting ? (
+                  <><Loader2 className="w-5 h-5 animate-spin" /> Connecting API...</>
+                ) : (
+                  <><Wallet className="w-5 h-5" /> Connect MetaMask</>
+                )}
+              </Button>
+            ) : (
+              <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-orange-500" />
+                  <span className="text-xs font-mono text-slate-600 dark:text-slate-400">
+                    {metaMaskAddress.slice(0, 6)}...{metaMaskAddress.slice(-4)}
+                  </span>
+                </div>
+                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                  SDK Connected
+                </Badge>
+              </div>
+            )}
+            
+            {metaMaskError && (
+              <div className="p-2 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-300 flex items-start gap-2">
+                <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />{metaMaskError}
+              </div>
+            )}
+          </div>
+
         </CardContent>
       </Card>
 
-      {/* QR Input Dialog */}
-      <Dialog open={showQrScanner} onOpenChange={setShowQrScanner}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Camera className="w-5 h-5" />Scan or Paste Payment Code</DialogTitle>
-            <DialogDescription>Paste a payment URL or QR code content below.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Input placeholder='Paste payment URL or JSON...' value={qrInput} onChange={(e) => setQrInput(e.target.value)} className="font-mono text-xs" />
-            {qrError && (<div className="p-2 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-300">{qrError}</div>)}
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" onClick={() => { setShowQrScanner(false); setQrInput(''); setQrError(null); }}>Cancel</Button>
-              <Button onClick={handleQrSubmit} disabled={!qrInput.trim()} className="bg-blue-500 hover:bg-blue-600">Process Payment</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {/* Payment confirmation modal */}
-      <USDCPaymentModal isOpen={showPaymentModal} onClose={handlePaymentClose} paymentRequest={paymentRequest} />
+      <USDCPaymentModal 
+        isOpen={showPaymentModal} 
+        onClose={handlePaymentClose} 
+        paymentRequest={paymentRequest}
+        connectedWallet={metaMaskAddress}
+      />
     </>
   );
 };
