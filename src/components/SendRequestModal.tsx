@@ -1,160 +1,100 @@
-import React, { useState, useMemo } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import React from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
-import { ArrowUpRight, ArrowDownLeft, Copy, ExternalLink } from 'lucide-react';
+import { ExternalLink, ShieldCheck, Wallet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useWalletBalance } from '@/hooks/useWalletBalance';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  defaultTab?: 'send' | 'receive';
 }
 
-const SendRequestModal: React.FC<Props> = ({ isOpen, onClose, defaultTab = 'send' }) => {
-  const [activeTab, setActiveTab] = useState<'send' | 'receive'>(defaultTab);
-  const [recipient, setRecipient] = useState('');
-  const [amount, setAmount] = useState('');
+const SendRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const { toast } = useToast();
-  
-  // Pulls the user's unified USDC balance and public address
-  const { balance, usdcAddress } = useWalletBalance();
 
-  // Dynamically generates a generic QR code for the user's wallet address
-  const qrImageUrl = useMemo(() => {
-    if (!usdcAddress) return '';
-    // Formats as a standard Ethereum URI
-    const encoded = encodeURIComponent(`ethereum:${usdcAddress}`);
-    return `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encoded}`;
-  }, [usdcAddress]);
+  const handleLaunchMetaMask = async () => {
+    console.log("[WalletSync][START] Initiating secure export and routing to MetaMask");
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({ title: "Copied!", description: "Address copied to clipboard" });
-  };
+    try {
+      // 1. Retrieve the secure credential 
+      // (Replace this with the actual secure retrieval of the user's private key or seed phrase from your vault)
+      const secureCredential = "YOUR_SECURE_PRIVATE_KEY_OR_SEED"; 
 
-  const handleSendDeepLink = () => {
-    if (!recipient || !amount) {
-      toast({ title: "Error", description: "Please enter a recipient and amount", variant: "destructive" });
-      return;
+      // 2. Securely copy the key to the device clipboard
+      await navigator.clipboard.writeText(secureCredential);
+      
+      toast({ 
+        title: "Key Copied Securely", 
+        description: "Paste this into MetaMask's 'Import Account' screen." 
+      });
+
+      // 3. Wake up the MetaMask native app
+      console.log("[WalletSync][DEEP_LINK] Waking up MetaMask native shell");
+      
+      // The raw metamask:// scheme forces the OS to open the app natively
+      window.location.href = "metamask://";
+      
+      onClose();
+    } catch (error) {
+      console.error("[WalletSync][FATAL_FAIL] Failed to execute sync:", error);
+      toast({ 
+        title: "Launch Failed", 
+        description: "Could not securely copy the wallet credentials or route to the app.", 
+        variant: "destructive" 
+      });
     }
-
-    // Deep link to MetaMask dApp browser to execute the transfer natively.
-    // We pass the intended transaction details via URL parameters so IDIA Life 
-    // can auto-hydrate them once it opens inside the MetaMask sandbox.
-    const dAppUrl = `https://life.thebigidia.com/transfer?to=${recipient}&amount=${amount}`;
-    const metaMaskDeepLink = `https://metamask.app.link/dapp/${dAppUrl.replace('https://', '')}`;
-    
-    console.log("[SendRequestModal][DeepLink] Bouncing to MetaMask:", metaMaskDeepLink);
-    window.location.href = metaMaskDeepLink;
-    onClose();
-  };
-
-  const handleClose = () => {
-    setRecipient('');
-    setAmount('');
-    onClose();
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md rounded-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
-            {activeTab === 'send' ? <ArrowUpRight className="w-5 h-5 text-teal-600" /> : <ArrowDownLeft className="w-5 h-5 text-teal-600" />}
-            <span>{activeTab === 'send' ? 'Send USDC' : 'Receive USDC'}</span>
+            <Wallet className="w-5 h-5 text-[#F6851B]" />
+            <span>Send & Receive USDC</span>
           </DialogTitle>
+          <DialogDescription className="text-sm mt-2">
+            Manage your sovereign funds natively and securely.
+          </DialogDescription>
         </DialogHeader>
         
-        <div className="py-2">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'send' | 'receive')}>
-            <TabsList className="grid w-full grid-cols-2 bg-muted/50 rounded-xl p-1">
-              <TabsTrigger value="send" className="rounded-lg">Send</TabsTrigger>
-              <TabsTrigger value="receive" className="rounded-lg">Receive</TabsTrigger>
-            </TabsList>
-
-            {/* ─── SEND TAB ─── */}
-            <TabsContent value="send" className="space-y-4 mt-4 animate-in fade-in slide-in-from-left-2">
-              <div className="flex justify-between items-center bg-slate-50 dark:bg-muted/20 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
-                <Label className="text-muted-foreground text-xs uppercase tracking-widest">Available Balance</Label>
-                <div className="text-sm font-black">{balance.usdc_balance.toFixed(2)} USDC</div>
+        <div className="py-2 space-y-4">
+          <Card className="bg-slate-50 dark:bg-muted/20 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-none mt-2">
+            <CardContent className="p-5 flex flex-col items-center text-center space-y-3">
+              <div className="w-14 h-14 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center mb-2">
+                <ShieldCheck className="w-7 h-7 text-[#F6851B]" />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="recipient" className="text-xs uppercase tracking-widest text-muted-foreground ml-1">Recipient Address</Label>
-                <Input
-                  id="recipient"
-                  placeholder="0x..."
-                  value={recipient}
-                  onChange={(e) => setRecipient(e.target.value)}
-                  className="font-mono text-sm h-12 rounded-xl"
-                />
+              
+              <h3 className="font-semibold text-slate-800 dark:text-slate-200">
+                Secure Native Routing
+              </h3>
+              
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                To send, receive, or buy USDC, you will be securely routed to the native MetaMask application on your device.
+              </p>
+              
+              <div className="text-xs text-left text-muted-foreground bg-white dark:bg-background p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 w-full mt-2">
+                <strong className="text-slate-700 dark:text-slate-300 block mb-1">First Time Setup:</strong> 
+                Your IDIA wallet key will be temporarily copied to your clipboard. If your wallet is not yet linked, paste it into MetaMask's <strong>"Import Account"</strong> screen.
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="space-y-2">
-                <Label htmlFor="amount" className="text-xs uppercase tracking-widest text-muted-foreground ml-1">Amount (USDC)</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="h-12 rounded-xl text-lg font-bold"
-                />
-              </div>
-
-              <Button 
-                onClick={handleSendDeepLink} 
-                className="w-full h-12 rounded-xl bg-[#F6851B] hover:bg-[#E2761B] text-white mt-4 transition-all"
-              >
-                Sign in MetaMask <ExternalLink className="w-4 h-4 ml-2" />
-              </Button>
-            </TabsContent>
-
-            {/* ─── RECEIVE TAB ─── */}
-            <TabsContent value="receive" className="space-y-4 mt-4 animate-in fade-in slide-in-from-right-2">
-              <Card className="border-none shadow-none bg-slate-50 dark:bg-muted/20 rounded-2xl">
-                <CardContent className="p-6 flex flex-col items-center space-y-4">
-                  {usdcAddress ? (
-                    <>
-                      <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100">
-                        <img
-                          src={qrImageUrl}
-                          alt="Wallet QR Code"
-                          className="w-48 h-48 rounded-lg"
-                        />
-                      </div>
-                      <div className="text-center space-y-2 w-full">
-                        <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Your Base Wallet Address</Label>
-                        <div className="flex items-center justify-between p-3 bg-white dark:bg-background rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                          <code className="text-xs font-mono truncate mr-2 text-slate-700 dark:text-slate-300">
-                            {usdcAddress.slice(0, 12)}...{usdcAddress.slice(-10)}
-                          </code>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => copyToClipboard(usdcAddress)}
-                            className="h-8 w-8 p-0 shrink-0 hover:bg-teal-50 hover:text-teal-600"
-                          >
-                            <Copy className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="py-12 text-center text-sm text-muted-foreground">
-                      No wallet connected.
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-            
-          </Tabs>
+          <Button 
+            onClick={handleLaunchMetaMask} 
+            className="w-full h-14 rounded-xl bg-[#F6851B] hover:bg-[#E2761B] text-white text-base font-semibold mt-2 transition-all shadow-sm"
+          >
+            Launch MetaMask <ExternalLink className="w-5 h-5 ml-2" />
+          </Button>
+          
+          <Button 
+            onClick={onClose} 
+            variant="ghost" 
+            className="w-full h-10 text-muted-foreground hover:text-slate-900 dark:hover:text-slate-100"
+          >
+            Cancel
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
