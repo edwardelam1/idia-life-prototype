@@ -16,7 +16,8 @@ interface ProposalLite {
   id: string;
   title: string;
   description: string | null;
-  lifecycle_phase: "draft" | "active" | "succeeded" | "queued" | "executed";
+  // Added "pending" for pre-snapshot on-chain proposals
+  lifecycle_phase: "draft" | "pending" | "active" | "succeeded" | "queued" | "executed";
   status: string | null;
   created_at: string;
   end_date: string | null;
@@ -28,8 +29,13 @@ interface ProposalLite {
 export const PHASE_META = {
   draft: {
     icon: "📝",
-    label: "Proposed",
+    label: "In Deliberation",
     color: "text-slate-600 dark:text-slate-200 bg-slate-50 dark:bg-slate-900/40 border-slate-100 dark:border-slate-800",
+  },
+  pending: {
+    icon: "⏱",
+    label: "Voting Delay",
+    color: "text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/30 border-indigo-100 dark:border-indigo-900/50",
   },
   active: {
     icon: "⚡",
@@ -45,19 +51,17 @@ export const PHASE_META = {
   },
   succeeded: {
     icon: "✅",
-    label: "Succeeded",
+    label: "Consensus Reached",
     color: "text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30 border-teal-100 dark:border-teal-900/50",
   },
   executed: {
-    icon: "✅",
+    icon: "🚀",
     label: "Settled",
-    color: "text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30 border-teal-100 dark:border-teal-900/50",
+    color: "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-100 dark:border-emerald-900/50",
   },
 } as const;
 
 // Direct-RPC quorum read — no service-layer cache, retry, or fallback chain.
-// Each caller spins up its own provider against Alchemy (or the configured
-// public RPC) and reads quorum straight from the Governor contract.
 async function directQuorum(onChainId?: string | null): Promise<bigint> {
   const networkKey = ACTIVE_DEPLOYMENT === "mainnet" ? "base" : "baseSepolia";
   const network = NETWORKS[networkKey];
@@ -99,11 +103,9 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
 
     const pollQuorum = async () => {
       try {
-        console.log(`[QUORUM_DEBUG] Direct RPC quorum fetch for ProposalID: ${proposal.on_chain_id || "(none)"}`);
         const q = await directQuorum(proposal.on_chain_id);
         const formatted = Number(ethers.formatEther(q));
         if (alive) {
-          console.log(`[QUORUM_DEBUG] Setting state liveQuorum: ${formatted}`);
           setLiveQuorum(formatted);
         }
       } catch (qErr) {
@@ -112,7 +114,6 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
     };
 
     (async () => {
-      // BLOCK 1: TALLY (Supabase) + QUORUM (direct RPC)
       try {
         const voteKey = proposal.on_chain_id ?? proposal.id;
         const { data } = await supabase
@@ -134,7 +135,6 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
 
       await pollQuorum();
 
-      // BLOCK 2: TIMELINE
       try {
         const SECONDS_PER_BLOCK = 2;
         const VOTING_DELAY_BLOCKS = 43200;
@@ -158,11 +158,10 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
         if (alive) setDeadlineState({ label: "Timeline Unavailable", tone: "none" });
       }
 
-      sChain.ok({ message: "[SUCCESS] Initial sync complete." });
+      sChain.ok({ message: "[END:OK] Initial sync complete." });
       if (alive) setLoading(false);
     })();
 
-    // Self-healing repoll every 15s while dialog is open
     const iv = setInterval(pollQuorum, 15000);
 
     return () => {
@@ -258,6 +257,7 @@ const LifecycleTelemetry: React.FC = () => {
     let isMounted = true;
 
     const fetchItems = async () => {
+      console.log("[LIFECYCLE_TELEMETRY][FETCH][START] Executing aggregate state poll.");
       const s = stage("LIFECYCLE_TELEMETRY", "FETCH");
       s.start();
       try {
@@ -265,34 +265,52 @@ const LifecycleTelemetry: React.FC = () => {
           .from("dao_proposals")
           .select("*")
           .order("created_at", { ascending: false })
-          .limit(8);
-        if (error) throw error;
+          .limit(10);
+          
+        if (error) {
+          console.error(`[LIFECYCLE_TELEMETRY][FETCH][ERROR] Supabase fetch rejected: ${error.message}`);
+          throw error;
+        }
+        
         if (isMounted) {
           const rows = ((data as any[]) || []).map((item) => ({
             ...item,
-            lifecycle_phase: item.lifecycle_phase as "draft" | "active" | "succeeded" | "queued" | "executed",
+            lifecycle_phase: item.lifecycle_phase,
           })) as ProposalLite[];
 
-          // Strict bucket filter: only on-chain states 4 (Succeeded) or 5 (Queued).
-          // Off-chain placeholders fall through only when lifecycle_phase === 'queued'.
+          console.log(`[LIFECYCLE_TELEMETRY][FETCH][PROCESS] Iterating ${rows.length} rows for chain validation.`);
+          
+          // REPLACED THE STRICT BUCKET FILTER
+          // Maps all OpenZeppelin EVM states and preserves off-chain drafts
           const stateChecks = await Promise.all(
             rows.map(async (r) => {
               if (!r.on_chain_id) {
-                return r.lifecycle_phase === "queued" ? r : null;
+                // Return off-chain motions/drafts directly
+                return { ...r, lifecycle_phase: "draft" as const, status: "In Deliberation" };
               }
+              
               try {
                 const cs = await readChainState(r.on_chain_id);
                 const st = cs.state;
-                console.log(`[TELEMETRY_BUCKET] ref=${r.on_chain_id} state=${st}`);
-                if (st === 4) return { ...r, lifecycle_phase: "succeeded" as const, status: "Succeeded" };
-                if (st === 5) return { ...r, lifecycle_phase: "queued" as const, status: "Queued" };
-                return null;
-              } catch {
+                console.log(`[TELEMETRY_BUCKET] ref=${r.on_chain_id} resolved state=${st}`);
+                
+                if (st === 0) return { ...r, lifecycle_phase: "pending" as const, status: "Voting Delay" };
+                if (st === 1) return { ...r, lifecycle_phase: "active" as const, status: "Live Vote" };
+                if (st === 4) return { ...r, lifecycle_phase: "succeeded" as const, status: "Consensus Reached" };
+                if (st === 5) return { ...r, lifecycle_phase: "queued" as const, status: "Timelocked" };
+                if (st === 7) return { ...r, lifecycle_phase: "executed" as const, status: "Executed" };
+                
+                // Fallback for canceled/defeated EVM states
+                return { ...r, lifecycle_phase: "draft" as const, status: "Archived" };
+              } catch (chainErr: any) {
+                console.error(`[TELEMETRY_BUCKET][ERROR] Failed to read chain state for ${r.on_chain_id}: ${chainErr.message}`);
                 return null;
               }
             }),
           );
-          const order = { succeeded: 0, queued: 1, executed: 2, active: 3, draft: 4 } as const;
+          
+          const order = { active: 0, pending: 1, succeeded: 2, queued: 3, executed: 4, draft: 5 } as const;
+          
           if (isMounted) {
             setItems(
               stateChecks
@@ -301,8 +319,10 @@ const LifecycleTelemetry: React.FC = () => {
             );
           }
         }
+        console.log("[LIFECYCLE_TELEMETRY][FETCH][END:OK] Telemetry feed hydrated successfully.");
         s.ok({ count: data?.length });
       } catch (error: any) {
+        console.error(`[LIFECYCLE_TELEMETRY][FETCH][FATAL_FAIL] Feed generation collapsed: ${error.message}`);
         s.fail(error);
         toast({ title: "Telemetry Stalled", description: error.message, variant: "destructive" });
       } finally {
