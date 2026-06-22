@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,36 +13,34 @@ interface Props {
 const SendRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const { toast } = useToast();
 
-  const handleLaunchMetaMask = async () => {
-    try {
-      // Securely copy the credential to clipboard first
-      const secureCredential = "YOUR_SECURE_PRIVATE_KEY_OR_SEED"; 
-      await navigator.clipboard.writeText(secureCredential);
-      
-      toast({ title: "Key Copied", description: "Paste this into MetaMask 'Import Account'." });
-
-      // Using only the custom scheme avoids the dApp browser
-      window.location.href = "metamask://";
+  const postNativeMessage = (name: string, payload: any) => {
+    if (window.webkit?.messageHandlers?.[name]) {
+      window.webkit.messageHandlers[name].postMessage(payload);
       onClose();
-    } catch (error) {
-      toast({ title: "Launch Failed", variant: "destructive" });
+    } else {
+      toast({ title: "Native Bridge Error", description: "MetaMask not accessible.", variant: "destructive" });
     }
   };
 
-  const handleSendUSDC = () => {
-    // USDC Contract Address on Base
-    const usdcAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-    const amount = "1.00"; // Example
-    const recipient = "0x..."; // Your recipient logic here
+  const handleLaunchMetaMask = async () => {
+    // 1. Copy credentials
+    const secureCredential = "YOUR_SECURE_PRIVATE_KEY_OR_SEED"; 
+    await navigator.clipboard.writeText(secureCredential);
     
-    // Convert to 6 decimals for USDC
+    // 2. Route via Swift
+    postNativeMessage("launchMetaMask", {});
+  };
+
+  const handleSendUSDC = () => {
+    const usdcAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+    const amount = "1.00"; 
+    const recipient = "0x..."; 
     const hexAmount = (parseFloat(amount) * 1_000_000).toString(16);
 
-    // ethereum: URI triggers native wallet transaction UI, bypassing the dApp browser
-    const uri = `ethereum:${usdcAddress}/transfer?address=${recipient}&uint256=0x${hexAmount}`;
-    
-    window.location.href = uri;
-    onClose();
+    // Send transaction intent to Swift
+    postNativeMessage("sendTransaction", {
+      uri: `ethereum:${usdcAddress}/transfer?address=${recipient}&uint256=0x${hexAmount}`
+    });
   };
 
   return (
@@ -61,23 +59,16 @@ const SendRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
               <ShieldCheck className="w-10 h-10 text-[#F6851B] mx-auto" />
               <h3 className="font-semibold">Native Wallet Control</h3>
               <p className="text-xs text-muted-foreground">
-                IDIA Life routes transactions directly to your native MetaMask wallet interface, bypassing web browsers.
+                All transactions are routed directly to the native MetaMask app.
               </p>
             </CardContent>
           </Card>
 
-          <Button 
-            onClick={handleLaunchMetaMask} 
-            className="w-full h-12 rounded-xl bg-[#F6851B] hover:bg-[#E2761B] text-white"
-          >
+          <Button onClick={handleLaunchMetaMask} className="w-full h-12 rounded-xl bg-[#F6851B] hover:bg-[#E2761B] text-white">
             Launch MetaMask <ExternalLink className="w-4 h-4 ml-2" />
           </Button>
 
-          <Button 
-            onClick={handleSendUSDC} 
-            variant="outline"
-            className="w-full h-12 rounded-xl border-teal-600 text-teal-700 hover:bg-teal-50"
-          >
+          <Button onClick={handleSendUSDC} variant="outline" className="w-full h-12 rounded-xl border-teal-600 text-teal-700 hover:bg-teal-50">
             Send USDC <ArrowUpRight className="w-4 h-4 ml-2" />
           </Button>
         </div>
