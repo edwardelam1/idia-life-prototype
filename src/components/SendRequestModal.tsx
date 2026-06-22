@@ -2,7 +2,7 @@ import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ExternalLink, ShieldCheck, Wallet } from 'lucide-react';
+import { ExternalLink, ShieldCheck, Wallet, ArrowUpRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface Props {
@@ -14,36 +14,35 @@ const SendRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const { toast } = useToast();
 
   const handleLaunchMetaMask = async () => {
-    console.log("[WalletSync][START] Initiating secure export and routing to MetaMask");
-
     try {
-      // 1. Retrieve the secure credential 
-      // (Replace this with the actual secure retrieval of the user's private key or seed phrase from your vault)
+      // Securely copy the credential to clipboard first
       const secureCredential = "YOUR_SECURE_PRIVATE_KEY_OR_SEED"; 
-
-      // 2. Securely copy the key to the device clipboard
       await navigator.clipboard.writeText(secureCredential);
       
-      toast({ 
-        title: "Key Copied Securely", 
-        description: "Paste this into MetaMask's 'Import Account' screen." 
-      });
+      toast({ title: "Key Copied", description: "Paste this into MetaMask 'Import Account'." });
 
-      // 3. Wake up the MetaMask native app
-      console.log("[WalletSync][DEEP_LINK] Waking up MetaMask native shell");
-      
-      // The raw metamask:// scheme forces the OS to open the app natively
+      // Using only the custom scheme avoids the dApp browser
       window.location.href = "metamask://";
-      
       onClose();
     } catch (error) {
-      console.error("[WalletSync][FATAL_FAIL] Failed to execute sync:", error);
-      toast({ 
-        title: "Launch Failed", 
-        description: "Could not securely copy the wallet credentials or route to the app.", 
-        variant: "destructive" 
-      });
+      toast({ title: "Launch Failed", variant: "destructive" });
     }
+  };
+
+  const handleSendUSDC = () => {
+    // USDC Contract Address on Base
+    const usdcAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+    const amount = "1.00"; // Example
+    const recipient = "0x..."; // Your recipient logic here
+    
+    // Convert to 6 decimals for USDC
+    const hexAmount = (parseFloat(amount) * 1_000_000).toString(16);
+
+    // ethereum: URI triggers native wallet transaction UI, bypassing the dApp browser
+    const uri = `ethereum:${usdcAddress}/transfer?address=${recipient}&uint256=0x${hexAmount}`;
+    
+    window.location.href = uri;
+    onClose();
   };
 
   return (
@@ -52,48 +51,34 @@ const SendRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
             <Wallet className="w-5 h-5 text-[#F6851B]" />
-            <span>Send & Receive USDC</span>
+            <span>Manage USDC</span>
           </DialogTitle>
-          <DialogDescription className="text-sm mt-2">
-            Manage your sovereign funds natively and securely.
-          </DialogDescription>
         </DialogHeader>
         
         <div className="py-2 space-y-4">
-          <Card className="bg-slate-50 dark:bg-muted/20 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-none mt-2">
-            <CardContent className="p-5 flex flex-col items-center text-center space-y-3">
-              <div className="w-14 h-14 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center mb-2">
-                <ShieldCheck className="w-7 h-7 text-[#F6851B]" />
-              </div>
-              
-              <h3 className="font-semibold text-slate-800 dark:text-slate-200">
-                Secure Native Routing
-              </h3>
-              
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                To send, receive, or buy USDC, you will be securely routed to the native MetaMask application on your device.
+          <Card className="bg-slate-50 border-slate-100 rounded-2xl shadow-none">
+            <CardContent className="p-5 text-center space-y-3">
+              <ShieldCheck className="w-10 h-10 text-[#F6851B] mx-auto" />
+              <h3 className="font-semibold">Native Wallet Control</h3>
+              <p className="text-xs text-muted-foreground">
+                IDIA Life routes transactions directly to your native MetaMask wallet interface, bypassing web browsers.
               </p>
-              
-              <div className="text-xs text-left text-muted-foreground bg-white dark:bg-background p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 w-full mt-2">
-                <strong className="text-slate-700 dark:text-slate-300 block mb-1">First Time Setup:</strong> 
-                Your IDIA wallet key will be temporarily copied to your clipboard. If your wallet is not yet linked, paste it into MetaMask's <strong>"Import Account"</strong> screen.
-              </div>
             </CardContent>
           </Card>
 
           <Button 
             onClick={handleLaunchMetaMask} 
-            className="w-full h-14 rounded-xl bg-[#F6851B] hover:bg-[#E2761B] text-white text-base font-semibold mt-2 transition-all shadow-sm"
+            className="w-full h-12 rounded-xl bg-[#F6851B] hover:bg-[#E2761B] text-white"
           >
-            Launch MetaMask <ExternalLink className="w-5 h-5 ml-2" />
+            Launch MetaMask <ExternalLink className="w-4 h-4 ml-2" />
           </Button>
-          
+
           <Button 
-            onClick={onClose} 
-            variant="ghost" 
-            className="w-full h-10 text-muted-foreground hover:text-slate-900 dark:hover:text-slate-100"
+            onClick={handleSendUSDC} 
+            variant="outline"
+            className="w-full h-12 rounded-xl border-teal-600 text-teal-700 hover:bg-teal-50"
           >
-            Cancel
+            Send USDC <ArrowUpRight className="w-4 h-4 ml-2" />
           </Button>
         </div>
       </DialogContent>
