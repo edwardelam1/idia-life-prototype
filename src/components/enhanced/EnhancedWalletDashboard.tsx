@@ -27,7 +27,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import SendRequestModal from "../SendRequestModal";
 import PaymentTrigger from "../PaymentTrigger";
-import RequestPaymentQR from "../RequestPaymentQR";
 import { fireFinaleConfetti } from "../psychometric/confetti";
 import { useChainReceiveWatcher, type ChainReceipt } from "@/hooks/useChainReceiveWatcher";
 import {
@@ -1008,11 +1007,6 @@ const EnhancedWalletDashboard: React.FC = () => {
         getSeedPhrase={handleGetSeedPhrase}
         walletAddress={displayAddress}
         provisioningStage={provisioningStage}
-      />
-      <RequestPaymentQR
-        isOpen={showRequestPayment}
-        onClose={() => setShowRequestPayment(false)}
-        walletAddress={displayAddress || ""} // FIXED: Added required prop
       />
     </div>
   );
