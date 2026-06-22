@@ -62,6 +62,8 @@
     "@tanstack/react-query": "^5.100.5",
     "@types/canvas-confetti": "^1.9.0",
     "@types/three": "^0.184.0",
+    "@web3modal/ethers": "^5.1.11",
+    "@web3modal/react": "^2.7.1",
     "canvas-confetti": "^1.9.4",
     "capacitor-native-biometric": "^4.2.2",
     "capacitor-secure-storage-plugin": "^0.13.0",
