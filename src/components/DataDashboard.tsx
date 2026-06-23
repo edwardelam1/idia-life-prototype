@@ -248,6 +248,7 @@ const DataDashboard = () => {
     if (connectionType === "apple_health" || connectionType === "health_connect") return getSyncStatusBadge();
     if (connectionType === "truckstop") return <Badge variant="secondary" className="bg-orange-100 text-orange-800">Streaming</Badge>;
     if (connectionType === "ford") return <Badge variant="secondary" className="bg-blue-100 text-blue-800">Streaming</Badge>;
+    if (connectionType === "strava") return <Badge variant="secondary" className="bg-orange-100 text-[#FC4C02]">Streaming</Badge>;
     return null;
   };
 
