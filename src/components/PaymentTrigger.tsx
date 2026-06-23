@@ -17,20 +17,8 @@ import { parsePaymentRequest, type PaymentRequest } from '@/config/usdc';
 import IDIANFC from '@/plugins/nfc';
 import USDCPaymentModal from './USDCPaymentModal';
 
-// Extend the Window object to support the custom iOS WebKit bridge
-declare global {
-  interface Window {
-    webkit?: {
-      messageHandlers?: {
-        initiateNfcHandshake?: {
-          postMessage: (payload: any) => void;
-        };
-      };
-    };
-    onNfcHandshakeComplete?: (response: any) => void;
-    onNfcHandshakeError?: (error: string) => void;
-  }
-}
+// Window type extensions for the iOS WebKit bridge live in src/vite-env.d.ts
+
 
 const PaymentTrigger: React.FC = () => {
   const [isNfcListening, setIsNfcListening] = useState(false);
