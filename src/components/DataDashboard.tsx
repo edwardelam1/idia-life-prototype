@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Activity, CheckCircle, DollarSign, FileKey, Copy, Truck, Car } from "lucide-react";
+import { Activity, CheckCircle, DollarSign, FileKey, Copy, Truck, Car, Zap } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase as typedSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -12,6 +12,7 @@ import AppleHealthModal from "./AppleHealthModal";
 import AndroidHealthModal from "./AndroidHealthModal";
 import TruckstopConnectionModal from "./TruckstopConnectionModal";
 import FordConnectionModal from "./FordConnectionModal";
+import StravaConnectionModal from "./StravaConnectionModal";
 import { isAndroid, isIOS, isWeb } from "@/services/platform";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 
@@ -39,6 +40,7 @@ const DataDashboard = () => {
   const [showAndroidHealthModal, setShowAndroidHealthModal] = useState(false);
   const [showTruckstopModal, setShowTruckstopModal] = useState(false);
   const [showFordModal, setShowFordModal] = useState(false);
+  const [showStravaModal, setShowStravaModal] = useState(false);
   
   const [lastSyncStatus, setLastSyncStatus] = useState<string>("unknown");
   const [lastStatusChangeAt, setLastStatusChangeAt] = useState<Date | null>(null);
@@ -246,6 +248,7 @@ const DataDashboard = () => {
     if (connectionType === "apple_health" || connectionType === "health_connect") return getSyncStatusBadge();
     if (connectionType === "truckstop") return <Badge variant="secondary" className="bg-orange-100 text-orange-800">Streaming</Badge>;
     if (connectionType === "ford") return <Badge variant="secondary" className="bg-blue-100 text-blue-800">Streaming</Badge>;
+    if (connectionType === "strava") return <Badge variant="secondary" className="bg-orange-100 text-[#FC4C02]">Streaming</Badge>;
     return null;
   };
 
@@ -286,6 +289,7 @@ const DataDashboard = () => {
     if (c.connection_type === "health_connect") return isAndroid();
     if (c.connection_type === "truckstop") return true;
     if (c.connection_type === "ford") return true;
+    if (c.connection_type === "strava") return true;
     return false;
   });
 
@@ -308,6 +312,7 @@ const DataDashboard = () => {
   const hasHealth = getConnectionStatus(healthType);
   const hasTruckstop = getConnectionStatus("truckstop");
   const hasFord = getConnectionStatus("ford");
+  const hasStrava = getConnectionStatus("strava");
 
   return (
     <div className="space-y-4">
@@ -396,7 +401,21 @@ const DataDashboard = () => {
                 </div>
               )}
 
-              {hasHealth && hasFord && hasTruckstop && (
+              {/* Strava Connection */}
+              {!hasStrava && (
+                <div
+                  className="relative cursor-pointer group flex flex-col items-center p-4 bg-card rounded-2xl border border-border hover:shadow-md transition-all"
+                  onClick={() => setShowStravaModal(true)}
+                >
+                  <div className="w-14 h-14 rounded-full overflow-hidden bg-orange-50 flex items-center justify-center mb-2">
+                    <Zap className="w-7 h-7 text-[#FC4C02]" />
+                  </div>
+                  <p className="text-xs font-bold text-center">Strava</p>
+                  <p className="text-[9px] text-muted-foreground mt-1">Activity Telemetry</p>
+                </div>
+              )}
+
+              {hasHealth && hasFord && hasTruckstop && hasStrava && (
                 <div className="col-span-full text-center py-6 text-muted-foreground">
                   <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50 text-teal-600" />
                   <p className="text-sm">All available sources connected</p>
@@ -418,6 +437,7 @@ const DataDashboard = () => {
                       else if (connection.connection_type === "health_connect") setShowAndroidHealthModal(true);
                       else if (connection.connection_type === "ford") setShowFordModal(true);
                       else if (connection.connection_type === "truckstop") setShowTruckstopModal(true);
+                      else if (connection.connection_type === "strava") setShowStravaModal(true);
                     }}
                   >
                     <div className="relative">
@@ -426,6 +446,7 @@ const DataDashboard = () => {
                         {connection.connection_type === "apple_health" && <img src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" alt="Apple Health" className="w-8 h-8 object-contain" />}
                         {connection.connection_type === "ford" && <Car className="w-8 h-8 text-blue-600" />}
                         {connection.connection_type === "truckstop" && <Truck className="w-8 h-8 text-[#FF5A00]" />}
+                        {connection.connection_type === "strava" && <Zap className="w-8 h-8 text-[#FC4C02]" />}
                       </div>
                       <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-background flex items-center justify-center">
                         <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
@@ -551,6 +572,20 @@ const DataDashboard = () => {
         onDisconnect={async () => {
           await fetchConnections();
           setShowTruckstopModal(false);
+        }}
+      />
+
+      <StravaConnectionModal
+        isOpen={showStravaModal}
+        onClose={() => setShowStravaModal(false)}
+        onComplete={async () => {
+          setShowStravaModal(false);
+          await fetchConnections();
+        }}
+        existingConnection={getConnectionStatus("strava")}
+        onDisconnect={async () => {
+          await fetchConnections();
+          setShowStravaModal(false);
         }}
       />
     </div>
