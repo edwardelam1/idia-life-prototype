@@ -574,6 +574,20 @@ const DataDashboard = () => {
           setShowTruckstopModal(false);
         }}
       />
+
+      <StravaConnectionModal
+        isOpen={showStravaModal}
+        onClose={() => setShowStravaModal(false)}
+        onComplete={async () => {
+          setShowStravaModal(false);
+          await fetchConnections();
+        }}
+        existingConnection={getConnectionStatus("strava")}
+        onDisconnect={async () => {
+          await fetchConnections();
+          setShowStravaModal(false);
+        }}
+      />
     </div>
   );
 };
