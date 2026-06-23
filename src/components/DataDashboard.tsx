@@ -437,6 +437,7 @@ const DataDashboard = () => {
                       else if (connection.connection_type === "health_connect") setShowAndroidHealthModal(true);
                       else if (connection.connection_type === "ford") setShowFordModal(true);
                       else if (connection.connection_type === "truckstop") setShowTruckstopModal(true);
+                      else if (connection.connection_type === "strava") setShowStravaModal(true);
                     }}
                   >
                     <div className="relative">
@@ -445,6 +446,7 @@ const DataDashboard = () => {
                         {connection.connection_type === "apple_health" && <img src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png" alt="Apple Health" className="w-8 h-8 object-contain" />}
                         {connection.connection_type === "ford" && <Car className="w-8 h-8 text-blue-600" />}
                         {connection.connection_type === "truckstop" && <Truck className="w-8 h-8 text-[#FF5A00]" />}
+                        {connection.connection_type === "strava" && <Zap className="w-8 h-8 text-[#FC4C02]" />}
                       </div>
                       <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-background flex items-center justify-center">
                         <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
