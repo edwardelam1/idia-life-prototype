@@ -40,6 +40,7 @@ const DataDashboard = () => {
   const [showAndroidHealthModal, setShowAndroidHealthModal] = useState(false);
   const [showTruckstopModal, setShowTruckstopModal] = useState(false);
   const [showFordModal, setShowFordModal] = useState(false);
+  const [showStravaModal, setShowStravaModal] = useState(false);
   
   const [lastSyncStatus, setLastSyncStatus] = useState<string>("unknown");
   const [lastStatusChangeAt, setLastStatusChangeAt] = useState<Date | null>(null);
