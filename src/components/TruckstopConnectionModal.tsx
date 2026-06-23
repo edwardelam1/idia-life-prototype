@@ -1,15 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { 
-  CheckCircle, 
-  Truck,
-  Map,
-  FileText,
-  ShieldAlert,
-  Zap,
-  DollarSign
-} from 'lucide-react';
+import { CheckCircle, Truck, Map, FileText, ShieldAlert, Zap, DollarSign, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { eventTracker } from '@/utils/EventTracker';
@@ -24,7 +16,6 @@ interface TruckstopConnectionModalProps {
 
 const TruckstopConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, onDisconnect }: TruckstopConnectionModalProps) => {
   const [isConnecting, setIsConnecting] = useState(false);
-  const [connected, setConnected] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -39,66 +30,76 @@ const TruckstopConnectionModal = ({ isOpen, onClose, onComplete, existingConnect
   const handleDisconnect = async () => {
     if (!currentUserId || !existingConnection) return;
     
+    console.log("[TRUCKSTOP_OAUTH][DISCONNECT][START] Initiating connection teardown.");
     try {
-      eventTracker.trackFeatureUsage({ feature: 'truckstop_connection', action: 'disconnect_initiated', success: false });
-
-      // Completely remove the connection from the database
       const { error } = await supabase
         .from('data_connections')
         .delete()
         .eq('id', existingConnection.id)
         .eq('user_id', currentUserId);
 
-      if (!error) {
-        eventTracker.trackFeatureUsage({ feature: 'truckstop_connection', action: 'disconnected', success: true });
-        onDisconnect?.();
-        onClose();
-      }
+      if (error) throw error;
+
+      console.log("[TRUCKSTOP_OAUTH][DISCONNECT][END:OK] Connection removed.");
+      onDisconnect?.();
+      onClose();
     } catch (error) {
-      console.error('Error disconnecting Truckstop:', error);
+      console.error('[TRUCKSTOP_OAUTH][DISCONNECT][FATAL_FAIL] Error disconnecting Truckstop:', error);
+    }
+  };
+
+  const pollForConnection = async (attempt = 1) => {
+    if (attempt > 10) {
+      console.error("[TRUCKSTOP_OAUTH][POLL][FATAL_FAIL] Polling exhausted.");
+      setIsConnecting(false);
+      return;
+    }
+
+    console.log(`[TRUCKSTOP_OAUTH][POLL][START] Attempt ${attempt}: Checking for active connection.`);
+    const { data } = await supabase
+      .from('data_connections')
+      .select('*')
+      .eq('user_id', currentUserId)
+      .eq('connection_type', 'truckstop')
+      .eq('is_active', true)
+      .single();
+
+    if (data) {
+      console.log("[TRUCKSTOP_OAUTH][POLL][END:OK] Active connection detected.");
+      toast({ title: "Connected!", description: "Truckstop account linked successfully." });
+      onComplete();
+      setIsConnecting(false);
+    } else {
+      setTimeout(() => pollForConnection(attempt + 1), 3000);
     }
   };
 
   const handleConnect = async () => {
-    if (!currentUserId) {
-      toast({ title: "Error", description: "Please log in to connect your Truckstop account.", variant: "destructive" });
-      return;
-    }
+    if (!currentUserId) return;
 
+    console.log("[TRUCKSTOP_OAUTH][CONNECT][START] Requesting OAuth URL from edge function.");
     eventTracker.trackFeatureUsage({ feature: 'truckstop_connection', action: 'connect_initiated', success: false });
     setIsConnecting(true);
 
     try {
-      // For the prototype, we simulate the OAuth handshake duration, 
-      // then insert the connection directly into the database.
-      setTimeout(async () => {
-        const { error } = await supabase.from('data_connections').insert({
-          user_id: currentUserId,
-          connection_type: 'truckstop',
-          is_active: true // FIXED: Uses is_active instead of status
-        });
-
-        if (error) throw error;
-
-        eventTracker.trackFeatureUsage({ feature: 'truckstop_connection', action: 'connected', success: true });
-        setIsConnecting(false);
-        setConnected(true);
-        toast({ title: "Connected!", description: "Your Truckstop Go account has been linked successfully." });
-        
-        setTimeout(() => { 
-          onComplete(); 
-          setConnected(false); 
-        }, 2000);
-      }, 1500);
-
-    } catch (error) {
-      console.error('Error starting Truckstop connection:', error);
-      setIsConnecting(false);
-      toast({
-        title: "Connection Failed",
-        description: `Failed to link Truckstop: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive",
+      const { data, error } = await supabase.functions.invoke('truckstop-auth-url', {
+        body: { userId: currentUserId }
       });
+
+      if (error) throw error;
+
+      console.log("[TRUCKSTOP_OAUTH][CONNECT][URL_RECEIVED] Opening secure authorization window.");
+      const popup = window.open(data.oauthUrl, 'TruckstopOAuth', 'width=600,height=700');
+      
+      if (popup) {
+        pollForConnection();
+      } else {
+        throw new Error("Popup blocked by browser.");
+      }
+    } catch (error: any) {
+      console.error(`[TRUCKSTOP_OAUTH][CONNECT][FATAL_FAIL] Failed to start OAuth: ${error.message}`);
+      setIsConnecting(false);
+      toast({ title: "Connection Failed", description: error.message, variant: "destructive" });
     }
   };
 
@@ -108,27 +109,6 @@ const TruckstopConnectionModal = ({ isOpen, onClose, onComplete, existingConnect
     { icon: FileText, label: 'Document Aggregation', desc: 'Anonymized BOLs, weight tickets, and digital paperwork.' },
     { icon: ShieldAlert, label: 'Compliance Status', desc: 'DOT number status, safety ratings, and insurance auth.' },
   ];
-
-  if (connected) {
-    return (
-      <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-md">
-          <div className="text-center py-8">
-            <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-8 h-8 text-orange-600" />
-            </div>
-            <h3 className="text-xl font-bold text-foreground mb-2">Truckstop Linked!</h3>
-            <p className="text-muted-foreground mb-4">
-              Your commercial freight telemetry is now securely streaming into IDIA.
-            </p>
-            <p className="text-sm text-orange-600 font-medium">
-              Earning potential: $150-300/month from commercial data
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -146,39 +126,19 @@ const TruckstopConnectionModal = ({ isOpen, onClose, onComplete, existingConnect
           {existingConnection ? (
             <div className="space-y-4">
               <div className="text-center">
-                <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <Truck className="w-6 h-6 text-orange-600" />
-                </div>
                 <h3 className="font-medium text-orange-800">Truckstop Active</h3>
                 <p className="text-sm text-muted-foreground">Commercial telemetry is streaming</p>
               </div>
-              
-              <div className="bg-orange-50 p-4 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-orange-800">Live Logistics Data</p>
-                    <p className="text-xs text-orange-600">Processing freight metrics automatically</p>
-                  </div>
-                  <div className="w-3 h-3 bg-orange-500 rounded-full animate-pulse"></div>
-                </div>
-              </div>
-              
-              <div className="flex space-x-3">
-                <Button variant="outline" className="flex-1" onClick={onClose}>Close</Button>
-                <Button variant="destructive" className="flex-1" onClick={handleDisconnect}>Disconnect</Button>
-              </div>
+              <Button variant="destructive" className="w-full" onClick={handleDisconnect}>Disconnect</Button>
             </div>
           ) : (
             <>
               <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
                 <div className="flex items-start space-x-2">
                   <Zap className="w-5 h-5 text-orange-600 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-medium text-orange-900 mb-1">Commercial Telemetry</p>
-                    <p className="text-sm text-orange-800">
-                      Link your Truckstop account to securely stream your load history, location pings, and compliance data into the marketplace to earn IDIA-USD.
-                    </p>
-                  </div>
+                  <p className="text-sm text-orange-800">
+                    Link your Truckstop account to securely stream your load history and compliance data.
+                  </p>
                 </div>
               </div>
 
@@ -197,32 +157,17 @@ const TruckstopConnectionModal = ({ isOpen, onClose, onComplete, existingConnect
                 </div>
               </div>
 
-              <div className="bg-muted/50 p-4 rounded-lg">
-                <h5 className="font-medium text-foreground mb-2">Enterprise Anonymization</h5>
-                <p className="text-sm text-muted-foreground">
-                  Your commercial data is highly valuable. IDIA strips all PII (Personally Identifiable Information), hashing your MC/DOT numbers and abstracting exact pickup locations into regional zones before it hits the open market.
-                </p>
-              </div>
-
-              <div className="flex space-x-3">
-                <Button variant="outline" className="flex-1" onClick={onClose} disabled={isConnecting}>
-                  Cancel
-                </Button>
-                <Button 
-                  className="flex-1 bg-[#FF5A00] hover:bg-[#E04F00] text-white" 
-                  onClick={handleConnect}
-                  disabled={isConnecting}
-                >
-                  {isConnecting ? (
-                    <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span>Connecting...</span>
-                    </div>
-                  ) : (
-                    'Link Truckstop'
-                  )}
-                </Button>
-              </div>
+              <Button 
+                className="w-full bg-[#FF5A00] hover:bg-[#E04F00] text-white" 
+                onClick={handleConnect}
+                disabled={isConnecting}
+              >
+                {isConnecting ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Connecting...</>
+                ) : (
+                  'Link Truckstop'
+                )}
+              </Button>
             </>
           )}
         </div>
