@@ -400,7 +400,21 @@ const DataDashboard = () => {
                 </div>
               )}
 
-              {hasHealth && hasFord && hasTruckstop && (
+              {/* Strava Connection */}
+              {!hasStrava && (
+                <div
+                  className="relative cursor-pointer group flex flex-col items-center p-4 bg-card rounded-2xl border border-border hover:shadow-md transition-all"
+                  onClick={() => setShowStravaModal(true)}
+                >
+                  <div className="w-14 h-14 rounded-full overflow-hidden bg-orange-50 flex items-center justify-center mb-2">
+                    <Zap className="w-7 h-7 text-[#FC4C02]" />
+                  </div>
+                  <p className="text-xs font-bold text-center">Strava</p>
+                  <p className="text-[9px] text-muted-foreground mt-1">Activity Telemetry</p>
+                </div>
+              )}
+
+              {hasHealth && hasFord && hasTruckstop && hasStrava && (
                 <div className="col-span-full text-center py-6 text-muted-foreground">
                   <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50 text-teal-600" />
                   <p className="text-sm">All available sources connected</p>
