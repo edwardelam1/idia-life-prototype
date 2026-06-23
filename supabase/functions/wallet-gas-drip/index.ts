@@ -25,10 +25,50 @@ Deno.serve(async (req: Request) => {
 
     const normalized = target_address.toLowerCase();
 
+    // Auth guard - require valid JWT
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+    const userClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const { data: authData, error: authErr } = await userClient.auth.getUser();
+    if (authErr || !authData?.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    // Verify target_address matches the authenticated user's registered wallet
+    const { data: profile, error: profileErr } = await supabase
+      .from("profiles")
+      .select("wallet_address")
+      .eq("id", authData.user.id)
+      .maybeSingle();
+    if (profileErr) {
+      console.error("[DRIP] profile lookup error", profileErr);
+      throw new Error("Profile lookup failed.");
+    }
+    const registered = (profile?.wallet_address ?? "").toLowerCase();
+    if (!registered || registered !== normalized) {
+      return new Response(JSON.stringify({ error: "WALLET_MISMATCH: target_address does not match the authenticated user's registered wallet." }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    // One drip per user is enforced via the wallet-address match (a profile has one wallet_address)
+
+
 
     console.log(`[DRIP] --- ACTION: Checking anti-abuse guard for ${normalized}`);
 
