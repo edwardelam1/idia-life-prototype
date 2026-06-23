@@ -882,6 +882,13 @@ const EnhancedWalletDashboard: React.FC = () => {
                       <Download className="w-4 h-4 mr-2" />
                       Import Different Wallet
                     </Button>
+                    <Button
+                      className="w-full bg-[#F6851B] hover:bg-[#E2761B] text-white"
+                      onClick={() => setShowSendRequestModal(true)}
+                    >
+                      <Wallet className="w-4 h-4 mr-2" />
+                      Send / Receive (Launch MetaMask)
+                    </Button>
                   </CardContent>
                 </Card>
               </>
