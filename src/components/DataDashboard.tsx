@@ -311,6 +311,7 @@ const DataDashboard = () => {
   const hasHealth = getConnectionStatus(healthType);
   const hasTruckstop = getConnectionStatus("truckstop");
   const hasFord = getConnectionStatus("ford");
+  const hasStrava = getConnectionStatus("strava");
 
   return (
     <div className="space-y-4">
