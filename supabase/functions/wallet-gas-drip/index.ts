@@ -66,18 +66,8 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Enforce one drip per authenticated user (in addition to per-address)
-    const { data: userDrip, error: userDripErr } = await supabase
-      .from("wallet_provisioning_logs")
-      .select("id")
-      .eq("user_id", authData.user.id)
-      .maybeSingle();
-    if (userDripErr) {
-      console.error("[DRIP] user-drip lookup error", userDripErr);
-    }
-    if (userDrip) {
-      throw new Error("WALLET_ALREADY_FUNDED: This user has already received its genesis gas.");
-    }
+    // One drip per user is enforced via the wallet-address match (a profile has one wallet_address)
+
 
 
     console.log(`[DRIP] --- ACTION: Checking anti-abuse guard for ${normalized}`);
