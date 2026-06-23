@@ -288,6 +288,7 @@ const DataDashboard = () => {
     if (c.connection_type === "health_connect") return isAndroid();
     if (c.connection_type === "truckstop") return true;
     if (c.connection_type === "ford") return true;
+    if (c.connection_type === "strava") return true;
     return false;
   });
 
