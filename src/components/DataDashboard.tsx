@@ -202,51 +202,57 @@ const DataDashboard = () => {
       badgeClass = "bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400";
 
     return (
-      <div onClick={(e) => e.stopPropagation()}>
-        <Popover>
-          <PopoverTrigger asChild>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="focus:outline-none"
+            onClick={(e) => {
+              e.stopPropagation(); // Crucial: prevents the click from opening the modal!
+            }}
+          >
             <Badge
               variant="secondary"
               className={`border-none px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider cursor-pointer transition-colors ${badgeClass}`}
             >
               {meta.label}
             </Badge>
-          </PopoverTrigger>
-          <PopoverContent className="w-64 p-3" onClick={(e) => e.stopPropagation()}>
-            <p className="text-xs font-semibold text-foreground mb-2 uppercase tracking-wider">
-              {formatSourceName(connection.connection_type)} Status
-            </p>
-            <div className="space-y-1.5">
-              {order.map((key) => {
-                const m = STATUS_META[key];
-                const isActive = key === status;
-                return (
-                  <div
-                    key={key}
-                    className={`flex items-start gap-2 rounded-md p-1.5 ${isActive ? "bg-muted ring-1 ring-border" : ""}`}
-                  >
-                    <span className={`mt-1 h-2 w-2 rounded-full shrink-0 ${m.dot}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-xs font-medium text-foreground">{m.label}</p>
-                        {isActive && (
-                          <span className="text-[9px] uppercase tracking-wider text-primary font-bold">Current</span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-muted-foreground leading-snug">{m.description}</p>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-3" onClick={(e) => e.stopPropagation()}>
+          <p className="text-xs font-semibold text-foreground mb-2 uppercase tracking-wider">
+            {formatSourceName(connection.connection_type)} Status
+          </p>
+          <div className="space-y-1.5">
+            {order.map((key) => {
+              const m = STATUS_META[key];
+              const isActive = key === status;
+              return (
+                <div
+                  key={key}
+                  className={`flex items-start gap-2 rounded-md p-1.5 ${isActive ? "bg-muted ring-1 ring-border" : ""}`}
+                >
+                  <span className={`mt-1 h-2 w-2 rounded-full shrink-0 ${m.dot}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-medium text-foreground">{m.label}</p>
+                      {isActive && (
+                        <span className="text-[9px] uppercase tracking-wider text-primary font-bold">Current</span>
+                      )}
                     </div>
+                    <p className="text-[10px] text-muted-foreground leading-snug">{m.description}</p>
                   </div>
-                );
-              })}
-            </div>
-            {latestAudit && (
-              <p className="mt-3 pt-2 border-t border-border text-[10px] text-muted-foreground">
-                Last sync: {formatRelative(new Date(latestAudit.created_at))}
-              </p>
-            )}
-          </PopoverContent>
-        </Popover>
-      </div>
+                </div>
+              );
+            })}
+          </div>
+          {latestAudit && (
+            <p className="mt-3 pt-2 border-t border-border text-[10px] text-muted-foreground">
+              Last sync: {formatRelative(new Date(latestAudit.created_at))}
+            </p>
+          )}
+        </PopoverContent>
+      </Popover>
     );
   };
 
