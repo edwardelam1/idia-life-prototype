@@ -228,28 +228,79 @@ private async callRaw(methodName: string, params: any[] = []): Promise<any> {
   }
 }
 
-// Computes quorum as numerator * totalSupply / denominator, matching the Governor's internal math.
-private async computeQuorumFromSupply(): Promise<bigint | null> {
+// Sentinel string returned when the on-chain quorum is not yet derivable
+// (e.g., snapshot in the future, getPastTotalSupply not checkpointed yet,
+// RPC degraded). UI consumers should render a "Quorum syncing…" state
+// instead of treating this as a real zero quorum.
+//
+// Note: kept as a string so the public method signatures (Promise<string>)
+// remain stable for existing callers.
+static readonly QUORUM_SYNCING = 'syncing';
+
+// Mirrors OpenZeppelin GovernorVotesQuorumFraction:
+//   quorum = getPastTotalSupply(timepoint) * quorumNumerator / QUORUM_DENOMINATOR
+// where getPastTotalSupply() on ERC20Votes is the DELEGATED voting supply
+// at that timepoint — NOT the ERC20 totalSupply (i.e., not "total mint").
+// If `timepoint` is omitted, uses (latest block - 1) so the read targets a
+// finalized checkpoint.
+private async computeQuorumFromSupply(timepoint?: bigint): Promise<bigint | null> {
   try {
     const provider = this.getProvider();
+    // OZ v5.x ERC20Votes exposes getPastTotalSupply as the canonical
+    // "delegated voting supply at block N" lookup. totalSupply is kept
+    // as a guarded last resort and never used silently.
     const TOKEN_ABI = [
+      "function getPastTotalSupply(uint256 timepoint) view returns (uint256)",
       "function totalSupply() view returns (uint256)",
     ];
     const token = new ethers.Contract(PROTOCOL.idiaToken, TOKEN_ABI, provider);
 
-    const [numeratorRaw, denominatorRaw, supply] = await Promise.all([
+    // Resolve a safe timepoint (latest finalized block) if caller didn't pass one.
+    let tp = timepoint;
+    if (tp == null) {
+      try {
+        const bn = await this.withRpcRetry(() => provider.getBlockNumber(), 'getBlockNumber(quorumFallback)');
+        tp = BigInt(bn) - 1n;
+      } catch {
+        tp = 0n;
+      }
+    }
+
+    const [numeratorRaw, denominatorRaw, delegatedSupplyRaw] = await Promise.all([
       this.callRaw("quorumNumerator", []).catch(() => null),
       this.callRaw("QUORUM_DENOMINATOR", []).catch(() => null),
-      token.totalSupply().catch(() => 0n),
+      // getPastTotalSupply can revert (ERC5805FutureLookup) when timepoint
+      // is in the future or before the first checkpoint. Treat as null to
+      // signal "syncing" rather than silently fabricating a value.
+      tp > 0n
+        ? this.withRpcRetry(() => token.getPastTotalSupply(tp!), `getPastTotalSupply(${tp})`).catch(() => null)
+        : Promise.resolve(null),
     ]);
 
     const numerator = numeratorRaw != null ? BigInt(numeratorRaw) : 4n;
     const denominator = denominatorRaw != null ? BigInt(denominatorRaw) : 100n;
 
-    if (supply === 0n || denominator === 0n) return null;
-    const q = (BigInt(supply) * numerator) / denominator;
-    console.log(`[QUORUM_FALLBACK] supply=${supply} num=${numerator} den=${denominator} → quorum=${q}`);
-    return q;
+    if (denominator === 0n) return null;
+
+    // Primary path: 4% of DELEGATED voting supply at the snapshot block.
+    if (delegatedSupplyRaw != null) {
+      const delegatedSupply = BigInt(delegatedSupplyRaw);
+      if (delegatedSupply === 0n) {
+        // No tokens delegated yet — surface "syncing" rather than 0 so the
+        // UI doesn't render a misleading "quorum already met" state.
+        console.warn(`[QUORUM_FALLBACK] delegatedSupply=0 at timepoint=${tp} — quorum syncing`);
+        return null;
+      }
+      const q = (delegatedSupply * numerator) / denominator;
+      console.log(`[QUORUM_FALLBACK] delegatedSupply=${delegatedSupply} num=${numerator} den=${denominator} timepoint=${tp} → quorum=${q}`);
+      return q;
+    }
+
+    // Last resort: getPastTotalSupply unavailable. Do NOT silently use
+    // totalSupply (that's the "4% of total mint" bug). Return null so the
+    // UI can render a syncing state instead.
+    console.warn(`[QUORUM_FALLBACK] getPastTotalSupply unavailable at timepoint=${tp} — returning syncing sentinel`);
+    return null;
   } catch (e) {
     console.warn("[QUORUM_FALLBACK] computeQuorumFromSupply failed", e);
     return null;
@@ -269,13 +320,13 @@ async getCurrentQuorum(): Promise<string> {
       if (quorum && BigInt(quorum) > 0n) {
         return ethers.formatEther(quorum);
       }
-      console.warn('[QUORUM_FALLBACK] Governor.quorum() returned 0 — computing from totalSupply');
-      const computed = await this.computeQuorumFromSupply();
-      return computed ? ethers.formatEther(computed) : '0';
+      console.warn('[QUORUM_FALLBACK] Governor.quorum() returned 0 — computing from delegated supply');
+      const computed = await this.computeQuorumFromSupply(BigInt(blockNumber) - 1n);
+      return computed ? ethers.formatEther(computed) : GovernanceService.QUORUM_SYNCING;
     } catch (e) {
       console.warn('[GovernanceService] getCurrentQuorum failed after retries', e);
       const computed = await this.computeQuorumFromSupply();
-      return computed ? ethers.formatEther(computed) : '0';
+      return computed ? ethers.formatEther(computed) : GovernanceService.QUORUM_SYNCING;
     }
   });
 }
@@ -290,9 +341,12 @@ async getCurrentQuorum(): Promise<string> {
           () => gov.proposalSnapshot(proposalId),
           `proposalSnapshot(${proposalId})`,
         );
-        if (Number(snapshotBlock) === 0) {
+        const snapTp = BigInt(snapshotBlock);
+        if (snapTp === 0n) {
+          // Snapshot not yet set (pending proposal). Use the latest finalized
+          // block as a best-effort preview of the delegated-supply quorum.
           const computed = await this.computeQuorumFromSupply();
-          return computed ? ethers.formatEther(computed) : '0';
+          return computed ? ethers.formatEther(computed) : GovernanceService.QUORUM_SYNCING;
         }
 
         const quorum = await this.withRpcRetry(
@@ -301,13 +355,13 @@ async getCurrentQuorum(): Promise<string> {
         );
         if (BigInt(quorum) > 0n) return ethers.formatEther(quorum);
 
-        console.warn(`[QUORUM_FALLBACK] proposal ${proposalId} quorum=0 — falling back to supply math`);
-        const computed = await this.computeQuorumFromSupply();
-        return computed ? ethers.formatEther(computed) : '0';
+        console.warn(`[QUORUM_FALLBACK] proposal ${proposalId} quorum=0 — falling back to delegated-supply math at snapshot=${snapTp}`);
+        const computed = await this.computeQuorumFromSupply(snapTp);
+        return computed ? ethers.formatEther(computed) : GovernanceService.QUORUM_SYNCING;
       } catch (error) {
         console.error(`[GovernanceService] Quorum fetch failed for proposal ${proposalId} after retries:`, error);
         const computed = await this.computeQuorumFromSupply();
-        return computed ? ethers.formatEther(computed) : '0';
+        return computed ? ethers.formatEther(computed) : GovernanceService.QUORUM_SYNCING;
       }
     });
   }
