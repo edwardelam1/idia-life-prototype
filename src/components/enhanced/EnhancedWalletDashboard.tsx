@@ -821,8 +821,8 @@ const EnhancedWalletDashboard: React.FC = () => {
                 {/* ── MetaMask Deep Link ── */}
                 <Button
                   onClick={() => {
-                    console.log("[EnhancedWalletDashboard][DeepLink][START] Routing user to MetaMask dApp browser");
-                    window.location.href = "https://metamask.app.link/dapp/life.thebigidia.com";
+                    console.log("[EnhancedWalletDashboard][DeepLink][START] Launching native MetaMask application");
+                    window.location.href = "metamask://";
                   }}
                   className="w-full bg-[#F6851B] hover:bg-[#E2761B] text-white shadow-md shadow-orange-500/20"
                 >
