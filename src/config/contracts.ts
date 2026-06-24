@@ -122,7 +122,6 @@ export const IDIA_TOKEN_ABI = [
   "function getVotes(address account) view returns (uint256)",
   "function nonces(address owner) view returns (uint256)",
   "function totalSupply() view returns (uint256)",
-  "function getPastTotalSupply(uint256 timepoint) view returns (uint256)",
 ];
 
 export const ERC20_ABI = [

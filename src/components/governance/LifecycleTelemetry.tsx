@@ -8,7 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { stage } from "@/lib/stageLogger";
 import { ethers } from "ethers";
-import { PROTOCOL, ACTIVE_DEPLOYMENT, GOVERNOR_ABI, IDIA_TOKEN_ABI } from "@/config/contracts";
+import { PROTOCOL, ACTIVE_DEPLOYMENT, GOVERNOR_ABI } from "@/config/contracts";
 import { NETWORKS } from "@/services/walletService";
 import { readChainState } from "./ActiveProposalsList";
 
@@ -61,41 +61,24 @@ export const PHASE_META = {
   },
 } as const;
 
-// Delegated-supply quorum read — mirrors OpenZeppelin GovernorVotesQuorumFraction
-// (quorum = getPastTotalSupply(tp) * num / den). Avoids the "4% of total mint"
-// bug that comes from naive totalSupply-based fallbacks. Returns 0n when the
-// delegated supply checkpoint isn't yet available so the UI shows "syncing".
+// Direct-RPC quorum read — no service-layer cache, retry, or fallback chain.
 async function directQuorum(onChainId?: string | null): Promise<bigint> {
   const networkKey = ACTIVE_DEPLOYMENT === "mainnet" ? "base" : "baseSepolia";
   const network = NETWORKS[networkKey];
   const rpcUrl = (import.meta.env.VITE_ALCHEMY_RPC_URL as string | undefined) || network.rpcUrl;
   const provider = new ethers.JsonRpcProvider(rpcUrl, network.chainId);
   const gov = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, provider);
-  const token = new ethers.Contract(PROTOCOL.idiaToken, IDIA_TOKEN_ABI, provider);
 
-  let timepoint: number | null = null;
   if (onChainId && onChainId.trim() !== "") {
-    const snap = await gov.proposalSnapshot(onChainId).catch(() => 0n);
-    if (snap && Number(snap) > 0) timepoint = Number(snap);
+    const snap = await gov.proposalSnapshot(onChainId);
+    if (snap && Number(snap) > 0) {
+      const q = await gov.quorum(snap);
+      return BigInt(q);
+    }
   }
-  if (timepoint == null) {
-    const block = await provider.getBlockNumber().catch(() => 0);
-    if (block > 0) timepoint = block - 1;
-  }
-  if (timepoint == null || timepoint <= 0) return 0n;
-
-  const [numRaw, denRaw, supplyRaw] = await Promise.all([
-    gov.quorumNumerator().catch(() => null),
-    gov["QUORUM_DENOMINATOR"]().catch(() => null),
-    token.getPastTotalSupply(timepoint).catch(() => null),
-  ]);
-  if (supplyRaw == null) return 0n;
-  const supply = BigInt(supplyRaw);
-  if (supply === 0n) return 0n;
-  const num = numRaw != null ? BigInt(numRaw) : 4n;
-  const den = denRaw != null ? BigInt(denRaw) : 100n;
-  if (den === 0n) return 0n;
-  return (supply * num) / den;
+  const block = await provider.getBlockNumber();
+  const q = await gov.quorum(block - 1);
+  return BigInt(q);
 }
 
 const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => void }> = ({ proposal, onClose }) => {
