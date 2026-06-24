@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Car, Zap, MapPin, Battery, Gauge, Shield } from "lucide-react";
+import { CheckCircle, Car, Zap, MapPin, Battery, Gauge, Shield, Fingerprint } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { eventTracker } from "@/utils/EventTracker";
+import { generateACAHash } from "@/utils/acaGenerator";
+import { recordACA } from "@/utils/acaLedger";
 
 interface FordConnectionModalProps {
   isOpen: boolean;
@@ -42,6 +44,12 @@ const FordConnectionModal = ({
     try {
       eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "disconnect_initiated", success: false });
 
+      // Trigger ACA Hash for revocation
+      const { hash, payload } = await generateACAHash(currentUserId, "ford_connection_revoke", [
+        "DATA_CONNECTION_REVOKE",
+        "VEHICLE_TELEMETRY",
+      ]);
+
       const { error } = await supabase
         .from("data_connections")
         .update({ is_active: false })
@@ -49,12 +57,29 @@ const FordConnectionModal = ({
         .eq("user_id", currentUserId);
 
       if (!error) {
+        // Record the immutable cryptographic ledger entry
+        await recordACA({
+          userId: currentUserId,
+          sourceId: "ford",
+          consentType: "data_connection_revoke",
+          hash: hash,
+          payload: payload,
+        });
+
         eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "disconnected", success: true });
         onDisconnect?.();
         onClose();
+        toast({ title: "Disconnected", description: "FordConnect telemetry has been revoked and recorded." });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error disconnecting Ford:", error);
+      if (!error.message?.includes("cancelled")) {
+        toast({
+          title: "Disconnect Failed",
+          description: error.message || "Failed to disconnect",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -67,15 +92,40 @@ const FordConnectionModal = ({
     eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "connect_initiated", success: false });
     setIsConnecting(true);
 
-    // CRITICAL FIX: Open popup synchronously before the 'await' to bypass the browser's popup blocker.
+    // 1. Open popup synchronously to bypass popup blocker constraints
     const popup = window.open("about:blank", "ford-oauth", "width=600,height=700,scrollbars=yes,resizable=yes");
     if (popup) {
-      popup.document.write(
-        '<html><body style="display:flex;align-items:center;justify-content:center;font-family:sans-serif;background:#f8fafc;color:#1e293b;"><h2>Loading Ford Secure Login...</h2></body></html>',
-      );
+      popup.document.write(`
+        <html>
+          <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;background:#f8fafc;color:#1e293b;text-align:center;padding:2rem;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:1rem;animation:pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <h2 style="margin:0 0 0.5rem 0;">Awaiting Biometrics...</h2>
+            <p style="color:#64748b;margin:0;">Please confirm via Face ID / Touch ID on your device.</p>
+          </body>
+        </html>
+      `);
     }
 
     try {
+      // 2. Trigger Biometric Hardware (Face ID / Fingerprint) to generate ACA Hash
+      const { hash, payload } = await generateACAHash(currentUserId, "ford_connection_auth", [
+        "DATA_CONNECTION",
+        "VEHICLE_TELEMETRY",
+        "OAUTH_AUTHORIZATION",
+      ]);
+
+      if (popup) {
+        popup.document.write(`
+          <html>
+            <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;background:#f8fafc;color:#1e293b;text-align:center;padding:2rem;">
+              <h2 style="margin:0 0 0.5rem 0;">Identity Verified</h2>
+              <p style="color:#10b981;margin:0;">Loading Ford Secure Login...</p>
+            </body>
+          </html>
+        `);
+      }
+
+      // 3. Fetch specific OAuth URL from Edge Function
       const { data: urlData, error: urlError } = await supabase.functions.invoke("ford-auth-url", {
         body: { userId: currentUserId },
       });
@@ -85,9 +135,17 @@ const FordConnectionModal = ({
 
       eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "oauth_url_retrieved", success: true });
 
+      // 4. Anchor the ACA Hash to the Immutable Ledger
+      await recordACA({
+        userId: currentUserId,
+        sourceId: "ford",
+        consentType: "data_connection_auth",
+        hash: hash,
+        payload: payload,
+      });
+
       if (!popup || popup.closed) {
         setIsConnecting(false);
-        // Fallback if popup was aggressively blocked by an extension
         const useDirectLink = confirm("Your browser blocked the popup. Open Ford login in this window instead?");
         if (useDirectLink) {
           window.location.href = urlData.oauthUrl;
@@ -95,7 +153,7 @@ const FordConnectionModal = ({
         return;
       }
 
-      // Update the existing popup with the authorized Ford URL
+      // 5. Safely redirect the active popup to the Ford URL
       popup.location.href = urlData.oauthUrl;
 
       let checkClosed: ReturnType<typeof setInterval>;
@@ -106,13 +164,14 @@ const FordConnectionModal = ({
         if (timeoutId) clearTimeout(timeoutId);
       };
 
+      // Polling block to catch when the user finishes OAuth and the window closes
       checkClosed = setInterval(() => {
         try {
           if (popup.closed) {
             cleanup();
             setIsConnecting(false);
-            // Delay slightly to give edge callback time to update DB
-            setTimeout(() => checkConnection(), 1000);
+            // Wait a moment for Supabase to digest the redirect tokens
+            setTimeout(() => checkConnection(), 1500);
           }
         } catch {
           /* cross-origin expected */
@@ -126,16 +185,21 @@ const FordConnectionModal = ({
           setIsConnecting(false);
           toast({ title: "Connection Timeout", description: "Please try again.", variant: "destructive" });
         }
-      }, 300000);
-    } catch (error) {
-      console.error("Error starting Ford OAuth:", error);
-      if (popup && !popup.closed) popup.close(); // Clean up the blank popup on error
+      }, 300000); // 5 minute max timeout
+    } catch (error: any) {
+      console.error("Error connecting Ford:", error);
+      if (popup && !popup.closed) popup.close(); // Clean up popup if pipeline snaps
       setIsConnecting(false);
-      toast({
-        title: "Connection Failed",
-        description: `Failed to start Ford connection: ${error instanceof Error ? error.message : "Unknown error"}`,
-        variant: "destructive",
-      });
+
+      if (error.message?.includes("cancelled") || error.message?.includes("aborted")) {
+        toast({ title: "Verification Cancelled", description: "Biometric authentication was cancelled." });
+      } else {
+        toast({
+          title: "Connection Failed",
+          description: `Failed to start Ford connection: ${error instanceof Error ? error.message : "Unknown error"}`,
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -226,7 +290,7 @@ const FordConnectionModal = ({
                   Close
                 </Button>
                 <Button variant="destructive" className="flex-1" onClick={handleDisconnect}>
-                  Disconnect
+                  <Fingerprint className="w-4 h-4 mr-2" /> Revoke
                 </Button>
               </div>
             </div>
@@ -283,7 +347,10 @@ const FordConnectionModal = ({
                       <span>Connecting...</span>
                     </div>
                   ) : (
-                    "Connect with Ford"
+                    <>
+                      <Fingerprint className="w-4 h-4 mr-2" />
+                      Verify & Connect
+                    </>
                   )}
                 </Button>
               </div>
