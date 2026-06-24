@@ -1,19 +1,10 @@
-import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { 
-  CheckCircle, 
-  AlertCircle,
-  Car,
-  Zap,
-  MapPin,
-  Battery,
-  Gauge,
-  Shield
-} from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import { eventTracker } from '@/utils/EventTracker';
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { CheckCircle, AlertCircle, Car, Zap, MapPin, Battery, Gauge, Shield } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { eventTracker } from "@/utils/EventTracker";
 
 interface FordConnectionModalProps {
   isOpen: boolean;
@@ -23,7 +14,13 @@ interface FordConnectionModalProps {
   onDisconnect?: () => void;
 }
 
-const FordConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, onDisconnect }: FordConnectionModalProps) => {
+const FordConnectionModal = ({
+  isOpen,
+  onClose,
+  onComplete,
+  existingConnection,
+  onDisconnect,
+}: FordConnectionModalProps) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -31,7 +28,9 @@ const FordConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, 
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) setCurrentUserId(user.id);
     };
     getUser();
@@ -39,23 +38,23 @@ const FordConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, 
 
   const handleDisconnect = async () => {
     if (!currentUserId || !existingConnection) return;
-    
+
     try {
-      eventTracker.trackFeatureUsage({ feature: 'ford_connection', action: 'disconnect_initiated', success: false });
+      eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "disconnect_initiated", success: false });
 
       const { error } = await supabase
-        .from('data_connections')
+        .from("data_connections")
         .update({ is_active: false })
-        .eq('id', existingConnection.id)
-        .eq('user_id', currentUserId);
+        .eq("id", existingConnection.id)
+        .eq("user_id", currentUserId);
 
       if (!error) {
-        eventTracker.trackFeatureUsage({ feature: 'ford_connection', action: 'disconnected', success: true });
+        eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "disconnected", success: true });
         onDisconnect?.();
         onClose();
       }
     } catch (error) {
-      console.error('Error disconnecting Ford:', error);
+      console.error("Error disconnecting Ford:", error);
     }
   };
 
@@ -65,49 +64,59 @@ const FordConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, 
       return;
     }
 
-    eventTracker.trackFeatureUsage({ feature: 'ford_connection', action: 'connect_initiated', success: false });
+    eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "connect_initiated", success: false });
     setIsConnecting(true);
 
+    // CRITICAL FIX: Open popup synchronously before the 'await' to bypass the browser's popup blocker.
+    const popup = window.open("about:blank", "ford-oauth", "width=600,height=700,scrollbars=yes,resizable=yes");
+    if (popup) {
+      popup.document.write(
+        '<html><body style="display:flex;align-items:center;justify-content:center;font-family:sans-serif;background:#f8fafc;color:#1e293b;"><h2>Loading Ford Secure Login...</h2></body></html>',
+      );
+    }
+
     try {
-      const { data: urlData, error: urlError } = await supabase.functions.invoke('ford-auth-url', {
-        body: { userId: currentUserId }
+      const { data: urlData, error: urlError } = await supabase.functions.invoke("ford-auth-url", {
+        body: { userId: currentUserId },
       });
 
-      if (urlError) throw new Error(`Edge function error: ${urlError.message || 'Unknown error'}`);
-      if (!urlData?.oauthUrl) throw new Error('No OAuth URL received from server');
+      if (urlError) throw new Error(`Edge function error: ${urlError.message || "Unknown error"}`);
+      if (!urlData?.oauthUrl) throw new Error("No OAuth URL received from server");
 
-      eventTracker.trackFeatureUsage({ feature: 'ford_connection', action: 'oauth_url_retrieved', success: true });
+      eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "oauth_url_retrieved", success: true });
 
-      const popup = window.open('', 'ford-oauth', 'width=600,height=700,scrollbars=yes,resizable=yes');
-      
       if (!popup || popup.closed) {
         setIsConnecting(false);
-        const useDirectLink = confirm("Your browser blocked the popup. Open Ford login in a new tab instead?");
+        // Fallback if popup was aggressively blocked by an extension
+        const useDirectLink = confirm("Your browser blocked the popup. Open Ford login in this window instead?");
         if (useDirectLink) {
-          window.open(urlData.oauthUrl, '_blank');
-          toast({ title: "Ford Login Opened", description: "Complete the connection and return to this page." });
+          window.location.href = urlData.oauthUrl;
         }
         return;
       }
-      
+
+      // Update the existing popup with the authorized Ford URL
       popup.location.href = urlData.oauthUrl;
-      
+
       let checkClosed: ReturnType<typeof setInterval>;
       let timeoutId: ReturnType<typeof setTimeout>;
-      
+
       const cleanup = () => {
         if (checkClosed) clearInterval(checkClosed);
         if (timeoutId) clearTimeout(timeoutId);
       };
-      
+
       checkClosed = setInterval(() => {
         try {
           if (popup.closed) {
             cleanup();
             setIsConnecting(false);
+            // Delay slightly to give edge callback time to update DB
             setTimeout(() => checkConnection(), 1000);
           }
-        } catch { /* cross-origin expected */ }
+        } catch {
+          /* cross-origin expected */
+        }
       }, 1000);
 
       timeoutId = setTimeout(() => {
@@ -118,13 +127,13 @@ const FordConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, 
           toast({ title: "Connection Timeout", description: "Please try again.", variant: "destructive" });
         }
       }, 300000);
-
     } catch (error) {
-      console.error('Error starting Ford OAuth:', error);
+      console.error("Error starting Ford OAuth:", error);
+      if (popup && !popup.closed) popup.close(); // Clean up the blank popup on error
       setIsConnecting(false);
       toast({
         title: "Connection Failed",
-        description: `Failed to start Ford connection: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        description: `Failed to start Ford connection: ${error instanceof Error ? error.message : "Unknown error"}`,
         variant: "destructive",
       });
     }
@@ -134,29 +143,32 @@ const FordConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, 
     if (!currentUserId) return;
     try {
       const { data, error } = await supabase
-        .from('data_connections')
-        .select('*')
-        .eq('user_id', currentUserId)
-        .eq('connection_type', 'ford')
-        .eq('is_active', true)
+        .from("data_connections")
+        .select("*")
+        .eq("user_id", currentUserId)
+        .eq("connection_type", "ford")
+        .eq("is_active", true)
         .single();
 
       if (data && !error) {
         setConnected(true);
         toast({ title: "Connected!", description: "Your Ford vehicle has been connected successfully." });
-        setTimeout(() => { onComplete(); setConnected(false); }, 2000);
+        setTimeout(() => {
+          onComplete();
+          setConnected(false);
+        }, 2000);
       }
     } catch (error) {
-      console.error('Error checking Ford connection:', error);
+      console.error("Error checking Ford connection:", error);
     }
   };
 
   const dataCategories = [
-    { icon: MapPin, label: 'Location & Movement', desc: 'GPS, speed, heading' },
-    { icon: Gauge, label: 'Driving Dynamics', desc: 'Pedals, acceleration, RPM' },
-    { icon: Battery, label: 'EV / Battery', desc: 'SOC, charging, range' },
-    { icon: Car, label: 'Vehicle Health', desc: 'Odometer, tires, DTCs' },
-    { icon: Shield, label: 'Security & Cabin', desc: 'Doors, climate, alarm' },
+    { icon: MapPin, label: "Location & Movement", desc: "GPS, speed, heading" },
+    { icon: Gauge, label: "Driving Dynamics", desc: "Pedals, acceleration, RPM" },
+    { icon: Battery, label: "EV / Battery", desc: "SOC, charging, range" },
+    { icon: Car, label: "Vehicle Health", desc: "Odometer, tires, DTCs" },
+    { icon: Shield, label: "Security & Cabin", desc: "Doors, climate, alarm" },
   ];
 
   if (connected) {
@@ -168,12 +180,8 @@ const FordConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, 
               <CheckCircle className="w-8 h-8 text-blue-600" />
             </div>
             <h3 className="text-xl font-bold text-foreground mb-2">FordConnect Linked!</h3>
-            <p className="text-muted-foreground mb-4">
-              Your vehicle telemetry is now streaming into IDIA.
-            </p>
-            <p className="text-sm text-blue-600 font-medium">
-              Earning potential: $40-80/month from vehicle data
-            </p>
+            <p className="text-muted-foreground mb-4">Your vehicle telemetry is now streaming into IDIA.</p>
+            <p className="text-sm text-blue-600 font-medium">Earning potential: $40-80/month from vehicle data</p>
           </div>
         </DialogContent>
       </Dialog>
@@ -188,7 +196,7 @@ const FordConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, 
             <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
               <Car className="w-5 h-5 text-white" />
             </div>
-            <span>{existingConnection ? 'FordConnect' : 'Connect FordConnect'}</span>
+            <span>{existingConnection ? "FordConnect" : "Connect FordConnect"}</span>
           </DialogTitle>
         </DialogHeader>
 
@@ -202,7 +210,7 @@ const FordConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, 
                 <h3 className="font-medium text-blue-800">FordConnect Active</h3>
                 <p className="text-sm text-muted-foreground">Vehicle telemetry is streaming</p>
               </div>
-              
+
               <div className="bg-blue-50 p-4 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
@@ -212,10 +220,14 @@ const FordConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, 
                   <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
                 </div>
               </div>
-              
+
               <div className="flex space-x-3">
-                <Button variant="outline" className="flex-1" onClick={onClose}>Close</Button>
-                <Button variant="destructive" className="flex-1" onClick={handleDisconnect}>Disconnect</Button>
+                <Button variant="outline" className="flex-1" onClick={onClose}>
+                  Close
+                </Button>
+                <Button variant="destructive" className="flex-1" onClick={handleDisconnect}>
+                  Disconnect
+                </Button>
               </div>
             </div>
           ) : (
@@ -226,8 +238,8 @@ const FordConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, 
                   <div>
                     <p className="font-medium text-blue-900 mb-1">Full Vehicle Telemetry</p>
                     <p className="text-sm text-blue-800">
-                      Connect your Ford vehicle to stream real-time driving, location, EV, 
-                      and diagnostic data — all anonymized and earning you IDIA-USD.
+                      Connect your Ford vehicle to stream real-time driving, location, EV, and diagnostic data — all
+                      anonymized and earning you IDIA-USD.
                     </p>
                   </div>
                 </div>
@@ -251,9 +263,8 @@ const FordConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, 
               <div className="bg-muted/50 p-4 rounded-lg">
                 <h5 className="font-medium text-foreground mb-2">Privacy & Anonymization</h5>
                 <p className="text-sm text-muted-foreground">
-                  All vehicle data is anonymized before marketplace bundling. GPS positions are 
-                  zone-hashed, VINs are pseudonymized, and no personally identifiable information 
-                  is ever shared.
+                  All vehicle data is anonymized before marketplace bundling. GPS positions are zone-hashed, VINs are
+                  pseudonymized, and no personally identifiable information is ever shared.
                 </p>
               </div>
 
@@ -261,8 +272,8 @@ const FordConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, 
                 <Button variant="outline" className="flex-1" onClick={onClose} disabled={isConnecting}>
                   Cancel
                 </Button>
-                <Button 
-                  className="flex-1 bg-blue-600 hover:bg-blue-700" 
+                <Button
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
                   onClick={handleConnect}
                   disabled={isConnecting}
                 >
@@ -272,7 +283,7 @@ const FordConnectionModal = ({ isOpen, onClose, onComplete, existingConnection, 
                       <span>Connecting...</span>
                     </div>
                   ) : (
-                    'Connect with Ford'
+                    "Connect with Ford"
                   )}
                 </Button>
               </div>
