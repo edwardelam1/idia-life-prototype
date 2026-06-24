@@ -203,10 +203,7 @@ const EnhancedWalletDashboard: React.FC = () => {
       console.error("Delegation failed:", e);
       const code = e?.code || e?.info?.error?.code;
       const msg = (e?.message || "").toLowerCase();
-      const isNoGas =
-        code === "INSUFFICIENT_FUNDS" ||
-        code === -32003 ||
-        msg.includes("insufficient funds");
+      const isNoGas = code === "INSUFFICIENT_FUNDS" || code === -32003 || msg.includes("insufficient funds");
       if (isNoGas) {
         toast({
           title: "Not enough ETH for gas",
@@ -439,7 +436,8 @@ const EnhancedWalletDashboard: React.FC = () => {
   const formatAmount = (amount: number, currency: string) => {
     const prefix = amount > 0 ? "+" : "";
     if (currency === "ETH") return `${prefix}${Math.abs(amount).toFixed(6)} ETH`;
-    if (currency === "IDIA") return `${prefix}${Math.abs(amount).toLocaleString(undefined, { maximumFractionDigits: 4 })} IDIA`;
+    if (currency === "IDIA")
+      return `${prefix}${Math.abs(amount).toLocaleString(undefined, { maximumFractionDigits: 4 })} IDIA`;
     const value = Math.abs(amount).toFixed(2);
     if (currency === "USDC") return `${prefix}${value} USDC`;
     if (currency === "IDIA Token") return `${prefix}${value} IDIA`;
@@ -498,9 +496,7 @@ const EnhancedWalletDashboard: React.FC = () => {
               <CardContent className="p-7">
                 <div className="flex justify-between items-start">
                   <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60">
-                      Total Balance
-                    </p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60">Total Balance</p>
                     <h2 className="text-4xl font-black">
                       ${walletBalance?.usdc_balance?.toFixed(2) || "0.00"}{" "}
                       <span className="text-sm font-medium text-teal-100/40">USDC</span>
@@ -509,17 +505,19 @@ const EnhancedWalletDashboard: React.FC = () => {
                   <Wallet className="w-10 h-10 text-orange-400 drop-shadow-lg" />
                 </div>
                 <div className="mt-6 flex items-center gap-2 border-t border-white/10 pt-4">
-                  <span className={`w-1.5 h-1.5 rounded-full ${isProvisioned ? "bg-emerald-400 animate-pulse" : "bg-orange-400"}`} />
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${isProvisioned ? "bg-emerald-400 animate-pulse" : "bg-orange-400"}`}
+                  />
                   <span className="text-[9px] font-black uppercase tracking-widest text-teal-50">
-                    IDIA · {(walletBalance?.idia_token_balance ?? 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                    IDIA ·{" "}
+                    {(walletBalance?.idia_token_balance ?? 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}
                     {!isProvisioned && " · Link vault to liquidate"}
                   </span>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Elevated Sovereign Treasury Details — driven by displayAddress so
-                read-only / restored-on-another-device accounts still see ETH + voting */}
+            {/* Elevated Sovereign Treasury Details */}
             {displayAddress && (
               <div className="space-y-4">
                 {/* Banner when global wallet exists but device has no signing keys */}
@@ -546,6 +544,9 @@ const EnhancedWalletDashboard: React.FC = () => {
                     </div>
                   </div>
                 )}
+
+                {/* ── Tap-to-Pay / NFC Trigger ── */}
+                <PaymentTrigger />
 
                 {/* Balances — ETH, IDIA, USDC */}
                 <div className="space-y-3">
@@ -581,7 +582,8 @@ const EnhancedWalletDashboard: React.FC = () => {
                   <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 rounded-lg border">
                     <p className="text-xs text-muted-foreground">USDC</p>
                     <p className="text-2xl font-bold mt-1">
-                      ${balances?.usdc
+                      $
+                      {balances?.usdc
                         ? parseFloat(balances.usdc.balanceFormatted).toFixed(2)
                         : (walletBalance?.usdc_balance ?? 0).toFixed(2)}
                       <span className="text-sm text-muted-foreground font-normal ml-1">USDC</span>
@@ -650,9 +652,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                         {label}
                       </Button>
                       {!isSelfDelegated && !isReady && missing.length > 0 && (
-                        <p className="text-[10px] text-muted-foreground text-center">
-                          Missing: {missing.join(", ")}
-                        </p>
+                        <p className="text-[10px] text-muted-foreground text-center">Missing: {missing.join(", ")}</p>
                       )}
                     </div>
                   );
@@ -805,16 +805,6 @@ const EnhancedWalletDashboard: React.FC = () => {
                         </Button>
                       </div>
                       <p className="font-mono text-xs break-all text-muted-foreground mb-2">{wallet.address}</p>
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => {
-                          setSetupMode("view-seed");
-                          setIsSetupModalOpen(true);
-                        }}
-                      >
-                        <Shield className="w-4 h-4 mr-2" /> Reveal Recovery Phrase
-                      </Button>
                     </div>
 
                     {/* Network selector — only visible in test builds */}
@@ -839,9 +829,6 @@ const EnhancedWalletDashboard: React.FC = () => {
                     )}
                   </CardContent>
                 </Card>
-
-                {/* ── USDC Payments (NFC + QR) ── */}
-                <PaymentTrigger />
 
                 {/* ── Request USDC Payment (only when payments enabled) ── */}
                 {USDC_PAYMENTS_ENABLED && (
@@ -881,13 +868,6 @@ const EnhancedWalletDashboard: React.FC = () => {
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Import Different Wallet
-                    </Button>
-                    <Button
-                      className="w-full bg-[#F6851B] hover:bg-[#E2761B] text-white"
-                      onClick={() => setShowSendRequestModal(true)}
-                    >
-                      <Wallet className="w-4 h-4 mr-2" />
-                      Send / Receive (Launch MetaMask)
                     </Button>
                   </CardContent>
                 </Card>
