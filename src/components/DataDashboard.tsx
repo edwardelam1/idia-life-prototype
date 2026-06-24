@@ -40,8 +40,6 @@ const DataDashboard = () => {
   const [showTruckstopModal, setShowTruckstopModal] = useState(false);
   const [showFordModal, setShowFordModal] = useState(false);
 
-  const [lastSyncStatus, setLastSyncStatus] = useState<string>("unknown");
-  const [lastStatusChangeAt, setLastStatusChangeAt] = useState<Date | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [acaRecords, setAcaRecords] = useState<any[]>([]);
   const [acaLoading, setAcaLoading] = useState(false);
@@ -96,7 +94,7 @@ const DataDashboard = () => {
         throw connRes.error;
       }
 
-      // Fetch the last 100 audit records to evaluate all sources, not just Apple Health
+      // Fetch the last 100 audit records to evaluate all sources
       const auditRes = await supabase
         .from("user_aca_records")
         .select("source_id, created_at")
@@ -106,22 +104,6 @@ const DataDashboard = () => {
 
       const rawData = connRes.data || [];
       const auditData = auditRes.data || [];
-
-      // Determine global sync status from the absolute most recent record
-      let globalSyncStatus = "no_data";
-
-      if (auditData.length > 0) {
-        const lastSyncTime = new Date(auditData[0].created_at).getTime();
-        const hoursSinceLastSync = (Date.now() - lastSyncTime) / (1000 * 60 * 60);
-
-        if (hoursSinceLastSync < 6) {
-          globalSyncStatus = "recent";
-        } else if (hoursSinceLastSync < 24) {
-          globalSyncStatus = "delayed";
-        } else {
-          globalSyncStatus = "stale";
-        }
-      }
 
       const cleaned: DataBlocker[] = [];
       for (let i = 0; i < rawData.length; i++) {
@@ -148,13 +130,6 @@ const DataDashboard = () => {
         });
       }
 
-      setLastSyncStatus((prev) => {
-        if (prev !== globalSyncStatus) {
-          const seed = auditData.length > 0 ? new Date(auditData[0].created_at) : new Date();
-          setLastStatusChangeAt(seed);
-        }
-        return globalSyncStatus;
-      });
       setConnections(cleaned);
     } catch (error: any) {
       console.error("🚨 [DASHBOARD_LOG] FATAL Error in fetchConnections:", error.message);
@@ -167,56 +142,31 @@ const DataDashboard = () => {
     window.dispatchEvent(new CustomEvent("showFriend", { detail: { trigger: "data" } }));
   };
 
-  const STATUS_META: Record<string, { label: string; description: string; dot: string; badge: JSX.Element }> = {
+  const STATUS_META: Record<string, { label: string; description: string; dot: string }> = {
     recent: {
       label: "Synced Recently",
       description: "Data flowed in the last 6 hours.",
       dot: "bg-green-500",
-      badge: (
-        <Badge variant="secondary" className="bg-green-100 text-green-800 cursor-pointer">
-          Synced Recently
-        </Badge>
-      ),
     },
     delayed: {
       label: "Idle",
       description: "Last sync was 6–24 hours ago.",
       dot: "bg-yellow-500",
-      badge: (
-        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 cursor-pointer">
-          Idle
-        </Badge>
-      ),
     },
     stale: {
       label: "Stale",
       description: "No sync in over 24 hours.",
       dot: "bg-red-500",
-      badge: (
-        <Badge variant="secondary" className="bg-red-100 text-red-800 cursor-pointer">
-          Stale
-        </Badge>
-      ),
     },
     no_data: {
       label: "No Data Found",
       description: "Source connected but no audit record yet.",
       dot: "bg-muted-foreground",
-      badge: (
-        <Badge variant="outline" className="cursor-pointer">
-          No Data Found
-        </Badge>
-      ),
     },
     unknown: {
       label: "Checking…",
       description: "Still verifying the pipe.",
       dot: "bg-muted-foreground/50",
-      badge: (
-        <Badge variant="outline" className="cursor-pointer">
-          Checking...
-        </Badge>
-      ),
     },
   };
 
@@ -231,69 +181,72 @@ const DataDashboard = () => {
     return `${days}d ago`;
   };
 
-  const getSyncStatusBadge = () => {
-    const activeKey = STATUS_META[lastSyncStatus] ? lastSyncStatus : "unknown";
-    const order = ["recent", "delayed", "stale", "no_data", "unknown"];
-    return (
-      <Popover>
-        <PopoverTrigger asChild>
-          <button type="button" onClick={(e) => e.stopPropagation()} className="focus:outline-none">
-            {STATUS_META[activeKey].badge}
-          </button>
-        </PopoverTrigger>
-        <PopoverContent className="w-64 p-3" onClick={(e) => e.stopPropagation()}>
-          <p className="text-xs font-semibold text-foreground mb-2 uppercase tracking-wider">Global Sync Status</p>
-          <div className="space-y-1.5">
-            {order.map((key) => {
-              const meta = STATUS_META[key];
-              const isActive = key === activeKey;
-              return (
-                <div
-                  key={key}
-                  className={`flex items-start gap-2 rounded-md p-1.5 ${isActive ? "bg-muted ring-1 ring-border" : ""}`}
-                >
-                  <span className={`mt-1 h-2 w-2 rounded-full shrink-0 ${meta.dot}`} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-xs font-medium text-foreground">{meta.label}</p>
-                      {isActive && (
-                        <span className="text-[9px] uppercase tracking-wider text-primary font-bold">Current</span>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground leading-snug">{meta.description}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {lastStatusChangeAt && (
-            <p className="mt-3 pt-2 border-t border-border text-[10px] text-muted-foreground">
-              Last change: {formatRelative(lastStatusChangeAt)}
-            </p>
-          )}
-        </PopoverContent>
-      </Popover>
-    );
+  const formatSourceName = (sourceId: string) => {
+    return sourceId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   };
 
   const renderSyncBadgeFor = (connection: DataBlocker) => {
     const status = connection.status || "unknown";
     const meta = STATUS_META[status] || STATUS_META["unknown"];
+    const order = ["recent", "delayed", "stale", "no_data", "unknown"];
 
-    // Extract base color to build a non-clickable dynamic badge for the specific item
-    let badgeClass = "bg-muted text-muted-foreground";
-    if (meta.dot.includes("green")) badgeClass = "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+    // Find the latest audit record for this specific connection to get "last change"
+    const latestAudit = acaRecords.find((a) => a.source_id === connection.connection_type);
+
+    let badgeClass = "bg-muted text-muted-foreground hover:bg-muted/80";
+    if (meta.dot.includes("green"))
+      badgeClass = "bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400";
     if (meta.dot.includes("yellow"))
-      badgeClass = "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
-    if (meta.dot.includes("red")) badgeClass = "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+      badgeClass = "bg-yellow-100 text-yellow-800 hover:bg-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400";
+    if (meta.dot.includes("red"))
+      badgeClass = "bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400";
 
     return (
-      <Badge
-        variant="secondary"
-        className={`border-none px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}
-      >
-        {meta.label}
-      </Badge>
+      <div onClick={(e) => e.stopPropagation()}>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Badge
+              variant="secondary"
+              className={`border-none px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider cursor-pointer transition-colors ${badgeClass}`}
+            >
+              {meta.label}
+            </Badge>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 p-3" onClick={(e) => e.stopPropagation()}>
+            <p className="text-xs font-semibold text-foreground mb-2 uppercase tracking-wider">
+              {formatSourceName(connection.connection_type)} Status
+            </p>
+            <div className="space-y-1.5">
+              {order.map((key) => {
+                const m = STATUS_META[key];
+                const isActive = key === status;
+                return (
+                  <div
+                    key={key}
+                    className={`flex items-start gap-2 rounded-md p-1.5 ${isActive ? "bg-muted ring-1 ring-border" : ""}`}
+                  >
+                    <span className={`mt-1 h-2 w-2 rounded-full shrink-0 ${m.dot}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-medium text-foreground">{m.label}</p>
+                        {isActive && (
+                          <span className="text-[9px] uppercase tracking-wider text-primary font-bold">Current</span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground leading-snug">{m.description}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {latestAudit && (
+              <p className="mt-3 pt-2 border-t border-border text-[10px] text-muted-foreground">
+                Last sync: {formatRelative(new Date(latestAudit.created_at))}
+              </p>
+            )}
+          </PopoverContent>
+        </Popover>
+      </div>
     );
   };
 
@@ -336,10 +289,6 @@ const DataDashboard = () => {
     if (c.connection_type === "ford") return true;
     return false;
   });
-
-  const formatSourceName = (sourceId: string) => {
-    return sourceId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  };
 
   if (loading) {
     return (
@@ -391,10 +340,7 @@ const DataDashboard = () => {
 
         <TabsContent value="connections" className="space-y-4">
           <div className="space-y-4">
-            <h2 className="text-xl font-bold text-foreground flex items-center justify-between">
-              <span>Available Data Sources</span>
-              {connections.length > 0 && getSyncStatusBadge()}
-            </h2>
+            <h2 className="text-xl font-bold text-foreground">Available Data Sources</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {/* Health App Connection */}
               {!hasHealth && (
