@@ -6,9 +6,9 @@
  * a connected signer from walletService.
  */
 
-import { ethers } from 'ethers';
-import { supabase } from '../integrations/supabase/client';
-import { walletService, NETWORKS } from './walletService';
+import { ethers } from "ethers";
+import { supabase } from "../integrations/supabase/client";
+import { walletService, NETWORKS } from "./walletService";
 import {
   PROTOCOL,
   ACTIVE_DEPLOYMENT,
@@ -16,7 +16,7 @@ import {
   IDIA_TOKEN_ABI,
   PROPOSAL_STATES,
   BLOCKS_PER_DAY,
-} from '../config/contracts';
+} from "../config/contracts";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -59,7 +59,7 @@ export interface GaslessBallotSignature {
 }
 
 export interface StrictCastVoteBySigRelayPayload {
-  actionType: 'CAST_VOTE';
+  actionType: "CAST_VOTE";
   proposalId: string;
   support: 0 | 1 | 2;
   voteWeight: string;
@@ -81,17 +81,16 @@ const QUORUM_TTL_MS = 60_000;
 const _quorumCache = new Map<string, { value: string; at: number }>();
 const _inflight = new Map<string, Promise<string>>();
 const STRICT_CAST_VOTE_BY_SIG_ABI = [
-  'function castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature) returns (uint256)',
+  "function castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature) returns (uint256)",
 ];
 
 class GovernanceService {
-
   // Cache provider so all calls share one instance
   private _provider: ethers.JsonRpcProvider | null = null;
 
   private getProvider(): ethers.JsonRpcProvider {
     if (!this._provider) {
-      const networkKey = ACTIVE_DEPLOYMENT === 'mainnet' ? 'base' : 'baseSepolia';
+      const networkKey = ACTIVE_DEPLOYMENT === "mainnet" ? "base" : "baseSepolia";
       const network = NETWORKS[networkKey];
       this._provider = new ethers.JsonRpcProvider(network.rpcUrl, network.chainId, {
         batchMaxCount: 5,
@@ -118,9 +117,8 @@ class GovernanceService {
       } catch (e: any) {
         lastErr = e;
         const code = e?.info?.error?.code ?? e?.code;
-        const msg = (e?.info?.error?.message || e?.shortMessage || e?.message || '').toLowerCase();
-        const rateLimited =
-          code === -32016 || code === 429 || msg.includes('rate limit') || msg.includes('throttle');
+        const msg = (e?.info?.error?.message || e?.shortMessage || e?.message || "").toLowerCase();
+        const rateLimited = code === -32016 || code === 429 || msg.includes("rate limit") || msg.includes("throttle");
         if (!rateLimited) throw e;
         const wait = 600 * Math.pow(2, i) + Math.floor(Math.random() * 250);
         console.warn(`[RPC_RETRY] ${label} rate-limited, retry ${i + 1}/${max} in ${wait}ms`);
@@ -149,14 +147,13 @@ class GovernanceService {
     return p;
   }
 
-
   /** Trigger the governance-indexer edge function to run immediately. */
   private async triggerIndexer(): Promise<void> {
     try {
-      await supabase.functions.invoke('governance-indexer', { body: {} });
-      console.log('[GovernanceService] Indexer triggered');
+      await supabase.functions.invoke("governance-indexer", { body: {} });
+      console.log("[GovernanceService] Indexer triggered");
     } catch (e: any) {
-      console.warn('[GovernanceService] Failed to trigger indexer:', e?.message || e);
+      console.warn("[GovernanceService] Failed to trigger indexer:", e?.message || e);
     }
   }
 
@@ -172,7 +169,7 @@ class GovernanceService {
 
   async getGovernorParams(): Promise<GovernorParams> {
     const gov = this.getGovernorReadOnly();
-    
+
     // Explicit, independent resolution to prevent individual contract method crashes
     let votingDelay = 0;
     let votingPeriod = 0;
@@ -185,16 +182,56 @@ class GovernanceService {
     let maxVotingPeriod = 0;
     let isPaused = false;
 
-    try { votingDelay = Number(await gov.votingDelay()); } catch (e) { console.warn("[GovernanceService] votingDelay missing"); }
-    try { votingPeriod = Number(await gov.votingPeriod()); } catch (e) { console.warn("[GovernanceService] votingPeriod missing"); }
-    try { proposalThreshold = await gov.proposalThreshold(); } catch (e) { console.warn("[GovernanceService] proposalThreshold missing"); }
-    try { quorumNumerator = Number(await gov.quorumNumerator()); } catch (e) { console.warn("[GovernanceService] quorumNumerator missing"); }
-    try { quorumDenominator = Number(await gov['QUORUM_DENOMINATOR']()); } catch (e) { console.warn("[GovernanceService] QUORUM_DENOMINATOR missing"); }
-    try { minVotingDelay = Number(await gov.minVotingDelay()); } catch (e) { console.warn("[GovernanceService] minVotingDelay missing"); }
-    try { maxVotingDelay = Number(await gov.maxVotingDelay()); } catch (e) { console.warn("[GovernanceService] maxVotingDelay missing"); }
-    try { minVotingPeriod = Number(await gov.minVotingPeriod()); } catch (e) { console.warn("[GovernanceService] minVotingPeriod missing"); }
-    try { maxVotingPeriod = Number(await gov.maxVotingPeriod()); } catch (e) { console.warn("[GovernanceService] maxVotingPeriod missing"); }
-    try { isPaused = await gov.proposalsPaused(); } catch (e) { console.warn("[GovernanceService] proposalsPaused missing"); }
+    try {
+      votingDelay = Number(await gov.votingDelay());
+    } catch (e) {
+      console.warn("[GovernanceService] votingDelay missing");
+    }
+    try {
+      votingPeriod = Number(await gov.votingPeriod());
+    } catch (e) {
+      console.warn("[GovernanceService] votingPeriod missing");
+    }
+    try {
+      proposalThreshold = await gov.proposalThreshold();
+    } catch (e) {
+      console.warn("[GovernanceService] proposalThreshold missing");
+    }
+    try {
+      quorumNumerator = Number(await gov.quorumNumerator());
+    } catch (e) {
+      console.warn("[GovernanceService] quorumNumerator missing");
+    }
+    try {
+      quorumDenominator = Number(await gov["QUORUM_DENOMINATOR"]());
+    } catch (e) {
+      console.warn("[GovernanceService] QUORUM_DENOMINATOR missing");
+    }
+    try {
+      minVotingDelay = Number(await gov.minVotingDelay());
+    } catch (e) {
+      console.warn("[GovernanceService] minVotingDelay missing");
+    }
+    try {
+      maxVotingDelay = Number(await gov.maxVotingDelay());
+    } catch (e) {
+      console.warn("[GovernanceService] maxVotingDelay missing");
+    }
+    try {
+      minVotingPeriod = Number(await gov.minVotingPeriod());
+    } catch (e) {
+      console.warn("[GovernanceService] minVotingPeriod missing");
+    }
+    try {
+      maxVotingPeriod = Number(await gov.maxVotingPeriod());
+    } catch (e) {
+      console.warn("[GovernanceService] maxVotingPeriod missing");
+    }
+    try {
+      isPaused = await gov.proposalsPaused();
+    } catch (e) {
+      console.warn("[GovernanceService] proposalsPaused missing");
+    }
 
     return {
       votingDelay,
@@ -209,76 +246,93 @@ class GovernanceService {
       isPaused,
     };
   }
-  
-  // Add this method to GovernanceService to replace the failing direct calls
-private async callRaw(methodName: string, params: any[] = []): Promise<any> {
-  const iface = new ethers.Interface(GOVERNOR_ABI);
-  const data = iface.encodeFunctionData(methodName, params);
-  const provider = this.getProvider();
-  
-  try {
-    const result = await provider.call({
-      to: PROTOCOL.governor,
-      data: data
-    });
-    return iface.decodeFunctionResult(methodName, result)[0];
-  } catch (e) {
-    console.error(`[GovernanceService] Raw call error for ${methodName}:`, e);
-    return null;
-  }
-}
 
-// Computes quorum as numerator * totalSupply / denominator, matching the Governor's internal math.
-private async computeQuorumFromSupply(): Promise<bigint | null> {
-  try {
+  // Replace failing direct calls with raw call encoding
+  private async callRaw(methodName: string, params: any[] = []): Promise<any> {
+    const iface = new ethers.Interface(GOVERNOR_ABI);
+    const data = iface.encodeFunctionData(methodName, params);
     const provider = this.getProvider();
-    const TOKEN_ABI = [
-      "function totalSupply() view returns (uint256)",
-    ];
-    const token = new ethers.Contract(PROTOCOL.idiaToken, TOKEN_ABI, provider);
 
-    const [numeratorRaw, denominatorRaw, supply] = await Promise.all([
-      this.callRaw("quorumNumerator", []).catch(() => null),
-      this.callRaw("QUORUM_DENOMINATOR", []).catch(() => null),
-      token.totalSupply().catch(() => 0n),
-    ]);
-
-    const numerator = numeratorRaw != null ? BigInt(numeratorRaw) : 4n;
-    const denominator = denominatorRaw != null ? BigInt(denominatorRaw) : 100n;
-
-    if (supply === 0n || denominator === 0n) return null;
-    const q = (BigInt(supply) * numerator) / denominator;
-    console.log(`[QUORUM_FALLBACK] supply=${supply} num=${numerator} den=${denominator} → quorum=${q}`);
-    return q;
-  } catch (e) {
-    console.warn("[QUORUM_FALLBACK] computeQuorumFromSupply failed", e);
-    return null;
-  }
-}
-
-// Update getCurrentQuorum to use the new raw caller, with deterministic fallback.
-async getCurrentQuorum(): Promise<string> {
-  return this.cachedQuorum('current', async () => {
-    const provider = this.getProvider();
     try {
-      const blockNumber = await this.withRpcRetry(() => provider.getBlockNumber(), 'getBlockNumber');
-      const quorum = await this.withRpcRetry(
-        () => this.callRaw('quorum', [blockNumber - 1]),
-        'quorum(current)',
-      );
-      if (quorum && BigInt(quorum) > 0n) {
-        return ethers.formatEther(quorum);
-      }
-      console.warn('[QUORUM_FALLBACK] Governor.quorum() returned 0 — computing from totalSupply');
-      const computed = await this.computeQuorumFromSupply();
-      return computed ? ethers.formatEther(computed) : '0';
+      const result = await provider.call({
+        to: PROTOCOL.governor,
+        data: data,
+      });
+      return iface.decodeFunctionResult(methodName, result)[0];
     } catch (e) {
-      console.warn('[GovernanceService] getCurrentQuorum failed after retries', e);
-      const computed = await this.computeQuorumFromSupply();
-      return computed ? ethers.formatEther(computed) : '0';
+      console.error(`[GovernanceService] Raw call error for ${methodName}:`, e);
+      return null;
     }
-  });
-}
+  }
+
+  // Computes quorum as numerator * delegatedSupply / denominator
+  private async computeQuorumFromSupply(timepoint?: number): Promise<bigint | null> {
+    try {
+      const provider = this.getProvider();
+      const TOKEN_ABI = [
+        "function getPastTotalSupply(uint256 timepoint) view returns (uint256)",
+        "function totalSupply() view returns (uint256)",
+      ];
+      const token = new ethers.Contract(PROTOCOL.idiaToken, TOKEN_ABI, provider);
+
+      const [numeratorRaw, denominatorRaw] = await Promise.all([
+        this.callRaw("quorumNumerator", []).catch(() => null),
+        this.callRaw("QUORUM_DENOMINATOR", []).catch(() => null),
+      ]);
+
+      const numerator = numeratorRaw != null ? BigInt(numeratorRaw) : 4n;
+      const denominator = denominatorRaw != null ? BigInt(denominatorRaw) : 100n;
+
+      if (denominator === 0n) return null;
+
+      let supply = 0n;
+      let usedFallback = false;
+
+      try {
+        const targetBlock = timepoint ?? (await provider.getBlockNumber()) - 1;
+        supply = await token.getPastTotalSupply(targetBlock);
+      } catch (e) {
+        console.warn(
+          "[QUORUM_FALLBACK] getPastTotalSupply failed or unavailable. Falling back to totalSupply (Warning: inflated value).",
+        );
+        supply = await token.totalSupply().catch(() => 0n);
+        usedFallback = true;
+      }
+
+      if (supply === 0n) return null;
+
+      const q = (supply * numerator) / denominator;
+      console.log(
+        `[QUORUM_FALLBACK] ${usedFallback ? "totalSupply" : "delegatedSupply"}=${supply} num=${numerator} den=${denominator} → quorum=${q}`,
+      );
+      return q;
+    } catch (e) {
+      console.warn("[QUORUM_FALLBACK] computeQuorumFromSupply failed", e);
+      return null;
+    }
+  }
+
+  // Uses raw caller, with deterministic delegated-supply fallback.
+  async getCurrentQuorum(): Promise<string> {
+    return this.cachedQuorum("current", async () => {
+      const provider = this.getProvider();
+      try {
+        const blockNumber = await this.withRpcRetry(() => provider.getBlockNumber(), "getBlockNumber");
+        const quorum = await this.withRpcRetry(() => this.callRaw("quorum", [blockNumber - 1]), "quorum(current)");
+        if (quorum && BigInt(quorum) > 0n) {
+          return ethers.formatEther(quorum);
+        }
+        console.warn("[QUORUM_FALLBACK] Governor.quorum() returned 0 — computing from delegated supply");
+        const computed = await this.computeQuorumFromSupply(blockNumber - 1);
+        return computed ? ethers.formatEther(computed) : "0";
+      } catch (e) {
+        console.warn("[GovernanceService] getCurrentQuorum failed after retries", e);
+        const currentBlock = await provider.getBlockNumber().catch(() => undefined);
+        const computed = await this.computeQuorumFromSupply(currentBlock ? currentBlock - 1 : undefined);
+        return computed ? ethers.formatEther(computed) : "0";
+      }
+    });
+  }
 
   // ── Read: Exact Proposal Quorum ───────────────────────────
 
@@ -292,22 +346,22 @@ async getCurrentQuorum(): Promise<string> {
         );
         if (Number(snapshotBlock) === 0) {
           const computed = await this.computeQuorumFromSupply();
-          return computed ? ethers.formatEther(computed) : '0';
+          return computed ? ethers.formatEther(computed) : "0";
         }
 
-        const quorum = await this.withRpcRetry(
-          () => gov.quorum(snapshotBlock),
-          `quorum(${proposalId})`,
-        );
+        const quorum = await this.withRpcRetry(() => gov.quorum(snapshotBlock), `quorum(${proposalId})`);
         if (BigInt(quorum) > 0n) return ethers.formatEther(quorum);
 
-        console.warn(`[QUORUM_FALLBACK] proposal ${proposalId} quorum=0 — falling back to supply math`);
-        const computed = await this.computeQuorumFromSupply();
-        return computed ? ethers.formatEther(computed) : '0';
+        console.warn(`[QUORUM_FALLBACK] proposal ${proposalId} quorum=0 — falling back to delegated supply math`);
+        const computed = await this.computeQuorumFromSupply(Number(snapshotBlock));
+        return computed ? ethers.formatEther(computed) : "0";
       } catch (error) {
         console.error(`[GovernanceService] Quorum fetch failed for proposal ${proposalId} after retries:`, error);
-        const computed = await this.computeQuorumFromSupply();
-        return computed ? ethers.formatEther(computed) : '0';
+        // Fall back to current block logic if snapshot lookup fails
+        const provider = this.getProvider();
+        const currentBlock = await provider.getBlockNumber().catch(() => undefined);
+        const computed = await this.computeQuorumFromSupply(currentBlock ? currentBlock - 1 : undefined);
+        return computed ? ethers.formatEther(computed) : "0";
       }
     });
   }
@@ -343,17 +397,17 @@ async getCurrentQuorum(): Promise<string> {
   // ── Read: Proposals from Database (Optimized) ─────────────
 
   async getRecentProposals(address: string): Promise<ProposalOnChain[]> {
-    const network = ACTIVE_DEPLOYMENT === 'mainnet' ? 'mainnet' : 'testnet';
+    const network = ACTIVE_DEPLOYMENT === "mainnet" ? "mainnet" : "testnet";
     console.log(`[GovernanceService] Fetching proposals from database (network: ${network})`);
 
     const { data: dbProposals, error } = await supabase
-      .from('governance_proposals')
-      .select('*')
-      .eq('network', network)
-      .order('block_created', { ascending: false });
+      .from("governance_proposals")
+      .select("*")
+      .eq("network", network)
+      .order("block_created", { ascending: false });
 
     if (error || !dbProposals || dbProposals.length === 0) {
-      console.warn('[GovernanceService] Database query empty or failed:', error?.message);
+      console.warn("[GovernanceService] Database query empty or failed:", error?.message);
       return [];
     }
 
@@ -377,10 +431,10 @@ async getCurrentQuorum(): Promise<string> {
         proposer: row.proposer,
         description: row.description,
         state: row.state,
-        stateName: row.state_name || PROPOSAL_STATES[row.state] || 'Unknown',
-        forVotes: row.for_votes || '0',
-        againstVotes: row.against_votes || '0',
-        abstainVotes: row.abstain_votes || '0',
+        stateName: row.state_name || PROPOSAL_STATES[row.state] || "Unknown",
+        forVotes: row.for_votes || "0",
+        againstVotes: row.against_votes || "0",
+        abstainVotes: row.abstain_votes || "0",
         voteStart: Number(row.vote_start),
         voteEnd: Number(row.vote_end),
         hasVoted,
@@ -410,7 +464,7 @@ async getCurrentQuorum(): Promise<string> {
 
     return {
       state: Number(state),
-      stateName: PROPOSAL_STATES[Number(state)] || 'Unknown',
+      stateName: PROPOSAL_STATES[Number(state)] || "Unknown",
       againstVotes: ethers.formatEther(votes[0]),
       forVotes: ethers.formatEther(votes[1]),
       abstainVotes: ethers.formatEther(votes[2]),
@@ -422,20 +476,17 @@ async getCurrentQuorum(): Promise<string> {
   async propose(
     description: string,
     targets: string[] = [PROTOCOL.idiaToken],
-    values: string[] = ['0'],
-    calldatas: string[] = ['0x'],
+    values: string[] = ["0"],
+    calldatas: string[] = ["0x"],
   ): Promise<{ hash: string; proposalId?: string }> {
     const signer = walletService.getConnectedSigner();
-    if (!signer) throw new Error('Wallet not connected');
+    if (!signer) throw new Error("Wallet not connected");
 
     console.log("[PROPOSAL_SUBMIT][ALIGNMENT][START] Compiling and sanitizing calldata vectors.");
     const cleanTargets = targets.map((t) => ethers.getAddress(t.trim()));
     const cleanValues = values.map((v) => BigInt(v));
-    const cleanCalldatas = calldatas.map((c) => (c.startsWith('0x') ? c : `0x${c}`));
-    if (
-      cleanTargets.length !== cleanValues.length ||
-      cleanTargets.length !== cleanCalldatas.length
-    ) {
+    const cleanCalldatas = calldatas.map((c) => (c.startsWith("0x") ? c : `0x${c}`));
+    if (cleanTargets.length !== cleanValues.length || cleanTargets.length !== cleanCalldatas.length) {
       console.error("🚨 [PROPOSAL_SUBMIT][ALIGNMENT][FAIL] Mismatched array parameter metrics.");
       throw new Error("Array length mismatch: targets, values, and calldatas must align.");
     }
@@ -473,7 +524,10 @@ async getCurrentQuorum(): Promise<string> {
       this.triggerIndexer().catch(() => {});
       return { hash: tx.hash, proposalId };
     } catch (err: any) {
-      console.error("[PROPOSAL_SUBMIT][RELAY_DISPATCH][FATAL_FAIL] Core transaction thread snapped. Reason: ", err?.message ?? err);
+      console.error(
+        "[PROPOSAL_SUBMIT][RELAY_DISPATCH][FATAL_FAIL] Core transaction thread snapped. Reason: ",
+        err?.message ?? err,
+      );
       throw err;
     }
   }
@@ -485,20 +539,17 @@ async getCurrentQuorum(): Promise<string> {
     customDelay: number,
     customPeriod: number,
     targets: string[] = [PROTOCOL.idiaToken],
-    values: string[] = ['0'],
-    calldatas: string[] = ['0x'],
+    values: string[] = ["0"],
+    calldatas: string[] = ["0x"],
   ): Promise<{ hash: string; proposalId?: string }> {
     const signer = walletService.getConnectedSigner();
-    if (!signer) throw new Error('Wallet not connected');
+    if (!signer) throw new Error("Wallet not connected");
 
     console.log("[PROPOSAL_SUBMIT][ALIGNMENT][START] Compiling and sanitizing calldata vectors (timed).");
     const cleanTargets = targets.map((t) => ethers.getAddress(t.trim()));
     const cleanValues = values.map((v) => BigInt(v));
-    const cleanCalldatas = calldatas.map((c) => (c.startsWith('0x') ? c : `0x${c}`));
-    if (
-      cleanTargets.length !== cleanValues.length ||
-      cleanTargets.length !== cleanCalldatas.length
-    ) {
+    const cleanCalldatas = calldatas.map((c) => (c.startsWith("0x") ? c : `0x${c}`));
+    if (cleanTargets.length !== cleanValues.length || cleanTargets.length !== cleanCalldatas.length) {
       console.error("🚨 [PROPOSAL_SUBMIT][ALIGNMENT][FAIL] Mismatched array parameter metrics (timed).");
       throw new Error("Array length mismatch: targets, values, and calldatas must align.");
     }
@@ -535,21 +586,19 @@ async getCurrentQuorum(): Promise<string> {
       this.triggerIndexer().catch(() => {});
       return { hash: tx.hash, proposalId };
     } catch (err: any) {
-      console.error("[PROPOSAL_SUBMIT][RELAY_DISPATCH][FATAL_FAIL] Timed transaction thread snapped. Reason: ", err?.message ?? err);
+      console.error(
+        "[PROPOSAL_SUBMIT][RELAY_DISPATCH][FATAL_FAIL] Timed transaction thread snapped. Reason: ",
+        err?.message ?? err,
+      );
       throw err;
     }
   }
 
-
   // ── Write: Cast vote ──────────────────────────────────────
 
-  async castVote(
-    proposalId: string,
-    support: 0 | 1 | 2,
-    reason?: string,
-  ): Promise<{ hash: string }> {
+  async castVote(proposalId: string, support: 0 | 1 | 2, reason?: string): Promise<{ hash: string }> {
     const signer = walletService.getConnectedSigner();
-    if (!signer) throw new Error('Wallet not connected');
+    if (!signer) throw new Error("Wallet not connected");
 
     const gov = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, signer);
 
@@ -573,11 +622,11 @@ async getCurrentQuorum(): Promise<string> {
     version: string;
     chainId: number;
     verifyingContract: string;
-    source: 'chain' | 'fallback';
+    source: "chain" | "fallback";
   }> {
     const provider = this.getProvider();
     const EIP5267_ABI = [
-      'function eip712Domain() view returns (bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)',
+      "function eip712Domain() view returns (bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)",
     ];
     try {
       const gov = new ethers.Contract(PROTOCOL.governor, EIP5267_ABI, provider);
@@ -587,31 +636,30 @@ async getCurrentQuorum(): Promise<string> {
         version: String(res[2]),
         chainId: Number(res[3]),
         verifyingContract: String(res[4]),
-        source: 'chain' as const,
+        source: "chain" as const,
       };
-      console.log('[GOV_VOTE][DOMAIN][CHAIN_TRUTH]', resolved);
+      console.log("[GOV_VOTE][DOMAIN][CHAIN_TRUTH]", resolved);
       return resolved;
     } catch (err: any) {
-      console.warn('[GOV_VOTE][DOMAIN][FALLBACK] eip712Domain() unavailable, deriving manually:', err?.shortMessage || err?.message);
-      let name = 'IDIAGovernor';
+      console.warn(
+        "[GOV_VOTE][DOMAIN][FALLBACK] eip712Domain() unavailable, deriving manually:",
+        err?.shortMessage || err?.message,
+      );
+      let name = "IDIAGovernor";
       try {
-        const gov = new ethers.Contract(
-          PROTOCOL.governor,
-          ['function name() view returns (string)'],
-          provider,
-        );
+        const gov = new ethers.Contract(PROTOCOL.governor, ["function name() view returns (string)"], provider);
         name = (await gov.name()) || name;
       } catch {
         /* keep default */
       }
       const fallback = {
         name,
-        version: '1',
-        chainId: ACTIVE_DEPLOYMENT === 'mainnet' ? 8453 : 84532,
+        version: "1",
+        chainId: ACTIVE_DEPLOYMENT === "mainnet" ? 8453 : 84532,
         verifyingContract: PROTOCOL.governor,
-        source: 'fallback' as const,
+        source: "fallback" as const,
       };
-      console.log('[GOV_VOTE][DOMAIN][FALLBACK] resolved', fallback);
+      console.log("[GOV_VOTE][DOMAIN][FALLBACK] resolved", fallback);
       return fallback;
     }
   }
@@ -620,37 +668,35 @@ async getCurrentQuorum(): Promise<string> {
    * Gasless EIP-712 Ballot signing for OpenZeppelin Governor's `castVoteBySig`.
    * The user's local signer signs offline; the relayer broadcasts the tx.
    */
-  async signBallot(
-    proposalId: string | number | bigint,
-    support: 0 | 1 | 2,
-  ): Promise<GaslessBallotSignature> {
-    console.log('[GOV_VOTE][SIGN_BALLOT][START] Initiating gasless ballot signature sequence.');
+  async signBallot(proposalId: string | number | bigint, support: 0 | 1 | 2): Promise<GaslessBallotSignature> {
+    console.log("[GOV_VOTE][SIGN_BALLOT][START] Initiating gasless ballot signature sequence.");
     try {
       const signer = walletService.getConnectedSigner();
       if (!signer) {
-        console.error('[GOV_VOTE][SIGN_BALLOT][FATAL_STALL] Wallet not connected.');
-        throw new Error('Wallet not connected');
+        console.error("[GOV_VOTE][SIGN_BALLOT][FATAL_STALL] Wallet not connected.");
+        throw new Error("Wallet not connected");
       }
       const signerAddress = await signer.getAddress();
       console.log(`[GOV_VOTE][SIGN_BALLOT][STEP_1] Signer resolved: ${signerAddress}`);
 
       // Normalize proposalId to a raw BigInt ONCE. Never .toString() / Number()
       // before signing — uint256 EIP-712 hashing requires the integer itself.
-      const proposalIdBig: bigint =
-        typeof proposalId === 'bigint' ? proposalId : BigInt(proposalId);
+      const proposalIdBig: bigint = typeof proposalId === "bigint" ? proposalId : BigInt(proposalId);
 
-      console.log('[GOV_VOTE][SIGN_BALLOT][STEP_2] Fetching dynamic EIP-712 domain truth from Base Mainnet...');
+      console.log("[GOV_VOTE][SIGN_BALLOT][STEP_2] Fetching dynamic EIP-712 domain truth from Base Mainnet...");
 
       // 1. Connect directly to the Governor to read its immutable domain strings (EIP-5267).
       const govRead = new ethers.Contract(
         PROTOCOL.governor,
-        ['function eip712Domain() view returns (bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)'],
+        [
+          "function eip712Domain() view returns (bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)",
+        ],
         (signer as any).provider || this.getProvider(),
       );
 
-      console.log('[GOV_VOTE][SIGN_BALLOT][STEP_2A] Invoking eip712Domain() on contract:', PROTOCOL.governor);
+      console.log("[GOV_VOTE][SIGN_BALLOT][STEP_2A] Invoking eip712Domain() on contract:", PROTOCOL.governor);
       const onChainDomain = await govRead.eip712Domain();
-      console.log('[GOV_VOTE][SIGN_BALLOT][STEP_2B] Raw on-chain domain tuple received:', {
+      console.log("[GOV_VOTE][SIGN_BALLOT][STEP_2B] Raw on-chain domain tuple received:", {
         fields: onChainDomain.fields,
         name: onChainDomain.name,
         version: onChainDomain.version,
@@ -673,17 +719,17 @@ async getCurrentQuorum(): Promise<string> {
       // Fetch the Governor's per-voter nonce for v5 replay protection.
       const govNonceRead = new ethers.Contract(
         PROTOCOL.governor,
-        ['function nonces(address) view returns (uint256)'],
+        ["function nonces(address) view returns (uint256)"],
         (signer as any).provider || this.getProvider(),
       );
       const voterNonce: bigint = await govNonceRead.nonces(signerAddress);
 
       const types = {
         Ballot: [
-          { name: 'proposalId', type: 'uint256' },
-          { name: 'support', type: 'uint8' },
-          { name: 'voter', type: 'address' },
-          { name: 'nonce', type: 'uint256' },
+          { name: "proposalId", type: "uint256" },
+          { name: "support", type: "uint8" },
+          { name: "voter", type: "address" },
+          { name: "nonce", type: "uint256" },
         ],
       };
 
@@ -698,31 +744,35 @@ async getCurrentQuorum(): Promise<string> {
 
       // Hard guard — if a regression ever coerces this away from bigint, fail
       // loudly instead of silently producing a mismatched EIP-712 digest.
-      if (typeof value.proposalId !== 'bigint') {
+      if (typeof value.proposalId !== "bigint") {
         throw new Error(
           `[GOV_VOTE][SIGN_BALLOT][FATAL_STALL] proposalId must be bigint for EIP-712 hashing, got ${typeof value.proposalId}`,
         );
       }
 
-      console.log(`[GOV_VOTE][SIGN_BALLOT][PAYLOAD_AUDIT] ProposalId: ${value.proposalId.toString()} (Type: ${typeof value.proposalId})`);
+      console.log(
+        `[GOV_VOTE][SIGN_BALLOT][PAYLOAD_AUDIT] ProposalId: ${value.proposalId.toString()} (Type: ${typeof value.proposalId})`,
+      );
       console.log(`[GOV_VOTE][SIGN_BALLOT][PAYLOAD_AUDIT] Support: ${value.support} (Type: ${typeof value.support})`);
       console.log(`[GOV_VOTE][SIGN_BALLOT][V5_PAYLOAD] voter=${value.voter} nonce=${value.nonce.toString()}`);
 
-      console.log('[GOV_VOTE][SIGN_BALLOT][STEP_3] Executing signTypedData with dynamic domain...');
+      console.log("[GOV_VOTE][SIGN_BALLOT][STEP_3] Executing signTypedData with dynamic domain...");
       const signature = await (signer as any).signTypedData(domain, types, value);
-      console.log('[GOV_VOTE][SIGN_BALLOT][STEP_3][SUCCESS] Raw signature acquired:', signature);
+      console.log("[GOV_VOTE][SIGN_BALLOT][STEP_3][SUCCESS] Raw signature acquired:", signature);
 
       // NOTE: ethers.verifyTypedData() recovers the signer using the same domain
       // we just signed against — it cannot detect on-chain separator drift. We
       // intentionally skip that check and trust eip712Domain() chain-truth instead.
-      console.log('[GOV_VOTE][PRE_FLIGHT][SIGN][SKIP] reason="local recovery cannot validate on-chain separator; trusting eip712Domain() chain-truth instead"');
+      console.log(
+        '[GOV_VOTE][PRE_FLIGHT][SIGN][SKIP] reason="local recovery cannot validate on-chain separator; trusting eip712Domain() chain-truth instead"',
+      );
 
       const sig = ethers.Signature.from(signature);
       console.log(`[GOV_VOTE][SIGN_BALLOT][END] Ballot signed successfully. v: ${sig.v}, r: ${sig.r}, s: ${sig.s}`);
 
       return { signature, v: sig.v, r: sig.r, s: sig.s, signerAddress };
     } catch (error: any) {
-      console.error('[GOV_VOTE][SIGN_BALLOT][FATAL_STALL] Ballot signature sequence failed:', error?.message || error);
+      console.error("[GOV_VOTE][SIGN_BALLOT][FATAL_STALL] Ballot signature sequence failed:", error?.message || error);
       throw error;
     }
   }
@@ -733,9 +783,9 @@ async getCurrentQuorum(): Promise<string> {
     ballot: GaslessBallotSignature,
     acaHash: string,
     voteWeight: number | string = 0,
-    chainId: number = ACTIVE_DEPLOYMENT === 'mainnet' ? 8453 : 84532,
+    chainId: number = ACTIVE_DEPLOYMENT === "mainnet" ? 8453 : 84532,
   ): StrictCastVoteBySigRelayPayload {
-    console.log('[GOV_VOTE][COMPILE_PAYLOAD][START] Enforcing strict relay payload architecture.');
+    console.log("[GOV_VOTE][COMPILE_PAYLOAD][START] Enforcing strict relay payload architecture.");
     try {
       const cleanSupport = Number(support) as 0 | 1 | 2;
       if (cleanSupport !== 0 && cleanSupport !== 1 && cleanSupport !== 2) {
@@ -750,7 +800,7 @@ async getCurrentQuorum(): Promise<string> {
       console.log(`[GOV_VOTE][COMPILE_PAYLOAD][DATA] Voter: ${voter}, ChainId: ${chainId}, AcaHash: ${acaHash}`);
 
       const secureRelayBody: StrictCastVoteBySigRelayPayload = {
-        actionType: 'CAST_VOTE',
+        actionType: "CAST_VOTE",
         proposalId: proposalId.toString(),
         support: cleanSupport,
         voteWeight: voteWeight.toString(),
@@ -762,10 +812,10 @@ async getCurrentQuorum(): Promise<string> {
         signature,
       };
 
-      console.log('[GOV_VOTE][COMPILE_PAYLOAD][END] JSON packet configured successfully.');
+      console.log("[GOV_VOTE][COMPILE_PAYLOAD][END] JSON packet configured successfully.");
       return secureRelayBody;
     } catch (error: any) {
-      console.error('[GOV_VOTE][COMPILE_PAYLOAD][FATAL_STALL] Payload compilation failed:', error?.message || error);
+      console.error("[GOV_VOTE][COMPILE_PAYLOAD][FATAL_STALL] Payload compilation failed:", error?.message || error);
       throw error;
     }
   }
@@ -774,12 +824,12 @@ async getCurrentQuorum(): Promise<string> {
 
   async delegate(delegatee: string): Promise<{ hash: string }> {
     if (!walletService.getRawWallet()) {
-      console.error('[CRITICAL] Wallet service has no wallet instance.');
-      throw new Error('Wallet not initialized. Check your storage migration.');
+      console.error("[CRITICAL] Wallet service has no wallet instance.");
+      throw new Error("Wallet not initialized. Check your storage migration.");
     }
 
     const signer = walletService.getConnectedSigner();
-    if (!signer) throw new Error('Signer could not be connected');
+    if (!signer) throw new Error("Signer could not be connected");
 
     const token = new ethers.Contract(PROTOCOL.idiaToken, IDIA_TOKEN_ABI, signer);
     const tx = await token.delegate(delegatee);
@@ -789,11 +839,11 @@ async getCurrentQuorum(): Promise<string> {
 
   async selfDelegate(): Promise<{ hash: string }> {
     if (!walletService.getRawWallet()) {
-      console.error('[CRITICAL] Wallet service has no wallet instance.');
-      throw new Error('Wallet not initialized. Check your storage migration.');
+      console.error("[CRITICAL] Wallet service has no wallet instance.");
+      throw new Error("Wallet not initialized. Check your storage migration.");
     }
     const address = walletService.getAddress();
-    if (!address) throw new Error('Wallet not connected');
+    if (!address) throw new Error("Wallet not connected");
     return this.delegate(address);
   }
 
@@ -803,49 +853,46 @@ async getCurrentQuorum(): Promise<string> {
    */
   async signAndRelaySelfDelegation(): Promise<{ hash: string; acaHash?: string }> {
     if (!walletService.getRawWallet()) {
-      console.error('[CRITICAL] Wallet service has no wallet instance.');
-      throw new Error('Wallet not initialized. Check your storage migration.');
+      console.error("[CRITICAL] Wallet service has no wallet instance.");
+      throw new Error("Wallet not initialized. Check your storage migration.");
     }
-    const { supabase } = await import('@/integrations/supabase/client');
+    const { supabase } = await import("@/integrations/supabase/client");
     const signer = walletService.getConnectedSigner();
-    if (!signer) throw new Error('Signer could not be connected');
+    if (!signer) throw new Error("Signer could not be connected");
     const address = await signer.getAddress();
 
     const provider = this.getProvider();
     const token = new ethers.Contract(
       PROTOCOL.idiaToken,
-      ['function nonces(address) view returns (uint256)', 'function name() view returns (string)'],
+      ["function nonces(address) view returns (uint256)", "function name() view returns (string)"],
       provider,
     );
 
-    const [nonceRaw, tokenName] = [
-      await token.nonces(address),
-      await token.name().catch(() => 'IDIA'),
-    ];
+    const [nonceRaw, tokenName] = [await token.nonces(address), await token.name().catch(() => "IDIA")];
     const nonce = Number(nonceRaw);
     const expiry = Math.floor(Date.now() / 1000) + 3600; // 1 hour
-    const chainId = ACTIVE_DEPLOYMENT === 'mainnet' ? 8453 : 84532;
+    const chainId = ACTIVE_DEPLOYMENT === "mainnet" ? 8453 : 84532;
 
     const domain = {
       name: tokenName,
-      version: '1',
+      version: "1",
       chainId,
       verifyingContract: PROTOCOL.idiaToken,
     };
     const types = {
       Delegation: [
-        { name: 'delegatee', type: 'address' },
-        { name: 'nonce', type: 'uint256' },
-        { name: 'expiry', type: 'uint256' },
+        { name: "delegatee", type: "address" },
+        { name: "nonce", type: "uint256" },
+        { name: "expiry", type: "uint256" },
       ],
     };
     const value = { delegatee: address, nonce, expiry };
 
-    console.log('[SELF_DELEGATE] signing EIP-712 Delegation', { address, nonce, expiry });
+    console.log("[SELF_DELEGATE] signing EIP-712 Delegation", { address, nonce, expiry });
     const signature = await (signer as any).signTypedData(domain, types, value);
     const sig = ethers.Signature.from(signature);
 
-    const { data, error } = await supabase.functions.invoke('relay-delegation', {
+    const { data, error } = await supabase.functions.invoke("relay-delegation", {
       body: {
         delegatee: address,
         nonce,
@@ -855,8 +902,8 @@ async getCurrentQuorum(): Promise<string> {
         s: sig.s,
       },
     });
-    if (error) throw new Error(error.message || 'Relayer call failed');
-    if (!data?.tx_hash) throw new Error(data?.error || 'Relayer returned no tx hash');
+    if (error) throw new Error(error.message || "Relayer call failed");
+    if (!data?.tx_hash) throw new Error(data?.error || "Relayer returned no tx hash");
     return { hash: data.tx_hash, acaHash: data.aca_hash };
   }
 
@@ -879,11 +926,13 @@ async getCurrentQuorum(): Promise<string> {
         try {
           const parsed = govInterface.parseLog({ topics: log.topics as string[], data: log.data });
           console.log("[DEBUG_TX_LOGS] Event Parsed:", parsed?.name);
-          if (parsed?.name === 'ProposalCreated') {
+          if (parsed?.name === "ProposalCreated") {
             console.log("[DEBUG_TX_LOGS] ProposalCreated Arg0:", parsed.args[0].toString());
             return parsed.args[0].toString();
           }
-        } catch { /* not our event */ }
+        } catch {
+          /* not our event */
+        }
       }
     } catch (e) {
       console.error("[DEBUG_TX_LOGS] Parse failed:", e);
@@ -894,7 +943,7 @@ async getCurrentQuorum(): Promise<string> {
       try {
         const descHash = ethers.keccak256(ethers.toUtf8Bytes(description));
         const encoded = ethers.AbiCoder.defaultAbiCoder().encode(
-          ['address[]', 'uint256[]', 'bytes[]', 'bytes32'],
+          ["address[]", "uint256[]", "bytes[]", "bytes32"],
           [targets, values.map((v) => BigInt(v)), calldatas, descHash],
         );
         const id = BigInt(ethers.keccak256(encoded)).toString();
