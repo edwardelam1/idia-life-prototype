@@ -14,7 +14,7 @@ import ActivateVotingPowerCard from "./ActivateVotingPowerCard";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ethers } from "ethers";
-import { PROTOCOL, ACTIVE_DEPLOYMENT, GOVERNOR_ABI } from "@/config/contracts";
+import { PROTOCOL, ACTIVE_DEPLOYMENT, GOVERNOR_ABI, IDIA_TOKEN_ABI } from "@/config/contracts";
 import { NETWORKS, walletService } from "@/services/walletService";
 
 // Direct-RPC chain state read — snapshot block, dynamic quorum, and live tally.
@@ -29,6 +29,41 @@ export interface ChainState {
   againstVotes: number;
   abstainVotes: number;
   state: number | null;
+}
+
+/**
+ * Compute quorum from DELEGATED voting supply at the given timepoint:
+ *   quorum = getPastTotalSupply(tp) * quorumNumerator / QUORUM_DENOMINATOR
+ *
+ * Mirrors OpenZeppelin GovernorVotesQuorumFraction (which uses delegated supply,
+ * NOT ERC20 totalSupply). Returns 0n when delegated supply is 0 or the lookup
+ * isn't available yet, so the UI renders "quorum hydrating…" rather than the
+ * inflated "4% of total mint" value.
+ */
+async function delegatedQuorum(
+  provider: ethers.JsonRpcProvider,
+  gov: ethers.Contract,
+  timepoint: number | null,
+): Promise<bigint> {
+  try {
+    if (timepoint == null || timepoint <= 0) return 0n;
+    const token = new ethers.Contract(PROTOCOL.idiaToken, IDIA_TOKEN_ABI, provider);
+    const [numRaw, denRaw, supplyRaw] = await Promise.all([
+      gov.quorumNumerator().catch(() => null),
+      gov["QUORUM_DENOMINATOR"]().catch(() => null),
+      token.getPastTotalSupply(timepoint).catch(() => null),
+    ]);
+    if (supplyRaw == null) return 0n;
+    const supply = BigInt(supplyRaw);
+    if (supply === 0n) return 0n;
+    const num = numRaw != null ? BigInt(numRaw) : 4n;
+    const den = denRaw != null ? BigInt(denRaw) : 100n;
+    if (den === 0n) return 0n;
+    return (supply * num) / den;
+  } catch (e) {
+    console.warn("[QUORUM_DELEGATED] computation failed", e);
+    return 0n;
+  }
 }
 
 export async function readChainState(onChainId?: string | null): Promise<ChainState> {
@@ -52,18 +87,17 @@ export async function readChainState(onChainId?: string | null): Promise<ChainSt
   if (!onChainId || onChainId.trim() === "") {
     try {
       const block = await provider.getBlockNumber();
-      const rawQ = await gov.quorum(block - 1);
-      return { ...empty, currentBlock: block, quorum: Number(ethers.formatUnits(rawQ, 18)) };
+      const q = await delegatedQuorum(provider, gov, block - 1);
+      return { ...empty, currentBlock: block, quorum: Number(ethers.formatUnits(q, 18)) };
     } catch {
       return empty;
     }
   }
 
   // Time-travel guard: state(id) + currentBlock are always safe. proposalVotes
-  // and quorum(snapshotBlock) revert with ERC5805FutureLookup while Pending
-  // because the snapshot block is in the future. Defer those reads until
-  // state > 0 (Active or beyond), and fetch a "live" quorum off currentBlock
-  // for Pending cards so the threshold UI still renders.
+  // reverts with ERC5805FutureLookup while Pending because the snapshot block
+  // is in the future. Defer those reads until state > 0; for Pending cards we
+  // compute a "live" quorum off currentBlock using delegated supply.
   const [rawState, currentBlockRaw, rawSnapshot, rawDeadline] = await Promise.all([
     gov.state(onChainId).catch(() => null),
     provider.getBlockNumber().catch(() => 0),
@@ -81,17 +115,13 @@ export async function readChainState(onChainId?: string | null): Promise<ChainSt
 
   if (state !== null && state > 0) {
     const [q, v] = await Promise.all([
-      snapshotBlock
-        ? gov.quorum(snapshotBlock).catch(() => 0n)
-        : Promise.resolve(0n),
+      delegatedQuorum(provider, gov, snapshotBlock),
       gov.proposalVotes(onChainId).catch(() => [0n, 0n, 0n] as any),
     ]);
     rawQuorum = q;
     rawVotes = v as [bigint, bigint, bigint];
   } else if (state === 0 && currentBlock) {
-    // Pending: query quorum against the latest finalized block so the UI shows
-    // the live threshold without poking a future snapshot block.
-    rawQuorum = await gov.quorum(currentBlock - 1).catch(() => 0n);
+    rawQuorum = await delegatedQuorum(provider, gov, currentBlock - 1);
   }
 
   return {
