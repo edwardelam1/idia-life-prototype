@@ -4,7 +4,7 @@
  * Reads proposal state from the IDIAGovernor contract and provides
  * write functions for proposing and voting. Write operations require
  * a connected signer from walletService.
- *//
+ */
 
 import { ethers } from "ethers";
 import { supabase } from "../integrations/supabase/client";
