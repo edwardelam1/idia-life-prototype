@@ -12,7 +12,6 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
 
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
@@ -21,7 +20,6 @@ import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { useSovereignWallet } from "@/hooks/useSovereignWallet";
 import { useWallet } from "@/hooks/useWallet";
 import { IS_TESTNET } from "@/config/contracts";
-import { USDC_PAYMENTS_ENABLED } from "@/config/usdc";
 import { NFCPayrollModal } from "../NFCPayrollModal";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -44,16 +42,14 @@ import {
   Activity,
   Hash,
   Clock,
-  Fingerprint,
   Copy,
-  Check,
   AlertTriangle,
   Link2,
   RefreshCw,
   Loader2,
   Vote,
   Network,
-  QrCode,
+  ExternalLink,
 } from "lucide-react";
 
 interface Transaction {
@@ -86,7 +82,6 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [setupMode, setSetupMode] = useState<"create" | "import" | "view-seed">("create");
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isCopying, setIsCopying] = useState(false);
-  const [showRequestPayment, setShowRequestPayment] = useState(false);
 
   useEffect(() => {
     console.log("[IDENTITY_SYNC:START] Evaluating profile hydration state...");
@@ -111,17 +106,13 @@ const EnhancedWalletDashboard: React.FC = () => {
     delegatee,
     loading: walletLoading,
     balancesLoading,
-    activeNetwork,
     activeNetworkKey,
     availableNetworks,
     switchNetwork,
     createWallet,
     importWallet,
-    deleteWallet,
     getSeedPhrase,
     refreshBalances,
-    sendNative,
-    sendIDIA,
     delegateVotes,
     provisioningStage,
   } = useWallet();
@@ -135,7 +126,7 @@ const EnhancedWalletDashboard: React.FC = () => {
     try {
       const newWallet = await createWallet();
       if (newWallet?.address && stableUserId) await syncWalletToSupabase(newWallet.address);
-      const seed = await getSeedPhrase(); // FIXED: Added await here!
+      const seed = await getSeedPhrase();
       if (newWallet?.address) {
         const short = `${newWallet.address.slice(0, 6)}…${newWallet.address.slice(-4)}`;
         toast({
@@ -179,7 +170,6 @@ const EnhancedWalletDashboard: React.FC = () => {
     try {
       return await getSeedPhrase();
     } catch (error) {
-      // FIXED: Added await here!
       console.error("Seed phrase error:", error);
       return null;
     }
@@ -223,7 +213,6 @@ const EnhancedWalletDashboard: React.FC = () => {
 
   // ── Refs and state ──
 
-  const syncLock = useRef(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [creditSimulation, setCreditSimulation] = useState<CreditSimulation | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
@@ -236,7 +225,6 @@ const EnhancedWalletDashboard: React.FC = () => {
 
   const displayAddress = globalWalletAddress || localAddress;
   const isProvisioned = !!displayAddress;
-  const hasFBO = !!profile?.fbo_account_id;
 
   // ── Auto-link wallet to Supabase ──
   const linkedPairsRef = useRef<Set<string>>(new Set());
@@ -830,13 +818,17 @@ const EnhancedWalletDashboard: React.FC = () => {
                   </CardContent>
                 </Card>
 
-                {/* ── Request USDC Payment (only when payments enabled) ── */}
-                {USDC_PAYMENTS_ENABLED && (
-                  <Button variant="outline" onClick={() => setShowRequestPayment(true)} className="w-full">
-                    <QrCode className="w-4 h-4 mr-2" />
-                    Request USDC Payment
-                  </Button>
-                )}
+                {/* ── MetaMask Deep Link ── */}
+                <Button
+                  onClick={() => {
+                    console.log("[EnhancedWalletDashboard][DeepLink][START] Routing user to MetaMask dApp browser");
+                    window.location.href = "https://metamask.app.link/dapp/life.thebigidia.com";
+                  }}
+                  className="w-full bg-[#F6851B] hover:bg-[#E2761B] text-white shadow-md shadow-orange-500/20"
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Send / Receive via MetaMask
+                </Button>
 
                 {/* ── Wallet Management ── */}
                 <Card>
