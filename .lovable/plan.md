@@ -1,57 +1,80 @@
-## Phase 1 — Strava Backend Consolidation
+## Diagnosis (verified against the live database)
 
-1. **Create new edge function** `supabase/functions/strava-controller/index.ts`
-   - Single action-routed handler. Initial action: `get-auth-url` (mirrors existing `strava-auth-url` logic: validates `userId`, reads `STRAVA_CLIENT_ID`, builds OAuth URL).
-   - Built so future actions (`oauth-callback`, `webhook`, etc.) can be folded in without breaking callers.
-   - CORS headers on every response. `verify_jwt = false` via `supabase/config.toml`.
-   - Deploy immediately via `supabase--deploy_edge_functions` before any client change so the first frontend invocation succeeds.
-   - Leave `ingest-strava-data`, `strava-oauth-callback`, `strava-webhook-subscription`, and `strava-auth-url` untouched (per spec — `ingest-strava-data` stays separate; the old `strava-auth-url` is left in place for now to avoid breaking anything mid-flight; can be removed in a follow-up once `strava-controller` is verified).
+Pulled `dao_hats` rows for the three relevant users:
 
-2. **Update `src/components/StravaConnectionModal.tsx`**
-   - Replace the `supabase.functions.invoke('strava-auth-url', { body: { userId } })` call with:
-     ```ts
-     supabase.functions.invoke('strava-controller', {
-       body: { action: 'get-auth-url', userId: currentUserId }
-     })
-     ```
-   - No other UI/behavior changes.
+| Wallet | User | Active hats |
+|---|---|---|
+| `0x429F…5A40` (you) | `217c…7536` | `tophat` + all four committee hats |
+| `0x6cC2…7545` (Shawn) | `9ac1…4a7e` | `tophat` only |
+| `0x1767…b582` | `f60a…14d6` | `legal_defense` only |
 
-## Phase 2 — Unified MetaMask Launch
+Officer counts the UI currently shows (from `COUNT(*) FROM dao_hats WHERE revoked_at IS NULL GROUP BY hat_type`):
 
-3. **Refactor `src/components/SendRequestModal.tsx`**
-   - Current file already has no Send/Receive tabs, but it does have two buttons (`Launch MetaMask` + `Send USDC`) and an unused `useState` import.
-   - Reduce to a single primary CTA button labeled **"Launch MetaMask"**.
-   - Remove the `Send USDC` button, the `handleSendUSDC` helper, the `navigator.clipboard.writeText` private-key copy logic, and the unused `ArrowUpRight` / `useState` imports.
-   - Replace handler with the exact spec:
-     ```ts
-     const handleLaunchMetaMask = () => {
-       if (window.webkit?.messageHandlers?.launchMetaMask) {
-         window.webkit.messageHandlers.launchMetaMask.postMessage({});
-         onClose();
-       } else {
-         toast({ title: "Native Bridge Error", description: "MetaMask not accessible.", variant: "destructive" });
-       }
-     };
-     ```
-   - Keep the modal shell, title, ShieldCheck info card; trim copy to reflect single action.
+- `legal_defense` → **2** (you + 0x1767)
+- `sociorelational` → **1** (you)
+- `security_council` → **1** (you)
+- `product_xr` → **1** (you)
 
-4. **Data/Integrations page reflection**
-   - `StravaConnectionModal` already updates `data_connections` via the existing OAuth callback, and the connected-state UI inside the modal still shows "Active Pipeline". No additional changes needed since the connection record schema is unchanged — only the auth-URL endpoint moved. Verify by reading whichever page renders Strava status (DataDashboard / DataSourceModal) and confirm it keys off `data_connections.connection_type = 'strava'` (no code change expected).
+So Shawn is not "missing" from any query — he genuinely has **no committee hat rows**, only a `tophat`. The UI already treats `tophat` as L3 universal authority for *the viewer* (`isActiveMember = userActiveHats.has(committee.id) || ascensionLevel === 3` in `CommitteesList.tsx`), but the **officer count and roster modal still count explicit hat rows only**, so other tophat holders never appear as officers of committees they don't hold an explicit hat for.
 
-## Phase 3 — Cleanup
+This is a presentation-layer inconsistency, not RLS / not a permissions bug. Confirmed: RLS on `dao_hats` is `Allow authenticated read access` with `qual = true`, and authenticated has SELECT — every authenticated session can see all hat rows.
 
-5. **Ghost modal files** — `SendTransactionModal.tsx`, `TransactionConfirmModal.tsx`, and `RequestPaymentQR.tsx` do **not exist** in the repo (`ls src/components/` confirms). Nothing to delete. Will surface this in the final report rather than fabricate deletions.
+## Fix (frontend-only)
 
-6. **Ghost imports check** — `EnhancedWalletDashboard.tsx` only imports `SendRequestModal` (kept). No imports of the three non-existent modals anywhere in `src/`. Will run `rg` one more time post-edit to confirm zero references.
+Promote Protocol Stewards (`tophat` holders) to honorary officers of every committee in both the count badge and the roster modal.
 
-## Technical notes / preflight
+### 1. `src/components/governance/CommitteesList.tsx` — `fetchLedgerState`
 
-- **Strava callback URL**: `ingest-strava-data` is the data-pull function and does not own the OAuth redirect — `strava-oauth-callback` does. Per the user's preflight note, after `strava-controller` is verified we can migrate the redirect URI in Strava's app settings + `strava-auth-url`'s `redirect_uri` to point at `strava-controller?action=oauth-callback`. **This migration is out of scope for this pass** (would break in-flight OAuth sessions); flagging for a follow-up.
-- **Swift handler**: `window.webkit.messageHandlers.launchMetaMask` must be registered in the iOS shell (`ContentView.swift` / `IDIAWebView`). Not editable from this project — will call this out in the closing message so the user verifies on the native side.
-- No Supabase schema changes. No new secrets needed (`STRAVA_CLIENT_ID` already configured).
+Build a set of tophat user IDs from the single `dao_hats` fetch (already returned), then add that set's size to every committee's count:
+
+```ts
+const tophatUserIds = new Set<string>();
+hatsRes.data?.forEach((h: any) => {
+  if (h.hat_type === "tophat" && h.eligibility_status === "active") {
+    tophatUserIds.add(h.user_id);
+  }
+});
+
+const counts: Record<string, number> = {};
+hatsRes.data?.forEach((h: any) => {
+  if (h.eligibility_status !== "active") return;
+  if (h.hat_type === "tophat") return;             // counted separately below
+  // Don't double-count a tophat holder who *also* has an explicit committee hat
+  if (tophatUserIds.has(h.user_id)) return;
+  counts[h.hat_type] = (counts[h.hat_type] || 0) + 1;
+});
+
+// Every tophat holder is an officer-of-record for every committee
+COMMITTEES_META.forEach((c) => {
+  counts[c.id] = (counts[c.id] || 0) + tophatUserIds.size;
+});
+```
+
+Expected after fix: all four committees show **at least 2 Active Officers** (you + Shawn), `legal_defense` shows **3** (you + Shawn + 0x1767).
+
+### 2. `src/components/governance/CommitteeRosterModal.tsx` — `load()`
+
+Currently fetches `dao_hats WHERE hat_type = committee.id`. Extend to also union in active `tophat` holders so they render in every committee's roster, badged as **L3 · Protocol Steward (honorary)**:
+
+- Fetch `tophat` holders alongside the committee's own hat holders.
+- Merge into the `userIds` list (dedupe).
+- For users present only via tophat, mark `level = 3`, `status = 'active'`, and skip the Promote/Demote buttons (tophat already outranks L2; the existing `isSelf` guard plus a new `isTophatOnly` guard cover this).
+- Sort order: L3 → L2 → L1 → pending.
+
+### 3. No backend / RLS / migration changes
+
+- No schema change.
+- No new GRANTs (`dao_hats` is already readable by `authenticated`).
+- No edge-function change.
+- No data write — we are not synthesizing committee hat rows for tophat holders; honorary status is computed in the view layer so revoking a tophat instantly removes the honorary listings.
+
+## Out of scope
+
+- Officer count for non-committee hats (`oversight_chair`, `tophat` themselves) — those aren't rendered as committee cards.
+- Any change to `getAscensionLevel` / `governanceGate.ts`.
+- ApplicationReviewQueue, AuditFeed, and other Delaware-portal panels — the user only flagged the committee membership count.
 
 ## Files touched
 
-- **New**: `supabase/functions/strava-controller/index.ts`
-- **Edited**: `src/components/StravaConnectionModal.tsx`, `src/components/SendRequestModal.tsx`
-- **Deploy**: `strava-controller` edge function (before client cuts over)
+- `src/components/governance/CommitteesList.tsx` (officer-count derivation)
+- `src/components/governance/CommitteeRosterModal.tsx` (roster union with tophat holders + honorary badge)
