@@ -280,44 +280,54 @@ const LifecycleTelemetry: React.FC = () => {
 
           console.log(`[LIFECYCLE_TELEMETRY][FETCH][PROCESS] Iterating ${rows.length} rows for chain validation.`);
           
-          // REPLACED THE STRICT BUCKET FILTER
-          // Maps all OpenZeppelin EVM states and preserves off-chain drafts
+          // Resilient per-row mapping: never drop a proposal. Fall back to
+          // the DB-stored lifecycle_phase / status when the chain read fails
+          // or returns an unknown state, so cross-user proposals always show.
+          const dbPhaseFor = (r: ProposalLite): ProposalLite["lifecycle_phase"] => {
+            const p = (r.lifecycle_phase as string) || "draft";
+            if (p === "draft" || p === "pending" || p === "active" || p === "succeeded" || p === "queued" || p === "executed") {
+              return p as ProposalLite["lifecycle_phase"];
+            }
+            // cancelled / defeated / expired / unknown → render as draft tail
+            return "draft";
+          };
+
           const stateChecks = await Promise.all(
             rows.map(async (r) => {
               if (!r.on_chain_id) {
-                // Return off-chain motions/drafts directly
-                return { ...r, lifecycle_phase: "draft" as const, status: "In Deliberation" };
+                return { ...r, lifecycle_phase: dbPhaseFor(r), status: r.status ?? "In Deliberation" };
               }
-              
+
               try {
                 const cs = await readChainState(r.on_chain_id);
                 const st = cs.state;
                 console.log(`[TELEMETRY_BUCKET] ref=${r.on_chain_id} resolved state=${st}`);
-                
+
                 if (st === 0) return { ...r, lifecycle_phase: "pending" as const, status: "Voting Delay" };
                 if (st === 1) return { ...r, lifecycle_phase: "active" as const, status: "Live Vote" };
                 if (st === 4) return { ...r, lifecycle_phase: "succeeded" as const, status: "Consensus Reached" };
                 if (st === 5) return { ...r, lifecycle_phase: "queued" as const, status: "Timelocked" };
                 if (st === 7) return { ...r, lifecycle_phase: "executed" as const, status: "Executed" };
-                
-                // Fallback for canceled/defeated EVM states
-                return { ...r, lifecycle_phase: "draft" as const, status: "Archived" };
+
+                // st === 2 (canceled) / 3 (defeated) / 6 (expired) / null → preserve DB truth
+                return { ...r, lifecycle_phase: dbPhaseFor(r), status: r.status ?? "Archived" };
               } catch (chainErr: any) {
-                console.error(`[TELEMETRY_BUCKET][ERROR] Failed to read chain state for ${r.on_chain_id}: ${chainErr.message}`);
-                return null;
+                console.error(`[TELEMETRY_BUCKET][FALLBACK] Chain read failed for ${r.on_chain_id}: ${chainErr?.message}. Falling back to DB phase.`);
+                return { ...r, lifecycle_phase: dbPhaseFor(r), status: r.status ?? "Pending Chain Sync" };
               }
             }),
           );
-          
-          const order = { active: 0, pending: 1, succeeded: 2, queued: 3, executed: 4, draft: 5 } as const;
-          
+
+          const order: Record<string, number> = { active: 0, pending: 1, succeeded: 2, queued: 3, executed: 4, draft: 5 };
+
           if (isMounted) {
             setItems(
-              stateChecks
-                .filter((x): x is ProposalLite => x !== null)
-                .sort((a, b) => order[a.lifecycle_phase] - order[b.lifecycle_phase]),
+              (stateChecks as ProposalLite[]).sort(
+                (a, b) => (order[a.lifecycle_phase] ?? 99) - (order[b.lifecycle_phase] ?? 99),
+              ),
             );
           }
+
         }
         console.log("[LIFECYCLE_TELEMETRY][FETCH][END:OK] Telemetry feed hydrated successfully.");
         s.ok({ count: data?.length });
