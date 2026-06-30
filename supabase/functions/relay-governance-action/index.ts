@@ -322,7 +322,12 @@ serve(async (req) => {
     stage = "CONNECT_BLOCKCHAIN";
     console.log(`[GOV_RELAY][${stage}][START] Initializing JSON-RPC provider.`);
 
-    const networkConfig = NETWORKS[networkId]!;
+    const baseNetworkConfig = NETWORKS[networkId]!;
+    const { address: resolvedGovernor, source: governorSource } = resolveGovernorAddress(
+      baseNetworkConfig.governor,
+    );
+    const networkConfig = { ...baseNetworkConfig, governor: resolvedGovernor };
+    console.log(`[GOV_RELAY][BOOT] governor=${resolvedGovernor} source=${governorSource}`);
     const rpcUrl = Deno.env.get("ALCHEMY_BASE_RPC_URL") || networkConfig.rpcUrlFallback;
     console.log(`[GOV_RELAY][RPC_SETUP][URL] using=${rpcUrl.includes("alchemy") ? "alchemy" : "public-base"}`);
     const relayerKey = Deno.env.get("RELAYER_PRIVATE_KEY");
