@@ -47,7 +47,7 @@ const DEPLOYMENTS: Record<DeploymentEnv, ProtocolAddresses> = {
     treasury: "0xd816D83703764551A7F292dbC435669AA89631a7",
     timelock: "0xd3Fd7dD19a4aFD41c8C7FeEdC6d05d77B1141BC5",
     idiaToken: "0x6526F939D257E67896821c25B6C24Daa404a01FB",
-    governor: "0x9777067CAd2892D20decAF1a5ccb78e6B291B87a",
+    governor: "0xc59120a33C9baeF4ee10847e403221C1040773d9",
     registry: "0x137D913d89d0D6a5b2d1Db76173770C94d25387B",
     poolFactory: "0x0188FCB027D834E03DD0288D360937ceC4d267bb",
     liabilityReceipt: "0x5eA57335f7086f1C069d769a9012835B80a00BD3",
@@ -60,7 +60,6 @@ const DEPLOYMENTS: Record<DeploymentEnv, ProtocolAddresses> = {
     },
     usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
   },
-
   // ── Base Sepolia (Chain ID 84532) — Internal Testing ──────────
   testnet: {
     safe: "0x0910EF34C9F59A90d90FF505B1036DEed4a25d59",
@@ -103,7 +102,6 @@ if ((ACTIVE_DEPLOYMENT as DeploymentEnv) !== "mainnet") {
 // ─────────────────────────────────────────────────────────────────────
 
 // ── Minimal ABIs (only the functions the app needs to call) ─────────
-
 // IDIA Token is a standard ERC20Votes governance token on Base Mainnet.
 // All methods below — including `transfer`, `approve`, `delegate`,
 // `delegates`, and `getVotes` — are live on-chain. Do NOT strip them on
@@ -162,7 +160,6 @@ export const GOVERNOR_ABI = [
   "error GovernorDisabledDeposit()",
   "error GovernorInsufficientProposerVotes(address proposer, uint256 votes, uint256 threshold)",
   "error GovernorInvalidProposalLength(uint256 targets, uint256 calldatas, uint256 values)",
-  "error GovernorInvalidQuorumFraction(uint256 quorumNumerator, uint256 quorumDenominator)",
   "error GovernorInvalidSignature(address voter)",
   "error GovernorInvalidVoteParams()",
   "error GovernorInvalidVoteType()",
@@ -176,8 +173,18 @@ export const GOVERNOR_ABI = [
   "error GovernorUnexpectedProposalState(uint256 proposalId, uint8 current, bytes32 expectedStates)",
   "error QueueEmpty()",
   "error QueueFull()",
+  // V3 adjustable quorum
+  "function quorumThreshold() view returns (uint256)",
+  "function quorumFloor() view returns (uint256)",
+  "function quorumCeiling() view returns (uint256)",
+  "function getQuorumParams() view returns (uint256 currentQuorum, uint256 floor, uint256 ceiling, address safeAddress)",
+  "function updateQuorum(uint256 newQuorum)",
+  "function emergencyUpdateQuorum(uint256 newQuorum)",
+  "error NotExecutor()",
+  "error NotSafe()",
+  "error BelowFloor(uint256 proposed, uint256 floor)",
+  "error AboveCeiling(uint256 proposed, uint256 ceiling)",
 ];
-
 
 export const REGISTRY_ABI = [
   "function getPoolByLocation(string location) view returns (address)",

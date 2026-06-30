@@ -1,36 +1,34 @@
-## Problem
+## Findings
 
-`LifecycleTelemetry` queries the latest 10 `dao_proposals` across all users (no proposer filter, RLS off), but rows are dropped from the rendered feed whenever the per-row on-chain `readChainState` call throws. Other users' recent proposals (notably Shawn's `Test android proposal 28 june`) hit that path and disappear, so the feed looks single-user.
+- New Base mainnet governor: `0xc59120a33C9baeF4ee10847e403221C1040773d9` (replaces `0x9777067CAd2892D20decAF1a5ccb78e6B291B87a`).
+- Shawn already added `GOVERNOR_ADDRESS` as a Supabase Edge Function secret. Edge functions can read it via `Deno.env.get("GOVERNOR_ADDRESS")` even though Lovable's `fetch_secrets` doesn't list dashboard-added secrets.
+- Three places still reference the old address:
+  - `src/config/contracts.ts` — frontend source of truth (user pasted the corrected version).
+  - `supabase/functions/relay-governance-action/index.ts` line 90.
+  - `supabase/functions/governance-indexer/index.ts` line 19.
 
-Verified against the DB — both your proposals and Shawn's are present in the top 10:
+## Changes
 
-| Proposer | Title | on_chain_id | DB lifecycle_phase |
-|---|---|---|---|
-| Shawn (9ac1…) | Test android proposal 28 june | 91202…8934 | active |
-| Shawn (9ac1…) | Android test motion | null | draft |
-| You (217c…) | Testing new quorum | 23841…3255 | cancelled |
-| You (217c…) | Testing 3 | 10669…4945 | cancelled |
-| … | … | … | … |
+### 1. `src/config/contracts.ts` (frontend)
+Overwrite with the exact file the user pasted. Only material delta: `mainnet.governor` flips to `0xc59120a33C9baeF4ee10847e403221C1040773d9`. Other addresses and ABIs unchanged.
 
-So the data is reachable; the presentation layer is filtering it out.
+### 2. `supabase/functions/relay-governance-action/index.ts`
+- Inside the request handler, resolve the governor address with this precedence:
+  1. `Deno.env.get("GOVERNOR_ADDRESS")` if `ethers.isAddress(...)` validates.
+  2. Otherwise fall back to the new literal `0xc59120a33C9baeF4ee10847e403221C1040773d9` and log a loud `[GOV_RELAY][BOOT][WARN] GOVERNOR_ADDRESS missing/invalid, using literal fallback`.
+- Replace the hardcoded `NETWORKS[8453].governor` with this resolved value when building the network config / Contract instance.
+- Emit a one-time boot log: `[GOV_RELAY][BOOT] governor=<address> source=<env|fallback>` so every cold start makes the active address visible in function logs.
 
-## Fix (frontend-only, single file)
+### 3. `supabase/functions/governance-indexer/index.ts`
+- Same env-first resolver inside `serve(...)` (read, validate, fallback to the new literal, log).
+- Use the resolved value when constructing `new ethers.Contract(...)`.
+- Remove the top-level `GOVERNOR_ADDRESS` const (or update it to the new literal as fallback only).
 
-`src/components/governance/LifecycleTelemetry.tsx` — `fetchItems` per-row mapping:
-
-1. **Never return `null`.** Replace the `catch` branch with a fallback that keeps the row, using the DB-stored `lifecycle_phase` / `status` (or a sane default of `draft` / "Pending Chain Sync") when the chain read fails.
-2. **Honor the DB `lifecycle_phase` for terminal states the chain mapper currently flattens.** Today states 2/3/6 (canceled/defeated/expired) all collapse to `{ phase: "draft", status: "Archived" }`. Map them to the existing `executed`/`draft` buckets but preserve the DB `status` string so the card label reflects reality (e.g. "Cancelled").
-3. **Widen the phase sort order** so it includes `cancelled` rows at the tail rather than implicitly sorting them as `draft`. Use the existing `order` map, defaulting unknown phases to a high index so they sort last but still render.
-4. **Remove the `.filter((x): x is ProposalLite => x !== null)`** since no row should ever be null after step 1; replace with a type assertion / no-op filter.
-
-No backend, RLS, GRANT, edge-function, or schema changes — `dao_proposals` is already readable by all authenticated users and the table has rows from every proposer.
+### 4. Verification
+- Auto-deploy on save. Trigger a vote from the UI; expected log line: `[GOV_RELAY][BOOT] governor=0xc59120a33C9baeF4ee10847e403221C1040773d9 source=env`. 
+- If the line shows `source=fallback`, the secret name in Supabase doesn't match `GOVERNOR_ADDRESS` exactly (case-sensitive) — but the relay still works against the new address via the literal fallback.
+- Confirm a fresh `castVoteBySig` no longer returns `GovernorNonexistentProposal`.
 
 ## Out of scope
-
-- `ActiveProposalsList`, `ArchiveProposalsList`, `LockedProposalsList` — user only flagged Lifecycle Telemetry.
-- Increasing the `.limit(10)` cap (can revisit if 10 isn't enough once cross-user rows render).
-- Any change to `readChainState` itself.
-
-## Files touched
-
-- `src/components/governance/LifecycleTelemetry.tsx` (resilient per-row mapping)
+- Stale `dao_proposals` rows whose `proposal_id` was minted against the old governor will still fail preflight; per your earlier direction we're leaving them in place (not archiving).
+- No DB migration. No other contract addresses changed.

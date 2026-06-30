@@ -17,7 +17,23 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { ethers } from "npm:ethers@6.13.0";
 
-const GOVERNOR_ADDRESS = "0x9777067CAd2892D20decAF1a5ccb78e6B291B87a";
+// Fallback only — request-time resolver below prefers Deno.env.get("GOVERNOR_ADDRESS").
+const GOVERNOR_ADDRESS_FALLBACK = "0xc59120a33C9baeF4ee10847e403221C1040773d9";
+
+function resolveGovernorAddress(): { address: string; source: "env" | "fallback" } {
+  const fromEnv = Deno.env.get("GOVERNOR_ADDRESS");
+  if (fromEnv && ethers.isAddress(fromEnv)) {
+    return { address: ethers.getAddress(fromEnv), source: "env" };
+  }
+  if (fromEnv) {
+    console.error(
+      `[INDEXER][BOOT][WARN] GOVERNOR_ADDRESS env var present but invalid (${fromEnv}); using literal fallback.`,
+    );
+  } else {
+    console.warn("[INDEXER][BOOT][WARN] GOVERNOR_ADDRESS env var missing; using literal fallback.");
+  }
+  return { address: GOVERNOR_ADDRESS_FALLBACK, source: "fallback" };
+}
 const BASE_RPC_FALLBACK = "https://mainnet.base.org";
 
 const GOVERNOR_ABI = [
@@ -79,7 +95,9 @@ serve(async (req) => {
 
     const rpcUrl = Deno.env.get("BASE_RPC_URL") ?? BASE_RPC_FALLBACK;
     const provider = new ethers.JsonRpcProvider(rpcUrl, 8453, { staticNetwork: true });
-    const gov = new ethers.Contract(GOVERNOR_ADDRESS, GOVERNOR_ABI, provider);
+    const { address: governorAddress, source: governorSource } = resolveGovernorAddress();
+    console.log(`[INDEXER][BOOT] governor=${governorAddress} source=${governorSource}`);
+    const gov = new ethers.Contract(governorAddress, GOVERNOR_ABI, provider);
 
     // ── LOAD_PENDING ────────────────────────────────────────────────
     console.log("[INDEXER][LOAD_PENDING][START] Fetching un-indexed rows from governance_proposals");
