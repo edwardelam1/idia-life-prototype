@@ -8835,6 +8835,39 @@ export type Database = {
           },
         ]
       }
+      vault_notes: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          tags: string[]
+          title: string
+          tsv: unknown
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          id?: string
+          tags?: string[]
+          title: string
+          tsv?: unknown
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          tags?: string[]
+          title?: string
+          tsv?: unknown
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       vesting_pushes: {
         Row: {
           amount: string
@@ -10801,6 +10834,25 @@ export type Database = {
           p_wallet_address: string
         }
         Returns: boolean
+      }
+      vault_note_append: {
+        Args: { p_content: string; p_note_id: string }
+        Returns: {
+          content: string
+          created_at: string
+          id: string
+          tags: string[]
+          title: string
+          tsv: unknown
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "vault_notes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {
