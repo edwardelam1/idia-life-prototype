@@ -95,7 +95,9 @@ serve(async (req) => {
 
     const rpcUrl = Deno.env.get("BASE_RPC_URL") ?? BASE_RPC_FALLBACK;
     const provider = new ethers.JsonRpcProvider(rpcUrl, 8453, { staticNetwork: true });
-    const gov = new ethers.Contract(GOVERNOR_ADDRESS, GOVERNOR_ABI, provider);
+    const { address: governorAddress, source: governorSource } = resolveGovernorAddress();
+    console.log(`[INDEXER][BOOT] governor=${governorAddress} source=${governorSource}`);
+    const gov = new ethers.Contract(governorAddress, GOVERNOR_ABI, provider);
 
     // ── LOAD_PENDING ────────────────────────────────────────────────
     console.log("[INDEXER][LOAD_PENDING][START] Fetching un-indexed rows from governance_proposals");
