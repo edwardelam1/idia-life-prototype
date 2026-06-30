@@ -17,9 +17,9 @@ import { ethers } from "ethers";
 import { PROTOCOL, ACTIVE_DEPLOYMENT, GOVERNOR_ABI } from "@/config/contracts";
 import { NETWORKS, walletService } from "@/services/walletService";
 
-// Direct-RPC chain state read — snapshot block, dynamic quorum, and live tally.
-// Quorum is fetched dynamically per snapshot block so the UI auto-adapts if
-// the protocol upgrades to a floating relative quorum in the future.
+// Direct-RPC chain state read — snapshot block, live adjustable quorum, and live tally.
+// V3 quorum is a mutable Governor parameter, so cards read the current contract
+// value instead of DB fields or historical snapshot math.
 export interface ChainState {
   snapshotBlock: number | null;
   deadlineBlock: number | null;
@@ -29,6 +29,26 @@ export interface ChainState {
   againstVotes: number;
   abstainVotes: number;
   state: number | null;
+}
+
+async function readLiveGovernorQuorum(gov: ethers.Contract, provider: ethers.JsonRpcProvider): Promise<bigint> {
+  try {
+    const params = await gov.getQuorumParams();
+    const currentQuorum = params?.currentQuorum ?? params?.[0];
+    if (currentQuorum != null && BigInt(currentQuorum) > 0n) return BigInt(currentQuorum);
+  } catch {
+    // Older governors do not expose V3 adjustable quorum params.
+  }
+
+  try {
+    const threshold = await gov.quorumThreshold();
+    if (threshold != null && BigInt(threshold) > 0n) return BigInt(threshold);
+  } catch {
+    // Fall through to OpenZeppelin quorum(timepoint) for legacy governors.
+  }
+
+  const block = await provider.getBlockNumber();
+  return BigInt(await gov.quorum(Math.max(block - 1, 0)));
 }
 
 export async function readChainState(onChainId?: string | null): Promise<ChainState> {
@@ -52,7 +72,7 @@ export async function readChainState(onChainId?: string | null): Promise<ChainSt
   if (!onChainId || onChainId.trim() === "") {
     try {
       const block = await provider.getBlockNumber();
-      const rawQ = await gov.quorum(block - 1);
+      const rawQ = await readLiveGovernorQuorum(gov, provider);
       return { ...empty, currentBlock: block, quorum: Number(ethers.formatUnits(rawQ, 18)) };
     } catch {
       return empty;
@@ -79,19 +99,13 @@ export async function readChainState(onChainId?: string | null): Promise<ChainSt
   let rawQuorum: bigint = 0n;
   let rawVotes: [bigint, bigint, bigint] = [0n, 0n, 0n];
 
+  rawQuorum = await readLiveGovernorQuorum(gov, provider).catch(() => 0n);
+
   if (state !== null && state > 0) {
-    const [q, v] = await Promise.all([
-      snapshotBlock
-        ? gov.quorum(snapshotBlock).catch(() => 0n)
-        : Promise.resolve(0n),
+    const [v] = await Promise.all([
       gov.proposalVotes(onChainId).catch(() => [0n, 0n, 0n] as any),
     ]);
-    rawQuorum = q;
     rawVotes = v as [bigint, bigint, bigint];
-  } else if (state === 0 && currentBlock) {
-    // Pending: query quorum against the latest finalized block so the UI shows
-    // the live threshold without poking a future snapshot block.
-    rawQuorum = await gov.quorum(currentBlock - 1).catch(() => 0n);
   }
 
   return {
