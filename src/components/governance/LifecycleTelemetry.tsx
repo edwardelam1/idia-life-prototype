@@ -62,6 +62,8 @@ export const PHASE_META = {
 } as const;
 
 // Direct-RPC quorum read — no service-layer cache, retry, or fallback chain.
+// V3 quorum is adjustable, so telemetry reads the current Governor value
+// instead of DB quorum_threshold or historical snapshot math.
 async function directQuorum(onChainId?: string | null): Promise<bigint> {
   const networkKey = ACTIVE_DEPLOYMENT === "mainnet" ? "base" : "baseSepolia";
   const network = NETWORKS[networkKey];
@@ -69,13 +71,21 @@ async function directQuorum(onChainId?: string | null): Promise<bigint> {
   const provider = new ethers.JsonRpcProvider(rpcUrl, network.chainId);
   const gov = new ethers.Contract(PROTOCOL.governor, GOVERNOR_ABI, provider);
 
-  if (onChainId && onChainId.trim() !== "") {
-    const snap = await gov.proposalSnapshot(onChainId);
-    if (snap && Number(snap) > 0) {
-      const q = await gov.quorum(snap);
-      return BigInt(q);
-    }
+  try {
+    const params = await gov.getQuorumParams();
+    const currentQuorum = params?.currentQuorum ?? params?.[0];
+    if (currentQuorum != null && BigInt(currentQuorum) > 0n) return BigInt(currentQuorum);
+  } catch {
+    // Older governors do not expose V3 adjustable quorum params.
   }
+
+  try {
+    const threshold = await gov.quorumThreshold();
+    if (threshold != null && BigInt(threshold) > 0n) return BigInt(threshold);
+  } catch {
+    // Fall through to OpenZeppelin quorum(timepoint) for legacy governors.
+  }
+
   const block = await provider.getBlockNumber();
   const q = await gov.quorum(block - 1);
   return BigInt(q);
