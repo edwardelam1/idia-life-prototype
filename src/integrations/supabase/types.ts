@@ -10529,6 +10529,25 @@ export type Database = {
         Returns: string
       }
       get_vulture_salt: { Args: never; Returns: string }
+      governance_global_egress_latency: {
+        Args: { p_since: string }
+        Returns: {
+          created_at: string
+          id: string
+          settled_at: string
+        }[]
+      }
+      governance_global_treasury_flows: {
+        Args: never
+        Returns: {
+          amount: number
+          created_at: string
+          description: string
+          entry_type: string
+          id: string
+          metadata: Json
+        }[]
+      }
       grant_hat: {
         Args: { _hat_type: string; _target_user: string }
         Returns: string
