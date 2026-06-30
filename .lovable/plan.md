@@ -1,34 +1,97 @@
-## Findings
+## Problem
 
-- New Base mainnet governor: `0xc59120a33C9baeF4ee10847e403221C1040773d9` (replaces `0x9777067CAd2892D20decAF1a5ccb78e6B291B87a`).
-- Shawn already added `GOVERNOR_ADDRESS` as a Supabase Edge Function secret. Edge functions can read it via `Deno.env.get("GOVERNOR_ADDRESS")` even though Lovable's `fetch_secrets` doesn't list dashboard-added secrets.
-- Three places still reference the old address:
-  - `src/config/contracts.ts` — frontend source of truth (user pasted the corrected version).
-  - `supabase/functions/relay-governance-action/index.ts` line 90.
-  - `supabase/functions/governance-indexer/index.ts` line 19.
+`Global Treasury Flows` and `Global Egress Delivery` render empty for most users because the underlying tables have row-scoped RLS:
 
-## Changes
+- `synapse_credit_ledger` — SELECT policies all require `user_id = auth.uid()`
+- `egress_logs` — SELECT policy requires `user_id = auth.uid()`
 
-### 1. `src/config/contracts.ts` (frontend)
-Overwrite with the exact file the user pasted. Only material delta: `mainnet.governor` flips to `0xc59120a33C9baeF4ee10847e403221C1040773d9`. Other addresses and ABIs unchanged.
+So each user only ever sees their own ledger entries / their own egress events. Users with zero personal rows see nothing — which is exactly the "not showing for all users" symptom. The components are labeled **Global** but are reading per-user data.
 
-### 2. `supabase/functions/relay-governance-action/index.ts`
-- Inside the request handler, resolve the governor address with this precedence:
-  1. `Deno.env.get("GOVERNOR_ADDRESS")` if `ethers.isAddress(...)` validates.
-  2. Otherwise fall back to the new literal `0xc59120a33C9baeF4ee10847e403221C1040773d9` and log a loud `[GOV_RELAY][BOOT][WARN] GOVERNOR_ADDRESS missing/invalid, using literal fallback`.
-- Replace the hardcoded `NETWORKS[8453].governor` with this resolved value when building the network config / Contract instance.
-- Emit a one-time boot log: `[GOV_RELAY][BOOT] governor=<address> source=<env|fallback>` so every cold start makes the active address visible in function logs.
+The other two MSA channels (`bundle_generation_logs`, `api_metrics`) already have `USING (true)` for authenticated, which is why those rows render fine.
 
-### 3. `supabase/functions/governance-indexer/index.ts`
-- Same env-first resolver inside `serve(...)` (read, validate, fallback to the new literal, log).
-- Use the resolved value when constructing `new ethers.Contract(...)`.
-- Remove the top-level `GOVERNOR_ADDRESS` const (or update it to the new literal as fallback only).
+## Fix
 
-### 4. Verification
-- Auto-deploy on save. Trigger a vote from the UI; expected log line: `[GOV_RELAY][BOOT] governor=0xc59120a33C9baeF4ee10847e403221C1040773d9 source=env`. 
-- If the line shows `source=fallback`, the secret name in Supabase doesn't match `GOVERNOR_ADDRESS` exactly (case-sensitive) — but the relay still works against the new address via the literal fallback.
-- Confirm a fresh `castVoteBySig` no longer returns `GovernorNonexistentProposal`.
+Expose sanitized **aggregate** reads to all authenticated users via two `SECURITY DEFINER` SQL functions, then have the two components call them instead of selecting from the base tables directly. RLS on the base tables stays intact — private rows remain private; the functions only return columns/aggregates that are safe to show in the governance UI.
 
-## Out of scope
-- Stale `dao_proposals` rows whose `proposal_id` was minted against the old governor will still fail preflight; per your earlier direction we're leaving them in place (not archiving).
-- No DB migration. No other contract addresses changed.
+### 1. Migration — two RPCs
+
+```sql
+-- Global treasury flows: last 30 days of ledger entries, no user_id, no metadata leaks
+create or replace function public.governance_global_treasury_flows()
+returns table (
+  id uuid,
+  entry_type text,
+  amount numeric,
+  description text,
+  metadata jsonb,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select id, entry_type, amount, description, metadata, created_at
+  from public.synapse_credit_ledger
+  where created_at >= now() - interval '30 days'
+  order by created_at desc
+  limit 1000
+$$;
+
+revoke all on function public.governance_global_treasury_flows() from public;
+grant execute on function public.governance_global_treasury_flows() to authenticated;
+
+-- Global egress delivery: only timestamps needed to compute settlement latency
+create or replace function public.governance_global_egress_latency(p_since timestamptz)
+returns table (
+  id uuid,
+  created_at timestamptz,
+  settled_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select id, created_at, settled_at
+  from public.egress_logs
+  where created_at >= p_since
+    and settled_at is not null
+  limit 1000
+$$;
+
+revoke all on function public.governance_global_egress_latency(timestamptz) from public;
+grant execute on function public.governance_global_egress_latency(timestamptz) to authenticated;
+```
+
+The treasury RPC keeps `description` and `metadata` because `TreasuryFlows.tsx` already strips UUIDs, wallet hex, and emails via `sanitizeCounterparty` before display.
+
+### 2. `src/components/governance/TreasuryFlows.tsx`
+
+Replace the `.from("synapse_credit_ledger")…select(...)` query inside `fetchFlows` with:
+
+```ts
+const { data, error } = await supabase.rpc("governance_global_treasury_flows" as any);
+```
+
+Drop the 30d `gte` and `order` clauses (the RPC enforces both). Realtime channel can stay as-is — the INSERT trigger just calls `fetchFlows()` again.
+
+### 3. `src/components/governance/MSAComplianceCard.tsx`
+
+Replace the `egress_logs` select in the `Promise.all` (lines ~148-153) with:
+
+```ts
+supabase.rpc("governance_global_egress_latency" as any, { p_since: since }),
+```
+
+Everything downstream (`egressRes.data` → `egressSamples`) keeps the same shape.
+
+### Why not just open RLS?
+
+`synapse_credit_ledger` and `egress_logs` contain per-user financial / data-egress records — opening `USING (true)` would leak each user's full ledger to every signed-in account. The RPC pattern keeps row-level isolation for normal API access and only exposes the projection the governance UI actually needs.
+
+### Verification
+
+1. Sign in as a user with zero ledger / zero egress rows → both cards render with aggregate data (previously empty).
+2. Sign in as a user with their own rows → still works (RPC ignores `auth.uid()` scoping).
+3. Direct `from('synapse_credit_ledger').select()` still returns only the caller's rows (RLS unchanged).
