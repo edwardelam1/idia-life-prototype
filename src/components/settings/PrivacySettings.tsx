@@ -5,7 +5,8 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Shield, Database, Trash2, Download, Smartphone, Activity, Camera, HeartPulse, Mic, Info, Loader2, ExternalLink, CheckCircle2, XCircle } from 'lucide-react';
+import { Shield, Database, Trash2, Download, Smartphone, Activity, Camera, HeartPulse, Info, Loader2, ExternalLink, CheckCircle2, XCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useProfile } from '@/hooks/useProfile';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -22,6 +23,7 @@ const SECURE_KEYS_TO_WIPE = [
 ];
 
 export function PrivacySettings() {
+  const navigate = useNavigate();
   const { preferences, updatePreferences } = useProfile();
   const { toast } = useToast();
   const [purging, setPurging] = useState(false);
