@@ -280,9 +280,7 @@ const HW_ROWS: Array<{
   { key: 'motion',     label: 'Device Motion', description: 'Gyroscope and spatial awareness',  Icon: Activity },
   { key: 'camera',     label: 'Camera',        description: 'Visual processing and AR features', Icon: Camera },
   { key: 'health',     label: 'Health Kit',    description: 'Biometrics and vitals syncing',     Icon: HeartPulse },
-  { key: 'bluetooth',  label: 'Bluetooth',     description: 'Proximity and external wearables',  Icon: Bluetooth },
   { key: 'microphone', label: 'Microphone',    description: 'Voice interactions and commands',   Icon: Mic },
-  { key: 'nfc',        label: 'NFC Scan',      description: 'Physical tap and handshake logic',  Icon: ScanLine },
 ];
 
 function HardwarePermissionsSection() {
