@@ -228,13 +228,26 @@ export const useEnhancedProfile = () => {
   const updateInterests = async (selectedInterestIds: string[]) => {
     setUpdating(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No user");
+
+      // Replace user's interests
+      const { error: delErr } = await (supabase.from("user_interests") as any)
+        .delete()
+        .eq("user_id", user.id);
+      if (delErr) throw delErr;
+
+      if (selectedInterestIds.length > 0) {
+        const rows = selectedInterestIds.map((interest_id) => ({ user_id: user.id, interest_id }));
+        const { error: insErr } = await (supabase.from("user_interests") as any).insert(rows);
+        if (insErr) throw insErr;
+      }
+
       setInterests(availableInterests.filter((interest) => selectedInterestIds.includes(interest.id)));
-      toast({
-        title: "Success",
-        description: "Interests updated successfully",
-      });
-    } catch (error) {
+      toast({ title: "Success", description: "Interests updated successfully" });
+    } catch (error: any) {
       console.error("Error updating interests:", error);
+      toast({ title: "Error", description: error?.message || "Failed to update interests", variant: "destructive" });
     } finally {
       setUpdating(false);
     }
