@@ -212,12 +212,12 @@ export function PrivacySettings() {
 
         <div className="flex items-center justify-between gap-3 bg-muted/20 p-3 rounded-lg border border-border/50">
           <div className="space-y-0.5 min-w-0">
-            <div className="text-sm font-medium">Export Identity Ledger</div>
-            <p className="text-xs text-muted-foreground">Download a CSV of your data & Consent Records</p>
+            <div className="text-sm font-medium">Identity Ledger</div>
+            <p className="text-xs text-muted-foreground">Review your consent records & download a CSV export</p>
           </div>
-          <Button variant="outline" size="sm" onClick={exportData}>
+          <Button variant="outline" size="sm" onClick={() => navigate('/settings/ledger')}>
             <Download className="w-3.5 h-3.5 mr-1.5" />
-            Export CSV
+            View & Export
           </Button>
         </div>
 
