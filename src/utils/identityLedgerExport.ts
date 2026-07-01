@@ -3,6 +3,7 @@
 // (filtered by platform_guid) and a zero-PII slice of `profiles`.
 
 import { supabase } from "@/integrations/supabase/client";
+import { saveFileToDevice } from "@/utils/nativeDownload";
 
 export interface LedgerProfile {
   display_name: string | null;
@@ -85,18 +86,8 @@ export function buildLedgerCsv({ profile, records }: LedgerPayload): string {
   return rows.map((row) => row.map(q).join(",")).join("\n");
 }
 
-export function downloadLedgerCsv(payload: LedgerPayload) {
+export async function downloadLedgerCsv(payload: LedgerPayload): Promise<void> {
   const csv = buildLedgerCsv(payload);
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.setAttribute("href", url);
-  link.setAttribute(
-    "download",
-    `IDIA_Sovereign_Export_${new Date().toISOString().split("T")[0]}.csv`,
-  );
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  const filename = `IDIA_Sovereign_Export_${new Date().toISOString().split("T")[0]}.csv`;
+  await saveFileToDevice({ filename, data: csv, mimeType: "text/csv;charset=utf-8;" });
 }
