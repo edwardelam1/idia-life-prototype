@@ -1,49 +1,28 @@
-# L3 Tophat = Universal Committee Override
+## Plan: Collapsible Immutable Audit Trail
 
-## Problem
+### Goal
+Make the AuditFeed ("Immutable Audit Trail") section collapsible so its timeline is hidden by default and can be expanded on demand.
 
-The other Protocol Steward (L3) shows up in every committee roster (rendered via `CommitteeRosterModal`, which already treats tophat holders as honorary members) but:
+### Approach
+Wrap the existing `AuditFeed` content in the shadcn `Collapsible` primitive, which is already available in the project. Keep the data polling unchanged so ACA records continue to hydrate in the background. Only the presentation layer changes.
 
-1. His **Hats Wardrobe** shows only Tophat lit — the four committee hats are grayed/severed.
-2. His **Committee Workspace** sidebar is empty or auto-selects `committee_id='tophat'`, returning no proposals.
-3. On any **MotionThread** he cannot Endorse or Object — the buttons are gated on `hatSet.has(proposal.committee_id)`, and tophat isn't checked.
+### Changes
 
-Root cause: `dao_hats` only holds a `tophat` row for him. The rest of the UI checks for literal per-committee hat rows and does not treat tophat as a universal override — even though `CommitteeRosterModal` already does exactly that (`CommitteeRosterModal.tsx:57–72`).
+1. **`src/components/governance/AuditFeed.tsx`**
+   - Import `Collapsible`, `CollapsibleTrigger`, and `CollapsibleContent` from `@/components/ui/collapsible`.
+   - Import a chevron icon (e.g., `ChevronDown` from `lucide-react`) to indicate expand/collapse state.
+   - Wrap the entire section with `<Collapsible defaultOpen={false}>`.
+   - Convert the existing header row into the `CollapsibleTrigger` so clicking the title or chevron toggles the section.
+   - Move the loading spinner, empty state, and timeline rows inside `CollapsibleContent`.
+   - Apply a small rotating chevron style (e.g., `data-[state=open]:rotate-180`) consistent with Radix `Collapsible` data attributes and existing Tailwind patterns.
+   - Preserve the existing `Info` tooltip and section title styling.
 
-## Fix — Frontend-only, no DB writes, no migrations
+### What stays the same
+- ACA polling interval and Supabase fetch logic.
+- Ledger row rendering, empty state, and styling.
+- No backend or schema changes.
 
-Add a single override rule everywhere committee membership is evaluated on the client: **`tophat ⇒ member of every committee`**. This matches the existing roster-modal behavior and the intent of L3 clearance in `governanceGate.ts`, and it fixes both existing and future L3 users automatically without backfilling `dao_hats`.
-
-### 1. `src/components/governance/HatsWardrobe.tsx`
-When the user holds an `active` tophat, render the four committee hats (`security_council`, `product_xr`, `legal_defense`, `sociorelational`) as `active` too — synthesize virtual wearer entries so they light up with the standard active styling. Skip the Attest CTA on synthesized entries (they're not real ledger rows). Real committee hat rows still take precedence for status and attestation age.
-
-### 2. `src/components/governance/CommitteeWorkspace.tsx`
-- Compute `committeeHats = tophat ? ALL_COMMITTEES : activeHats.filter(h => h.hat_type !== 'tophat' && h.hat_type !== 'oversight_chair')`.
-- Render the sidebar from `committeeHats` (so tophat holders see all four committees, not a stray "Tophat" entry that resolves to no proposals).
-- Change the "Restricted Access" empty guard to `committeeHats.length === 0` so tophat-only users pass through.
-- Auto-select the first entry from `committeeHats`.
-
-### 3. `src/components/governance/MotionThread.tsx` (line 108)
-Change:
-```ts
-setHasHat(proposal.committee_id ? hatSet.has(proposal.committee_id) : false);
-```
-to:
-```ts
-setHasHat(
-  hatSet.has('tophat') ||
-  (proposal.committee_id ? hatSet.has(proposal.committee_id) : false)
-);
-```
-This enables Endorse / Object for any L3 tophat holder on any committee's motion, matching the existing L3-can-do-anything model in `governanceGate.ts`.
-
-## What this does NOT change
-
-- No changes to `ascension-approve`, `oversight-chair-toggle`, or `CommitteesList.tsx` tophat self-service flow.
-- No `dao_hats` inserts, no migrations, no policy changes — the override lives entirely in the presentation layer, same as `CommitteeRosterModal`'s existing honorary-L3 display.
-- L0/L1/L2 users are unaffected (they don't hold tophat).
-- Attestation lifecycle (`dao-hat-eligibility`) still tracks the real tophat row; synthesized committee entries never need attesting.
-
-## Effect
-
-The other L3 user immediately sees all four committee hats lit in the Wardrobe, sees all four committees in the Workspace sidebar with their real proposals, and can Endorse/Object on any motion — with no data changes required.
+### Acceptance criteria
+- The Audit Trail section renders with a collapsed timeline on load.
+- Clicking the header expands to show the full feed and rotates the chevron.
+- Clicking the header again collapses it.
