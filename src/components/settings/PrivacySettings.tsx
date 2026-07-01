@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { SecureStoragePlugin } from 'capacitor-secure-storage-plugin';
 import { useHardwarePermission } from '@/hooks/useHardwarePermission';
+import { saveFileToDevice } from '@/utils/nativeDownload';
 import type { HardwareKey } from '@/plugins/permissions';
 
 const SECURE_KEYS_TO_WIPE = [

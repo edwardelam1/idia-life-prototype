@@ -48,10 +48,19 @@ export default function IdentityLedger() {
     })();
   }, [navigate, toast]);
 
-  const onDownload = () => {
+  const onDownload = async () => {
     if (!payload) return;
-    downloadLedgerCsv(payload);
-    toast({ title: "Export downloaded", description: "Your ledger CSV has been saved." });
+    try {
+      await downloadLedgerCsv(payload);
+      toast({ title: "Export saved", description: "Your ledger CSV has been saved to your device." });
+    } catch (err) {
+      console.error("[IdentityLedger] download failed", err);
+      toast({
+        title: "Download failed",
+        description: "Could not save the ledger to your device.",
+        variant: "destructive",
+      });
+    }
   };
 
   const records = payload?.records ?? [];
