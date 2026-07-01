@@ -5,7 +5,7 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Shield, Database, Trash2, Download, Smartphone, Activity, Camera, HeartPulse, Bluetooth, Mic, ScanLine, Info, Loader2, ExternalLink, CheckCircle2, XCircle } from 'lucide-react';
+import { Shield, Database, Trash2, Download, Smartphone, Activity, Camera, HeartPulse, Mic, Info, Loader2, ExternalLink, CheckCircle2, XCircle } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -280,9 +280,7 @@ const HW_ROWS: Array<{
   { key: 'motion',     label: 'Device Motion', description: 'Gyroscope and spatial awareness',  Icon: Activity },
   { key: 'camera',     label: 'Camera',        description: 'Visual processing and AR features', Icon: Camera },
   { key: 'health',     label: 'Health Kit',    description: 'Biometrics and vitals syncing',     Icon: HeartPulse },
-  { key: 'bluetooth',  label: 'Bluetooth',     description: 'Proximity and external wearables',  Icon: Bluetooth },
   { key: 'microphone', label: 'Microphone',    description: 'Voice interactions and commands',   Icon: Mic },
-  { key: 'nfc',        label: 'NFC Scan',      description: 'Physical tap and handshake logic',  Icon: ScanLine },
 ];
 
 function HardwarePermissionsSection() {
