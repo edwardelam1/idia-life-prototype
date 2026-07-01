@@ -324,7 +324,14 @@ const LifecycleTelemetry: React.FC = () => {
                 console.log(`[TELEMETRY_BUCKET] ref=${r.on_chain_id} resolved state=${st}`);
 
                 if (st === 0) return { ...r, lifecycle_phase: "pending" as const, status: "Voting Delay" };
-                if (st === 1) return { ...r, lifecycle_phase: "active" as const, status: "Live Vote" };
+                if (st === 1) {
+                  const quorumReached = cs.quorum > 0 && (cs.forVotes + cs.abstainVotes) >= cs.quorum;
+                  const majorityFor = cs.forVotes > cs.againstVotes;
+                  const liveStatus = quorumReached
+                    ? (majorityFor ? "Passing · Voting Open" : "Failing · Voting Open")
+                    : "Live Vote";
+                  return { ...r, lifecycle_phase: "active" as const, status: liveStatus };
+                }
                 if (st === 4) return { ...r, lifecycle_phase: "succeeded" as const, status: "Consensus Reached" };
                 if (st === 5) return { ...r, lifecycle_phase: "queued" as const, status: "Timelocked" };
                 if (st === 7) return { ...r, lifecycle_phase: "executed" as const, status: "Executed" };
