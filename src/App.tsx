@@ -11,6 +11,7 @@ import Auth from "./pages/Auth";
 import Index from "./pages/Index";
 
 import Settings from "./pages/Settings";
+import IdentityLedger from "./pages/IdentityLedger";
 import NotFound from "./pages/NotFound";
 import SecureVault from "./pages/SecureVault";
 import RecoveryPhrase from "./pages/RecoveryPhrase";
