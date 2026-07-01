@@ -58,9 +58,23 @@ const CommitteeWorkspace: React.FC = () => {
       setActiveHats(hats || []);
       const hatSet = new Set<string>((hats || []).map((h: any) => h.hat_type));
       setAscensionLevel(getAscensionLevel(hatSet));
-      
+
+      // L3 Tophat override — Protocol Steward is an honorary member of every committee.
+      const isTophat = hatSet.has("tophat");
+      const realCommitteeHats = (hats || []).filter(
+        (h: any) => h.hat_type !== "tophat" && h.hat_type !== "oversight_chair",
+      );
+      const derivedCommitteeHats = isTophat
+        ? COMMITTEE_HAT_TYPES.map((t) => {
+            const real = realCommitteeHats.find((h: any) => h.hat_type === t);
+            return real || { hat_type: t };
+          })
+        : realCommitteeHats;
+      setCommitteeHats(derivedCommitteeHats);
+
       // Auto-select the first committee if none is selected
-      const currentCommittee = selectedCommittee || (hats && hats.length > 0 ? hats[0].hat_type : null);
+      const currentCommittee =
+        selectedCommittee || (derivedCommitteeHats.length > 0 ? derivedCommitteeHats[0].hat_type : null);
       if (currentCommittee && !selectedCommittee) {
         setSelectedCommittee(currentCommittee);
       }
