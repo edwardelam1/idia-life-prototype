@@ -20,8 +20,11 @@ import {
 import { stage } from "@/lib/stageLogger";
 import MotionThread from "./MotionThread";
 
+const COMMITTEE_HAT_TYPES = ["security_council", "product_xr", "legal_defense", "sociorelational"] as const;
+
 const CommitteeWorkspace: React.FC = () => {
   const [activeHats, setActiveHats] = useState<any[]>([]);
+  const [committeeHats, setCommitteeHats] = useState<any[]>([]);
   const [ascensionLevel, setAscensionLevel] = useState<AscensionLevel>(0);
   const [selectedCommittee, setSelectedCommittee] = useState<string | null>(null);
   const [proposals, setProposals] = useState<any[]>([]);
@@ -55,9 +58,23 @@ const CommitteeWorkspace: React.FC = () => {
       setActiveHats(hats || []);
       const hatSet = new Set<string>((hats || []).map((h: any) => h.hat_type));
       setAscensionLevel(getAscensionLevel(hatSet));
-      
+
+      // L3 Tophat override — Protocol Steward is an honorary member of every committee.
+      const isTophat = hatSet.has("tophat");
+      const realCommitteeHats = (hats || []).filter(
+        (h: any) => h.hat_type !== "tophat" && h.hat_type !== "oversight_chair",
+      );
+      const derivedCommitteeHats = isTophat
+        ? COMMITTEE_HAT_TYPES.map((t) => {
+            const real = realCommitteeHats.find((h: any) => h.hat_type === t);
+            return real || { hat_type: t };
+          })
+        : realCommitteeHats;
+      setCommitteeHats(derivedCommitteeHats);
+
       // Auto-select the first committee if none is selected
-      const currentCommittee = selectedCommittee || (hats && hats.length > 0 ? hats[0].hat_type : null);
+      const currentCommittee =
+        selectedCommittee || (derivedCommitteeHats.length > 0 ? derivedCommitteeHats[0].hat_type : null);
       if (currentCommittee && !selectedCommittee) {
         setSelectedCommittee(currentCommittee);
       }
@@ -159,7 +176,7 @@ const CommitteeWorkspace: React.FC = () => {
 
   if (isLoading) return <div className="flex justify-center p-8"><Loader2 className="animate-spin text-teal-600" /></div>;
 
-  if (activeHats.length === 0) {
+  if (committeeHats.length === 0) {
     return (
       <Card className="border-red-100 bg-red-50/50">
         <CardContent className="flex flex-col items-center justify-center p-8 text-center space-y-2">
@@ -183,7 +200,7 @@ const CommitteeWorkspace: React.FC = () => {
             L{ascensionLevel}
           </span>
         </div>
-        {activeHats.map((hat) => (
+        {committeeHats.map((hat) => (
           <Button
             key={hat.hat_type}
             variant={selectedCommittee === hat.hat_type ? "default" : "outline"}

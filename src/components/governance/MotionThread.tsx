@@ -105,7 +105,11 @@ const MotionThread: React.FC<MotionThreadProps> = ({ proposal, open, onClose, on
 
       const hatSet = new Set<string>((hatsRes.data || []).map((h: any) => h.hat_type));
       setLevel(getAscensionLevel(hatSet));
-      setHasHat(proposal.committee_id ? hatSet.has(proposal.committee_id) : false);
+      // L3 Tophat is a universal committee override — matches CommitteeRosterModal's honorary-L3 display.
+      setHasHat(
+        hatSet.has("tophat") ||
+        (proposal.committee_id ? hatSet.has(proposal.committee_id) : false)
+      );
       
       setComments(enrichedComments);
       setSignatures(sigsRes.data || []);
