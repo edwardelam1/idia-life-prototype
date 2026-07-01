@@ -176,7 +176,7 @@ const CommitteeWorkspace: React.FC = () => {
 
   if (isLoading) return <div className="flex justify-center p-8"><Loader2 className="animate-spin text-teal-600" /></div>;
 
-  if (activeHats.length === 0) {
+  if (committeeHats.length === 0) {
     return (
       <Card className="border-red-100 bg-red-50/50">
         <CardContent className="flex flex-col items-center justify-center p-8 text-center space-y-2">
