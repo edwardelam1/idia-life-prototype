@@ -1,34 +1,51 @@
-## Plan: Privacy tweaks + Identity Ledger viewer
+## Problem
 
-### 1. Remove Microphone from Hardware Permissions
-- `src/components/settings/PrivacySettings.tsx`: drop the `microphone` row from `HW_ROWS`; remove the unused `Mic` import. Only Device Motion, Camera, and Health Kit remain visible.
-- Leave `useHardwarePermission` and the permission plugin unchanged (mic key stays supported at the API level, just not surfaced in UI).
+On the native (Capacitor) app, the current download flows don't actually save files to the device:
 
-### 2. Fix the Export Identity Ledger data
-Current bug: `exportData()` queries a non-existent `acas` table with `user_id`, and only prints two profile fields — so the CSV comes out blank. Rewrite to pull the correct data:
-- Query `user_aca_records` filtered by `platform_guid = user.id` (matches existing RLS), ordered by `created_at desc`. Columns exported: `created_at`, `source_id`, `consent_type`, `consent_scope`, `aca_hash_key`, `tx_hash`.
-- Profile block pulls from `profiles` (zero-PII columns only: `display_name`, `subscription_tier`, `kyc_status`, `created_at`) — no email/phone/address.
-- If zero records, still render headers plus a "No consent records on file." row.
+- **Identity Ledger CSV** uses a web `<a download>` blob trick. Inside the Capacitor WebView this opens the CSV inline in the WebView (or a system viewer) with no back button, effectively locking the user on that screen.
+- **Terms of Service PDF** uses `<a href="/legal/....pdf" download>`. Same issue — the WebView navigates to the PDF and there's no way back.
 
-### 3. New in-app Identity Ledger viewer with Back frame
-Add a dedicated route so the user can review before downloading:
-- New page `src/pages/IdentityLedger.tsx`:
-  - Same shell/header as `Settings.tsx` (safe-area padding, container, `ArrowLeft` Back button that calls `navigate('/settings')`, title "Identity Ledger").
-  - Fetches the same user-scoped `user_aca_records` rows and profile summary on mount (with loading + empty states).
-  - Renders a table (Timestamp · Source · Consent Type · Scope · ACA Hash truncated · Tx) using existing shadcn `Table`.
-  - Top-right "Download CSV" button reuses the export logic (extracted into a small helper so PrivacySettings and the page share it).
-- Register `/settings/ledger` in `src/App.tsx` (auth-gated like `/settings`).
-- In `PrivacySettings.tsx`, change the "Export Identity Ledger" row's button from a direct download to `navigate('/settings/ledger')` labelled "View & Export" — the download lives inside the viewer.
+Both need to write to the device's file system and hand off to the OS so the user gets a real "Saved to Files/Downloads" experience and stays inside the app.
 
-### 4. Shared helper
-- New `src/utils/identityLedgerExport.ts` exporting `fetchLedger(userId)` (returns `{ profile, records }`) and `buildLedgerCsv({ profile, records })`. Both the viewer page and any future callers use it; no duplicated SQL.
+## Fix
 
-### Out of scope
-- No DB schema/RLS changes (existing `user_aca_records` policies already restrict to the owning `platform_guid`).
-- No changes to native permission bridges, ACA generator, or edge functions.
-- No PII added to the export — profile block stays zero-PII.
+Use `@capacitor/filesystem` + `@capacitor/share` (already the standard Capacitor pattern) with a graceful web fallback.
 
-### Technical notes
-- `user_aca_records` columns used: `platform_guid`, `aca_hash_key`, `source_id`, `consent_type`, `consent_scope` (text[]), `created_at`, `tx_hash`.
-- CSV escaping: wrap every value in quotes and double-escape embedded quotes to handle scope arrays and commas.
-- Toast messaging unchanged; filename pattern stays `IDIA_Sovereign_Export_<yyyy-mm-dd>.csv`.
+### 1. Add a shared helper `src/utils/nativeDownload.ts`
+
+Exports `saveFileToDevice({ filename, data, mimeType })`:
+
+- **Native (iOS/Android)**: `Filesystem.writeFile({ path: filename, data: base64, directory: Directory.Documents })`, then `Share.share({ url: writeResult.uri, title: filename })` so the user picks "Save to Files", "Downloads", email, etc. Toast: "Saved to Files."
+- **Web**: keep the existing blob + `<a download>` path (works fine in real browsers).
+- Detect native via `Capacitor.isNativePlatform()`.
+- Accepts either a `string` (text like CSV) or `Blob` (binary like PDF); converts to base64 for Filesystem.
+
+### 2. Identity Ledger (`src/utils/identityLedgerExport.ts` + `IdentityLedger.tsx`)
+
+Replace `downloadLedgerCsv()` internals to call `saveFileToDevice({ filename: 'IDIA_Sovereign_Export_<date>.csv', data: csv, mimeType: 'text/csv' })`. Page code unchanged aside from awaiting the promise and showing the toast on success/failure.
+
+### 3. Terms of Service (`PrivacySettings.tsx`)
+
+Replace the `<a href download>` with a Button `onClick` that:
+
+- `fetch('/legal/IDIA_Protocol_Terms_of_Service.pdf')` → `blob()`
+- Calls `saveFileToDevice({ filename: 'IDIA_Protocol_Terms_of_Service.pdf', data: blob, mimeType: 'application/pdf' })`
+- Shows toast on success/failure.
+
+This keeps the user inside the app; the OS share sheet handles the actual save location.
+
+### 4. Dependencies
+
+Add `@capacitor/filesystem` and `@capacitor/share`. After merge the user runs `npx cap sync` (standard Capacitor step).
+
+## Out of scope
+
+- No changes to ledger data fetching, RLS, or CSV contents.
+- No changes to the PDF file itself.
+- No new UI screens; existing viewer and Privacy tab keep their layout.
+
+## Technical notes
+
+- `Directory.Documents` is user-visible in the iOS Files app under the app's folder and in Android's Documents. Combined with the Share sheet the user can relocate to Downloads/iCloud/etc.
+- Base64 conversion: use `FileReader.readAsDataURL` for Blob, or `btoa(unescape(encodeURIComponent(str)))` for text.
+- Web fallback preserves current behavior for the Lovable preview and desktop browsers.
