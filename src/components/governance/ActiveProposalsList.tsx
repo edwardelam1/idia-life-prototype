@@ -1089,6 +1089,11 @@ export const ProposalCard: React.FC<{
   const isFinalDefeated = chain.state != null && FINAL_DEFEATED.has(chain.state);
   const isFinalPassed = chain.state != null && FINAL_PASSED.has(chain.state);
   const isFinal = isFinalDefeated || isFinalPassed;
+  // OZ semantics: For + Abstain count toward quorum; Against does not.
+  const quorumReached = chain.quorum > 0 && (chain.forVotes + chain.abstainVotes) >= chain.quorum;
+  const majorityFor = chain.forVotes > chain.againstVotes;
+  const isPassing = isActive && quorumReached && majorityFor;
+  const isFailing = isActive && quorumReached && !majorityFor;
 
   // Progress numerator: on-chain For votes when available, else off-chain intents
   const forDisplay = chain.forVotes;
@@ -1225,13 +1230,21 @@ export const ProposalCard: React.FC<{
     ? "border-rose-200 bg-rose-50/60 text-rose-700 dark:bg-rose-950/30 dark:text-rose-200 dark:border-rose-900/50"
     : isFinalPassed
       ? "border-emerald-200 bg-emerald-50/60 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-200 dark:border-emerald-900/50"
-      : isActive
-        ? "border-orange-200 bg-orange-50/60 text-orange-700 dark:bg-orange-950/30 dark:text-orange-200 dark:border-orange-900/50"
-        : chain.state === 0
-          ? "border-amber-200 bg-amber-50/60 text-amber-700 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-900/50"
-          : "border-slate-200 bg-slate-50 text-slate-600 dark:bg-slate-900/40 dark:text-slate-300 dark:border-slate-800";
-  const statusIcon = isFinalDefeated ? "✘" : isFinalPassed ? "✅" : isActive ? "⚡" : chain.state === 0 ? "⏳" : "•";
-  const statusLabel = chainName || (chain.state === null ? "Syncing" : proposal.status);
+      : isPassing
+        ? "border-emerald-200 bg-emerald-50/60 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-200 dark:border-emerald-900/50"
+        : isFailing
+          ? "border-rose-200 bg-rose-50/60 text-rose-700 dark:bg-rose-950/30 dark:text-rose-200 dark:border-rose-900/50"
+          : isActive
+            ? "border-orange-200 bg-orange-50/60 text-orange-700 dark:bg-orange-950/30 dark:text-orange-200 dark:border-orange-900/50"
+            : chain.state === 0
+              ? "border-amber-200 bg-amber-50/60 text-amber-700 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-900/50"
+              : "border-slate-200 bg-slate-50 text-slate-600 dark:bg-slate-900/40 dark:text-slate-300 dark:border-slate-800";
+  const statusIcon = isFinalDefeated ? "✘" : isFinalPassed ? "✅" : isPassing ? "✅" : isFailing ? "⚠" : isActive ? "⚡" : chain.state === 0 ? "⏳" : "•";
+  const statusLabel = isPassing
+    ? "Passing · Voting Open"
+    : isFailing
+      ? "Failing · Voting Open"
+      : chainName || (chain.state === null ? "Syncing" : proposal.status);
 
   return (
     <>
