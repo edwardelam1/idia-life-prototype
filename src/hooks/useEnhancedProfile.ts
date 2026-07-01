@@ -144,12 +144,26 @@ export const useEnhancedProfile = () => {
   };
 
   const loadAvailableInterests = async () => {
-    setAvailableInterests([
-      { id: "1", name: "Health & Fitness", category: "lifestyle" },
-      { id: "2", name: "Technology", category: "professional" },
-      { id: "3", name: "Finance", category: "professional" },
-      { id: "4", name: "Travel", category: "lifestyle" },
-    ]);
+    const { data, error } = await supabase
+      .from("interests")
+      .select("id, name, category")
+      .order("name");
+    if (!error && data) setAvailableInterests(data as UserInterests[]);
+  };
+
+  const loadUserInterests = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data, error } = await (supabase.from("user_interests") as any)
+      .select("interest_id, interests(id, name, category)")
+      .eq("user_id", user.id);
+    if (!error && data) {
+      setInterests(
+        (data as any[])
+          .map((r) => r.interests)
+          .filter(Boolean) as UserInterests[],
+      );
+    }
   };
 
   const updateProfile = async (updates: Partial<EnhancedProfile>) => {
