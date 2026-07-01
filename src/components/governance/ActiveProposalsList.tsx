@@ -215,9 +215,9 @@ export function classifyProposalBucket(proposal: Proposal, chainState?: ChainSta
   if (phase === "archived" || phase === "drift") return "DEFEATED";
   const hasOnChainId = !!proposal.on_chain_id?.trim();
   if (chainState?.state != null) return classifyBucket(chainState.state, hasOnChainId);
-  if (hasOnChainId) return "UNRESOLVED";
   const dbState = deriveDbState(proposal);
-  if (dbState != null) return classifyBucket(dbState, false);
+  if (dbState != null) return classifyBucket(dbState, hasOnChainId);
+  if (hasOnChainId) return "UNRESOLVED";
   return "ACTIVE_FEED";
 }
 
