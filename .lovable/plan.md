@@ -1,32 +1,49 @@
-## Root cause
+# L3 Tophat = Universal Committee Override
 
-After the last fix, cancelled legacy-Governor rows landed in the Archive correctly, but the 3 legacy rows whose DB `lifecycle_phase` is still `'active'` now flow through the reordered fallback in `classifyProposalBucket`:
+## Problem
 
-- `chainState.state` is `null` (current Governor can't resolve the id).
-- `deriveDbState(...)` returns `1` (Active).
-- They get bucketed as `ACTIVE_FEED` and rendered as ProposalCards with the `Syncing` status label — permanently, because the Governor they belong to is gone.
+The other Protocol Steward (L3) shows up in every committee roster (rendered via `CommitteeRosterModal`, which already treats tophat holders as honorary members) but:
 
-## Fix (frontend-only)
+1. His **Hats Wardrobe** shows only Tophat lit — the four committee hats are grayed/severed.
+2. His **Committee Workspace** sidebar is empty or auto-selects `committee_id='tophat'`, returning no proposals.
+3. On any **MotionThread** he cannot Endorse or Object — the buttons are gated on `hatSet.has(proposal.committee_id)`, and tophat isn't checked.
 
-If we did successfully call the Governor and it returned `state = null` for a proposal that has an `on_chain_id`, that proposal is orphaned on a previous Governor — send it straight to the Archive bucket instead of trusting the DB "active" phase.
+Root cause: `dao_hats` only holds a `tophat` row for him. The rest of the UI checks for literal per-committee hat rows and does not treat tophat as a universal override — even though `CommitteeRosterModal` already does exactly that (`CommitteeRosterModal.tsx:57–72`).
 
-**`src/components/governance/ActiveProposalsList.tsx`** — update `classifyProposalBucket` to short-circuit legacy-Governor rows to `DEFEATED` before falling back to the DB state:
+## Fix — Frontend-only, no DB writes, no migrations
 
+Add a single override rule everywhere committee membership is evaluated on the client: **`tophat ⇒ member of every committee`**. This matches the existing roster-modal behavior and the intent of L3 clearance in `governanceGate.ts`, and it fixes both existing and future L3 users automatically without backfilling `dao_hats`.
+
+### 1. `src/components/governance/HatsWardrobe.tsx`
+When the user holds an `active` tophat, render the four committee hats (`security_council`, `product_xr`, `legal_defense`, `sociorelational`) as `active` too — synthesize virtual wearer entries so they light up with the standard active styling. Skip the Attest CTA on synthesized entries (they're not real ledger rows). Real committee hat rows still take precedence for status and attestation age.
+
+### 2. `src/components/governance/CommitteeWorkspace.tsx`
+- Compute `committeeHats = tophat ? ALL_COMMITTEES : activeHats.filter(h => h.hat_type !== 'tophat' && h.hat_type !== 'oversight_chair')`.
+- Render the sidebar from `committeeHats` (so tophat holders see all four committees, not a stray "Tophat" entry that resolves to no proposals).
+- Change the "Restricted Access" empty guard to `committeeHats.length === 0` so tophat-only users pass through.
+- Auto-select the first entry from `committeeHats`.
+
+### 3. `src/components/governance/MotionThread.tsx` (line 108)
+Change:
 ```ts
-const hasOnChainId = !!proposal.on_chain_id?.trim();
-if (chainState?.state != null) return classifyBucket(chainState.state, hasOnChainId);
-// Chain read completed but the current Governor doesn't recognize this id
-// (i.e. legacy Governor). Archive it — don't trust the DB "active" phase.
-if (chainState && hasOnChainId) return "DEFEATED";
-const dbState = deriveDbState(proposal);
-if (dbState != null) return classifyBucket(dbState, hasOnChainId);
-if (hasOnChainId) return "UNRESOLVED";
-return "ACTIVE_FEED";
+setHasHat(proposal.committee_id ? hatSet.has(proposal.committee_id) : false);
 ```
+to:
+```ts
+setHasHat(
+  hatSet.has('tophat') ||
+  (proposal.committee_id ? hatSet.has(proposal.committee_id) : false)
+);
+```
+This enables Endorse / Object for any L3 tophat holder on any committee's motion, matching the existing L3-can-do-anything model in `governanceGate.ts`.
 
-Effect:
-- 3 legacy `active` rows → `DEFEATED` → appear inside the existing Archive collapsible alongside the cancelled ones. Their "Syncing" ProposalCards disappear from the Active feed.
-- The genuine live proposal on the current Governor still hits the first branch (`chainState.state === 1`) and stays in Active.
-- Transient RPC failures (no `chainState` in the map at all) still fall through to the DB-derived state, so temporarily-failed live cards aren't hidden.
+## What this does NOT change
 
-No DB, migration, telemetry, or Archive-UI changes needed.
+- No changes to `ascension-approve`, `oversight-chair-toggle`, or `CommitteesList.tsx` tophat self-service flow.
+- No `dao_hats` inserts, no migrations, no policy changes — the override lives entirely in the presentation layer, same as `CommitteeRosterModal`'s existing honorary-L3 display.
+- L0/L1/L2 users are unaffected (they don't hold tophat).
+- Attestation lifecycle (`dao-hat-eligibility`) still tracks the real tophat row; synthesized committee entries never need attesting.
+
+## Effect
+
+The other L3 user immediately sees all four committee hats lit in the Wardrobe, sees all four committees in the Workspace sidebar with their real proposals, and can Endorse/Object on any motion — with no data changes required.
