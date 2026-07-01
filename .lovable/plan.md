@@ -1,32 +1,32 @@
 ## Root cause
 
-Two cancelled proposals live in `dao_proposals` (`40a4b495…` and `331d836d…`, both `lifecycle_phase='cancelled'`) with on-chain ids that belong to the previous Governor. `readChainState` returns `state = null` for those ids (the current Governor can't resolve them).
+After the last fix, cancelled legacy-Governor rows landed in the Archive correctly, but the 3 legacy rows whose DB `lifecycle_phase` is still `'active'` now flow through the reordered fallback in `classifyProposalBucket`:
 
-In `src/components/governance/ActiveProposalsList.tsx` → `classifyProposalBucket` (lines 211–222):
-
-```ts
-if (chainState?.state != null) return classifyBucket(chainState.state, hasOnChainId);
-if (hasOnChainId) return "UNRESOLVED";     // ← cancelled legacy rows land here
-const dbState = deriveDbState(proposal);
-if (dbState != null) return classifyBucket(dbState, false);
-```
-
-Because `state` is `null` and `on_chain_id` is present, both cancelled rows are bucketed as `UNRESOLVED` and never reach `DEFEATED`. `ArchiveProposalsList` filters for `DEFEATED` only, gets 0 rows, and returns `null` — the whole "Archive · Defeated & Canceled" section disappears.
+- `chainState.state` is `null` (current Governor can't resolve the id).
+- `deriveDbState(...)` returns `1` (Active).
+- They get bucketed as `ACTIVE_FEED` and rendered as ProposalCards with the `Syncing` status label — permanently, because the Governor they belong to is gone.
 
 ## Fix (frontend-only)
 
-Consult the DB-derived state *before* giving up as `UNRESOLVED`, so a legacy-governor row still resolves via its stored `lifecycle_phase`/`status`.
+If we did successfully call the Governor and it returned `state = null` for a proposal that has an `on_chain_id`, that proposal is orphaned on a previous Governor — send it straight to the Archive bucket instead of trusting the DB "active" phase.
 
-**`src/components/governance/ActiveProposalsList.tsx`** — reorder the fallbacks in `classifyProposalBucket`:
+**`src/components/governance/ActiveProposalsList.tsx`** — update `classifyProposalBucket` to short-circuit legacy-Governor rows to `DEFEATED` before falling back to the DB state:
 
 ```ts
+const hasOnChainId = !!proposal.on_chain_id?.trim();
 if (chainState?.state != null) return classifyBucket(chainState.state, hasOnChainId);
+// Chain read completed but the current Governor doesn't recognize this id
+// (i.e. legacy Governor). Archive it — don't trust the DB "active" phase.
+if (chainState && hasOnChainId) return "DEFEATED";
 const dbState = deriveDbState(proposal);
 if (dbState != null) return classifyBucket(dbState, hasOnChainId);
 if (hasOnChainId) return "UNRESOLVED";
 return "ACTIVE_FEED";
 ```
 
-That routes `lifecycle_phase='cancelled'` → dbState 2 → `DEFEATED` bucket, so both rows appear in the Archive section and the collapsible re-renders. Live proposals on the current Governor are unaffected — they still hit the first branch on `chainState.state != null`. If a live-Governor RPC read transiently fails, the DB fallback now keeps the card visible in its correct bucket instead of hiding it as `UNRESOLVED`, which is a strictly better failure mode.
+Effect:
+- 3 legacy `active` rows → `DEFEATED` → appear inside the existing Archive collapsible alongside the cancelled ones. Their "Syncing" ProposalCards disappear from the Active feed.
+- The genuine live proposal on the current Governor still hits the first branch (`chainState.state === 1`) and stays in Active.
+- Transient RPC failures (no `chainState` in the map at all) still fall through to the DB-derived state, so temporarily-failed live cards aren't hidden.
 
-No DB, migration, or lifecycle-telemetry changes needed.
+No DB, migration, telemetry, or Archive-UI changes needed.

@@ -215,6 +215,9 @@ export function classifyProposalBucket(proposal: Proposal, chainState?: ChainSta
   if (phase === "archived" || phase === "drift") return "DEFEATED";
   const hasOnChainId = !!proposal.on_chain_id?.trim();
   if (chainState?.state != null) return classifyBucket(chainState.state, hasOnChainId);
+  // Chain read completed but the current Governor doesn't recognize this id
+  // (legacy Governor orphan). Archive it — don't trust the DB "active" phase.
+  if (chainState && hasOnChainId) return "DEFEATED";
   const dbState = deriveDbState(proposal);
   if (dbState != null) return classifyBucket(dbState, hasOnChainId);
   if (hasOnChainId) return "UNRESOLVED";
