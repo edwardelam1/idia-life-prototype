@@ -29,6 +29,32 @@ export function PrivacySettings() {
   const { toast } = useToast();
   const [purging, setPurging] = useState(false);
   const [confirmText, setConfirmText] = useState('');
+  const [isDownloadingTOS, setIsDownloadingTOS] = useState(false);
+
+  const handleDownloadTOS = async () => {
+    console.log("📜 [TOS_DOWNLOAD_LOG] START: Initiating Terms of Service PDF download");
+    setIsDownloadingTOS(true);
+    try {
+      console.log("📜 [TOS_DOWNLOAD_LOG] PROCESS: Fetching PDF blob from local assets...");
+      const response = await fetch('/legal/IDIA_Protocol_Terms_of_Service.pdf');
+      if (!response.ok) throw new Error(`Failed to fetch TOS PDF. HTTP Status: ${response.status}`);
+      const blob = await response.blob();
+      console.log("📜 [TOS_DOWNLOAD_LOG] PROCESS: PDF blob fetched successfully. Invoking native bridge.");
+      await saveFileToDevice({
+        filename: 'IDIA_Protocol_Terms_of_Service.pdf',
+        data: blob,
+        mimeType: 'application/pdf',
+      });
+      console.log("📜 [TOS_DOWNLOAD_LOG] SUCCESS: Terms of Service downloaded.");
+      toast({ title: 'Saved to Files', description: 'The Terms of Service have been saved to your device.' });
+    } catch (error) {
+      console.error("🚨 [TOS_DOWNLOAD_LOG] ERROR: Terms of Service download failed:", error);
+      toast({ title: 'Download Failed', description: 'There was an error saving the file to your device.', variant: 'destructive' });
+    } finally {
+      setIsDownloadingTOS(false);
+      console.log("📜 [TOS_DOWNLOAD_LOG] END: Terms of Service download execution concluded.");
+    }
+  };
 
   const handlePreferenceUpdate = async (key: string, value: boolean) => {
     console.log(`[PrivacySettings] handlePreferenceUpdate START: Attempting to set '${key}' to ${value}`);
@@ -137,24 +163,9 @@ export function PrivacySettings() {
             <div className="text-sm font-medium">Terms of Service</div>
             <p className="text-xs text-muted-foreground">View or download the IDIA Protocol Terms of Service you accepted</p>
           </div>
-          <Button variant="outline" size="sm" onClick={async () => {
-            try {
-              const res = await fetch('/legal/IDIA_Protocol_Terms_of_Service.pdf');
-              if (!res.ok) throw new Error(`HTTP ${res.status}`);
-              const blob = await res.blob();
-              await saveFileToDevice({
-                filename: 'IDIA_Protocol_Terms_of_Service.pdf',
-                data: blob,
-                mimeType: 'application/pdf',
-              });
-              toast({ title: 'Saved', description: 'Terms of Service saved to your device.' });
-            } catch (err) {
-              console.error('[PrivacySettings] ToS download failed', err);
-              toast({ title: 'Download failed', description: 'Could not save the PDF.', variant: 'destructive' });
-            }
-          }}>
+          <Button variant="outline" size="sm" onClick={handleDownloadTOS} disabled={isDownloadingTOS}>
             <Download className="w-3.5 h-3.5 mr-1.5" />
-            Download PDF
+            {isDownloadingTOS ? 'Preparing File…' : 'Download PDF'}
           </Button>
         </div>
 
