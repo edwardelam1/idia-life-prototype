@@ -11,6 +11,7 @@ import Auth from "./pages/Auth";
 import Index from "./pages/Index";
 
 import Settings from "./pages/Settings";
+import IdentityLedger from "./pages/IdentityLedger";
 import NotFound from "./pages/NotFound";
 import SecureVault from "./pages/SecureVault";
 import RecoveryPhrase from "./pages/RecoveryPhrase";
@@ -156,6 +157,7 @@ const App = () => {
               <Route path="/terms" element={session ? <TermsOfService /> : <Navigate to="/auth" replace />} />
               <Route path="/recovery-phrase" element={session ? <RecoveryPhrase /> : <Navigate to="/auth" replace />} />
               <Route path="/settings" element={session ? <Settings /> : <Navigate to="/auth" replace />} />
+              <Route path="/settings/ledger" element={session ? <IdentityLedger /> : <Navigate to="/auth" replace />} />
               <Route path="/secure-vault" element={session ? <SecureVault /> : <Navigate to="/auth" replace />} />
               <Route path="/secure_vault" element={<Navigate to="/secure-vault" replace />} />
               <Route path="*" element={<NotFound />} />

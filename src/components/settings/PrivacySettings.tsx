@@ -5,7 +5,8 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Shield, Database, Trash2, Download, Smartphone, Activity, Camera, HeartPulse, Mic, Info, Loader2, ExternalLink, CheckCircle2, XCircle } from 'lucide-react';
+import { Shield, Database, Trash2, Download, Smartphone, Activity, Camera, HeartPulse, Info, Loader2, ExternalLink, CheckCircle2, XCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useProfile } from '@/hooks/useProfile';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -22,6 +23,7 @@ const SECURE_KEYS_TO_WIPE = [
 ];
 
 export function PrivacySettings() {
+  const navigate = useNavigate();
   const { preferences, updatePreferences } = useProfile();
   const { toast } = useToast();
   const [purging, setPurging] = useState(false);
@@ -40,72 +42,6 @@ export function PrivacySettings() {
     }
   };
 
-  const exportData = async () => {
-    console.log('[PrivacySettings] exportData START: Initiating data compilation process');
-    try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
-      if (!user) {
-        console.log('[PrivacySettings] exportData ABORT: No authenticated user session found');
-        return;
-      }
-
-      toast({ title: 'Compiling Data...', description: 'Generating your Sovereign CSV export.' });
-
-      console.log('[PrivacySettings] exportData: Fetching relational profile data and consent records');
-      // Fetch Profile & Consent Records (Bypassing strict types for un-migrated tables/columns)
-      const [{ data: profile }, { data: consentRecords }] = await Promise.all([
-        (supabase as any).from('profiles').select('*').eq('user_id', user.id).single(),
-        (supabase as any).from('acas').select('*').eq('user_id', user.id)
-      ]);
-
-      console.log('[PrivacySettings] exportData: Formatting CSV structure');
-      const csvRows = [];
-      
-      // Profile Data
-      const fullName = profile?.display_name || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'N/A';
-      
-      csvRows.push(['--- SOVEREIGN IDENTITY PROFILE ---']);
-      csvRows.push(['ID', 'Created At']);
-      csvRows.push([profile?.id || 'N/A', profile?.created_at || 'N/A']);
-      csvRows.push([]); 
-      
-      // Consent Data
-      csvRows.push(['--- CONSENT RECORDS ---']);
-      csvRows.push(['Record ID', 'Timestamp', 'Consent Type', 'Status', 'Platform']);
-      
-      if (consentRecords && consentRecords.length > 0) {
-        consentRecords.forEach((record: any) => {
-          csvRows.push([record.id, record.created_at, record.consent_type, record.status, record.platform || 'IDIA Base']);
-        });
-      } else {
-        csvRows.push(['No Consent Records found.']);
-      }
-
-      console.log('[PrivacySettings] exportData: Generating Blob and triggering download');
-      // Compile CSV
-      const csvContent = csvRows.map(row => row.join(",")).join("\n");
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      
-      const link = document.createElement("a");
-      const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute("download", `IDIA_Sovereign_Export_${new Date().toISOString().split('T')[0]}.csv`);
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      console.log('[PrivacySettings] exportData SUCCESS: Payload delivered to user');
-      toast({ title: 'Data Exported', description: 'Your CSV data has been downloaded successfully.' });
-    } catch (error) {
-      console.error('[PrivacySettings] exportData ERROR: Exception caught during compilation', error);
-      toast({ title: 'Export Failed', description: 'Failed to export your data.', variant: 'destructive' });
-    } finally {
-      console.log('[PrivacySettings] exportData END');
-    }
-  };
 
   const wipeDevicePII = async () => {
     // Clear known Secure Enclave keys (best effort — missing keys throw)
@@ -210,12 +146,12 @@ export function PrivacySettings() {
 
         <div className="flex items-center justify-between gap-3 bg-muted/20 p-3 rounded-lg border border-border/50">
           <div className="space-y-0.5 min-w-0">
-            <div className="text-sm font-medium">Export Identity Ledger</div>
-            <p className="text-xs text-muted-foreground">Download a CSV of your data & Consent Records</p>
+            <div className="text-sm font-medium">Identity Ledger</div>
+            <p className="text-xs text-muted-foreground">Review your consent records & download a CSV export</p>
           </div>
-          <Button variant="outline" size="sm" onClick={exportData}>
+          <Button variant="outline" size="sm" onClick={() => navigate('/settings/ledger')}>
             <Download className="w-3.5 h-3.5 mr-1.5" />
-            Export CSV
+            View & Export
           </Button>
         </div>
 
@@ -280,7 +216,7 @@ const HW_ROWS: Array<{
   { key: 'motion',     label: 'Device Motion', description: 'Gyroscope and spatial awareness',  Icon: Activity },
   { key: 'camera',     label: 'Camera',        description: 'Visual processing and AR features', Icon: Camera },
   { key: 'health',     label: 'Health Kit',    description: 'Biometrics and vitals syncing',     Icon: HeartPulse },
-  { key: 'microphone', label: 'Microphone',    description: 'Voice interactions and commands',   Icon: Mic },
+  
 ];
 
 function HardwarePermissionsSection() {
