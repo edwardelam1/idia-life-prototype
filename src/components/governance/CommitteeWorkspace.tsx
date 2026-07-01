@@ -200,7 +200,7 @@ const CommitteeWorkspace: React.FC = () => {
             L{ascensionLevel}
           </span>
         </div>
-        {activeHats.map((hat) => (
+        {committeeHats.map((hat) => (
           <Button
             key={hat.hat_type}
             variant={selectedCommittee === hat.hat_type ? "default" : "outline"}
