@@ -87,7 +87,19 @@ export function buildLedgerCsv({ profile, records }: LedgerPayload): string {
 }
 
 export async function downloadLedgerCsv(payload: LedgerPayload): Promise<void> {
-  const csv = buildLedgerCsv(payload);
-  const filename = `IDIA_Sovereign_Export_${new Date().toISOString().split("T")[0]}.csv`;
-  await saveFileToDevice({ filename, data: csv, mimeType: "text/csv;charset=utf-8;" });
+  console.log("📄 [LEDGER_EXPORT_LOG] START: Exporting Identity Ledger to CSV");
+  try {
+    const date = new Date().toISOString().split("T")[0];
+    const filename = `IDIA_Sovereign_Export_${date}.csv`;
+    console.log("📄 [LEDGER_EXPORT_LOG] PROCESS: Building CSV payload");
+    const csv = buildLedgerCsv(payload);
+    console.log(`📄 [LEDGER_EXPORT_LOG] PROCESS: Invoking native download helper for ${filename}`);
+    await saveFileToDevice({ filename, data: csv, mimeType: "text/csv" });
+    console.log("📄 [LEDGER_EXPORT_LOG] SUCCESS: Identity Ledger CSV exported to OS");
+  } catch (error) {
+    console.error("🚨 [LEDGER_EXPORT_LOG] ERROR: Identity Ledger export encountered a critical failure:", error);
+    throw error;
+  } finally {
+    console.log("📄 [LEDGER_EXPORT_LOG] END: Identity Ledger CSV export execution concluded.");
+  }
 }
