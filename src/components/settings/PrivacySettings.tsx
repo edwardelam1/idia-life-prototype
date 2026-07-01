@@ -137,11 +137,24 @@ export function PrivacySettings() {
             <div className="text-sm font-medium">Terms of Service</div>
             <p className="text-xs text-muted-foreground">View or download the IDIA Protocol Terms of Service you accepted</p>
           </div>
-          <Button variant="outline" size="sm" asChild>
-            <a href="/legal/IDIA_Protocol_Terms_of_Service.pdf" download>
-              <Download className="w-3.5 h-3.5 mr-1.5" />
-              Download PDF
-            </a>
+          <Button variant="outline" size="sm" onClick={async () => {
+            try {
+              const res = await fetch('/legal/IDIA_Protocol_Terms_of_Service.pdf');
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const blob = await res.blob();
+              await saveFileToDevice({
+                filename: 'IDIA_Protocol_Terms_of_Service.pdf',
+                data: blob,
+                mimeType: 'application/pdf',
+              });
+              toast({ title: 'Saved', description: 'Terms of Service saved to your device.' });
+            } catch (err) {
+              console.error('[PrivacySettings] ToS download failed', err);
+              toast({ title: 'Download failed', description: 'Could not save the PDF.', variant: 'destructive' });
+            }
+          }}>
+            <Download className="w-3.5 h-3.5 mr-1.5" />
+            Download PDF
           </Button>
         </div>
 
