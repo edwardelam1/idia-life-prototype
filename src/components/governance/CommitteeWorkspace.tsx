@@ -20,8 +20,11 @@ import {
 import { stage } from "@/lib/stageLogger";
 import MotionThread from "./MotionThread";
 
+const COMMITTEE_HAT_TYPES = ["security_council", "product_xr", "legal_defense", "sociorelational"] as const;
+
 const CommitteeWorkspace: React.FC = () => {
   const [activeHats, setActiveHats] = useState<any[]>([]);
+  const [committeeHats, setCommitteeHats] = useState<any[]>([]);
   const [ascensionLevel, setAscensionLevel] = useState<AscensionLevel>(0);
   const [selectedCommittee, setSelectedCommittee] = useState<string | null>(null);
   const [proposals, setProposals] = useState<any[]>([]);
