@@ -144,7 +144,7 @@ const AuditFeed: React.FC = () => {
               </div>
               <ChevronDown
                 size={16}
-                className="text-muted-foreground transition-transform duration-300 data-[state=open]:rotate-180"
+                className="text-muted-foreground transition-transform duration-300 group-data-[state=open]:rotate-180"
                 aria-hidden="true"
               />
             </div>
