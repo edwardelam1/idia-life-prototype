@@ -1,28 +1,20 @@
-## Fix 1 · IDIA governance token not displaying (wallet 0x…b582)
+## Root cause
 
-**Root cause:** During the account reconciliation, the Legal Defense hat and committee application were moved from the stale email account (`f60af0ab…`, edwardelam90@gmail.com) to Edward's Apple ID account (`143ab69a…`, edwardisawesome1017@outlook.com) — but the `wallet_address` on `profiles` was **not** moved. The Apple account has `wallet_address = NULL`, so `useWalletBalance` skips the on-chain fetch and IDIA stays at 0.
+The lifecycle telemetry list shows 4 rows as **Live Vote**, but only one lives on the current Governor (`0xc59120…773d9`). The other 3 were created against a previous Governor and their `on_chain_id` no longer resolves.
 
-RLS on `profiles` is fine (`Users can view their own profile` + `Enable read access for all users`, both permissive SELECT). It's a data-alignment problem, not a policy problem.
+In `src/components/governance/LifecycleTelemetry.tsx` (lines ~305–329), when `readChainState(on_chain_id)` throws or returns `state = null`, the code falls back to the DB-stored `lifecycle_phase`, which for those 3 rows is still `"active"` — so they render as **⚡ Live Vote**. Meanwhile the detail dialog computes its deadline off `created_at + (voting_delay + voting_period) * 2s` and correctly reports **"Voting Closed · Deadline Passed"**. That's the contradiction the user is seeing.
 
-**Change (data-only, via insert tool — one transaction):**
+## Fix (frontend-only, no DB / migration)
 
-1. `UPDATE profiles SET wallet_address = NULL WHERE id = 'f60af0ab-2309-4846-a1d6-2d3dd72614d6'` (release b582 from the stale account first, so the unique constraint on `wallet_address` doesn't collide).
-2. `UPDATE profiles SET wallet_address = '0x1767140B7d7E7dFa8eabcb8b62E5Cc99F563b582' WHERE id = '143ab69a-14fe-4744-a635-ce06a1f3d79b'` (attach it to the Apple ID account that already owns the Legal Defense hat).
+Reclassify any proposal whose on-chain id can't be resolved by the current Governor as archived instead of trusting the stale DB phase.
 
-No schema change. No code change. After Edward reloads, `useWalletBalance` will see `wallet_address` on his Apple account and hydrate USDC / IDIA / ETH / voting power from Base mainnet.
+1. **`src/components/governance/LifecycleTelemetry.tsx`**
+   - Add a new `PHASE_META` entry `archived` with icon `📦`, label `Archived · Legacy Governor`, neutral slate color.
+   - Extend the `ProposalLite.lifecycle_phase` union with `"archived"`.
+   - In the per-row mapping (`stateChecks`), when `r.on_chain_id` is set AND either the chain call throws OR returns `state === null`, return `{ lifecycle_phase: "archived", status: "Legacy Governor" }` instead of falling back to `dbPhaseFor(r)`. Proposals with no `on_chain_id` keep the current draft fallback.
+   - Add `archived: 6` to the `order` map so these sink below active/pending/succeeded/queued/executed/draft.
 
-## Fix 2 · Any committee member can open any roster
+2. **Detail dialog consistency** (same file)
+   - When `proposal.lifecycle_phase === "archived"`, skip the naive `created_at + 7d` deadline math and render the deadline pill as `"Voting Closed · Legacy Governor"` with the `ended` (rose) tone. Prevents the same contradictory pairing from appearing inside the modal.
 
-Currently the `View Roster` chip in `src/components/governance/CommitteesList.tsx` (line ~452) is gated behind `ascensionLevel === 3` (Tophat only). Per your answer, we widen it so any user holding at least one active committee hat (L1 or higher) can view every committee's roster.
-
-**Change (frontend-only):**
-
-- In `CommitteesList.tsx`, replace the `ascensionLevel === 3` gate on the `View Roster` button with `userActiveHats.size > 0 || ascensionLevel >= 2` (i.e. any active committee-hat holder, oversight chair, or tophat). Non-members still don't see it.
-- The roster modal itself already reads `dao_hats` with a permissive `Allow authenticated read access` SELECT policy, so no RLS change is needed — the modal will just work for L1/L2 members.
-
-No DB migration. Roster read path is unchanged.
-
-## Out of scope
-
-- The `217c6224…` (edward.elam@gmail.com) account with its own full hat set is left untouched.
-- No changes to promote/demote controls inside the roster modal — those still require Tophat via the `oversight-chair-toggle` edge function.
+No other components read `lifecycle_phase === "archived"`, so nothing else needs to change. The one genuinely live proposal on the current Governor keeps returning `state === 1` and stays labeled **Live Vote**.

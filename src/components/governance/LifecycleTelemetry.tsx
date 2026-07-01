@@ -17,7 +17,7 @@ interface ProposalLite {
   title: string;
   description: string | null;
   // Added "pending" for pre-snapshot on-chain proposals
-  lifecycle_phase: "draft" | "pending" | "active" | "succeeded" | "queued" | "executed";
+  lifecycle_phase: "draft" | "pending" | "active" | "succeeded" | "queued" | "executed" | "archived";
   status: string | null;
   created_at: string;
   end_date: string | null;
@@ -58,6 +58,12 @@ export const PHASE_META = {
     icon: "🚀",
     label: "Settled",
     color: "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-100 dark:border-emerald-900/50",
+  },
+  archived: {
+    icon: "📦",
+    label: "Archived · Legacy Governor",
+    color:
+      "text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800",
   },
 } as const;
 
@@ -146,21 +152,25 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
       await pollQuorum();
 
       try {
-        const SECONDS_PER_BLOCK = 2;
-        const VOTING_DELAY_BLOCKS = 43200;
-        const VOTING_PERIOD_BLOCKS = 302400;
-        const totalDurationSec = (VOTING_DELAY_BLOCKS + VOTING_PERIOD_BLOCKS) * SECONDS_PER_BLOCK;
-        const endMs = new Date(proposal.created_at).getTime() + totalDurationSec * 1000;
-        const diff = endMs - Date.now();
+        if (proposal.lifecycle_phase === "archived") {
+          if (alive) setDeadlineState({ label: "Voting Closed · Legacy Governor", tone: "ended" });
+        } else {
+          const SECONDS_PER_BLOCK = 2;
+          const VOTING_DELAY_BLOCKS = 43200;
+          const VOTING_PERIOD_BLOCKS = 302400;
+          const totalDurationSec = (VOTING_DELAY_BLOCKS + VOTING_PERIOD_BLOCKS) * SECONDS_PER_BLOCK;
+          const endMs = new Date(proposal.created_at).getTime() + totalDurationSec * 1000;
+          const diff = endMs - Date.now();
 
-        if (alive) {
-          if (diff <= 0) {
-            setDeadlineState({ label: "Voting Closed · Deadline Passed", tone: "ended" });
-          } else {
-            const d = Math.floor(diff / 86400000);
-            const h = Math.floor((diff % 86400000) / 3600000);
-            const m = Math.floor((diff % 3600000) / 60000);
-            setDeadlineState({ label: `Auto-fails in ${d}d ${h}h ${m}m`, tone: "live" });
+          if (alive) {
+            if (diff <= 0) {
+              setDeadlineState({ label: "Voting Closed · Deadline Passed", tone: "ended" });
+            } else {
+              const d = Math.floor(diff / 86400000);
+              const h = Math.floor((diff % 86400000) / 3600000);
+              const m = Math.floor((diff % 3600000) / 60000);
+              setDeadlineState({ label: `Auto-fails in ${d}d ${h}h ${m}m`, tone: "live" });
+            }
           }
         }
       } catch (timelineErr) {
@@ -319,16 +329,20 @@ const LifecycleTelemetry: React.FC = () => {
                 if (st === 5) return { ...r, lifecycle_phase: "queued" as const, status: "Timelocked" };
                 if (st === 7) return { ...r, lifecycle_phase: "executed" as const, status: "Executed" };
 
-                // st === 2 (canceled) / 3 (defeated) / 6 (expired) / null → preserve DB truth
+                // st === 2 (canceled) / 3 (defeated) / 6 (expired) → preserve DB truth
+                if (st === null) {
+                  // Current Governor can't resolve this id → belongs to a previous Governor.
+                  return { ...r, lifecycle_phase: "archived" as const, status: "Legacy Governor" };
+                }
                 return { ...r, lifecycle_phase: dbPhaseFor(r), status: r.status ?? "Archived" };
               } catch (chainErr: any) {
-                console.error(`[TELEMETRY_BUCKET][FALLBACK] Chain read failed for ${r.on_chain_id}: ${chainErr?.message}. Falling back to DB phase.`);
-                return { ...r, lifecycle_phase: dbPhaseFor(r), status: r.status ?? "Pending Chain Sync" };
+                console.error(`[TELEMETRY_BUCKET][ARCHIVED] Chain read failed for ${r.on_chain_id}: ${chainErr?.message}. Treating as legacy-governor archive.`);
+                return { ...r, lifecycle_phase: "archived" as const, status: "Legacy Governor" };
               }
             }),
           );
 
-          const order: Record<string, number> = { active: 0, pending: 1, succeeded: 2, queued: 3, executed: 4, draft: 5 };
+          const order: Record<string, number> = { active: 0, pending: 1, succeeded: 2, queued: 3, executed: 4, draft: 5, archived: 6 };
 
           if (isMounted) {
             setItems(
