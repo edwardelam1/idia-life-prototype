@@ -68,6 +68,7 @@ export const useEnhancedProfile = () => {
   useEffect(() => {
     loadProfileData();
     loadAvailableInterests();
+    loadUserInterests();
   }, []);
 
   const loadProfileData = async () => {
