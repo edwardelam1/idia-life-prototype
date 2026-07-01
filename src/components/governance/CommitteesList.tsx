@@ -449,7 +449,7 @@ const CommitteesList: React.FC = () => {
                           {activeMembers} Active Officer{activeMembers === 1 ? "" : "s"}
                         </span>
                         <span className="text-[10px] text-muted-foreground font-medium">{pathwayText}</span>
-                        {ascensionLevel === 3 && (
+                        {(userActiveHats.size > 0 || ascensionLevel >= 2) && (
                           <button
                             type="button"
                             onClick={() => setRosterTarget(committee)}
