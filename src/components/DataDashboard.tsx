@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Activity, CheckCircle, DollarSign, FileKey, Copy, Truck, Car } from "lucide-react";
+import { Activity, CheckCircle, DollarSign, FileKey, Copy } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase as typedSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -389,8 +389,6 @@ const DataDashboard = () => {
                     onClick={() => {
                       if (connection.connection_type === "apple_health") setShowAppleHealthModal(true);
                       else if (connection.connection_type === "health_connect") setShowAndroidHealthModal(true);
-                      else if (connection.connection_type === "ford") setShowFordModal(true);
-                      else if (connection.connection_type === "truckstop") setShowTruckstopModal(true);
                     }}
                   >
                     <div className="relative">
@@ -405,8 +403,6 @@ const DataDashboard = () => {
                             className="w-8 h-8 object-contain"
                           />
                         )}
-                        {connection.connection_type === "ford" && <Car className="w-8 h-8 text-blue-600" />}
-                        {connection.connection_type === "truckstop" && <Truck className="w-8 h-8 text-[#FF5A00]" />}
                       </div>
                       <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-background flex items-center justify-center">
                         <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
