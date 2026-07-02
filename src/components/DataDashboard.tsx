@@ -307,8 +307,6 @@ const DataDashboard = () => {
 
   const healthType = isAndroid() ? "health_connect" : "apple_health";
   const hasHealth = getConnectionStatus(healthType);
-  const hasTruckstop = getConnectionStatus("truckstop");
-  const hasFord = getConnectionStatus("ford");
 
   return (
     <div className="space-y-4">
