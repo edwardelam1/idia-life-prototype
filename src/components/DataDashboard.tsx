@@ -10,8 +10,6 @@ import { supabase as typedSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AppleHealthModal from "./AppleHealthModal";
 import AndroidHealthModal from "./AndroidHealthModal";
-import TruckstopConnectionModal from "./TruckstopConnectionModal";
-import FordConnectionModal from "./FordConnectionModal";
 import { isAndroid, isIOS, isWeb } from "@/services/platform";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 
