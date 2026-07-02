@@ -291,8 +291,6 @@ const DataDashboard = () => {
   const visibleConnections = connections.filter((c) => {
     if (c.connection_type === "apple_health") return isIOS() || isWeb();
     if (c.connection_type === "health_connect") return isAndroid();
-    if (c.connection_type === "truckstop") return true;
-    if (c.connection_type === "ford") return true;
     return false;
   });
 
