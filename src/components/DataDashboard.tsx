@@ -369,35 +369,7 @@ const DataDashboard = () => {
                 </div>
               )}
 
-              {/* Ford Connection */}
-              {!hasFord && (
-                <div
-                  className="relative cursor-pointer group flex flex-col items-center p-4 bg-card rounded-2xl border border-border hover:shadow-md transition-all"
-                  onClick={() => setShowFordModal(true)}
-                >
-                  <div className="w-14 h-14 rounded-full overflow-hidden bg-blue-50 flex items-center justify-center mb-2">
-                    <Car className="w-7 h-7 text-blue-600" />
-                  </div>
-                  <p className="text-xs font-bold text-center">FordConnect</p>
-                  <p className="text-[9px] text-muted-foreground mt-1">Vehicle Telemetry</p>
-                </div>
-              )}
-
-              {/* Truckstop Connection */}
-              {!hasTruckstop && (
-                <div
-                  className="relative cursor-pointer group flex flex-col items-center p-4 bg-card rounded-2xl border border-border hover:shadow-md transition-all"
-                  onClick={() => setShowTruckstopModal(true)}
-                >
-                  <div className="w-14 h-14 rounded-full overflow-hidden bg-orange-50 flex items-center justify-center mb-2">
-                    <Truck className="w-7 h-7 text-[#FF5A00]" />
-                  </div>
-                  <p className="text-xs font-bold text-center">Truckstop Go</p>
-                  <p className="text-[9px] text-muted-foreground mt-1">Freight Telemetry</p>
-                </div>
-              )}
-
-              {hasHealth && hasFord && hasTruckstop && (
+              {hasHealth && (
                 <div className="col-span-full text-center py-6 text-muted-foreground">
                   <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50 text-teal-600" />
                   <p className="text-sm">All available sources connected</p>
