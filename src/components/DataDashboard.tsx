@@ -507,34 +507,6 @@ const DataDashboard = () => {
           setShowAndroidHealthModal(false);
         }}
       />
-
-      <FordConnectionModal
-        isOpen={showFordModal}
-        onClose={() => setShowFordModal(false)}
-        onComplete={async () => {
-          setShowFordModal(false);
-          await fetchConnections();
-        }}
-        existingConnection={getConnectionStatus("ford")}
-        onDisconnect={async () => {
-          await fetchConnections();
-          setShowFordModal(false);
-        }}
-      />
-
-      <TruckstopConnectionModal
-        isOpen={showTruckstopModal}
-        onClose={() => setShowTruckstopModal(false)}
-        onComplete={async () => {
-          setShowTruckstopModal(false);
-          await fetchConnections();
-        }}
-        existingConnection={getConnectionStatus("truckstop")}
-        onDisconnect={async () => {
-          await fetchConnections();
-          setShowTruckstopModal(false);
-        }}
-      />
     </div>
   );
 };
