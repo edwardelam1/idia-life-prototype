@@ -12,11 +12,17 @@ interface Props {
 
 const SendRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const { toast } = useToast();
+  const [isLaunching, setIsLaunching] = useState(false);
 
   const handleLaunchMetaMask = () => {
     if (window.webkit?.messageHandlers?.launchMetaMask) {
+      setIsLaunching(true);
       window.webkit.messageHandlers.launchMetaMask.postMessage({});
-      onClose();
+      // Let the user see the button acknowledge the tap before dismissing
+      setTimeout(() => {
+        setIsLaunching(false);
+        onClose();
+      }, 400);
     } else {
       toast({
         title: "Native Bridge Error",
