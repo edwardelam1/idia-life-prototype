@@ -44,7 +44,13 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   const letters = ['L', 'i', 'f', 'e'];
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden touch-none">
+    <div
+      className="fixed inset-0 z-50 overflow-hidden touch-none cursor-pointer"
+      onClick={onComplete}
+      onTouchStart={onComplete}
+      role="button"
+      aria-label="Skip splash"
+    >
       {/* Milky fluid background */}
       <div
         className="absolute inset-0"
