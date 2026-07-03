@@ -420,10 +420,12 @@ export const FriendAssistantProvider: React.FC<{ children: React.ReactNode }> = 
           )}
 
           <div className="absolute inset-0 z-10 pointer-events-none">
-            <SovereignVisualizer 
-              state={friendState} 
-              severity={trigger === 'achievement' ? 'important' : 'normal'} 
-            />
+            <Suspense fallback={null}>
+              <SovereignVisualizer
+                state={friendState}
+                severity={trigger === 'achievement' ? 'important' : 'normal'}
+              />
+            </Suspense>
           </div>
 
           <div className="absolute top-16 w-full px-8 flex justify-between items-center z-50">
