@@ -55,9 +55,19 @@ const SendRequestModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
           <Button
             onClick={handleLaunchMetaMask}
-            className="w-full h-12 rounded-xl bg-[#F6851B] hover:bg-[#E2761B] text-white"
+            disabled={isLaunching}
+            className="w-full h-12 rounded-xl bg-[#F6851B] hover:bg-[#E2761B] text-white transition-all duration-150 ease-out hover:scale-[1.02] active:scale-95 active:shadow-inner disabled:opacity-90 disabled:cursor-wait"
           >
-            Launch MetaMask <ExternalLink className="w-4 h-4 ml-2" />
+            {isLaunching ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Launching MetaMask…
+              </>
+            ) : (
+              <>
+                Launch MetaMask <ExternalLink className="w-4 h-4 ml-2" />
+              </>
+            )}
           </Button>
         </div>
       </DialogContent>
