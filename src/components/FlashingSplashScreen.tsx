@@ -10,26 +10,26 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   const [visibleLetters, setVisibleLetters] = useState(0);
 
   useEffect(() => {
-    // Phase 1: Milky fluid (0–2s)
-    const t1 = setTimeout(() => setPhase('text'), 2000);
+    // Phase 1: Milky fluid (0–400ms)
+    const t1 = setTimeout(() => setPhase('text'), 400);
 
-    // Phase 2: Letters appear (2–4.4s)
+    // Phase 2: Letters appear (400–1200ms)
     const letterTimers: ReturnType<typeof setTimeout>[] = [];
     for (let i = 0; i < 4; i++) {
-      letterTimers.push(setTimeout(() => setVisibleLetters(i + 1), 2000 + i * 600));
+      letterTimers.push(setTimeout(() => setVisibleLetters(i + 1), 400 + i * 150));
     }
 
-    // Phase 3: Text fades (5–6s)
-    const t3 = setTimeout(() => setPhase('textFade'), 5000);
+    // Phase 3: Text fades (1200–1500ms)
+    const t3 = setTimeout(() => setPhase('textFade'), 1200);
 
-    // Phase 4: Logo emerges (6–8.5s)
-    const t4 = setTimeout(() => setPhase('logo'), 6000);
+    // Phase 4: Logo emerges (1500–1900ms)
+    const t4 = setTimeout(() => setPhase('logo'), 1500);
 
-    // Phase 5: White fade (8.5–10s)
-    const t5 = setTimeout(() => setPhase('white'), 8500);
+    // Phase 5: White fade (1900–2200ms)
+    const t5 = setTimeout(() => setPhase('white'), 1900);
 
     // Complete
-    const t6 = setTimeout(() => onComplete(), 10000);
+    const t6 = setTimeout(() => onComplete(), 2200);
 
     return () => {
       clearTimeout(t1);
