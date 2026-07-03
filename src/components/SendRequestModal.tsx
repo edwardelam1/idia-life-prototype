@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ExternalLink, ShieldCheck, Wallet } from 'lucide-react';
+import { ExternalLink, Loader2, ShieldCheck, Wallet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface Props {
