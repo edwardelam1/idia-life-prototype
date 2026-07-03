@@ -151,7 +151,7 @@ const App = () => {
           <BrowserRouter>
             <Routes>
               <Route path="/auth" element={session ? <Navigate to="/" replace /> : <Auth />} />
-              <Route path="/" element={session ? <Index /> : <Navigate to="/auth" replace />} />
+              <Route path="/" element={<Index />} />
               <Route path="/dashboard" element={session ? <Index /> : <Navigate to="/auth" replace />} />
               
               <Route path="/terms" element={session ? <TermsOfService /> : <Navigate to="/auth" replace />} />
