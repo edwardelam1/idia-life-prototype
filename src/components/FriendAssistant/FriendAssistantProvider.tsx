@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import CollapsedAvatar from './CollapsedAvatar';
 import ExpandedChat from './ExpandedChat';
-import SovereignVisualizer from './SovereignVisualizer'; 
+const SovereignVisualizer = lazy(() => import('./SovereignVisualizer'));
 import { FriendState, Message } from './types';
 import { getContextualGreeting } from './orbUtils';
 import { useSyllableBlinking } from './useSyllableBlinking';
