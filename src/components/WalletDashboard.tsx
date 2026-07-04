@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
-import { ArrowUpRight, ArrowDownLeft, CreditCard, TrendingUp } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, CreditCard, TrendingUp, Coins, Sparkles, Zap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import AddFundsModal from "./AddFundsModal";
 import { eventTracker } from "@/utils/EventTracker";
-import { useWalletBalance } from "@/hooks/useWalletBalance"; // Added import
+import { useWalletBalance } from "@/hooks/useWalletBalance";
 
-interface Transaction {
+interface ActivityItem {
   id: string;
-  transaction_type: string;
-  amount: number;
+  kind: "earn" | "payment_sent" | "payment_received" | "governance" | "royalty" | "credit_purchase" | "synapse_usage" | "synapse_credit" | "usdc_in" | "usdc_out" | "other";
+  amount: number; // signed
   description: string;
   source: string;
   created_at: string;
