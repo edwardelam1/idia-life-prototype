@@ -7,10 +7,13 @@ import AddFundsModal from "./AddFundsModal";
 import { eventTracker } from "@/utils/EventTracker";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 
+type ActivityUnit = "usd" | "cr" | "usdc";
+
 interface ActivityItem {
   id: string;
   kind: "earn" | "payment_sent" | "payment_received" | "governance" | "royalty" | "credit_purchase" | "synapse_usage" | "synapse_credit" | "usdc_in" | "usdc_out" | "other";
   amount: number; // signed
+  unit: ActivityUnit;
   description: string;
   source: string;
   created_at: string;
