@@ -311,7 +311,7 @@ const WalletDashboard = () => {
                       </p>
                     </div>
                     <div className={`font-semibold text-sm ${getTransactionColor(item.amount)}`}>
-                      {formatAmount(item.amount)}
+                      {formatAmount(item.amount, item.unit)}
                     </div>
                   </div>
                 );
