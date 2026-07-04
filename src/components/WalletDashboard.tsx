@@ -95,6 +95,7 @@ const WalletDashboard = () => {
           id: `tx-${t.id}`,
           kind,
           amount: Number(t.amount) || 0,
+          unit: "usd",
           description: String(t.description ?? type).replace("Staged_data_reward", "Health Data Contribution"),
           source: t.source || "IDIA Platform",
           created_at: t.created_at,
@@ -109,6 +110,7 @@ const WalletDashboard = () => {
             id: `f-${f.id}`,
             kind: "royalty",
             amount: Math.abs(amt),
+            unit: "usd",
             description: f.description || "Royalty payout",
             source: f.source || "IDIA Data Marketplace",
             created_at: f.created_at,
@@ -118,17 +120,9 @@ const WalletDashboard = () => {
             id: `f-${f.id}`,
             kind: "credit_purchase",
             amount: -Math.abs(amt),
+            unit: "usd",
             description: f.description || "Synapse credit purchase",
             source: f.source || "hub.thebigidia.com",
-            created_at: f.created_at,
-          });
-        } else {
-          items.push({
-            id: `f-${f.id}`,
-            kind: "other",
-            amount: amt,
-            description: f.description || t,
-            source: f.source || "Fiat Ledger",
             created_at: f.created_at,
           });
         }
@@ -136,37 +130,21 @@ const WalletDashboard = () => {
 
       (synRes.data ?? []).forEach((s: any) => {
         const entry = String(s.entry_type ?? "").toLowerCase();
-        const tt = String(s.transaction_type ?? "").toLowerCase();
         const amt = Number(s.amount) || 0;
         const src = (s.metadata && (s.metadata.app || s.metadata.source)) || "Synapse";
-        let kind: ActivityItem["kind"] = "other";
-        let description = s.description || tt || entry;
-        let signed = amt;
 
-        if (entry === "usage" || entry === "debit" || tt === "fee") {
-          kind = "synapse_usage";
-          signed = -Math.abs(amt);
-          if (!s.description) description = "Synapse credit used";
-        } else if (tt === "synapse_purchase" || tt === "internal_deposit" || entry === "deposit") {
-          kind = "synapse_credit";
-          signed = Math.abs(amt);
-          if (!s.description) description = "Synapse credits added";
-        } else if (tt === "data_sale_payout") {
-          kind = "royalty";
-          signed = Math.abs(amt);
-          if (!s.description) description = "Royalty credited";
-        } else if (entry === "credit") {
-          signed = Math.abs(amt);
+        // Only surface meaningful credit movement, not the flood of pro-rata yield deposits.
+        if (entry === "usage" || entry === "debit") {
+          items.push({
+            id: `s-${s.id}`,
+            kind: "synapse_usage",
+            amount: -Math.abs(amt),
+            unit: "cr",
+            description: s.description || "Synapse credit used",
+            source: src,
+            created_at: s.created_at,
+          });
         }
-
-        items.push({
-          id: `s-${s.id}`,
-          kind,
-          amount: signed,
-          description,
-          source: src,
-          created_at: s.created_at,
-        });
       });
 
       if (addr) {
@@ -176,6 +154,7 @@ const WalletDashboard = () => {
             id: `u-${u.id}`,
             kind: incoming ? "usdc_in" : "usdc_out",
             amount: (incoming ? 1 : -1) * (Number(u.amount_usdc) || 0),
+            unit: "usdc",
             description: incoming ? "USDC received" : `USDC sent${u.merchant_name ? ` · ${u.merchant_name}` : ""}`,
             source: u.network || "Base",
             created_at: u.created_at,
