@@ -23,6 +23,7 @@ if (!ALCHEMY_BASE_RPC_URL) {
 // Protocol contracts — Base Mainnet
 const REGISTRY_ADDRESS = "0x137D913d89d0D6a5b2d1Db76173770C94d25387B";
 const POOL_FACTORY_ADDRESS = "0x0188FCB027D834E03DD0288D360937ceC4d267bb";
+const ESCROW_ECOSYSTEM = "0xDc93eca954fD2625001b2fb9E9A098914365ADe9";
 const GLOBAL_WAR_CHEST = "0x0910EF34C9F59A90d90FF505B1036DEed4a25d59";
 
 // Token Contracts
@@ -42,6 +43,17 @@ const ERC20_ABI = [
     type: "function",
     stateMutability: "nonpayable",
     inputs: [
+      { name: "to", type: "address" },
+      { name: "value", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "transferFrom",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "from", type: "address" },
       { name: "to", type: "address" },
       { name: "value", type: "uint256" },
     ],
@@ -341,7 +353,7 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
       }),
     ]);
 
-    // PHASE 3 & 5: ON-CHAIN ROYALTY (USDC) & AUTONOMOUS IDIA TOKEN AWARD
+    // PHASE 3 & 5: ON-CHAIN ROYALTY (USDC) & AUTONOMOUS IDIA TOKEN AWARD FROM ESCROW
     currentStep = "PHASE_3_AND_5_CONTRIBUTOR_DISTRIBUTION";
     const totalRoyaltyPool = total_fiat_amount * REVENUE_SPLIT.DATA_YIELD;
     const perContributorYield = totalRoyaltyPool / contributing_users.length;
@@ -361,7 +373,7 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
         const lifeWallet = profile?.wallet_address || "0xc490695880992ec99885e5cdd03aafb5c63b8c33";
 
         try {
-          // 1. Yield transfer (USDC)
+          // 1. Yield transfer (USDC - from Relayer)
           const yieldResult = await executePlanckScaleTransaction(
             client,
             account,
@@ -377,15 +389,15 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
 
           const yieldReceipt = await client.waitForTransactionReceipt({ hash: yieldHash, confirmations: 1 });
 
-          // 2. Direct IDIA Token Award Transfer
+          // 2. Direct IDIA Token Award via transferFrom (Pulls FROM Escrow TO User)
           const idiaResult = await executePlanckScaleTransaction(
             client,
             account,
             IDIA_TOKEN_ADDRESS,
             ERC20_ABI,
-            "transfer",
-            [lifeWallet as `0x${string}`, idiaAwardAmount],
-            `Phase_5_Contributor.Yield_IDIA_${i}`,
+            "transferFrom",
+            [ESCROW_ECOSYSTEM as `0x${string}`, lifeWallet as `0x${string}`, idiaAwardAmount],
+            `Phase_5_Contributor.Yield_IDIA_FromEscrow_${i}`,
             currentNonce,
           );
           currentNonce = idiaResult.nonce + 1;
