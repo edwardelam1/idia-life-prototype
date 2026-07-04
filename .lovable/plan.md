@@ -1,43 +1,39 @@
 ## Goal
 
-Make the "Recent Activity" list in `WalletDashboard` show every money movement, not just rows from `transactions`. Royalty payouts, Synapse credit consumption, and USDC credit purchases from hub.thebigidia.com currently live in other ledger tables and never render.
+1. Actually **gate notifications during Focus Mode** so the toggle and time window in Settings suppress alerts/sounds/pushes.
+2. **Remove the "Email Comms" section** from Notification Settings (the frozen Security Alerts switch and the placeholder marketing/reports rows go with it).
 
-## Where each activity lives (verified in DB)
+## Changes
 
-- `transactions` — earn, governance_vote, payment_sent (already shown)
-- `fiat_ledger` — `DATA_SALE_PAYOUT` (royalty payouts), `CREDIT_PURCHASE`
-- `synapse_credit_ledger` — `USAGE`/`DEBIT` (credit consumption), `synapse_purchase`, `data_sale_payout`, `fee`, `deposit`, etc.
-- `usdc_payments` — on-chain USDC transfers (sender/recipient wallet based, matched to user via `wallets.address`)
+### 1. `src/lib/notify.ts` — honor quiet hours in the unified notify pipeline
 
-## Changes (frontend only)
+- Extend `prefsCache` to also hold `quiet_hours_enabled`, `quiet_hours_start` (e.g. `"22:00"`), `quiet_hours_end` (e.g. `"08:00"`).
+- Update `hydratePrefs()` to select those three columns and refresh them in the realtime `user_preferences` subscription (already listens for `*` events — just widen the payload mapping).
+- Add a small `isInQuietHours(now = new Date())` helper that returns true when `quiet_hours_enabled === true` and the current local `HH:MM` falls inside the window, including the wrap-around case (e.g. 22:00 → 08:00).
+- In `fire()`:
+  - Always keep writing to `notificationStore` (so the bell history is complete) unless `in_app_alerts` is already off.
+  - When `isInQuietHours()` is true: **skip the sonner toast and the chime** regardless of `in_app_sounds`. Nothing pops on screen and nothing beeps.
+  - Outside quiet hours: behave exactly as today.
 
-**`src/components/WalletDashboard.tsx`**
+### 2. `src/hooks/usePushNotifications.ts` — respect quiet hours for locally-scheduled pushes
 
-1. Replace the single `fetchTransactions` with `fetchActivity` that runs four `supabase` queries in parallel:
-   - `transactions` (as today)
-   - `fiat_ledger` filtered by `user_id`
-   - `synapse_credit_ledger` filtered by `user_id`
-   - `usdc_payments` filtered by `sender_address`/`recipient_address` in the user's wallet addresses (fetch via existing `useWalletBalance` `usdcAddress` — skip if none)
-2. Normalize each row into a shared shape:
-   ```ts
-   { id, kind, description, amount, sign: +/-, created_at, source }
-   ```
-   Mapping rules:
-   - `fiat_ledger.DATA_SALE_PAYOUT` → "Royalty payout", +amount_usd, source "IDIA Data Marketplace"
-   - `fiat_ledger.CREDIT_PURCHASE` → "Synapse credit purchase", −amount_usd, source "hub.thebigidia.com"
-   - `synapse_credit_ledger.USAGE`/`DEBIT` → "Synapse credit used", −amount, source from `metadata.app` or "Synapse"
-   - `synapse_credit_ledger.synapse_purchase`/`deposit` → "Synapse credits added", +amount
-   - `synapse_credit_ledger.data_sale_payout` → "Royalty credited", +amount
-   - `usdc_payments` where recipient = user wallet → "USDC received", +amount_usdc; sender = user wallet → "USDC sent", −amount_usdc
-   - existing `transactions` mapping preserved (including the `Staged_data_reward` → "Health Data Contribution" rename)
-3. Merge, sort by `created_at` desc, cap at 25 rows, render with the existing row markup. Extend `getTransactionIcon` with cases for `royalty`, `synapse_usage`, `synapse_purchase`, `usdc`.
-4. Extend the realtime subscription so `wallet-live-transactions` also listens for INSERTs on `fiat_ledger` and `synapse_credit_ledger` (filter `user_id=eq.${user.id}`) and re-runs `fetchActivity`. USDC realtime is skipped (address-based filter isn't user_id).
-5. Keep the loading/empty states and formatting helpers unchanged.
+- Before scheduling any Capacitor `LocalNotifications` or emitting an OS push through the same wrapper, read the same three preference fields (single query, cached) and no-op the schedule call when currently in the quiet window. Server-driven remote pushes (APNs/FCM) can't be blocked client-side, so this only affects locally triggered ones — good enough for the current call sites.
+- If the file doesn't already schedule local notifications, this step is skipped and only `notify.ts` needs the change.
 
-No schema changes, no edge-function changes, no changes to balance logic.
+### 3. `src/components/settings/NotificationSettings.tsx` — remove Email Comms
+
+- Delete the entire `{/* 4. Email Comms */}` section (Security Alerts row, Product Updates row, Monthly Reports row).
+- Remove the now-unused `Mail` and `ShieldAlert` imports from `lucide-react`.
+- Leave the Focus Mode section untouched — its DB writes already flow through `updatePreferences` and will now actually take effect thanks to change #1.
 
 ## Out of scope
 
-- No changes to `useWalletBalance` beyond reading its existing `usdcAddress`.
-- No changes to how any of these ledger tables are written.
-- No new tables, RLS, or grants — existing RLS on each table already scopes reads to the owning user.
+- No schema changes. `user_preferences.quiet_hours_*` and `focus_modes` already exist and are already written to.
+- No edge function changes. `send-security-alert` keeps logging server-side events; the UI simply stops advertising email delivery it can't perform on this external-Supabase project.
+- No new email provider wiring. If you later want real security emails, we can add a Resend (or similar) connector as a follow-up.
+
+## Verification
+
+- Toggle Focus Mode on, set start/end to bracket the current time → trigger any action that fires `notify.*` (e.g. save a setting) → no toast, no chime, but the item still appears in the bell dropdown.
+- Toggle Focus Mode off → toasts and chimes resume immediately (realtime cache refresh).
+- Notification Settings screen shows only In-App Center, Push Notifications, and Focus Mode sections.
