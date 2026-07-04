@@ -1,33 +1,43 @@
-# Fix Apple "app loads/responds slowly" rejection
+## Goal
 
-Two changes that directly attack perceived launch slowness on iOS.
+Make the "Recent Activity" list in `WalletDashboard` show every money movement, not just rows from `transactions`. Royalty payouts, Synapse credit consumption, and USDC credit purchases from hub.thebigidia.com currently live in other ledger tables and never render.
 
-## 1. Shorten the launch splash (biggest win)
+## Where each activity lives (verified in DB)
 
-`src/components/FlashingSplashScreen.tsx` currently blocks the user for a full **10 seconds** with 5 sequential animation phases before the app is usable. Apple reviewers see this as an unresponsive app.
+- `transactions` — earn, governance_vote, payment_sent (already shown)
+- `fiat_ledger` — `DATA_SALE_PAYOUT` (royalty payouts), `CREDIT_PURCHASE`
+- `synapse_credit_ledger` — `USAGE`/`DEBIT` (credit consumption), `synapse_purchase`, `data_sale_payout`, `fee`, `deposit`, etc.
+- `usdc_payments` — on-chain USDC transfers (sender/recipient wallet based, matched to user via `wallets.address`)
 
-Changes:
-- Compress the sequence from 10s → **~2.2s total** (fluid 0–400ms, letters 400–1200ms, textFade 1200–1500ms, logo 1500–1900ms, white 1900–2200ms).
-- Add **tap-to-skip**: tapping anywhere on the splash immediately calls `onComplete()`.
-- Keep the same visual phases and assets — only durations change, so brand feel is preserved.
+## Changes (frontend only)
 
-## 2. Lazy-load the 3D orb stack
+**`src/components/WalletDashboard.tsx`**
 
-`src/components/FriendAssistant/FriendAssistantProvider.tsx` statically imports `SovereignVisualizer`, which pulls `three`, `@react-three/fiber`, and `@react-three/drei` into the initial JS bundle every launch — even though the orb only renders when Friend Live is opened.
+1. Replace the single `fetchTransactions` with `fetchActivity` that runs four `supabase` queries in parallel:
+   - `transactions` (as today)
+   - `fiat_ledger` filtered by `user_id`
+   - `synapse_credit_ledger` filtered by `user_id`
+   - `usdc_payments` filtered by `sender_address`/`recipient_address` in the user's wallet addresses (fetch via existing `useWalletBalance` `usdcAddress` — skip if none)
+2. Normalize each row into a shared shape:
+   ```ts
+   { id, kind, description, amount, sign: +/-, created_at, source }
+   ```
+   Mapping rules:
+   - `fiat_ledger.DATA_SALE_PAYOUT` → "Royalty payout", +amount_usd, source "IDIA Data Marketplace"
+   - `fiat_ledger.CREDIT_PURCHASE` → "Synapse credit purchase", −amount_usd, source "hub.thebigidia.com"
+   - `synapse_credit_ledger.USAGE`/`DEBIT` → "Synapse credit used", −amount, source from `metadata.app` or "Synapse"
+   - `synapse_credit_ledger.synapse_purchase`/`deposit` → "Synapse credits added", +amount
+   - `synapse_credit_ledger.data_sale_payout` → "Royalty credited", +amount
+   - `usdc_payments` where recipient = user wallet → "USDC received", +amount_usdc; sender = user wallet → "USDC sent", −amount_usdc
+   - existing `transactions` mapping preserved (including the `Staged_data_reward` → "Health Data Contribution" rename)
+3. Merge, sort by `created_at` desc, cap at 25 rows, render with the existing row markup. Extend `getTransactionIcon` with cases for `royalty`, `synapse_usage`, `synapse_purchase`, `usdc`.
+4. Extend the realtime subscription so `wallet-live-transactions` also listens for INSERTs on `fiat_ledger` and `synapse_credit_ledger` (filter `user_id=eq.${user.id}`) and re-runs `fetchActivity`. USDC realtime is skipped (address-based filter isn't user_id).
+5. Keep the loading/empty states and formatting helpers unchanged.
 
-Changes:
-- Convert `SovereignVisualizer` to `React.lazy(() => import('./SovereignVisualizer'))`.
-- Wrap its render site in `<Suspense fallback={null}>`.
-- Result: the 3D libraries are fetched/parsed only the first time a user opens Friend Live. No visual change.
+No schema changes, no edge-function changes, no changes to balance logic.
 
 ## Out of scope
 
-- No changes to orb visuals, particle count, or physics.
-- No changes to routing, auth, or business logic.
-- `FriendAssistant.tsx` re-export stays as-is (still points at the provider module).
-
-## Validation
-
-- Typecheck.
-- Confirm splash exits in ~2s and tap dismisses it.
-- Confirm Friend Live still renders the orb (lazy chunk loads on demand).
+- No changes to `useWalletBalance` beyond reading its existing `usdcAddress`.
+- No changes to how any of these ledger tables are written.
+- No new tables, RLS, or grants — existing RLS on each table already scopes reads to the owning user.
