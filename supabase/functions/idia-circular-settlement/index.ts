@@ -4,8 +4,7 @@ import { privateKeyToAccount } from "https://esm.sh/viem@2.9.20/accounts";
 import { base } from "https://esm.sh/viem@2.9.20/chains";
 import { createWalletClient, http, parseUnits, publicActions } from "https://esm.sh/viem@2.9.20";
 
-// Supabase Edge Runtime global — not in Deno's stdlib type defs. Provides
-// post-response background execution via waitUntil().
+// Supabase Edge Runtime global
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
 
 // ══════════════════════════════════════════════════════════════════════
@@ -15,7 +14,6 @@ declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
 const REVENUE_SPLIT = { CORPORATE: 0.6, WAR_CHEST: 0.1, DATA_YIELD: 0.3 };
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
-// Network — single canonical Alchemy URL, injected exclusively via secret.
 const ALCHEMY_BASE_RPC_URL = Deno.env.get("ALCHEMY_BASE_RPC_URL");
 if (!ALCHEMY_BASE_RPC_URL) {
   console.error(`[FATAL STALL: INIT] Missing ALCHEMY_BASE_RPC_URL.`);
@@ -25,9 +23,13 @@ if (!ALCHEMY_BASE_RPC_URL) {
 // Protocol contracts — Base Mainnet
 const REGISTRY_ADDRESS = "0x137D913d89d0D6a5b2d1Db76173770C94d25387B";
 const POOL_FACTORY_ADDRESS = "0x0188FCB027D834E03DD0288D360937ceC4d267bb";
-const ESCROW_ECOSYSTEM = "0xDc93eca954fD2625001b2fb9E9A098914365ADe9";
 const GLOBAL_WAR_CHEST = "0x0910EF34C9F59A90d90FF505B1036DEed4a25d59";
+
+// Token Contracts
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const IDIA_TOKEN_ADDRESS = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
+
+// System wallets
 const SYSTEM_CASH_REGISTER = "0x649436db4d9352240d1132d9372293e5cc6af0e3";
 
 // ══════════════════════════════════════════════════════════════════════
@@ -71,20 +73,6 @@ const POOL_FACTORY_ABI = [
     stateMutability: "nonpayable",
     inputs: [{ name: "location", type: "string" }],
     outputs: [{ name: "pool", type: "address" }],
-  },
-] as const;
-
-const ESCROW_ABI = [
-  {
-    name: "proposeDistribution",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "recipient", type: "address" },
-      { name: "amount", type: "uint256" },
-      { name: "reason", type: "string" },
-    ],
-    outputs: [{ name: "proposalId", type: "uint256" }],
   },
 ] as const;
 
@@ -150,12 +138,10 @@ async function executePlanckScaleTransaction(
           `[RETRY: ${stepName}] Mempool collision detected (${msg.substring(0, 60)}...). Suppressing error.`,
         );
 
-        // Randomized jitter to prevent parallel executions from re-colliding
         const jitterMs = Math.floor(Math.random() * 2500) + 1000;
         console.info(`[RETRY: ${stepName}] Pausing ${jitterMs}ms, then re-syncing nonce from blockchain...`);
         await new Promise((res) => setTimeout(res, jitterMs));
 
-        // Pull the absolute latest true nonce from the network
         currentTryNonce = await client.getTransactionCount({ address: account.address, blockTag: "pending" });
         console.info(
           `[RETRY: ${stepName}] Resynced to Nonce: ${currentTryNonce}. Retrying (${attempt}/${maxRetries})...`,
@@ -163,7 +149,6 @@ async function executePlanckScaleTransaction(
         continue;
       }
 
-      // If it's a simulation error, or we ran out of retries, crash gracefully
       console.error(`[BEGIN: ${stepName}.Planck.FatalDump]`);
       console.error(`🚨 [FATAL STALL: ${stepName}] Sequencer violently rejected payload injection.`);
       console.error(`[DIAGNOSTIC] Attempted Nonce: ${currentTryNonce} | Target: ${contractAddress}`);
@@ -176,7 +161,6 @@ async function executePlanckScaleTransaction(
   throw new Error("Planck Execution failed to return after retry loop.");
 }
 
-// Brief mempool clear between sequential transactions in the same execution.
 async function forceSequencerDelay(ms = 3500): Promise<void> {
   console.info(`[BEGIN: Sequencer.Delay] Pausing ${ms}ms to clear mempool...`);
   await new Promise((resolve) => setTimeout(resolve, ms));
@@ -244,7 +228,6 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
       "Phase_1_Corporate",
       currentNonce,
     );
-    // Update nonce to the one that actually succeeded, plus 1 for the next Tx
     currentNonce = corporateResult.nonce + 1;
     const corporateHash = corporateResult.txHash;
 
@@ -358,13 +341,14 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
       }),
     ]);
 
-    // PHASE 3 & 5: ON-CHAIN ROYALTY & AUTONOMOUS IDIA PROPOSAL
+    // PHASE 3 & 5: ON-CHAIN ROYALTY (USDC) & AUTONOMOUS IDIA TOKEN AWARD
     currentStep = "PHASE_3_AND_5_CONTRIBUTOR_DISTRIBUTION";
     const totalRoyaltyPool = total_fiat_amount * REVENUE_SPLIT.DATA_YIELD;
     const perContributorYield = totalRoyaltyPool / contributing_users.length;
     const contributorPayouts = [];
-    const idiaAwardAmount = parseUnits("1", 18);
+    const idiaAwardAmount = parseUnits("1", 18); // 1 IDIA token per contributor
 
+    console.info("[BEGIN: Phase_3_Contributor.BatchExecution] Initializing sequential transaction pipeline.");
     try {
       for (let i = 0; i < contributing_users.length; i++) {
         const contributor = contributing_users[i];
@@ -385,7 +369,7 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
             ERC20_ABI,
             "transfer",
             [lifeWallet as `0x${string}`, parseUnits(perContributorYield.toFixed(6), 6)],
-            `Phase_3_Contributor.Yield_${i}`,
+            `Phase_3_Contributor.Yield_USDC_${i}`,
             currentNonce,
           );
           currentNonce = yieldResult.nonce + 1;
@@ -393,25 +377,21 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
 
           const yieldReceipt = await client.waitForTransactionReceipt({ hash: yieldHash, confirmations: 1 });
 
-          // 2. Royalty proposal (escrow)
-          const proposalResult = await executePlanckScaleTransaction(
+          // 2. Direct IDIA Token Award Transfer
+          const idiaResult = await executePlanckScaleTransaction(
             client,
             account,
-            ESCROW_ECOSYSTEM,
-            ESCROW_ABI,
-            "proposeDistribution",
-            [
-              lifeWallet as `0x${string}`,
-              idiaAwardAmount,
-              `Automated royalty yield proposal: Ref ${ingestionReference}`,
-            ],
-            `Phase_5_Contributor.Proposal_${i}`,
+            IDIA_TOKEN_ADDRESS,
+            ERC20_ABI,
+            "transfer",
+            [lifeWallet as `0x${string}`, idiaAwardAmount],
+            `Phase_5_Contributor.Yield_IDIA_${i}`,
             currentNonce,
           );
-          currentNonce = proposalResult.nonce + 1;
-          const proposalHash = proposalResult.txHash;
+          currentNonce = idiaResult.nonce + 1;
+          const idiaHash = idiaResult.txHash;
 
-          await client.waitForTransactionReceipt({ hash: proposalHash, confirmations: 1 });
+          await client.waitForTransactionReceipt({ hash: idiaHash, confirmations: 1 });
 
           // 3. Ledger insert
           const yieldStatus = yieldReceipt.status === "success" ? "completed" : "failed";
@@ -424,13 +404,13 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
             blockchain_tx_hash: yieldHash,
             is_settled: true,
             settled_at: new Date().toISOString(),
-            description: `Pro-rata yield for Ref: ${ingestionReference}`,
+            description: `Pro-rata yield + 1 IDIA Token for Ref: ${ingestionReference}`,
           });
 
           contributorPayouts.push({
             wallet: lifeWallet,
             yield_hash: yieldHash,
-            proposal_hash: proposalHash,
+            idia_hash: idiaHash,
           });
 
           await new Promise((resolve) => setTimeout(resolve, 500));
