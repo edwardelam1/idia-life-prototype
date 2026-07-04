@@ -197,9 +197,15 @@ const WalletDashboard = () => {
 
   const getTransactionColor = (amount: number) => (amount > 0 ? "text-green-600" : "text-red-600");
 
-  const formatAmount = (amount: number) => {
-    const sign = amount > 0 ? "+" : "";
-    return `${sign}$${Math.abs(amount).toFixed(2)}`;
+  const formatAmount = (amount: number, unit: ActivityUnit) => {
+    const sign = amount > 0 ? "+" : amount < 0 ? "−" : "";
+    const abs = Math.abs(amount);
+    if (unit === "cr") {
+      const rounded = abs >= 1 ? abs.toFixed(0) : abs.toFixed(2);
+      return `${sign}${rounded} CR`;
+    }
+    if (unit === "usdc") return `${sign}${abs.toFixed(2)} USDC`;
+    return `${sign}$${abs.toFixed(2)}`;
   };
 
   const formatTime = (dateString: string) => {
