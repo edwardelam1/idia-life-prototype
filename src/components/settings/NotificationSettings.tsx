@@ -16,6 +16,8 @@ const HOURS = Array.from({ length: 24 }, (_, i) => `${i.toString().padStart(2, '
 export function NotificationSettings() {
   const { preferences, updatePreferences } = useProfile();
   const { toast } = useToast();
+  const payReady = isPayReady();
+
   
 
   const { modes, create: createFocus, activate: activateFocus, deactivateAll, remove: removeFocus } = useFocusModes();
