@@ -9,7 +9,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { useToast } from '@/hooks/use-toast';
 import { useFocusModes } from '@/hooks/useFocusModes';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
-// isPayReady import removed with Email Comms section
+import { isPayReady } from '@/config/release';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => `${i.toString().padStart(2, '0')}:00`);
 
