@@ -4,7 +4,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Smartphone, Mail, Moon, BellRing, ShieldAlert, Plus, Trash2, Check } from 'lucide-react';
+import { Smartphone, Moon, BellRing, Plus, Trash2, Check } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
 import { useToast } from '@/hooks/use-toast';
 import { useFocusModes } from '@/hooks/useFocusModes';
