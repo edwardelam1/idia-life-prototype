@@ -17,45 +17,32 @@ interface ActivityItem {
 }
 
 const WalletDashboard = () => {
-  // Integrated real-time hook and removed static balances state
   const { balance, loading: balanceLoading, fiatProvisioned, usdcProvisioned, usdcAddress } = useWalletBalance();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [isAddFundsOpen, setIsAddFundsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Removed fetchBalances() call as the hook now handles this
-    fetchTransactions();
-
+    fetchActivity();
     const startTime = Date.now();
-
-    // DISCUSSION: Added Realtime Subscription for Live Transaction Updates
-    let transactionChannel: any;
+    let channels: any[] = [];
 
     const setupRealtime = async () => {
-      const {
-        data: { user },
-        // @ts-ignore -
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      transactionChannel = supabase
-        .channel("wallet-live-transactions")
-        .on(
-          "postgres_changes",
-          {
-            event: "INSERT",
-            schema: "public",
-            table: "transactions",
-            filter: `user_id=eq.${user.id}`,
-          },
-          (payload) => {
-            console.log("New Transaction Live!", payload);
-            // Refresh transactions list when a new one hits
-            fetchTransactions();
-          },
-        )
-        .subscribe();
+      const tables = ["transactions", "fiat_ledger", "synapse_credit_ledger"];
+      tables.forEach((table) => {
+        const ch = supabase
+          .channel(`wallet-activity-${table}`)
+          .on(
+            "postgres_changes",
+            { event: "INSERT", schema: "public", table, filter: `user_id=eq.${user.id}` },
+            () => fetchActivity(),
+          )
+          .subscribe();
+        channels.push(ch);
+      });
     };
 
     setupRealtime();
@@ -65,73 +52,168 @@ const WalletDashboard = () => {
       eventTracker.trackWalletView({
         view_duration: duration,
         balance_checked: true,
-        transactions_viewed: transactions.length,
+        transactions_viewed: activity.length,
       });
-
-      // DISCUSSION: Cleanup subscription on unmount
-      if (transactionChannel) supabase.removeChannel(transactionChannel);
+      channels.forEach((ch) => supabase.removeChannel(ch));
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usdcAddress]);
 
-  // Removed fetchBalances function definition to prevent redundant logic
-
-  const fetchTransactions = async () => {
+  const fetchActivity = async () => {
     try {
-      const {
-        data: { user },
-        // @ts-ignore -
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        setTransactions([]);
+        setActivity([]);
         setLoading(false);
         return;
       }
 
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(10);
+      const addr = usdcAddress?.toLowerCase() ?? null;
 
-      if (error) {
-        console.log("Error fetching transactions:", error);
-        setTransactions([]);
-      } else {
-        setTransactions(
-          (data || []).map((transaction) => ({
-            ...transaction,
-            description: transaction.description.replace("Staged_data_reward", "Health Data Contribution"),
-            source: transaction.source || "IDIA Platform",
-          })),
-        );
+      const [txRes, fiatRes, synRes, usdcRes] = await Promise.all([
+        supabase.from("transactions").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25),
+        supabase.from("fiat_ledger").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25),
+        supabase.from("synapse_credit_ledger").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25),
+        addr
+          ? supabase.from("usdc_payments").select("*").or(`sender_address.eq.${addr},recipient_address.eq.${addr}`).order("created_at", { ascending: false }).limit(25)
+          : Promise.resolve({ data: [], error: null } as any),
+      ]);
+
+      const items: ActivityItem[] = [];
+
+      (txRes.data ?? []).forEach((t: any) => {
+        const type = t.transaction_type as string;
+        let kind: ActivityItem["kind"] = "other";
+        if (type === "earn" || type === "data_reward" || type === "data_earnings") kind = "earn";
+        else if (type === "payment_sent") kind = "payment_sent";
+        else if (type === "payment_received" || type === "payroll") kind = "payment_received";
+        else if (type?.startsWith("governance")) kind = "governance";
+        items.push({
+          id: `tx-${t.id}`,
+          kind,
+          amount: Number(t.amount) || 0,
+          description: String(t.description ?? type).replace("Staged_data_reward", "Health Data Contribution"),
+          source: t.source || "IDIA Platform",
+          created_at: t.created_at,
+        });
+      });
+
+      (fiatRes.data ?? []).forEach((f: any) => {
+        const t = f.transaction_type as string;
+        const amt = Number(f.amount_usd ?? f.amount) || 0;
+        if (t === "DATA_SALE_PAYOUT") {
+          items.push({
+            id: `f-${f.id}`,
+            kind: "royalty",
+            amount: Math.abs(amt),
+            description: f.description || "Royalty payout",
+            source: f.source || "IDIA Data Marketplace",
+            created_at: f.created_at,
+          });
+        } else if (t === "CREDIT_PURCHASE") {
+          items.push({
+            id: `f-${f.id}`,
+            kind: "credit_purchase",
+            amount: -Math.abs(amt),
+            description: f.description || "Synapse credit purchase",
+            source: f.source || "hub.thebigidia.com",
+            created_at: f.created_at,
+          });
+        } else {
+          items.push({
+            id: `f-${f.id}`,
+            kind: "other",
+            amount: amt,
+            description: f.description || t,
+            source: f.source || "Fiat Ledger",
+            created_at: f.created_at,
+          });
+        }
+      });
+
+      (synRes.data ?? []).forEach((s: any) => {
+        const entry = String(s.entry_type ?? "").toLowerCase();
+        const tt = String(s.transaction_type ?? "").toLowerCase();
+        const amt = Number(s.amount) || 0;
+        const src = (s.metadata && (s.metadata.app || s.metadata.source)) || "Synapse";
+        let kind: ActivityItem["kind"] = "other";
+        let description = s.description || tt || entry;
+        let signed = amt;
+
+        if (entry === "usage" || entry === "debit" || tt === "fee") {
+          kind = "synapse_usage";
+          signed = -Math.abs(amt);
+          if (!s.description) description = "Synapse credit used";
+        } else if (tt === "synapse_purchase" || tt === "internal_deposit" || entry === "deposit") {
+          kind = "synapse_credit";
+          signed = Math.abs(amt);
+          if (!s.description) description = "Synapse credits added";
+        } else if (tt === "data_sale_payout") {
+          kind = "royalty";
+          signed = Math.abs(amt);
+          if (!s.description) description = "Royalty credited";
+        } else if (entry === "credit") {
+          signed = Math.abs(amt);
+        }
+
+        items.push({
+          id: `s-${s.id}`,
+          kind,
+          amount: signed,
+          description,
+          source: src,
+          created_at: s.created_at,
+        });
+      });
+
+      if (addr) {
+        (usdcRes.data ?? []).forEach((u: any) => {
+          const incoming = String(u.recipient_address).toLowerCase() === addr;
+          items.push({
+            id: `u-${u.id}`,
+            kind: incoming ? "usdc_in" : "usdc_out",
+            amount: (incoming ? 1 : -1) * (Number(u.amount_usdc) || 0),
+            description: incoming ? "USDC received" : `USDC sent${u.merchant_name ? ` · ${u.merchant_name}` : ""}`,
+            source: u.network || "Base",
+            created_at: u.created_at,
+          });
+        });
       }
+
+      items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setActivity(items.slice(0, 25));
       setLoading(false);
     } catch (error) {
-      console.error("Error fetching transactions:", error);
-      setTransactions([]);
+      console.error("Error fetching activity:", error);
+      setActivity([]);
       setLoading(false);
     }
   };
 
-  const getTransactionIcon = (type: string) => {
-    switch (type) {
-      case "data_reward":
-      case "data_earnings":
+  const getActivityIcon = (kind: ActivityItem["kind"]) => {
+    switch (kind) {
+      case "earn":
         return TrendingUp;
+      case "royalty":
+        return Sparkles;
+      case "credit_purchase":
+        return Coins;
+      case "synapse_credit":
+        return Coins;
+      case "synapse_usage":
+        return Zap;
       case "payment_sent":
+      case "usdc_out":
         return ArrowUpRight;
       case "payment_received":
-      case "payroll":
+      case "usdc_in":
         return ArrowDownLeft;
       default:
         return CreditCard;
     }
   };
 
-  const getTransactionColor = (amount: number) => {
-    return amount > 0 ? "text-green-600" : "text-red-600";
-  };
+  const getTransactionColor = (amount: number) => (amount > 0 ? "text-green-600" : "text-red-600");
 
   const formatAmount = (amount: number) => {
     const sign = amount > 0 ? "+" : "";
@@ -144,17 +226,12 @@ const WalletDashboard = () => {
     const diffMs = now.getTime() - date.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffHours / 24);
-
-    if (diffHours < 1) {
-      return "Just now";
-    } else if (diffHours < 24) {
-      return `${diffHours} hours ago`;
-    } else if (diffDays === 1) {
-      return "1 day ago";
-    } else {
-      return `${diffDays} days ago`;
-    }
+    if (diffHours < 1) return "Just now";
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    if (diffDays === 1) return "1 day ago";
+    return `${diffDays} days ago`;
   };
+
 
   if (loading || balanceLoading) {
     // Added balanceLoading check
