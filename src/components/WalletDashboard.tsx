@@ -301,32 +301,36 @@ const WalletDashboard = () => {
           <CardTitle>Recent Activity</CardTitle>
         </CardHeader>
         <CardContent>
-          {transactions.length === 0 ? (
+          {activity.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <p className="text-lg font-medium">No recent activity</p>
               <p className="text-sm">Your transactions will appear here once you start using the platform.</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {transactions.map((transaction) => {
-                const Icon = getTransactionIcon(transaction.transaction_type);
+              {activity.map((item) => {
+                const Icon = getActivityIcon(item.kind);
                 return (
-                  <div key={transaction.id} className="flex items-center space-x-3 py-1.5">
+                  <div key={item.id} className="flex items-center space-x-3 py-1.5">
                     <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
                       <Icon className="w-4 h-4 text-gray-600" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 text-sm truncate">{transaction.description}</p>
-                      <p className="text-xs text-gray-500">{formatTime(transaction.created_at)}</p>
+                      <p className="font-medium text-gray-900 text-sm truncate">{item.description}</p>
+                      <p className="text-xs text-gray-500">
+                        {formatTime(item.created_at)}
+                        {item.source ? ` · ${item.source}` : ""}
+                      </p>
                     </div>
-                    <div className={`font-semibold text-sm ${getTransactionColor(transaction.amount)}`}>
-                      {formatAmount(transaction.amount)}
+                    <div className={`font-semibold text-sm ${getTransactionColor(item.amount)}`}>
+                      {formatAmount(item.amount)}
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
+
         </CardContent>
       </Card>
 
