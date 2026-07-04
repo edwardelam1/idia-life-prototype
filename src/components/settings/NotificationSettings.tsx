@@ -243,53 +243,6 @@ export function NotificationSettings() {
         )}
       </section>
 
-      {/* 4. Email Comms */}
-      <section className="space-y-4 pt-4 border-t">
-        <div className="flex items-center gap-2">
-          <Mail className="w-4 h-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Email Comms</h3>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 bg-muted/30 p-2.5 rounded-lg border border-border/50">
-          <div className="flex items-center gap-3 min-w-0 opacity-80">
-            <ShieldAlert className="w-4 h-4 text-destructive" />
-            <div className="space-y-0.5">
-              <Label className="text-sm font-medium">Security Alerts</Label>
-              <p className="text-[10px] text-muted-foreground">New logins and password changes</p>
-            </div>
-          </div>
-          <Switch checked={true} disabled />
-        </div>
-
-        {payReady && (
-          <>
-            <div className="flex items-center justify-between gap-3 pl-1">
-              <div className="space-y-0.5 min-w-0">
-                <Label htmlFor="email-marketing" className="text-sm font-medium">Product Updates</Label>
-                <p className="text-xs text-muted-foreground">Feature drops and announcements</p>
-              </div>
-              <Switch
-                id="email-marketing"
-                checked={preferences?.marketing_emails || false}
-                onCheckedChange={(v) => handlePreferenceUpdate('marketing_emails', v)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between gap-3 pl-1">
-              <div className="space-y-0.5 min-w-0">
-                <Label htmlFor="email-reports" className="text-sm font-medium">Monthly Reports</Label>
-                <p className="text-xs text-muted-foreground">Data summaries and health metrics</p>
-              </div>
-              <Switch
-                id="email-reports"
-                checked={preferences?.email_reports !== false}
-                onCheckedChange={(v) => handlePreferenceUpdate('email_reports', v)}
-              />
-            </div>
-          </>
-        )}
-      </section>
-
     </div>
   );
 }
