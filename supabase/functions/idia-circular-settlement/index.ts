@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.7";
 import { privateKeyToAccount } from "https://esm.sh/viem@2.9.20/accounts";
 import { base } from "https://esm.sh/viem@2.9.20/chains";
-import { createWalletClient, http, parseUnits, publicActions } from "https://esm.sh/viem@2.9.20";
+import { createWalletClient, http, parseUnits, publicActions, encodeFunctionData } from "https://esm.sh/viem@2.9.20";
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
 
@@ -99,10 +99,15 @@ async function executePlanckScaleTransaction(
   let currentTryNonce = initialNonce;
   const maxRetries = 5;
 
+  // Manually encode the ABI data to guarantee payload integrity
+  const txData = encodeFunctionData({ abi, functionName: funcName, args });
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.info(`[BEGIN: ${stepName}.Planck.Simulate] Executing dry-run simulation on EVM...`);
-      const { request } = await client.simulateContract({
+
+      // We still simulate to catch smart contract logic errors (like insufficient balance)
+      await client.simulateContract({
         account,
         address: contractAddress as `0x${string}`,
         abi,
@@ -113,8 +118,12 @@ async function executePlanckScaleTransaction(
       console.info(
         `[BEGIN: ${stepName}.Planck.Prepare] Constructing raw transaction payload (Nonce: ${currentTryNonce})...`,
       );
+
+      // EXPLICITLY map "to" and "data" to prevent EVM from deploying empty contracts
       const preparedTx = await client.prepareTransactionRequest({
-        ...request,
+        account,
+        to: contractAddress as `0x${string}`,
+        data: txData,
         nonce: currentTryNonce,
       });
 
@@ -227,6 +236,8 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
     const corporateReceipt = await client.waitForTransactionReceipt({ hash: corporateHash, confirmations: 1 });
     if (corporateReceipt.status === "success") {
       await forceSequencerDelay();
+    } else {
+      throw new Error(`[FATAL STALL] Phase 1 Corporate Transfer REVERTED on-chain. Hash: ${corporateHash}`);
     }
 
     // PHASE 2: REGIONAL ROUTING (10%)
@@ -266,7 +277,10 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
           );
           currentNonce = deployResult.nonce + 1;
 
-          await client.waitForTransactionReceipt({ hash: deployResult.txHash, confirmations: 1 });
+          const deployReceipt = await client.waitForTransactionReceipt({ hash: deployResult.txHash, confirmations: 1 });
+          if (deployReceipt.status !== "success") {
+            throw new Error(`deployPool REVERTED on-chain (${deployResult.txHash})`);
+          }
 
           const minted = await client.readContract({
             address: POOL_FACTORY_ADDRESS,
@@ -302,6 +316,8 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
     const regionalReceipt = await client.waitForTransactionReceipt({ hash: regionalHash, confirmations: 1 });
     if (regionalReceipt.status === "success") {
       await forceSequencerDelay();
+    } else {
+      throw new Error(`[FATAL STALL] Phase 2 Regional Transfer REVERTED on-chain. Hash: ${regionalHash}`);
     }
 
     // LEDGER HYDRATION - Corporate & Regional
@@ -333,7 +349,6 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
     // PHASE 3 & 5: ON-CHAIN ROYALTY (USDC) & AUTONOMOUS IDIA TOKEN AWARD
     currentStep = "PHASE_3_AND_5_CONTRIBUTOR_DISTRIBUTION";
 
-    // Dynamic Decimal Extraction for IDIA to ensure 100% mathematical certainty on 1:1 match
     let idiaDecimals = 18;
     try {
       const fetchedDecimals = await client.readContract({
@@ -350,7 +365,6 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
     const totalRoyaltyPool = total_fiat_amount * REVENUE_SPLIT.DATA_YIELD;
     const perContributorYield = totalRoyaltyPool / contributing_users.length;
 
-    // 1:1 Matching Logic
     const exactYieldAmountString = perContributorYield.toFixed(6);
     const usdcTransferAmount = parseUnits(exactYieldAmountString, 6);
     const idiaAwardAmount = parseUnits(exactYieldAmountString, idiaDecimals);
@@ -387,9 +401,15 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
           currentNonce = yieldResult.nonce + 1;
           yieldHash = yieldResult.txHash;
 
-          await client.waitForTransactionReceipt({ hash: yieldHash as `0x${string}`, confirmations: 1 });
+          const yieldReceipt = await client.waitForTransactionReceipt({
+            hash: yieldHash as `0x${string}`,
+            confirmations: 1,
+          });
 
-          // Write USDC success to ledger immediately
+          if (yieldReceipt.status !== "success") {
+            throw new Error(`USDC Transfer REVERTED on-chain! Hash: ${yieldHash}`);
+          }
+
           const { error: usdcDbError } = await supabase.from("synapse_credit_ledger").insert({
             user_id: contributor.user_id,
             amount: perContributorYield,
@@ -428,14 +448,20 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
           currentNonce = idiaResult.nonce + 1;
           idiaHash = idiaResult.txHash;
 
-          await client.waitForTransactionReceipt({ hash: idiaHash as `0x${string}`, confirmations: 1 });
+          const idiaReceipt = await client.waitForTransactionReceipt({
+            hash: idiaHash as `0x${string}`,
+            confirmations: 1,
+          });
 
-          // Write IDIA success to ledger
+          if (idiaReceipt.status !== "success") {
+            throw new Error(`IDIA Transfer REVERTED on-chain! Hash: ${idiaHash}`);
+          }
+
           const { error: idiaDbError } = await supabase.from("synapse_credit_ledger").insert({
             user_id: contributor.user_id,
             amount: perContributorYield,
             entry_type: "deposit",
-            transaction_type: "idia_token_award",
+            transaction_type: "data_sale_payout",
             status: "completed",
             blockchain_tx_hash: idiaHash,
             is_settled: true,
