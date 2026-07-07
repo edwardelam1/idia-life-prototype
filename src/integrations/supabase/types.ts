@@ -7994,6 +7994,120 @@ export type Database = {
         }
         Relationships: []
       }
+      team_distributions: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          immediate_amount: string | null
+          immediate_percent: number
+          immediate_tx_hash: string | null
+          status: string
+          total_idia: string
+          vesting_amount: string | null
+          vesting_deposit_tx_hash: string | null
+          vesting_pull_tx_hash: string | null
+          vesting_start: string
+          wallet_address: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          immediate_amount?: string | null
+          immediate_percent: number
+          immediate_tx_hash?: string | null
+          status?: string
+          total_idia: string
+          vesting_amount?: string | null
+          vesting_deposit_tx_hash?: string | null
+          vesting_pull_tx_hash?: string | null
+          vesting_start: string
+          wallet_address: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          immediate_amount?: string | null
+          immediate_percent?: number
+          immediate_tx_hash?: string | null
+          status?: string
+          total_idia?: string
+          vesting_amount?: string | null
+          vesting_deposit_tx_hash?: string | null
+          vesting_pull_tx_hash?: string | null
+          vesting_start?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
+      team_forfeitures: {
+        Row: {
+          beneficiary_address: string
+          created_at: string
+          id: string
+          treasury_address: string
+          tx_hash: string | null
+          unvested_returned: string
+          vested_delivered: string
+        }
+        Insert: {
+          beneficiary_address: string
+          created_at?: string
+          id?: string
+          treasury_address: string
+          tx_hash?: string | null
+          unvested_returned: string
+          vested_delivered: string
+        }
+        Update: {
+          beneficiary_address?: string
+          created_at?: string
+          id?: string
+          treasury_address?: string
+          tx_hash?: string | null
+          unvested_returned?: string
+          vested_delivered?: string
+        }
+        Relationships: []
+      }
+      team_vesting_pushes: {
+        Row: {
+          amount: string
+          beneficiary_address: string
+          block_number: number
+          created_at: string
+          id: string
+          months_unlocked: number
+          total_claimed: string
+          tx_hash: string
+        }
+        Insert: {
+          amount: string
+          beneficiary_address: string
+          block_number: number
+          created_at?: string
+          id?: string
+          months_unlocked: number
+          total_claimed: string
+          tx_hash: string
+        }
+        Update: {
+          amount?: string
+          beneficiary_address?: string
+          block_number?: number
+          created_at?: string
+          id?: string
+          months_unlocked?: number
+          total_claimed?: string
+          tx_hash?: string
+        }
+        Relationships: []
+      }
       telemetry_logs: {
         Row: {
           created_at: string | null
