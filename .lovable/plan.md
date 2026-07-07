@@ -1,39 +1,25 @@
-## Goal
+## Diagnosis
 
-1. Actually **gate notifications during Focus Mode** so the toggle and time window in Settings suppress alerts/sounds/pushes.
-2. **Remove the "Email Comms" section** from Notification Settings (the frozen Security Alerts switch and the placeholder marketing/reports rows go with it).
+Your account (`edward.elam@gmail.com`, wallet `0x429F…5A40`) exists in `profiles`, and `IDIA Data Inc.` (id `df9d2157-e202-4623-b811-b094836d5eeb`) exists in `businesses`. But there is no row in the `employees` table linking your `user_id` to that business.
 
-## Changes
+The IDIA Life "Business" screen is driven entirely by `employees` (via `useBusinessMembership`, which selects rows where `user_id = auth.uid()` and `status = 'active'`). With no such row, the UI correctly falls back to "add / apply for a business" — the business record has no owner attached to it here.
 
-### 1. `src/lib/notify.ts` — honor quiet hours in the unified notify pipeline
+This is a data gap, not a code bug. The Hub app normally writes the Org Admin `employees` row after KYB; that step never ran for your account against this Supabase project.
 
-- Extend `prefsCache` to also hold `quiet_hours_enabled`, `quiet_hours_start` (e.g. `"22:00"`), `quiet_hours_end` (e.g. `"08:00"`).
-- Update `hydratePrefs()` to select those three columns and refresh them in the realtime `user_preferences` subscription (already listens for `*` events — just widen the payload mapping).
-- Add a small `isInQuietHours(now = new Date())` helper that returns true when `quiet_hours_enabled === true` and the current local `HH:MM` falls inside the window, including the wrap-around case (e.g. 22:00 → 08:00).
-- In `fire()`:
-  - Always keep writing to `notificationStore` (so the bell history is complete) unless `in_app_alerts` is already off.
-  - When `isInQuietHours()` is true: **skip the sonner toast and the chime** regardless of `in_app_sounds`. Nothing pops on screen and nothing beeps.
-  - Outside quiet hours: behave exactly as today.
+## Fix
 
-### 2. `src/hooks/usePushNotifications.ts` — respect quiet hours for locally-scheduled pushes
+Insert one `employees` row so IDIA Data Inc. shows up as yours:
 
-- Before scheduling any Capacitor `LocalNotifications` or emitting an OS push through the same wrapper, read the same three preference fields (single query, cached) and no-op the schedule call when currently in the quiet window. Server-driven remote pushes (APNs/FCM) can't be blocked client-side, so this only affects locally triggered ones — good enough for the current call sites.
-- If the file doesn't already schedule local notifications, this step is skipped and only `notify.ts` needs the change.
+- `user_id`: `217c6224-d839-43b0-98cb-b4d1be267536` (edward.elam@gmail.com)
+- `business_id`: `df9d2157-e202-4623-b811-b094836d5eeb` (IDIA Data Inc.)
+- `platform_role`: `Org Admin`
+- `status`: `active`
 
-### 3. `src/components/settings/NotificationSettings.tsx` — remove Email Comms
-
-- Delete the entire `{/* 4. Email Comms */}` section (Security Alerts row, Product Updates row, Monthly Reports row).
-- Remove the now-unused `Mail` and `ShieldAlert` imports from `lucide-react`.
-- Leave the Focus Mode section untouched — its DB writes already flow through `updatePreferences` and will now actually take effect thanks to change #1.
+After the insert, reload the app — the "add a business" prompt will be replaced by IDIA Data Inc. with Org Admin controls, and `isLastOrgAdmin` will resolve to `true` until another admin is added.
 
 ## Out of scope
 
-- No schema changes. `user_preferences.quiet_hours_*` and `focus_modes` already exist and are already written to.
-- No edge function changes. `send-security-alert` keeps logging server-side events; the UI simply stops advertising email delivery it can't perform on this external-Supabase project.
-- No new email provider wiring. If you later want real security emails, we can add a Resend (or similar) connector as a follow-up.
-
-## Verification
-
-- Toggle Focus Mode on, set start/end to bracket the current time → trigger any action that fires `notify.*` (e.g. save a setting) → no toast, no chime, but the item still appears in the bell dropdown.
-- Toggle Focus Mode off → toasts and chimes resume immediately (realtime cache refresh).
-- Notification Settings screen shows only In-App Center, Push Notifications, and Focus Mode sections.
+- No schema changes.
+- No code changes to `useBusinessMembership` or the intake flow.
+- Not touching the Apple Relay or `wkomp314@gmail.com` accounts. If you also want either of those linked as Org Admin, say so and I'll add them in the same step.
+- Not migrating the `IDIA Cafe Chain` seed business.
