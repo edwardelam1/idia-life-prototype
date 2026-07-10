@@ -36,7 +36,10 @@ const SUCCESS_PHASES = new Set([
 ]);
 
 const normalize = (v?: string | null) =>
-  (v || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  (v || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
 
 const SuccessfulProposalsList: React.FC<Props> = ({ balance, votingPower, refreshTrigger = 0 }) => {
   const [open, setOpen] = useState(false);
@@ -53,7 +56,9 @@ const SuccessfulProposalsList: React.FC<Props> = ({ balance, votingPower, refres
       const s = stage("SUCCESSFUL_PROPOSALS", "FETCH_HYBRID");
       s.start();
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
         if (alive) setUserId(user?.id ?? null);
 
         if (user && alive) {
@@ -69,14 +74,14 @@ const SuccessfulProposalsList: React.FC<Props> = ({ balance, votingPower, refres
 
         const dbProposals = await (supabase as any)
           .from("dao_proposals")
-          .select("id, title, description, status, proposer_id, on_chain_id, lifecycle_phase, created_at, end_date, committee_id")
+          .select(
+            "id, title, description, status, proposer_id, on_chain_id, lifecycle_phase, created_at, end_date, committee_id",
+          )
           .order("created_at", { ascending: false });
         if (dbProposals.error) throw dbProposals.error;
 
         await delay(400);
-        const onChainProposals = await governanceService
-          .getRecentProposals(user?.id || "")
-          .catch(() => []);
+        const onChainProposals = await governanceService.getRecentProposals(user?.id || "").catch(() => []);
         const indexedById = new Map<string, ProposalOnChain>(
           onChainProposals.map((p): [string, ProposalOnChain] => [p.proposalId, p]),
         );
@@ -129,11 +134,21 @@ const SuccessfulProposalsList: React.FC<Props> = ({ balance, votingPower, refres
               const cs = await readChainState(p.on_chain_id);
               return [p.proposal_ref, cs] as const;
             } catch {
-              return [p.proposal_ref, p.indexed_state != null ? {
-                snapshotBlock: null, deadlineBlock: null, currentBlock: null,
-                quorum: 0, forVotes: 0, againstVotes: 0, abstainVotes: 0,
-                state: p.indexed_state,
-              } : null] as const;
+              return [
+                p.proposal_ref,
+                p.indexed_state != null
+                  ? {
+                      snapshotBlock: null,
+                      deadlineBlock: null,
+                      currentBlock: null,
+                      quorum: 0,
+                      forVotes: 0,
+                      againstVotes: 0,
+                      abstainVotes: 0,
+                      state: p.indexed_state,
+                    }
+                  : null,
+              ] as const;
             }
           }),
         );
@@ -141,14 +156,16 @@ const SuccessfulProposalsList: React.FC<Props> = ({ balance, votingPower, refres
         const map = new Map<string, ChainState>();
         for (const [ref, cs] of entries) if (cs) map.set(ref, cs);
 
-        const successful = combined.filter((p) => {
-          const cs = map.get(p.proposal_ref);
-          if (cs?.state != null && SUCCESS_STATES.has(cs.state)) return true;
-          // DB-only or unresolved chain read — trust DB phase markers.
-          const phaseMatch = SUCCESS_PHASES.has(normalize(p.lifecycle_phase))
-            || SUCCESS_PHASES.has(normalize(p.status));
-          return phaseMatch;
-        }).sort((a, b) => sortByGovernanceOrder(a, b, map));
+        const successful = combined
+          .filter((p) => {
+            const cs = map.get(p.proposal_ref);
+            if (cs?.state != null && SUCCESS_STATES.has(cs.state)) return true;
+            // DB-only or unresolved chain read — trust DB phase markers.
+            const phaseMatch =
+              SUCCESS_PHASES.has(normalize(p.lifecycle_phase)) || SUCCESS_PHASES.has(normalize(p.status));
+            return phaseMatch;
+          })
+          .sort((a, b) => sortByGovernanceOrder(a, b, map));
 
         if (alive) {
           setChainStates(map);
@@ -162,7 +179,9 @@ const SuccessfulProposalsList: React.FC<Props> = ({ balance, votingPower, refres
         if (alive) setLoading(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [refreshTrigger]);
 
   if (loading) {
@@ -183,7 +202,7 @@ const SuccessfulProposalsList: React.FC<Props> = ({ balance, votingPower, refres
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
             <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">
-              Archive · Successful Quorum Reached
+              Archive · Quorum Reached
             </span>
             <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-100 dark:text-emerald-200 dark:bg-emerald-900/40 px-2 py-0.5 rounded-full">
               {proposals.length}
@@ -204,7 +223,9 @@ const SuccessfulProposalsList: React.FC<Props> = ({ balance, votingPower, refres
             currentUserId={userId}
             ascensionLevel={ascensionLevel}
             initialChainState={chainStates.get(prop.proposal_ref)}
-            onChanged={() => { /* terminal — historical record */ }}
+            onChanged={() => {
+              /* terminal — historical record */
+            }}
           />
         ))}
       </CollapsibleContent>
