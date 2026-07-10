@@ -82,6 +82,7 @@ const ArchiveProposalsList: React.FC<Props> = ({ balance, votingPower, refreshTr
             on_chain_id: r.on_chain_id ?? null,
             lifecycle_phase: indexed?.stateName ?? r.lifecycle_phase ?? null,
             created_at: r.created_at ?? null,
+            end_date: r.end_date ?? null,
             indexed_state: indexed?.state ?? null,
           };
         });

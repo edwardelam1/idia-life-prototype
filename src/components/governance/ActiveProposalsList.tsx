@@ -1704,6 +1704,7 @@ const ActiveProposalsList: React.FC<{
             on_chain_id: r.on_chain_id ?? null,
             lifecycle_phase: indexed?.stateName ?? r.lifecycle_phase ?? null,
             created_at: r.created_at ?? null,
+            end_date: r.end_date ?? null,
             indexed_state: indexed?.state ?? null,
             proposal_targets: r.proposal_targets ?? indexed?.targets ?? null,
             proposal_values: r.proposal_values ?? indexed?.values ?? null,
