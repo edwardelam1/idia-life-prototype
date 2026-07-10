@@ -39,9 +39,9 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
       gradient: "from-emerald-600 to-green-600",
     },
     {
-      title: "Fairer Credit",
+      title: "Advances Like the Music Industry",
       description:
-        "Access capital based on your IDIA Trust Score™. Get rewarded for positive ecosystem participation, not just credit history.",
+        "Access capital based on your spending and communal behavior. Get rewarded for positive ecosystem participation, not credit history.",
       gradient: "from-green-600 to-teal-600",
     },
   ];
