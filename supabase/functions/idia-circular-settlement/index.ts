@@ -2,8 +2,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.7";
 import { privateKeyToAccount } from "https://esm.sh/viem@2.9.20/accounts";
 import { base } from "https://esm.sh/viem@2.9.20/chains";
-import { createWalletClient, http, parseUnits, publicActions, encodeFunctionData } from "https://esm.sh/viem@2.9.20";
+import { createWalletClient, http, parseUnits, publicActions } from "https://esm.sh/viem@2.9.20";
 
+// Supabase Edge Runtime global — not in Deno's stdlib type defs. Provides
+// post-response background execution via waitUntil().
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
 
 // ══════════════════════════════════════════════════════════════════════
@@ -13,18 +15,28 @@ declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
 const REVENUE_SPLIT = { CORPORATE: 0.6, WAR_CHEST: 0.1, DATA_YIELD: 0.3 };
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
+// Network — single canonical Alchemy URL, injected exclusively via secret.
+// Hardcoded plaintext keys are forbidden in source; the function must stall
+// loudly at init if the credential is missing.
 const ALCHEMY_BASE_RPC_URL = Deno.env.get("ALCHEMY_BASE_RPC_URL");
 if (!ALCHEMY_BASE_RPC_URL) {
   console.error(`[FATAL STALL: INIT] Missing ALCHEMY_BASE_RPC_URL.`);
   throw new Error("Missing RPC credentials.");
 }
 
+// Protocol contracts — Base Mainnet (mirrors src/config/contracts.ts)
 const REGISTRY_ADDRESS = "0x137D913d89d0D6a5b2d1Db76173770C94d25387B";
 const POOL_FACTORY_ADDRESS = "0x0188FCB027D834E03DD0288D360937ceC4d267bb";
+const ESCROW_ECOSYSTEM = "0xDc93eca954fD2625001b2fb9E9A098914365ADe9";
+// Wallet-as-Source-of-Truth: when location is null/blank, route to the DAO Safe
+// (Global War Chest). Funds remain in cryptographically-verifiable governance custody
+// even if the database goes dark.
 const GLOBAL_WAR_CHEST = "0x0910EF34C9F59A90d90FF505B1036DEed4a25d59";
 
+// USDC on Base Mainnet
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-const IDIA_TOKEN_ADDRESS = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
+
+// System wallets
 const SYSTEM_CASH_REGISTER = "0x649436db4d9352240d1132d9372293e5cc6af0e3";
 
 // ══════════════════════════════════════════════════════════════════════
@@ -41,13 +53,6 @@ const ERC20_ABI = [
       { name: "value", type: "uint256" },
     ],
     outputs: [{ name: "", type: "bool" }],
-  },
-  {
-    name: "decimals",
-    type: "function",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "uint8" }],
   },
 ] as const;
 
@@ -78,6 +83,20 @@ const POOL_FACTORY_ABI = [
   },
 ] as const;
 
+const ESCROW_ABI = [
+  {
+    name: "proposeDistribution",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "recipient", type: "address" },
+      { name: "amount", type: "uint256" },
+      { name: "reason", type: "string" },
+    ],
+    outputs: [{ name: "proposalId", type: "uint256" }],
+  },
+] as const;
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -85,6 +104,8 @@ const corsHeaders = {
 
 // ══════════════════════════════════════════════════════════════════════
 // PLANCK-SCALE ATOMIC EXECUTOR
+// Replaces viem's writeContract wrapper to expose every micro-op
+// (Nonce → Simulate → Prepare → Sign → Broadcast) for sequencer diagnostics.
 // ══════════════════════════════════════════════════════════════════════
 async function executePlanckScaleTransaction(
   client: any,
@@ -94,75 +115,50 @@ async function executePlanckScaleTransaction(
   funcName: string,
   args: any[],
   stepName: string,
-  initialNonce: number,
 ): Promise<{ txHash: `0x${string}`; nonce: number }> {
-  let currentTryNonce = initialNonce;
-  const maxRetries = 5;
+  console.info(`[BEGIN: ${stepName}.Planck.NonceCheck] Interrogating RPC for pending state...`);
+  const nextNonce = await client.getTransactionCount({ address: account.address, blockTag: "pending" });
+  console.info(`[END: ${stepName}.Planck.NonceCheck] Sequencer assigned Nonce: ${nextNonce}`);
 
-  // Manually encode the ABI data to guarantee payload integrity
-  const txData = encodeFunctionData({ abi, functionName: funcName, args });
+  console.info(`[BEGIN: ${stepName}.Planck.Simulate] Executing dry-run simulation on EVM...`);
+  const { request } = await client.simulateContract({
+    account,
+    address: contractAddress as `0x${string}`,
+    abi,
+    functionName: funcName,
+    args,
+  });
+  console.info(`[END: ${stepName}.Planck.Simulate] Simulation successful. No reverts detected.`);
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.info(`[BEGIN: ${stepName}.Planck.Simulate] Executing dry-run simulation on EVM...`);
+  console.info(`[BEGIN: ${stepName}.Planck.Prepare] Constructing raw transaction payload...`);
+  const preparedTx = await client.prepareTransactionRequest({
+    ...request,
+    nonce: nextNonce,
+  });
+  console.info(`[END: ${stepName}.Planck.Prepare] Payload constructed. Gas Limit: ${preparedTx.gas}`);
 
-      // We still simulate to catch smart contract logic errors (like insufficient balance)
-      await client.simulateContract({
-        account,
-        address: contractAddress as `0x${string}`,
-        abi,
-        functionName: funcName,
-        args,
-      });
+  console.info(`[BEGIN: ${stepName}.Planck.Sign] Applying cryptographic signature...`);
+  const signedTx = await account.signTransaction(preparedTx);
+  console.info(`[END: ${stepName}.Planck.Sign] Signature applied securely.`);
 
-      console.info(
-        `[BEGIN: ${stepName}.Planck.Prepare] Constructing raw transaction payload (Nonce: ${currentTryNonce})...`,
-      );
-
-      // EXPLICITLY map "to" and "data" to prevent EVM from deploying empty contracts
-      const preparedTx = await client.prepareTransactionRequest({
-        account,
-        to: contractAddress as `0x${string}`,
-        data: txData,
-        nonce: currentTryNonce,
-      });
-
-      console.info(`[BEGIN: ${stepName}.Planck.Sign] Applying cryptographic signature...`);
-      const signedTx = await account.signTransaction(preparedTx);
-
-      console.info(`[BEGIN: ${stepName}.Planck.Broadcast] Injecting raw payload to Base mempool...`);
-      const txHash = await client.sendRawTransaction({ serializedTransaction: signedTx });
-
-      console.info(`[END: ${stepName}.Planck.Broadcast] Mempool accepted payload. Hash: ${txHash}`);
-      return { txHash, nonce: currentTryNonce };
-    } catch (error: any) {
-      const msg = error.message?.toLowerCase() || "";
-      const isMempoolCollision =
-        msg.includes("nonce") ||
-        msg.includes("already known") ||
-        msg.includes("in-flight") ||
-        msg.includes("underpriced") ||
-        msg.includes("replacement");
-
-      if (isMempoolCollision && attempt < maxRetries) {
-        console.warn(`[RETRY: ${stepName}] Mempool collision detected. Suppressing error.`);
-        const jitterMs = Math.floor(Math.random() * 2500) + 1000;
-        await new Promise((res) => setTimeout(res, jitterMs));
-        currentTryNonce = await client.getTransactionCount({ address: account.address, blockTag: "pending" });
-        continue;
-      }
-
-      console.error(`[BEGIN: ${stepName}.Planck.FatalDump]`);
-      console.error(`🚨 [FATAL STALL: ${stepName}] Sequencer violently rejected payload injection.`);
-      console.error(`[DIAGNOSTIC] Attempted Nonce: ${currentTryNonce} | Target: ${contractAddress}`);
-      console.error(`[DIAGNOSTIC] Raw Error: ${error.message}`);
-      console.error(`[END: ${stepName}.Planck.FatalDump]`);
-      throw error;
-    }
+  console.info(`[BEGIN: ${stepName}.Planck.Broadcast] Injecting raw payload to Base mempool...`);
+  try {
+    const txHash = await client.sendRawTransaction({ serializedTransaction: signedTx });
+    console.info(`[END: ${stepName}.Planck.Broadcast] Mempool accepted payload. Hash: ${txHash}`);
+    return { txHash, nonce: nextNonce };
+  } catch (broadcastError: any) {
+    console.error(`[BEGIN: ${stepName}.Planck.FatalDump]`);
+    console.error(`🚨 [FATAL STALL: ${stepName}] Sequencer violently rejected payload injection.`);
+    console.error(
+      `[DIAGNOSTIC] Attempted Nonce: ${nextNonce} | Target: ${contractAddress} | Args: ${JSON.stringify(args)}`,
+    );
+    console.error(`[DIAGNOSTIC] Raw Error: ${broadcastError.message}`);
+    console.error(`[END: ${stepName}.Planck.FatalDump]`);
+    throw broadcastError;
   }
-  throw new Error("Planck Execution failed to return after retry loop.");
 }
 
+// Brief mempool clear between sequential transactions in the same execution.
 async function forceSequencerDelay(ms = 3500): Promise<void> {
   console.info(`[BEGIN: Sequencer.Delay] Pausing ${ms}ms to clear mempool...`);
   await new Promise((resolve) => setTimeout(resolve, ms));
@@ -170,29 +166,121 @@ async function forceSequencerDelay(ms = 3500): Promise<void> {
 }
 
 // ══════════════════════════════════════════════════════════════════════
+// LEDGER INSERT WITH BOUNDED RETRY + REPAIR-QUEUE FALLBACK
+// After a successful on-chain transfer, the ledger row MUST land or be
+// deferred to the repair queue. Silent swallowing = missing balances.
+// ══════════════════════════════════════════════════════════════════════
+async function insertLedgerWithRepair(
+  supabase: any,
+  opts: {
+    reference_id: string;
+    user_id: string;
+    phase: string;
+    blockchain_tx_hash: string | null;
+    row: Record<string, unknown>;
+  },
+): Promise<void> {
+  const maxAttempts = 3;
+  let lastError: any = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const { error } = await supabase.from("synapse_credit_ledger").insert(opts.row);
+      if (!error) return;
+      lastError = error;
+    } catch (err) {
+      lastError = err;
+    }
+    if (attempt < maxAttempts) {
+      await new Promise((r) => setTimeout(r, 250 * Math.pow(2, attempt - 1)));
+    }
+  }
+  console.error(
+    `[LEDGER FAILURE] ref=${opts.reference_id} user=${opts.user_id} phase=${opts.phase} tx=${opts.blockchain_tx_hash} :: ${lastError?.message ?? String(lastError)}`,
+  );
+  try {
+    await supabase.from("settlement_ledger_repair_queue").insert({
+      reference_id: opts.reference_id,
+      user_id: opts.user_id,
+      phase: opts.phase,
+      blockchain_tx_hash: opts.blockchain_tx_hash,
+      error: lastError?.message ?? String(lastError),
+      payload: opts.row,
+    });
+  } catch (repairErr: any) {
+    console.error(`[REPAIR QUEUE FAILURE] Unable to queue ledger repair: ${repairErr?.message ?? repairErr}`);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
 // 3. MAIN EXECUTION HANDLER
 // ══════════════════════════════════════════════════════════════════════
+
+// Background settlement executor. Runs after the HTTP 202 has been flushed
+// to the caller via EdgeRuntime.waitUntil(). All errors are contained here —
+// nothing must escape this function or it can crash the Edge isolate.
 async function executeSettlement(payoutData: any, runCorrelationId: string): Promise<void> {
   let currentStep = "INIT";
+  let queueSupabase: any = null;
+  let queueRefId: string | null = null;
+  const skippedContributors: Array<{ user_id: string; reason: string }> = [];
+  let queueFinalStatus: "completed" | "partial" | "failed" = "completed";
+  let queueFinalError: string | null = null;
   try {
     console.info(`[BEGIN: circular-settlement] Pulse detected. runId=${runCorrelationId} ts=${Date.now()}`);
 
     currentStep = "SUPABASE_CLIENT_INIT";
+    console.info(`[BEGIN: ${currentStep}] Instantiating Supabase client payload...`);
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!supabaseUrl || !supabaseKey) {
+      console.error(
+        `[FATAL STALL: ${currentStep}] Missing environment variables for DB transport. Cannot construct client. ` +
+          `SUPABASE_URL_present=${!!supabaseUrl} SUPABASE_SERVICE_ROLE_KEY_present=${!!supabaseKey}`,
+      );
       throw new Error("Missing database connection credentials.");
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    let supabase;
+    try {
+      supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
+      queueSupabase = supabase;
+      console.info(`[END: ${currentStep}] Supabase client instantiated successfully.`);
+    } catch (clientErr: any) {
+      console.error(`[FATAL STALL: ${currentStep}] Failed to initialize Supabase client: ${clientErr.message}`);
+      throw clientErr;
+    }
 
     currentStep = "EXTRACTING_PAYLOAD";
     const { total_fiat_amount, buyer_id, contributing_users, payment_reference, location_string } = payoutData;
 
+    // Null vs orphaned location distinction:
+    //   - missing/blank  → no location intent → route to GLOBAL_WAR_CHEST
+    //   - present string → real location → resolve via Registry; if zero, deploy a new pool
     const hasLocation = typeof location_string === "string" && location_string.trim().length > 0;
     const executionLocation = hasLocation ? location_string.trim() : null;
     const ingestionReference = payment_reference || `SYN-${crypto.randomUUID().slice(0, 8)}`;
+    queueRefId = ingestionReference;
+
+    // Stamp attempt counter on the settlement_queue row BEFORE any chain work.
+    try {
+      const { data: existing } = await supabase
+        .from("settlement_queue")
+        .select("attempts")
+        .eq("reference_id", ingestionReference)
+        .maybeSingle();
+      const nextAttempts = ((existing?.attempts as number | undefined) ?? 0) + 1;
+      await supabase
+        .from("settlement_queue")
+        .update({
+          attempts: nextAttempts,
+          last_attempt_at: new Date().toISOString(),
+          status: "processing",
+        })
+        .eq("reference_id", ingestionReference);
+    } catch (stampErr: any) {
+      console.error(`[WARNING: QueueStamp] Could not stamp queue row for ${ingestionReference}: ${stampErr?.message}`);
+    }
 
     currentStep = "CONFIGURING_BLOCKCHAIN";
     const rawKey = Deno.env.get("RELAYER_PRIVATE_KEY");
@@ -201,26 +289,29 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
     const account = privateKeyToAccount(formattedKey as `0x${string}`);
 
     const activeRpcUrl = ALCHEMY_BASE_RPC_URL;
+    console.log(`[REGIONAL_ROUTING][TRANSPORT_BINDING] Launching wallet client via injected RPC secret.`);
+
     const client = createWalletClient({
       account,
       chain: base,
       transport: http(activeRpcUrl),
     }).extend(publicActions);
 
+    // Hard-mainnet enforcement: confirm RPC actually returns Base Mainnet chain ID (8453).
     const resolvedChainId = await client.getChainId();
+    console.info(`[DIAGNOSTIC: Network] Resolved chain ID: ${resolvedChainId}`);
     if (resolvedChainId !== 8453) {
-      throw new Error(`CRITICAL: Expected Base Mainnet chain ID 8453, got ${resolvedChainId}. Settlement halted.`);
+      throw new Error(
+        `CRITICAL: Active RPC route (${activeRpcUrl}) is not Base Mainnet. Expected chain ID 8453, got ${resolvedChainId}. Settlement halted.`,
+      );
     }
-
-    currentStep = "NONCE_INITIALIZATION";
-    let currentNonce = await client.getTransactionCount({ address: account.address, blockTag: "pending" });
-    console.info(`[NONCE_SYNC] Base Mainnet assigned starting nonce: ${currentNonce}`);
 
     // PHASE 1: CORPORATE SETTLEMENT (60%)
     currentStep = "PHASE_1_CORPORATE_SETTLEMENT";
     const corporateRevenue = total_fiat_amount * REVENUE_SPLIT.CORPORATE;
 
-    const corporateResult = await executePlanckScaleTransaction(
+    console.info(`[BEGIN: Phase_1_Corporate.Transfer] amount=${corporateRevenue}`);
+    const { txHash: corporateHash } = await executePlanckScaleTransaction(
       client,
       account,
       USDC_ADDRESS,
@@ -228,26 +319,30 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
       "transfer",
       [SYSTEM_CASH_REGISTER, parseUnits(corporateRevenue.toFixed(6), 6)],
       "Phase_1_Corporate",
-      currentNonce,
     );
-    currentNonce = corporateResult.nonce + 1;
-    const corporateHash = corporateResult.txHash;
-
+    console.info(
+      `[STATUS: Phase_1_Corporate.Transfer] TX Broadcasted. Hash: ${corporateHash}. Awaiting network confirmation...`,
+    );
     const corporateReceipt = await client.waitForTransactionReceipt({ hash: corporateHash, confirmations: 1 });
     if (corporateReceipt.status === "success") {
+      console.info(`[END: Phase_1_Corporate.Transfer] Transfer successful. Block: ${corporateReceipt.blockNumber}`);
       await forceSequencerDelay();
     } else {
-      throw new Error(`[FATAL STALL] Phase 1 Corporate Transfer REVERTED on-chain. Hash: ${corporateHash}`);
+      console.error(`[ERROR: Phase_1_Corporate.Transfer] Transaction reverted on-chain. Hash: ${corporateHash}`);
     }
 
-    // PHASE 2: REGIONAL ROUTING (10%)
+    // PHASE 2: REGIONAL ROUTING (10%) — Wallet-as-Source-of-Truth
     currentStep = "PHASE_2_REGIONAL_ROUTING";
     const regionalRevenue = total_fiat_amount * REVENUE_SPLIT.WAR_CHEST;
 
     let finalRegionalAddress: string = GLOBAL_WAR_CHEST;
-    let routingMode: string = "war_chest_null";
+    let routingMode: "war_chest_null" | "existing_pool" | "deployed_pool" | "war_chest_fallback" = "war_chest_null";
 
-    if (hasLocation) {
+    if (!hasLocation) {
+      console.info(`[ROUTING] location_string is null/blank → GLOBAL_WAR_CHEST ${GLOBAL_WAR_CHEST}`);
+      routingMode = "war_chest_null";
+    } else {
+      console.info(`[BEGIN: Registry.getPoolByLocation] location=${executionLocation}`);
       let poolTarget: string | undefined;
       try {
         poolTarget = await client.readContract({
@@ -256,51 +351,60 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
           functionName: "getPoolByLocation",
           args: [executionLocation as string],
         });
+        console.info(`[END: Registry.getPoolByLocation] resolved=${poolTarget}`);
       } catch (routingError: any) {
-        console.error(`[WARNING: Registry lookup failed]: ${routingError.message}`);
+        console.error(
+          `[WARNING: Registry.getPoolByLocation] lookup failed for ${executionLocation}: ${routingError.message}`,
+        );
       }
 
       if (poolTarget && poolTarget !== ZERO_ADDRESS) {
         finalRegionalAddress = poolTarget;
         routingMode = "existing_pool";
+        console.info(`[ROUTING] existing pool for ${executionLocation} → ${finalRegionalAddress}`);
       } else {
+        // Orphaned but valid location → mint a new pool via PoolFactory
+        console.info(`[BEGIN: PoolFactory.deployPool] location=${executionLocation} — orphan detected, minting pool`);
         try {
-          const deployResult = await executePlanckScaleTransaction(
-            client,
+          const deployHash = await client.writeContract({
+            address: POOL_FACTORY_ADDRESS,
+            abi: POOL_FACTORY_ABI,
+            functionName: "deployPool",
+            args: [executionLocation as string],
             account,
-            POOL_FACTORY_ADDRESS,
-            POOL_FACTORY_ABI,
-            "deployPool",
-            [executionLocation as string],
-            "Phase_2_Regional.DeployPool",
-            currentNonce,
-          );
-          currentNonce = deployResult.nonce + 1;
-
-          const deployReceipt = await client.waitForTransactionReceipt({ hash: deployResult.txHash, confirmations: 1 });
+          });
+          console.info(`[STATUS: PoolFactory.deployPool] TX Broadcasted. Hash: ${deployHash}.`);
+          const deployReceipt = await client.waitForTransactionReceipt({ hash: deployHash, confirmations: 1 });
           if (deployReceipt.status !== "success") {
-            throw new Error(`deployPool REVERTED on-chain (${deployResult.txHash})`);
+            throw new Error(`deployPool reverted (${deployHash})`);
           }
-
+          // Re-resolve from factory to capture the freshly minted address
           const minted = await client.readContract({
             address: POOL_FACTORY_ADDRESS,
             abi: POOL_FACTORY_ABI,
             functionName: "getPool",
             args: [executionLocation as string],
           });
-          if (!minted || minted === ZERO_ADDRESS) throw new Error(`getPool zero post-deploy`);
-
+          if (!minted || minted === ZERO_ADDRESS) {
+            throw new Error(`getPool returned zero post-deploy for ${executionLocation}`);
+          }
           finalRegionalAddress = minted as string;
           routingMode = "deployed_pool";
+          console.info(`[END: PoolFactory.deployPool] minted ${finalRegionalAddress} for ${executionLocation}`);
         } catch (deployError: any) {
-          console.error(`[WARNING: DeployPool failed] — falling back to WAR_CHEST`);
+          console.error(
+            `[WARNING: PoolFactory.deployPool] failed for ${executionLocation}: ${deployError.message} — falling back to GLOBAL_WAR_CHEST`,
+          );
           finalRegionalAddress = GLOBAL_WAR_CHEST;
           routingMode = "war_chest_fallback";
         }
       }
     }
 
-    const regionalResult = await executePlanckScaleTransaction(
+    console.info(
+      `[BEGIN: Phase_2_Regional.Transfer] amount=${regionalRevenue} target=${finalRegionalAddress} mode=${routingMode}`,
+    );
+    const { txHash: regionalHash } = await executePlanckScaleTransaction(
       client,
       account,
       USDC_ADDRESS,
@@ -308,70 +412,64 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
       "transfer",
       [finalRegionalAddress as `0x${string}`, parseUnits(regionalRevenue.toFixed(6), 6)],
       "Phase_2_Regional",
-      currentNonce,
     );
-    currentNonce = regionalResult.nonce + 1;
-    const regionalHash = regionalResult.txHash;
-
+    console.info(
+      `[STATUS: Phase_2_Regional.Transfer] TX Broadcasted. Hash: ${regionalHash}. Awaiting network confirmation...`,
+    );
     const regionalReceipt = await client.waitForTransactionReceipt({ hash: regionalHash, confirmations: 1 });
     if (regionalReceipt.status === "success") {
+      console.info(`[END: Phase_2_Regional.Transfer] Transfer successful. Block: ${regionalReceipt.blockNumber}`);
       await forceSequencerDelay();
     } else {
-      throw new Error(`[FATAL STALL] Phase 2 Regional Transfer REVERTED on-chain. Hash: ${regionalHash}`);
+      console.error(`[ERROR: Phase_2_Regional.Transfer] Transaction reverted on-chain. Hash: ${regionalHash}`);
     }
 
-    // LEDGER HYDRATION - Corporate & Regional
+    // LEDGER HYDRATION (with retry + repair-queue fallback)
     await Promise.all([
-      supabase.from("synapse_credit_ledger").insert({
+      insertLedgerWithRepair(supabase, {
+        reference_id: ingestionReference,
         user_id: buyer_id,
-        amount: corporateRevenue,
-        entry_type: "revenue",
-        transaction_type: "HUB_PROTOCOL_FEE",
-        status: "completed",
+        phase: "corporate_fee",
         blockchain_tx_hash: corporateHash,
-        is_settled: true,
-        settled_at: new Date().toISOString(),
-        description: `60% Corporate Revenue: ${ingestionReference}`,
+        row: {
+          user_id: buyer_id,
+          amount: corporateRevenue,
+          entry_type: "revenue",
+          transaction_type: "HUB_PROTOCOL_FEE",
+          status: "completed",
+          blockchain_tx_hash: corporateHash,
+          is_settled: true,
+          settled_at: new Date().toISOString(),
+          description: `60% Corporate Revenue: ${ingestionReference}`,
+        },
       }),
-      supabase.from("synapse_credit_ledger").insert({
+      insertLedgerWithRepair(supabase, {
+        reference_id: ingestionReference,
         user_id: buyer_id,
-        amount: regionalRevenue,
-        entry_type: "escrow",
-        transaction_type: "ECOSYSTEM_WAR_CHEST",
-        status: "completed",
+        phase: "regional_war_chest",
         blockchain_tx_hash: regionalHash,
-        is_settled: true,
-        settled_at: new Date().toISOString(),
-        description: `10% Regional/War Chest [${routingMode} → ${finalRegionalAddress}]: ${ingestionReference}`,
+        row: {
+          user_id: buyer_id,
+          amount: regionalRevenue,
+          entry_type: "escrow",
+          transaction_type: "ECOSYSTEM_WAR_CHEST",
+          status: "completed",
+          blockchain_tx_hash: regionalHash,
+          is_settled: true,
+          settled_at: new Date().toISOString(),
+          description: `10% Regional/War Chest [${routingMode} → ${finalRegionalAddress}]: ${ingestionReference}`,
+        },
       }),
     ]);
 
-    // PHASE 3 & 5: ON-CHAIN ROYALTY (USDC) & AUTONOMOUS IDIA TOKEN AWARD
+    // PHASE 3 & 5: ON-CHAIN ROYALTY & AUTONOMOUS IDIA PROPOSAL
     currentStep = "PHASE_3_AND_5_CONTRIBUTOR_DISTRIBUTION";
-
-    let idiaDecimals = 18;
-    try {
-      const fetchedDecimals = await client.readContract({
-        address: IDIA_TOKEN_ADDRESS as `0x${string}`,
-        abi: ERC20_ABI,
-        functionName: "decimals",
-      });
-      idiaDecimals = Number(fetchedDecimals);
-      console.info(`[DIAGNOSTIC] IDIA Token Contract confirmed decimals: ${idiaDecimals}`);
-    } catch (e) {
-      console.warn(`[WARNING] Could not fetch IDIA decimals from contract, defaulting to 18.`);
-    }
-
     const totalRoyaltyPool = total_fiat_amount * REVENUE_SPLIT.DATA_YIELD;
     const perContributorYield = totalRoyaltyPool / contributing_users.length;
+    const contributorPayouts = [];
+    const idiaAwardAmount = parseUnits("1", 18);
 
-    const exactYieldAmountString = perContributorYield.toFixed(6);
-    const usdcTransferAmount = parseUnits(exactYieldAmountString, 6);
-    const idiaAwardAmount = parseUnits(exactYieldAmountString, idiaDecimals);
-
-    console.info(`[BEGIN: Phase_3_Contributor.BatchExecution] Initializing sequential transaction pipeline.`);
-    console.info(`[DIAGNOSTIC] Split configured for 1:1 match. Face Value: ${exactYieldAmountString}`);
-
+    console.info("[BEGIN: Phase_3_Contributor.BatchExecution] Initializing sequential transaction pipeline.");
     try {
       for (let i = 0; i < contributing_users.length; i++) {
         const contributor = contributing_users[i];
@@ -379,131 +477,158 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
           .from("profiles")
           .select("wallet_address")
           .eq("id", contributor.user_id)
-          .single();
+          .maybeSingle();
 
-        const lifeWallet = profile?.wallet_address || "0xc490695880992ec99885e5cdd03aafb5c63b8c33";
-
-        let yieldHash: string | null = null;
-        let idiaHash: string | null = null;
-
-        // --- STEP 1: USDC YIELD ---
-        try {
-          const yieldResult = await executePlanckScaleTransaction(
-            client,
-            account,
-            USDC_ADDRESS,
-            ERC20_ABI,
-            "transfer",
-            [lifeWallet as `0x${string}`, usdcTransferAmount],
-            `Phase_3_Contributor.Yield_USDC_${i}`,
-            currentNonce,
+        const lifeWallet = profile?.wallet_address;
+        if (!lifeWallet) {
+          console.warn(
+            `[SKIP: Batch.Item] contributor ${contributor.user_id} has no wallet_address — skipping payout to avoid misroute.`,
           );
-          currentNonce = yieldResult.nonce + 1;
-          yieldHash = yieldResult.txHash;
+          skippedContributors.push({ user_id: contributor.user_id, reason: "missing_wallet" });
+          continue;
+        }
+        console.info(`[BEGIN: Batch.Item] Processing transfer ${i + 1}/${contributing_users.length} to ${lifeWallet}`);
 
-          const yieldReceipt = await client.waitForTransactionReceipt({
-            hash: yieldHash as `0x${string}`,
-            confirmations: 1,
+        try {
+          // 1. Yield transfer (USDC)
+          const yieldHash = await client.writeContract({
+            address: USDC_ADDRESS,
+            abi: ERC20_ABI,
+            functionName: "transfer",
+            args: [lifeWallet as `0x${string}`, parseUnits(perContributorYield.toFixed(6), 6)],
+            account,
           });
-
-          if (yieldReceipt.status !== "success") {
-            throw new Error(`USDC Transfer REVERTED on-chain! Hash: ${yieldHash}`);
+          console.info(
+            `[STATUS: Batch.Item] Yield TX Broadcasted. Hash: ${yieldHash}. Awaiting network confirmation...`,
+          );
+          const yieldReceipt = await client.waitForTransactionReceipt({ hash: yieldHash, confirmations: 1 });
+          if (yieldReceipt.status === "success") {
+            console.info(`[END: Batch.Item] Yield transfer successful. Block: ${yieldReceipt.blockNumber}`);
+          } else {
+            console.error(`[ERROR: Batch.Item] Yield transaction reverted on-chain. Hash: ${yieldHash}`);
           }
 
-          const { error: usdcDbError } = await supabase.from("synapse_credit_ledger").insert({
+          // 2. Royalty proposal (escrow)
+          const proposalHash = await client.writeContract({
+            address: ESCROW_ECOSYSTEM,
+            abi: ESCROW_ABI,
+            functionName: "proposeDistribution",
+            args: [
+              lifeWallet as `0x${string}`,
+              idiaAwardAmount,
+              `Automated royalty yield proposal: Ref ${ingestionReference}`,
+            ],
+            account,
+          });
+          console.info(
+            `[STATUS: Batch.Item] Proposal TX Broadcasted. Hash: ${proposalHash}. Awaiting network confirmation...`,
+          );
+          const proposalReceipt = await client.waitForTransactionReceipt({ hash: proposalHash, confirmations: 1 });
+          if (proposalReceipt.status === "success") {
+            console.info(`[END: Batch.Item] Proposal successful. Block: ${proposalReceipt.blockNumber}`);
+          } else {
+            console.error(`[ERROR: Batch.Item] Proposal reverted on-chain. Hash: ${proposalHash}`);
+          }
+
+          // 3. Ledger insert
+          const yieldStatus = yieldReceipt.status === "success" ? "completed" : "failed";
+          await insertLedgerWithRepair(supabase, {
+            reference_id: ingestionReference,
             user_id: contributor.user_id,
-            amount: perContributorYield,
-            entry_type: "deposit",
-            transaction_type: "data_sale_payout",
-            status: "completed",
+            phase: "contributor_yield",
             blockchain_tx_hash: yieldHash,
-            is_settled: true,
-            settled_at: new Date().toISOString(),
-            description: `Pro-rata USDC yield for Ref: ${ingestionReference}`,
+            row: {
+              user_id: contributor.user_id,
+              amount: perContributorYield,
+              entry_type: "deposit",
+              transaction_type: "data_sale_payout",
+              status: yieldStatus,
+              blockchain_tx_hash: yieldHash,
+              is_settled: true,
+              settled_at: new Date().toISOString(),
+              description: `Pro-rata yield for Ref: ${ingestionReference}`,
+            },
           });
 
-          if (usdcDbError) {
-            console.error(`[FATAL STALL: DB] Supabase violently rejected USDC ledger insert: ${usdcDbError.message}`);
-          } else {
-            console.info(`[SUCCESS] USDC Database Ledger updated for ${lifeWallet}`);
-          }
-        } catch (usdcError: any) {
-          console.error(
-            `[FATAL STALL: Batch.Item.USDC] Failed executing USDC transfer for ${lifeWallet}: ${usdcError.message}`,
-          );
-        }
-
-        // --- STEP 2: IDIA MATCH ---
-        try {
-          const idiaResult = await executePlanckScaleTransaction(
-            client,
-            account,
-            IDIA_TOKEN_ADDRESS,
-            ERC20_ABI,
-            "transfer",
-            [lifeWallet as `0x${string}`, idiaAwardAmount],
-            `Phase_5_Contributor.Yield_IDIA_${i}`,
-            currentNonce,
-          );
-          currentNonce = idiaResult.nonce + 1;
-          idiaHash = idiaResult.txHash;
-
-          const idiaReceipt = await client.waitForTransactionReceipt({
-            hash: idiaHash as `0x${string}`,
-            confirmations: 1,
+          contributorPayouts.push({
+            wallet: lifeWallet,
+            yield_hash: yieldHash,
+            proposal_hash: proposalHash,
           });
 
-          if (idiaReceipt.status !== "success") {
-            throw new Error(`IDIA Transfer REVERTED on-chain! Hash: ${idiaHash}`);
-          }
-
-          const { error: idiaDbError } = await supabase.from("synapse_credit_ledger").insert({
+          // 4. RPC rate-limit buffer
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        } catch (txError: any) {
+          console.info(`[BEGIN: Batch.Item.Error]`);
+          console.error(`[FATAL STALL: Batch.Item] Failed executing transfer for ${lifeWallet}: ${txError.message}`);
+          console.info(`[END: Batch.Item.Error]`);
+          skippedContributors.push({
             user_id: contributor.user_id,
-            amount: perContributorYield,
-            entry_type: "deposit",
-            transaction_type: "data_sale_payout",
-            status: "completed",
-            blockchain_tx_hash: idiaHash,
-            is_settled: true,
-            settled_at: new Date().toISOString(),
-            description: `1:1 IDIA Token Match for Ref: ${ingestionReference}`,
+            reason: `tx_error: ${txError?.message ?? "unknown"}`,
           });
-
-          if (idiaDbError) {
-            console.error(`[FATAL STALL: DB] Supabase violently rejected IDIA ledger insert: ${idiaDbError.message}`);
-          } else {
-            console.info(`[SUCCESS] IDIA Database Ledger updated for ${lifeWallet}`);
-          }
-        } catch (idiaError: any) {
-          console.error(
-            `[FATAL STALL: Batch.Item.IDIA] Failed executing IDIA transfer for ${lifeWallet}: ${idiaError.message}`,
-          );
+          continue;
         }
-
-        await new Promise((resolve) => setTimeout(resolve, 500));
       }
+      console.info("[END: Phase_3_Contributor.BatchExecution] Pipeline cleared.");
     } catch (globalError: any) {
       console.error(`[FATAL STALL: Phase_3_Contributor.Global] ${globalError.message}`);
+      queueFinalError = globalError?.message ?? String(globalError);
     }
 
-    console.info(`[COMPLETE: circular-settlement] runId=${runCorrelationId}`);
+    console.info(
+      `[COMPLETE: circular-settlement] runId=${runCorrelationId} corporateHash=${corporateHash} regionalHash=${regionalHash} regionalTarget=${finalRegionalAddress} mode=${routingMode} payouts=${contributorPayouts.length}`,
+    );
+
+    if (contributorPayouts.length === 0 && contributing_users.length > 0) {
+      queueFinalStatus = "failed";
+    } else if (skippedContributors.length > 0) {
+      queueFinalStatus = "partial";
+    } else {
+      queueFinalStatus = "completed";
+    }
   } catch (error: any) {
+    // Containment: never let an exception escape the background worker.
     console.error(`🚨 [FATAL STALL: ${currentStep}] runId=${runCorrelationId} :: ${error?.message ?? String(error)}`);
+    if (error?.stack) console.error(`[STACK] ${error.stack}`);
+    queueFinalStatus = "failed";
+    queueFinalError = error?.message ?? String(error);
+  } finally {
+    if (queueSupabase && queueRefId) {
+      try {
+        await queueSupabase
+          .from("settlement_queue")
+          .update({
+            status: queueFinalStatus,
+            completed_at: new Date().toISOString(),
+            last_error: queueFinalError,
+            skipped_contributors: skippedContributors.length > 0 ? skippedContributors : null,
+          })
+          .eq("reference_id", queueRefId);
+      } catch (writeBackErr: any) {
+        console.error(`[WARNING: QueueWriteBack] ${writeBackErr?.message ?? writeBackErr}`);
+      }
+    }
   }
 }
 
+// Fire-and-Forget HTTP handler.
+//   1. Validate payload synchronously.
+//   2. Return 202 Accepted immediately (<100ms target).
+//   3. Hand the 30-second Planck-scale settlement to EdgeRuntime.waitUntil().
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   let payoutData: any;
   try {
     const rawBody = await req.json();
+    // Unwrap Postgres database-webhook envelope ({ type, table, record, ... });
+    // fall back to raw body for direct/manual invocations.
     payoutData =
       rawBody && typeof rawBody === "object" && rawBody.record && rawBody.record.payload
         ? rawBody.record.payload
         : rawBody;
   } catch (_e) {
-    return new Response(JSON.stringify({ error: "Invalid JSON body." }), {
+    return new Response(JSON.stringify({ error: "Invalid JSON body.", failed_at: "VALIDATING_INPUTS" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -511,25 +636,30 @@ serve(async (req: Request) => {
 
   const { total_fiat_amount, contributing_users } = payoutData ?? {};
   if (!total_fiat_amount || total_fiat_amount <= 0) {
-    return new Response(JSON.stringify({ error: "Invalid total_fiat_amount." }), { status: 400, headers: corsHeaders });
+    return new Response(JSON.stringify({ error: "Invalid total_fiat_amount.", failed_at: "VALIDATING_INPUTS" }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
   if (!contributing_users || !Array.isArray(contributing_users) || contributing_users.length === 0) {
-    return new Response(JSON.stringify({ error: "Missing contributing_users." }), {
+    return new Response(JSON.stringify({ error: "Missing contributing_users.", failed_at: "VALIDATING_INPUTS" }), {
       status: 400,
-      headers: corsHeaders,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   const runCorrelationId = crypto.randomUUID();
   console.info(`[ACCEPTED] circular-settlement queued. runId=${runCorrelationId} ts=${Date.now()}`);
 
+  // Hand off the heavy lifting. The HTTP response flushes immediately;
+  // EdgeRuntime keeps the worker alive until the promise resolves.
   EdgeRuntime.waitUntil(executeSettlement(payoutData, runCorrelationId));
 
   return new Response(
     JSON.stringify({
       accepted: true,
       runId: runCorrelationId,
-      message: "Settlement queued for asynchronous execution.",
+      message: "Settlement queued for asynchronous execution. Poll synapse_credit_ledger for completion.",
     }),
     { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
