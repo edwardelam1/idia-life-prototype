@@ -27,7 +27,7 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
 
   const slides = [
     {
-      title: "Earn From Your Data",
+      title: "Earn From Your Essence",
       description:
         "Transform your digital footprint into passive income. Earn USDC & IDIA Token by consensually sharing your anonymized data with trusted partners.",
       gradient: "from-teal-600 to-emerald-600",
