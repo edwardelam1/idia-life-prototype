@@ -10,6 +10,7 @@ import GovernanceScreen from "./GovernanceScreen";
 import ProScreen from "./pro/ProScreen";
 import Header from "./Header";
 import { FriendAssistantProvider } from "./FriendAssistant";
+import { walletService } from "@/services/walletService";
 import WelcomeSequence from "./life/WelcomeSequence";
 import NoWalletNudge from "./wallet/NoWalletNudge";
 import SelfDelegateEducationModal from "./wallet/SelfDelegateEducationModal";
