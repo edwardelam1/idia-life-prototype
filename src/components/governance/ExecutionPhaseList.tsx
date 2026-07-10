@@ -223,7 +223,9 @@ const ExecutionPhaseList: React.FC<Props> = ({ balance, votingPower, refreshTrig
     );
   }
 
-  if (proposals.length === 0) return null;
+  // Always render — the section stays visible so users see the archive scaffold
+  // even when no proposal is currently in the timelock/queued phase.
+
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
