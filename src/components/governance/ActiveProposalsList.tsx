@@ -199,11 +199,16 @@ export function isVotingClosed(
 
 const MOTION_DELIBERATION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * Deadline resolver for DB-only governance rows (no on-chain id, or a blank
+ * on_chain_id string). Any such row is considered expired when its end_date
+ * has passed OR when its created_at falls outside the 7-day deliberation
+ * window. Applies to motions AND legacy DB-only proposals alike.
+ */
 export function isExpiredDbMotion(
   proposal: Pick<Proposal, "on_chain_id" | "committee_id" | "created_at" | "end_date">,
 ): boolean {
-  if (proposal.on_chain_id?.trim()) return false;
-  if (!proposal.committee_id) return false;
+  if (proposal.on_chain_id && proposal.on_chain_id.trim() !== "") return false;
   if (isVotingClosed(undefined, proposal.end_date)) return true;
   if (!proposal.created_at) return false;
   const createdAt = new Date(proposal.created_at).getTime();
