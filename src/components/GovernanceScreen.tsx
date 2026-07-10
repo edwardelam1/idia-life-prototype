@@ -11,6 +11,7 @@ import ActiveProposalsList from "./governance/ActiveProposalsList";
 import LifecycleTelemetry from "./governance/LifecycleTelemetry";
 import LockedProposalsList from "./governance/LockedProposalsList";
 import ArchiveProposalsList from "./governance/ArchiveProposalsList";
+import SuccessfulProposalsList from "./governance/SuccessfulProposalsList";
 
 import MSAComplianceCard from "./governance/MSAComplianceCard";
 import TreasuryFlows from "./governance/TreasuryFlows";
@@ -140,6 +141,14 @@ const WyomingPortal: React.FC<{
         <Activity size={14} className="text-teal-600" /> Lifecycle Telemetry
       </h2>
       <LifecycleTelemetry />
+    </section>
+
+    <section className="space-y-3">
+      <SuccessfulProposalsList
+        balance={idiaBalance}
+        votingPower={votingPower}
+        refreshTrigger={refreshKey}
+      />
     </section>
 
     <section className="space-y-3">
