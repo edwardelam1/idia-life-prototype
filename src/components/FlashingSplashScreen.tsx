@@ -56,6 +56,9 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
         muted
         playsInline
         preload="auto"
+        controls={false}
+        disablePictureInPicture
+        disableRemotePlayback
         className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in"
         style={{
           opacity: phase === 'video' ? 1 : 0,
