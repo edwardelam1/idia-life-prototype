@@ -29,7 +29,7 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
     {
       title: "Earn From Your Essence",
       description:
-        "Transform your digital footprint into passive income. Earn USDC & IDIA Token by consensually sharing your anonymized data with trusted partners.",
+        "Transform your digital experience into passive income. Earn USDC & IDIA Token by consensually sharing your anonymized lifestyle with trusted partners.",
       gradient: "from-teal-600 to-emerald-600",
     },
     {
