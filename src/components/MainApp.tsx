@@ -32,6 +32,7 @@ const MainApp = () => {
 
   const { profile, loading: profileLoading } = useEnhancedProfile();
   const [isProvisioned, setIsProvisioned] = useState({ wallet: false, fbo: false });
+  const [localVaultExists, setLocalVaultExists] = useState<boolean | null>(null);
   const [showSelfDelegateEdu, setShowSelfDelegateEdu] = useState(false);
   const [selfDelegateEduAddress, setSelfDelegateEduAddress] = useState<string | null>(null);
 
