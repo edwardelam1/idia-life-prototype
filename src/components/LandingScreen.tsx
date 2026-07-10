@@ -39,9 +39,9 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
       gradient: "from-emerald-600 to-green-600",
     },
     {
-      title: "Advances Like the Music Industry",
+      title: "Avoid Debt, Take an Advance",
       description:
-        "Access capital based on your spending and communal behavior. Get rewarded for positive ecosystem participation, not credit history.",
+        "Gain access capital based on your spending and communal behavior. Get rewarded for positive ecosystem participation, not credit history.",
       gradient: "from-green-600 to-teal-600",
     },
   ];
