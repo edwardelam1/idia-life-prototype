@@ -72,17 +72,20 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
         ref={videoRef}
         src={splashVideo.url}
         autoPlay
+        defaultMuted
         muted
         playsInline
         preload="auto"
         controls={false}
         disablePictureInPicture
         disableRemotePlayback
+        poster=""
         className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in"
         style={{
-          opacity: phase === 'video' ? 1 : 0,
+          opacity: phase === 'video' && !autoplayBlocked ? 1 : 0,
         }}
       />
+
 
       {/* Logo emerging */}
       <div
