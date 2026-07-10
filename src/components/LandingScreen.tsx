@@ -97,7 +97,7 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
       </div>
 
       {/* Full-bleed carousel */}
-      <div className="absolute inset-0 overflow-hidden touch-none">
+      <div className="absolute inset-0 overflow-hidden touch-none z-0">
         <div
           className="flex transition-transform duration-500 ease-in-out h-full"
           style={{ transform: `translateX(-${currentSlide * 100}%)` }}
@@ -105,7 +105,7 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
           {slides.map((slide, index) => (
             <div
               key={index}
-              className={`min-w-full h-full flex flex-col justify-start items-center px-8 pt-28 text-center bg-gradient-to-br ${slide.gradient} relative`}
+              className={`min-w-full h-full bg-gradient-to-br ${slide.gradient} relative`}
             >
               {/* Background Pattern */}
               <div className="absolute inset-0 opacity-10">
@@ -113,13 +113,22 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
                 <div className="absolute bottom-32 right-10 w-24 h-24 rounded-full bg-white/30 blur-lg"></div>
                 <div className="absolute top-1/2 left-1/4 w-16 h-16 rounded-full bg-white/15 blur-md"></div>
               </div>
-
-              <div className="relative z-10 max-w-sm mx-auto mt-6">
-                <h1 className="text-4xl font-bold mb-4 leading-tight">{slide.title}</h1>
-                <p className="text-lg text-white/90 leading-relaxed">{slide.description}</p>
-              </div>
             </div>
           ))}
+        </div>
+
+        {/* Title Overlay */}
+        <div className="absolute top-36 bottom-1/2 left-0 right-0 z-10 flex flex-col justify-center items-center px-8 text-center">
+          <h1 className="text-4xl font-bold leading-tight max-w-sm mx-auto">
+            {slides[currentSlide].title}
+          </h1>
+        </div>
+
+        {/* Description Overlay */}
+        <div className="absolute top-1/2 bottom-44 left-0 right-0 z-10 flex flex-col justify-center items-center px-8 text-center">
+          <p className="text-lg text-white/90 leading-relaxed max-w-sm mx-auto">
+            {slides[currentSlide].description}
+          </p>
         </div>
 
         {/* Navigation Arrows */}
