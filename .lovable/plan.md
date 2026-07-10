@@ -1,27 +1,22 @@
-# Plan: Play Full Splash Video
+# Plan: Remove Play Controls from Splash Video
 
 ## Goal
-Let the uploaded rushing splash video play its entire 8-second duration before the logo emerges and the white fade-out completes.
+Ensure the rushing splash video in `FlashingSplashScreen.tsx` shows no native or browser-provided playback controls.
 
-## Current behavior
-`src/components/FlashingSplashScreen.tsx` hard-cuts the video at 3.2 seconds, then runs the existing 0.7-second logo/white tail, ending at 3.9 seconds.
+## Current state
+The `<video>` element already omits the `controls` attribute, so HTML5 controls are not rendered. To make this explicit and block native overlays (picture-in-picture, remote playback), we will add explicit opt-out attributes.
 
 ## Proposed change
-Only the timer constants in `src/components/FlashingSplashScreen.tsx` change:
+Update the `<video>` element in `src/components/FlashingSplashScreen.tsx`:
 
-- `video` phase: 0ms → 8000ms (full video clip)
-- `logo` phase: 8000ms → 8400ms (existing 400ms logo reveal)
-- `white` phase: 8400ms → 8700ms (existing 300ms white fade-out)
-- `onComplete()` fires at 8700ms
+- Add `controls={false}` (explicitly disables the default control bar).
+- Add `disablePictureInPicture` (prevents iOS/macOS picture-in-picture overlay).
+- Add `disableRemotePlayback` (prevents Chromecast/AirPlay remote controls).
 
-Everything else stays the same:
-- Skip on click/tap still works.
-- Milky fluid background stays as the video buffer fallback.
-- Logo emergence and white fade-out animation durations remain unchanged.
-- The video element keeps `autoPlay`, `muted`, `playsInline`, and `preload="auto"`.
+Keep all existing attributes: `autoPlay`, `muted`, `playsInline`, `preload="auto"`, and the absolute full-screen styling.
 
 ## Files touched
-- `src/components/FlashingSplashScreen.tsx` (timer constants only)
+- `src/components/FlashingSplashScreen.tsx` (video element attributes only)
 
 ## Result
-Total splash time becomes roughly **8.7 seconds** instead of the current 3.9 seconds, and the full 8-second video is visible.
+No playback controls or native overlays appear during the splash video; the only interaction remains clicking/tapping anywhere to skip.
