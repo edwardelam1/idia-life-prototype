@@ -170,11 +170,30 @@ export interface Proposal {
   on_chain_id?: string | null;
   lifecycle_phase?: string | null;
   created_at?: string | null;
+  end_date?: string | null;
   indexed_state?: number | null;
   proposal_targets?: string[] | null;
   proposal_values?: string[] | null;
   proposal_calldatas?: string[] | null;
   chain_description?: string | null;
+}
+
+/**
+ * Deadline-aware "voting closed" predicate. Chain deadline block wins when
+ * available; falls back to the DB end_date for motions that never anchored.
+ */
+export function isVotingClosed(
+  chain: Pick<ChainState, "currentBlock" | "deadlineBlock"> | undefined | null,
+  dbEndDate: string | null | undefined,
+): boolean {
+  if (chain?.currentBlock != null && chain?.deadlineBlock != null && chain.deadlineBlock > 0) {
+    if (chain.currentBlock > chain.deadlineBlock) return true;
+  }
+  if (dbEndDate) {
+    const t = new Date(dbEndDate).getTime();
+    if (Number.isFinite(t) && t <= Date.now()) return true;
+  }
+  return false;
 }
 
 const sameEvmAddress = (a?: string | null, b?: string | null) =>
