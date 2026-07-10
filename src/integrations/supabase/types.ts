@@ -5410,6 +5410,42 @@ export type Database = {
           },
         ]
       }
+      nano_bite_executions: {
+        Row: {
+          action: string
+          carton_code: string
+          created_at: string
+          id: string
+          nano_bite_id: string
+          payload: Json
+          screen: string
+          sub_module_id: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          carton_code: string
+          created_at?: string
+          id?: string
+          nano_bite_id: string
+          payload?: Json
+          screen: string
+          sub_module_id: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          carton_code?: string
+          created_at?: string
+          id?: string
+          nano_bite_id?: string
+          payload?: Json
+          screen?: string
+          sub_module_id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       nfc_transactions: {
         Row: {
           blockchain_hash: string | null
