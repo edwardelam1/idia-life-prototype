@@ -250,19 +250,31 @@ const ExecutionPhaseList: React.FC<Props> = ({ balance, votingPower, refreshTrig
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent className="space-y-3 pt-3">
-        {proposals.map((prop) => (
-          <ProposalCard
-            key={prop.id}
-            proposal={prop}
-            balance={balance}
-            votingPower={votingPower}
-            currentUserId={userId}
-            ascensionLevel={ascensionLevel}
-            initialChainState={chainStates.get(prop.proposal_ref)}
-            onChanged={() => { /* terminal — awaiting timelock execution */ }}
-          />
-        ))}
+        {proposals.length === 0 ? (
+          <div className="px-4 py-6 text-center rounded-2xl border border-dashed border-amber-300/60 dark:border-amber-900/40 bg-amber-50/40 dark:bg-amber-950/10">
+            <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">
+              No proposals currently awaiting execution
+            </p>
+            <p className="text-[10px] text-amber-800/70 dark:text-amber-200/60 mt-1">
+              Successful proposals appear here after the timelock queues them.
+            </p>
+          </div>
+        ) : (
+          proposals.map((prop) => (
+            <ProposalCard
+              key={prop.id}
+              proposal={prop}
+              balance={balance}
+              votingPower={votingPower}
+              currentUserId={userId}
+              ascensionLevel={ascensionLevel}
+              initialChainState={chainStates.get(prop.proposal_ref)}
+              onChanged={() => { /* terminal — awaiting timelock execution */ }}
+            />
+          ))
+        )}
       </CollapsibleContent>
+
     </Collapsible>
   );
 };
