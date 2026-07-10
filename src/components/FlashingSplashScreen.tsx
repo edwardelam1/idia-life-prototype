@@ -72,7 +72,7 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
         ref={videoRef}
         src={splashVideo.url}
         autoPlay
-        defaultMuted
+        {...({ defaultMuted: true } as any)}
         muted
         playsInline
         preload="auto"
