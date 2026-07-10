@@ -1,59 +1,26 @@
-# Execution Phase Section
+## Plan: Handle `IDIA_AUTH_CANCELLED` from iOS Native Shell
 
-Add a new collapsible section that surfaces proposals currently in the execution phase (post-pass, in timelock / queued / awaiting execute), styled in gold. It behaves exactly like the existing `SuccessfulProposalsList` and `ArchiveProposalsList` — those stay untouched and are only used as structural references.
+### Context
+- The iOS native shell now posts `window.postMessage({ type: 'IDIA_AUTH_CANCELLED' }, '*')` when the `ASWebAuthenticationSession` is cancelled or fails.
+- Currently the only `IDIA_AUTH_*` message listener is in `src/components/enhanced/EnhancedWalletDashboard.tsx` and it only handles the success path (`IDIA_AUTH_COMPLETE`).
+- The login screen (`src/pages/Auth.tsx`) sets `isLoading = true` while a native OAuth sign-in is in progress, and that state is never cleared if the user cancels the system sheet.
 
-## Placement
+### Changes
 
-In `src/components/GovernanceScreen.tsx`, inside `WyomingPortal`, insert the new section between Lifecycle Telemetry and Successful Quorum Reached:
+1. **Add a message listener in `src/pages/Auth.tsx`**
+   - Add a `useEffect` that registers `window.addEventListener('message', ...)` on mount and removes it on unmount.
+   - The handler checks `event.data?.type`:
+     - `IDIA_AUTH_CANCELLED` → set `isLoading` to `false`, optionally show a non-blocking toast like "Sign-in was cancelled".
+     - `IDIA_AUTH_COMPLETE` → set `isLoading` to `false` (defensive, the existing auth-state listener already handles the actual session).
 
-```text
-Lifecycle Telemetry
-Archive · Execution Phase          ← NEW (gold)
-Archive · Successful Quorum Reached
-Archive · Defeated & Canceled
-Locked
-```
+2. **Update the existing listener in `src/components/enhanced/EnhancedWalletDashboard.tsx`**
+   - Extend the same `handleNativeAuthMessage` callback to also recognize `IDIA_AUTH_CANCELLED` and, for completeness, no-op or log it.
 
-## New component: `src/components/governance/ExecutionPhaseList.tsx`
+### Files to edit
+- `src/pages/Auth.tsx`
+- `src/components/enhanced/EnhancedWalletDashboard.tsx`
 
-Cloned structure from `SuccessfulProposalsList.tsx`, with these differences:
-
-- **Bucket filter**: only proposals whose live governor state is `Queued (5)` OR DB `lifecycle_phase`/`status` normalized to one of: `queued`, `timelock`, `in_timelock`, `awaiting_execution`, `pending_execution`. Exclude `Executed (7)` and `Succeeded (4)` — those belong to Successful Quorum Reached.
-- **Styling**: gold palette — `bg-amber-50/60 dark:bg-amber-950/20`, `border-amber-300/70 dark:border-amber-900/40`, icon `Gavel` or `Timer` in `text-amber-600`, count pill `bg-amber-100 text-amber-800`. Header label: `Archive · Execution Phase`.
-- **Glow on new entry**:
-  - Persist last-seen execution-phase IDs in `localStorage` key `execution_phase_seen_ids_v1` (JSON array of `proposal_ref`).
-  - On fetch, diff against stored set. If any new IDs are present, add a `ring-2 ring-amber-400 animate-pulse shadow-[0_0_24px_rgba(245,158,11,0.55)]` class to the collapsible trigger for 8 seconds, then persist the updated set.
-  - Glow is suppressed on first-ever load (empty stored set is initialized silently to the current IDs so the section doesn't glow for pre-existing items).
-- **Notification on new entry**:
-  - For each newly detected proposal, call `notify.success("Proposal entered execution phase", { description: <title> })` from `@/lib/notify` — this both shows the sonner pill and records it in the Notification Center bell dropdown (per `use-toast.ts` shim behavior).
-  - Fire once per proposal (guarded by the localStorage set).
-- **Terminal for interactions**: like Successful/Archive, `onChanged` is a no-op; ProposalCard renders read-only historical state (users cannot vote from here — execution is handled via Negative Consent / timelock sweep).
-- Returns `null` when empty (no header shown) — matches sibling behavior.
-
-## Governance Screen wiring
-
-Add import and a new `<section>` in `WyomingPortal` above the existing Successful section:
-
-```tsx
-import ExecutionPhaseList from "./governance/ExecutionPhaseList";
-
-<section className="space-y-3">
-  <ExecutionPhaseList
-    balance={idiaBalance}
-    votingPower={votingPower}
-    refreshTrigger={refreshKey}
-  />
-</section>
-```
-
-## Non-goals
-
-- No changes to `ArchiveProposalsList.tsx` or `SuccessfulProposalsList.tsx`.
-- No changes to indexer / edge functions — the section reads from the same `dao_proposals` + on-chain state already reconciled by `governance-indexer`.
-- No new DB tables. Seen-state is device-local (localStorage) — matches the "just alert the user" scope.
-
-## Technical notes
-
-- Reuses `ProposalCard`, `readChainState`, `sortByGovernanceOrder`, `type Proposal`, `type ChainState` re-exported from `ActiveProposalsList.tsx`.
-- Reuses `getAscensionLevel` for hat context passed into `ProposalCard`.
-- Governor state constants: `4=Succeeded`, `5=Queued`, `7=Executed`. Execution Phase = `{5}` on-chain + phase-name fallbacks listed above for DB-only rows that reached timelock before an on-chain read landed.
+### Acceptance criteria
+- When the user cancels the iOS `ASWebAuthenticationSession`, the login screen buttons become enabled again (no infinite loading state).
+- No duplicate listeners or memory leaks after navigation.
+- The success path (`IDIA_AUTH_COMPLETE`) remains unaffected.
