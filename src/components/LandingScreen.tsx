@@ -125,7 +125,7 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
         </div>
 
         {/* Description Overlay */}
-        <div className="absolute top-[70%] bottom-32 left-0 right-0 z-10 flex flex-col justify-center items-center px-8 text-center">
+        <div className="absolute top-[48%] bottom-40 left-0 right-0 z-10 flex flex-col justify-center items-center px-8 text-center">
           <p className="text-lg text-white/90 leading-relaxed max-w-sm mx-auto">
             {slides[currentSlide].description}
           </p>
