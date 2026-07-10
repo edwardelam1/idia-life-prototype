@@ -8,23 +8,42 @@ interface FlashingSplashScreenProps {
 
 const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   const [phase, setPhase] = useState<'video' | 'logo' | 'white'>('video');
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Attempt imperative play on mount — older iOS (iPhone 11-era WebKit)
+  // often defers autoplay until an explicit .play() call, even when muted.
   useEffect(() => {
-    // Phase 1: Video plays full 8-second clip (0–8000ms)
-    // Phase 2: Logo emerges (8000–8400ms)
-    const t1 = setTimeout(() => setPhase('logo'), 8000);
-    // Phase 3: White fade (8400–8700ms)
-    const t2 = setTimeout(() => setPhase('white'), 8400);
-    // Complete
-    const t3 = setTimeout(() => onComplete(), 8700);
+    const v = videoRef.current;
+    if (!v) return;
+    // Force the muted attribute at the DOM level (iOS gates autoplay on the attribute, not just the property).
+    v.muted = true;
+    v.setAttribute('muted', '');
+    v.setAttribute('webkit-playsinline', 'true');
+    v.setAttribute('playsinline', 'true');
+    const p = v.play();
+    if (p && typeof p.catch === 'function') {
+      p.catch(() => {
+        // Autoplay blocked — skip the video phase so the iOS "tap to play" glyph never lingers.
+        setAutoplayBlocked(true);
+      });
+    }
+  }, []);
 
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
-  }, [onComplete]);
+  useEffect(() => {
+    if (autoplayBlocked) {
+      // Collapse the timeline: go straight to logo → white → done.
+      const t1 = setTimeout(() => setPhase('logo'), 0);
+      const t2 = setTimeout(() => setPhase('white'), 500);
+      const t3 = setTimeout(() => onComplete(), 900);
+      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    }
+    // Normal timeline: 0–8000ms video, 8000–8400ms logo, 8400–8700ms white, then complete.
+    const t1 = setTimeout(() => setPhase('logo'), 8000);
+    const t2 = setTimeout(() => setPhase('white'), 8400);
+    const t3 = setTimeout(() => onComplete(), 8700);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [onComplete, autoplayBlocked]);
 
   return (
     <div
@@ -53,17 +72,20 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
         ref={videoRef}
         src={splashVideo.url}
         autoPlay
+        {...({ defaultMuted: true } as any)}
         muted
         playsInline
         preload="auto"
         controls={false}
         disablePictureInPicture
         disableRemotePlayback
+        poster=""
         className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in"
         style={{
-          opacity: phase === 'video' ? 1 : 0,
+          opacity: phase === 'video' && !autoplayBlocked ? 1 : 0,
         }}
       />
+
 
       {/* Logo emerging */}
       <div
