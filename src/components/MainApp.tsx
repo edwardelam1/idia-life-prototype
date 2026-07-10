@@ -132,6 +132,7 @@ const MainApp = () => {
     !profileLoading &&
     !!profile &&
     !isProvisioned.wallet &&
+    localVaultExists === false &&
     !nudgeDismissed;
 
   // AI Assistant Triggers
