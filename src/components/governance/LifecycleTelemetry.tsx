@@ -10,7 +10,7 @@ import { stage } from "@/lib/stageLogger";
 import { ethers } from "ethers";
 import { PROTOCOL, ACTIVE_DEPLOYMENT, GOVERNOR_ABI } from "@/config/contracts";
 import { NETWORKS } from "@/services/walletService";
-import { readChainState, isVotingClosed } from "./ActiveProposalsList";
+import { readChainState, isVotingClosed, isExpiredDbMotion } from "./ActiveProposalsList";
 
 interface ProposalLite {
   id: string;
@@ -24,6 +24,7 @@ interface ProposalLite {
   quorum_threshold: number | null;
   on_chain_block?: number | null;
   on_chain_id?: string | null;
+  committee_id?: string | null;
 }
 
 export const PHASE_META = {
@@ -288,7 +289,7 @@ const LifecycleTelemetry: React.FC = () => {
           .from("dao_proposals")
           .select("*")
           .order("created_at", { ascending: false })
-          .limit(10);
+          .limit(100);
           
         if (error) {
           console.error(`[LIFECYCLE_TELEMETRY][FETCH][ERROR] Supabase fetch rejected: ${error.message}`);
@@ -319,7 +320,7 @@ const LifecycleTelemetry: React.FC = () => {
             rows.map(async (r) => {
               // DB-only rows (motions): archive when end_date has passed and
               // the phase isn't terminal-success.
-              const dbClosed = isVotingClosed(undefined, r.end_date);
+              const dbClosed = isVotingClosed(undefined, r.end_date) || isExpiredDbMotion(r);
               const dbPhase = dbPhaseFor(r);
               const isTerminalSuccess = ["succeeded", "queued", "executed"].includes(dbPhase);
 

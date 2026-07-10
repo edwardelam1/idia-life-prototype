@@ -171,6 +171,7 @@ export interface Proposal {
   lifecycle_phase?: string | null;
   created_at?: string | null;
   end_date?: string | null;
+  committee_id?: string | null;
   indexed_state?: number | null;
   proposal_targets?: string[] | null;
   proposal_values?: string[] | null;
@@ -194,6 +195,19 @@ export function isVotingClosed(
     if (Number.isFinite(t) && t <= Date.now()) return true;
   }
   return false;
+}
+
+const MOTION_DELIBERATION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function isExpiredDbMotion(
+  proposal: Pick<Proposal, "on_chain_id" | "committee_id" | "created_at" | "end_date">,
+): boolean {
+  if (proposal.on_chain_id?.trim()) return false;
+  if (!proposal.committee_id) return false;
+  if (isVotingClosed(undefined, proposal.end_date)) return true;
+  if (!proposal.created_at) return false;
+  const createdAt = new Date(proposal.created_at).getTime();
+  return Number.isFinite(createdAt) && createdAt + MOTION_DELIBERATION_WINDOW_MS <= Date.now();
 }
 
 const sameEvmAddress = (a?: string | null, b?: string | null) =>
@@ -237,11 +251,16 @@ export function classifyProposalBucket(proposal: Proposal, chainState?: ChainSta
   // Deadline-aware short-circuit: if voting is closed (chain deadline block
   // passed OR DB end_date in the past) and the proposal has not reached a
   // success/queued/executed terminal state, route it to the archive.
-  const votingClosed = isVotingClosed(chainState, proposal.end_date);
+  const votingClosed = isVotingClosed(chainState, proposal.end_date) || isExpiredDbMotion(proposal);
   const terminalSuccess =
     (chainState?.state != null && FINAL_PASSED.has(chainState.state)) ||
     ["succeeded", "queued", "executed", "settled"].includes(phase);
   if (votingClosed && !terminalSuccess) return "DEFEATED";
+
+  // Committee motions live in the Delaware motion workspace until they expire
+  // or anchor on-chain. Do not leak active/draft DB-only motions into the
+  // Wyoming proposal feed; expired ones are already routed to Archive above.
+  if (!hasOnChainId && proposal.committee_id) return "UNRESOLVED";
 
   if (chainState?.state != null) return classifyBucket(chainState.state, hasOnChainId);
   // Chain read completed but the current Governor doesn't recognize this id
@@ -1667,7 +1686,7 @@ const ActiveProposalsList: React.FC<{
         // Sequential to avoid RPC 429s — Supabase first (cheap), then on-chain.
         const dbProposals = await (supabase as any)
           .from("dao_proposals")
-          .select("id, title, description, status, proposer_id, on_chain_id, lifecycle_phase, created_at, end_date, proposal_targets, proposal_values, proposal_calldatas")
+          .select("id, title, description, status, proposer_id, on_chain_id, lifecycle_phase, created_at, end_date, committee_id, proposal_targets, proposal_values, proposal_calldatas")
           .order("created_at", { ascending: false });
         if (dbProposals.error) throw dbProposals.error;
 
@@ -1690,8 +1709,7 @@ const ActiveProposalsList: React.FC<{
             .filter((x: unknown): x is string => typeof x === "string" && x.length > 0),
         );
 
-        // ON-CHAIN MANDATE: drop any DB row that never anchored on-chain.
-        const dbRows: Proposal[] = (dbProposals.data || []).filter((r: any) => typeof r.on_chain_id === "string" && r.on_chain_id.length > 0).map((r: any) => {
+        const dbRows: Proposal[] = (dbProposals.data || []).map((r: any) => {
           const indexed = r.on_chain_id ? indexedById.get(r.on_chain_id) : undefined;
           return {
             id: r.id,
@@ -1705,6 +1723,7 @@ const ActiveProposalsList: React.FC<{
             lifecycle_phase: indexed?.stateName ?? r.lifecycle_phase ?? null,
             created_at: r.created_at ?? null,
             end_date: r.end_date ?? null,
+            committee_id: r.committee_id ?? null,
             indexed_state: indexed?.state ?? null,
             proposal_targets: r.proposal_targets ?? indexed?.targets ?? null,
             proposal_values: r.proposal_values ?? indexed?.values ?? null,
