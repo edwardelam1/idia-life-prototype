@@ -59,6 +59,16 @@ const MainApp = () => {
       const hasWallet = !!profile?.wallet_address;
       const hasFBO = !!profile?.fbo_account_id;
       setIsProvisioned({ wallet: hasWallet, fbo: hasFBO });
+      (async () => {
+        try {
+          const exists = await walletService.hasWallet();
+          setLocalVaultExists(exists);
+          console.log(`[AUDIT] Local Keychain vault exists: ${exists}`);
+        } catch (e) {
+          console.warn("[WARN] MainApp: Local vault check failed", e);
+          setLocalVaultExists(false);
+        }
+      })();
       console.log(`[END] MainApp Audit Complete - Pay Ready: ${isPayReady}, Vault: ${hasWallet}, FBO: ${hasFBO}`);
     }
   }, [profile, profileLoading, isPayReady]);
