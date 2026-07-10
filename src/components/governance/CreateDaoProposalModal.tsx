@@ -255,8 +255,9 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
     }
   };
 
-  // TEMP: testing — only block while submitting
-  const submitDisabled = isSubmitting;
+  const meetsRequirements =
+    title.trim().length >= 5 && !!category && wordCount >= MIN_WORDS;
+  const submitDisabled = isSubmitting || !meetsRequirements;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
