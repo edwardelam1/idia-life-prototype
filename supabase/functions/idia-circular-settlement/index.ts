@@ -477,6 +477,13 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
 
     console.info("[BEGIN: Phase_3_Contributor.BatchExecution] Initializing sequential transaction pipeline.");
     try {
+      // Fetch authoritative starting nonce from Base RPC so viem can't reuse or skip slots.
+      let currentNonce = await client.getTransactionCount({
+        address: account.address,
+        blockTag: "pending",
+      });
+      console.info(`[PROCESS: Batch.Sequencer] Base RPC verified starting nonce: ${currentNonce}`);
+
       for (let i = 0; i < contributing_users.length; i++) {
         const contributor = contributing_users[i];
         const { data: profile } = await supabase
@@ -503,9 +510,11 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
             functionName: "transfer",
             args: [lifeWallet as `0x${string}`, parseUnits(perContributorYield.toFixed(6), 6)],
             account,
+            nonce: currentNonce,
           });
+          currentNonce++;
           console.info(
-            `[STATUS: Batch.Item] Yield TX Broadcasted. Hash: ${yieldHash}. Awaiting network confirmation...`,
+            `[STATUS: Batch.Item] Yield TX Broadcasted. Hash: ${yieldHash}. Nonce advanced to ${currentNonce}. Awaiting network confirmation...`,
           );
           const yieldReceipt = await client.waitForTransactionReceipt({ hash: yieldHash, confirmations: 1 });
           if (yieldReceipt.status === "success") {
@@ -525,9 +534,11 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
               `Automated royalty yield proposal: Ref ${ingestionReference}`,
             ],
             account,
+            nonce: currentNonce,
           });
+          currentNonce++;
           console.info(
-            `[STATUS: Batch.Item] Proposal TX Broadcasted. Hash: ${proposalHash}. Awaiting network confirmation...`,
+            `[STATUS: Batch.Item] Proposal TX Broadcasted. Hash: ${proposalHash}. Nonce advanced to ${currentNonce}. Awaiting network confirmation...`,
           );
           const proposalReceipt = await client.waitForTransactionReceipt({ hash: proposalHash, confirmations: 1 });
           if (proposalReceipt.status === "success") {
@@ -567,11 +578,44 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
         } catch (txError: any) {
           console.info(`[BEGIN: Batch.Item.Error]`);
           console.error(`[FATAL STALL: Batch.Item] Failed executing transfer for ${lifeWallet}: ${txError.message}`);
-          console.info(`[END: Batch.Item.Error]`);
           skippedContributors.push({
             user_id: contributor.user_id,
             reason: `tx_error: ${txError?.message ?? "unknown"}`,
           });
+          // Route failure through repair queue so reconciliation can pick it up.
+          try {
+            await insertLedgerWithRepair(supabase, {
+              reference_id: ingestionReference,
+              user_id: contributor.user_id,
+              phase: "contributor_yield",
+              blockchain_tx_hash: null,
+              row: {
+                user_id: contributor.user_id,
+                amount: perContributorYield,
+                entry_type: "deposit",
+                transaction_type: "data_sale_payout",
+                status: "failed",
+                blockchain_tx_hash: null,
+                is_settled: false,
+                description: `Failed pro-rata yield for Ref: ${ingestionReference} — ${txError?.message ?? "unknown"}`,
+              },
+            });
+          } catch (repairError: any) {
+            console.error(
+              `[ERROR: Batch.Item.Repair] repair-queue insert failed: ${repairError?.message ?? repairError}`,
+            );
+          }
+          // Re-sync nonce from chain to heal from dropped/rejected txs.
+          try {
+            currentNonce = await client.getTransactionCount({
+              address: account.address,
+              blockTag: "pending",
+            });
+            console.info(`[PROCESS: Batch.Sequencer] Nonce re-synced from chain after error: ${currentNonce}`);
+          } catch (nonceError: any) {
+            console.error(`[ERROR: Batch.Sequencer] Nonce re-sync failed: ${nonceError?.message ?? nonceError}`);
+          }
+          console.info(`[END: Batch.Item.Error]`);
           continue;
         }
       }
