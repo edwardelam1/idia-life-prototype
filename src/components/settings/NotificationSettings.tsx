@@ -35,14 +35,29 @@ export function NotificationSettings() {
     }
   };
 
+  const [pushPending, setPushPending] = useState(false);
   const handlePushToggle = async (v: boolean) => {
-    if (v) {
-      const ok = await enablePush();
-      if (!ok) return; // permission denied — leave preference off
-      await handlePreferenceUpdate('push_notifications', true);
-    } else {
-      await disablePush();
-      await handlePreferenceUpdate('push_notifications', false);
+    if (pushPending) return;
+    setPushPending(true);
+    try {
+      if (v) {
+        const result = await enablePush();
+        if (!result.ok) {
+          toast({
+            title: 'Push not enabled',
+            description: result.reason || 'Permission denied',
+            variant: 'destructive',
+          });
+          return;
+        }
+        await handlePreferenceUpdate('push_notifications', true);
+        toast({ title: 'Push enabled', description: `Registered on ${result.platform}` });
+      } else {
+        await disablePush();
+        await handlePreferenceUpdate('push_notifications', false);
+      }
+    } finally {
+      setPushPending(false);
     }
   };
 
@@ -112,6 +127,7 @@ export function NotificationSettings() {
             id="push-notifications"
             checked={preferences?.push_notifications || false}
             onCheckedChange={handlePushToggle}
+            disabled={pushPending}
           />
         </div>
 
