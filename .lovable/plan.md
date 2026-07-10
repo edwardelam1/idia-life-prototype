@@ -1,21 +1,34 @@
-Root causes found:
-- `LifecycleTelemetry` only fetches the newest 10 `dao_proposals`, so anything older than the latest 10 rows can disappear from telemetry.
-- DB-only motions with no `end_date` remain `draft` forever, so old motions like “Android test motion” and “This motion got motion 2” can still render as “In Deliberation.”
-- `ActiveProposalsList` currently filters out every DB row without an `on_chain_id`, which means committee motions never reliably participate in the same bucket/archive classification as proposals.
-
 Plan:
-1. Add one shared helper in `ActiveProposalsList.tsx` that treats a motion as closed when:
-   - chain deadline has passed, or
-   - `end_date` has passed, or
-   - it is a DB-only committee motion/draft older than the normal 7-day motion window.
-2. Update `classifyProposalBucket` so expired DB-only motions are routed to `DEFEATED`, not active/deliberation.
-3. Update `ActiveProposalsList` hydration so DB-only motions are included in `combined`, then filtered by `classifyProposalBucket` before rendering active cards. This prevents expired motions from showing in active while still allowing archive to pick them up.
-4. Update `LifecycleTelemetry` to fetch more rows and use the same closed-motion logic so older motions from “Android test motion” downward are present and labeled `Archived` / `Voting Closed · Deadline Passed`, not `In Deliberation`.
-5. Keep `ArchiveProposalsList` using the shared classifier so expired motions and failed/cancelled proposals land together under `Archive · Defeated & Canceled`.
-6. Validate against the live DB rows for:
-   - `Android test motion`
-   - `This motion got motion 2`
-   - `Test Motion 1`
-   - `Motion Test 3`
 
-No database schema change is required.
+1. Fix the missed success state for the block `48018739` proposal.
+   - The proposal exists in `dao_proposals` as `Test proposal for new contract` with `on_chain_block = 48018739`.
+   - Its DB status is stale: `status=active`, `lifecycle_phase=active`.
+   - `dao_pending_actions` is empty, so Negative Consent never had anything to show.
+   - Add a reconciliation path that reads `dao_proposals.on_chain_id` directly from the live Governor and updates stale rows when the contract says `Succeeded`, `Queued`, `Executed`, `Defeated`, `Canceled`, or `Expired`.
+
+2. Make `Pending Actions · Negative Consent` populate from successful proposals.
+   - When the live Governor state is `Succeeded` or `Queued`, create or upsert a `dao_pending_actions` row for that proposal.
+   - Use the proposal title/description, on-chain proposal id, and a timelock expiry window.
+   - Prevent duplicates by checking existing `dao_pending_actions.onchain_proposal_id` before inserting.
+   - This fixes why the passed proposal did not appear in Negative Consent.
+
+3. Add a new collapsible archive for successful proposals.
+   - New component: `SuccessfulProposalsList`.
+   - Placement: below Lifecycle Telemetry and above `Archive · Defeated & Canceled`.
+   - Same collapsed-list model as `ArchiveProposalsList`, but do not modify the existing defeated/canceled archive.
+   - Label: `Archive · Successful Quorum Reached`.
+   - Include proposal states:
+     - `Succeeded`
+     - `Queued`
+     - `Executed`
+   - Exclude `Expired`; expired remains defeated/canceled.
+
+4. Apply the “deadline passed cannot be active/live” rule before status display.
+   - If deadline has passed and quorum was not successful, force archive/defeated display.
+   - If quorum was successful, force successful archive display.
+   - No row may display `Active`, `Live Vote`, or `In Deliberation` after the deadline has passed.
+
+5. Verify with the known proposal.
+   - Confirm block `48018739` no longer appears as active.
+   - Confirm it appears under `Archive · Successful Quorum Reached` as `Consensus Reached` or equivalent successful state.
+   - Confirm `Pending Actions · Negative Consent` receives a pending timelock action for it when applicable.
