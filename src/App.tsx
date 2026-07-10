@@ -20,6 +20,7 @@ import TermsOfService from "./pages/TermsOfService";
 // NFC PAYMENT IMPORTS
 import { usePaymentDeepLink } from "@/hooks/usePaymentDeepLink";
 import NfcPaymentModal from "@/components/NfcPaymentModal";
+import { startPushBootstrap } from "@/utils/pushBootstrap";
 // Architectural Note: Defined outside to prevent re-instantiation on re-renders
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -47,6 +48,7 @@ const App = () => {
 
   useEffect(() => {
     console.log("[START] App Lifecycle: Initializing Sovereign Routing & Auth Manifest...");
+    startPushBootstrap();
 
     // ── One-shot stale-session guard (post legacy-JWT rotation) ──
     console.log("[AUTH_SESSION_GUARD][CHECK][START] Validating current user session keys against rotated JWT secrets.");
