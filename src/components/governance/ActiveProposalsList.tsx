@@ -1138,10 +1138,14 @@ export const ProposalCard: React.FC<{
 
   // ── Shared chain-derived display values ────────────────────────────
   const chainName = chain.state != null ? STATE_NAME[chain.state] : null;
-  const isActive = chain.state === 1;
+  const rawIsActive = chain.state === 1;
   const isFinalDefeated = chain.state != null && FINAL_DEFEATED.has(chain.state);
   const isFinalPassed = chain.state != null && FINAL_PASSED.has(chain.state);
-  const isFinal = isFinalDefeated || isFinalPassed;
+  // Deadline resolver — a proposal whose voting window has closed can never
+  // render as Live/Active/Deliberation regardless of DB status text.
+  const deadlineClosed = isVotingClosed(chain, proposal.end_date) || isExpiredDbMotion(proposal);
+  const isFinal = isFinalDefeated || isFinalPassed || (deadlineClosed && !isFinalPassed);
+  const isActive = rawIsActive && !deadlineClosed;
   // OZ semantics: For + Abstain count toward quorum; Against does not.
   const quorumReached = chain.quorum > 0 && (chain.forVotes + chain.abstainVotes) >= chain.quorum;
   const majorityFor = chain.forVotes > chain.againstVotes;
