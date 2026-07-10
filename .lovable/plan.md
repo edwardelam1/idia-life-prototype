@@ -1,26 +1,30 @@
-## Plan: Handle `IDIA_AUTH_CANCELLED` from iOS Native Shell
+# Plan: Replace "Life" Letters with Uploaded Video in Splash
 
-### Context
-- The iOS native shell now posts `window.postMessage({ type: 'IDIA_AUTH_CANCELLED' }, '*')` when the `ASWebAuthenticationSession` is cancelled or fails.
-- Currently the only `IDIA_AUTH_*` message listener is in `src/components/enhanced/EnhancedWalletDashboard.tsx` and it only handles the success path (`IDIA_AUTH_COMPLETE`).
-- The login screen (`src/pages/Auth.tsx`) sets `isLoading = true` while a native OAuth sign-in is in progress, and that state is never cleared if the user cancels the system sheet.
+## Current behavior (`src/components/FlashingSplashScreen.tsx`)
+Phases: fluid (0–400ms) → cursive "Life" letters (400–1200ms) → text fade (1200–1500ms) → polished logo emerges (1500–1900ms) → white fade (1900–2200ms) → complete.
 
-### Changes
+## What changes
+Replace the cursive "Life" letters block with the uploaded rushing video. The video plays fullscreen, then hands off to the existing polished IDIA logo, then white fade — same tail as today.
 
-1. **Add a message listener in `src/pages/Auth.tsx`**
-   - Add a `useEffect` that registers `window.addEventListener('message', ...)` on mount and removes it on unmount.
-   - The handler checks `event.data?.type`:
-     - `IDIA_AUTH_CANCELLED` → set `isLoading` to `false`, optionally show a non-blocking toast like "Sign-in was cancelled".
-     - `IDIA_AUTH_COMPLETE` → set `isLoading` to `false` (defensive, the existing auth-state listener already handles the actual session).
+## Steps
+1. **Upload the video as a Lovable CDN asset** (10.9 MB — too large to bundle):
+   - `lovable-assets create --file /mnt/user-uploads/Create_a_video_rushing_through.mp4 --filename splash-rush.mp4 > src/assets/splash-rush.mp4.asset.json`
+2. **Rewrite `FlashingSplashScreen.tsx`**:
+   - New phase timeline (video is 8s but we compress the experience):
+     - `video` (0 → ~3200ms): fullscreen `<video autoPlay muted playsInline>` covering the viewport with `object-fit: cover`. Milky fluid background stays behind it as a fallback while the video buffers.
+     - `logo` (3200 → 3600ms): video fades out, polished logo emerges (existing scale/blur reveal, unchanged).
+     - `white` (3600 → 3900ms): existing white fade-out.
+     - `complete` at 3900ms.
+   - Remove: cursive letters JSX, `visibleLetters` state, letter timers, Dancing Script `@import`, `'text' | 'textFade'` phase values.
+   - Keep: click/touch skip, milky fluid backgrounds, logo emergence block, white overlay, `milkyShift` keyframes.
+   - Import the asset pointer: `import splashVideo from '@/assets/splash-rush.mp4.asset.json'` and use `splashVideo.url` as `<video src>`.
+   - Video element: muted, autoPlay, playsInline, no controls, `preload="auto"`, absolute inset-0, `object-cover`, opacity driven by phase (1 during `video`, 0 during `logo`/`white`), with a short CSS opacity transition (~400ms).
 
-2. **Update the existing listener in `src/components/enhanced/EnhancedWalletDashboard.tsx`**
-   - Extend the same `handleNativeAuthMessage` callback to also recognize `IDIA_AUTH_CANCELLED` and, for completeness, no-op or log it.
+## Files touched
+- `src/assets/splash-rush.mp4.asset.json` (new — CDN pointer)
+- `src/components/FlashingSplashScreen.tsx` (rewrite phase logic + JSX)
 
-### Files to edit
-- `src/pages/Auth.tsx`
-- `src/components/enhanced/EnhancedWalletDashboard.tsx`
-
-### Acceptance criteria
-- When the user cancels the iOS `ASWebAuthenticationSession`, the login screen buttons become enabled again (no infinite loading state).
-- No duplicate listeners or memory leaks after navigation.
-- The success path (`IDIA_AUTH_COMPLETE`) remains unaffected.
+## Notes
+- No changes to callers — `onComplete` contract preserved.
+- Total splash length shortens from 2.2s to ~3.9s; still well under Apple's slow-load rejection threshold, and the video content justifies the extra ~1.7s.
+- If you'd rather keep the full 8s video playing to its natural end before the logo, say the word and I'll extend the timeline instead.
