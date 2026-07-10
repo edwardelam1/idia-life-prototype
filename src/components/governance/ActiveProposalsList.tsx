@@ -233,6 +233,16 @@ export function classifyProposalBucket(proposal: Proposal, chainState?: ChainSta
   const phase = (proposal.lifecycle_phase || "").toLowerCase();
   if (phase === "archived" || phase === "drift") return "DEFEATED";
   const hasOnChainId = !!proposal.on_chain_id?.trim();
+
+  // Deadline-aware short-circuit: if voting is closed (chain deadline block
+  // passed OR DB end_date in the past) and the proposal has not reached a
+  // success/queued/executed terminal state, route it to the archive.
+  const votingClosed = isVotingClosed(chainState, proposal.end_date);
+  const terminalSuccess =
+    (chainState?.state != null && FINAL_PASSED.has(chainState.state)) ||
+    ["succeeded", "queued", "executed", "settled"].includes(phase);
+  if (votingClosed && !terminalSuccess) return "DEFEATED";
+
   if (chainState?.state != null) return classifyBucket(chainState.state, hasOnChainId);
   // Chain read completed but the current Governor doesn't recognize this id
   // (legacy Governor orphan). Archive it — don't trust the DB "active" phase.
