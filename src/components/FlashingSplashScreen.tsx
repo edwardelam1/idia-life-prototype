@@ -97,25 +97,35 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
       />
 
 
-      {/* Logo emerging */}
+      {/* Logo emerging — cinematic fade-in, glowing hold, graceful release */}
       <div
-        className="absolute inset-0 flex items-center justify-center transition-all duration-[800ms] ease-out"
+        className="absolute inset-0 flex items-center justify-center"
         style={{
-          opacity: phase === 'logo' || phase === 'white' ? 1 : 0,
-          transform: phase === 'logo' || phase === 'white' ? 'scale(1)' : 'scale(0.3)',
-          filter: phase === 'logo' || phase === 'white' ? 'blur(0px)' : 'blur(8px)',
+          opacity: logoVisible ? 1 : logoReleasing ? 0 : 0,
+          transform: logoVisible
+            ? 'scale(1)'
+            : logoReleasing
+              ? 'scale(1.04)'
+              : 'scale(0.92)',
+          filter: logoVisible ? 'blur(0px)' : 'blur(4px)',
+          transition: logoReleasing
+            ? 'opacity 1500ms ease-in-out, transform 1500ms ease-in-out, filter 1500ms ease-in-out'
+            : 'opacity 1200ms ease-out, transform 1200ms ease-out, filter 1200ms ease-out',
         }}
       >
         <img
           src={polishedLogo}
           alt="IDIA Life"
           className="w-24 h-24 rounded-3xl shadow-2xl"
+          style={{
+            animation: logoVisible ? 'logoGlow 2.4s ease-in-out infinite' : 'none',
+          }}
         />
       </div>
 
       {/* White fade-out overlay */}
       <div
-        className="absolute inset-0 bg-white transition-opacity duration-[900ms] ease-in pointer-events-none"
+        className="absolute inset-0 bg-white transition-opacity duration-[800ms] ease-in-out pointer-events-none"
         style={{
           opacity: phase === 'white' ? 1 : 0,
         }}
@@ -126,9 +136,14 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
           0%, 100% { background-position: 0% 0%, 100% 0%, 50% 100%, 0% 0%; }
           50% { background-position: 60% 40%, 30% 80%, 80% 20%, 100% 0%; }
         }
+        @keyframes logoGlow {
+          0%, 100% { filter: drop-shadow(0 0 12px rgba(255,255,255,0.4)) drop-shadow(0 0 24px rgba(200,220,255,0.25)); }
+          50%      { filter: drop-shadow(0 0 22px rgba(255,255,255,0.7)) drop-shadow(0 0 44px rgba(200,220,255,0.5)); }
+        }
       `}</style>
     </div>
   );
 };
 
 export default FlashingSplashScreen;
+
