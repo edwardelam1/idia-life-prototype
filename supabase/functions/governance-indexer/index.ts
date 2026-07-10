@@ -331,11 +331,8 @@ serve(async (req) => {
               console.warn(`[INDEXER][EXECUTION_TRACKER][WARN] proposal_id=${pid} ${taskErr.message}`);
             } else {
               console.log(`[INDEXER][EXECUTION_TRACKER][OK] proposal_id=${pid} enrolled`);
-              await supabaseAdmin.from("dao_execution_events").insert({
-                task_id: null as any, event_type: "auto_enrolled_indexer",
-                payload: { proposal_id: pid },
-              }).select().maybeSingle().then(() => {}, () => {});
             }
+
           }
         }
       }
