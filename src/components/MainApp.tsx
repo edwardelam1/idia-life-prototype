@@ -78,6 +78,7 @@ const MainApp = () => {
       const address: string | undefined = event?.detail?.address;
       console.log("[SYNC] Immediate Vault Hydration:", address);
       setIsProvisioned((prev) => ({ ...prev, wallet: true }));
+      setLocalVaultExists(true);
       setNudgeDismissed(true);
       if (address) {
         try {
