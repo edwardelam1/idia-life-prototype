@@ -257,6 +257,11 @@ export function classifyProposalBucket(proposal: Proposal, chainState?: ChainSta
     ["succeeded", "queued", "executed", "settled"].includes(phase);
   if (votingClosed && !terminalSuccess) return "DEFEATED";
 
+  // Committee motions live in the Delaware motion workspace until they expire
+  // or anchor on-chain. Do not leak active/draft DB-only motions into the
+  // Wyoming proposal feed; expired ones are already routed to Archive above.
+  if (!hasOnChainId && proposal.committee_id) return "UNRESOLVED";
+
   if (chainState?.state != null) return classifyBucket(chainState.state, hasOnChainId);
   // Chain read completed but the current Governor doesn't recognize this id
   // (legacy Governor orphan). Archive it — don't trust the DB "active" phase.
