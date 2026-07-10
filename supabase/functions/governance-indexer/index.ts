@@ -244,6 +244,59 @@ serve(async (req) => {
 
       console.log(`[INDEXER][DB_WRITE][END:OK] proposal_id=${pid}`);
       anchored.push({ proposal_id: pid, state: stateInt, state_name: stateName });
+
+      // ── DAO_PROPOSALS reconciliation ─────────────────────────────
+      // Mirror terminal / near-terminal states into the app-facing
+      // dao_proposals table so stale "active" rows can never appear
+      // in the Active feed once the chain has moved on.
+      const dbPhase =
+        stateInt === 7 ? "executed"
+        : stateInt === 5 ? "queued"
+        : stateInt === 4 ? "succeeded"
+        : stateInt === 3 ? "defeated"
+        : stateInt === 2 ? "canceled"
+        : stateInt === 6 ? "expired"
+        : null;
+      if (dbPhase) {
+        const { error: daoErr } = await supabaseAdmin
+          .from("dao_proposals")
+          .update({ status: dbPhase, lifecycle_phase: dbPhase })
+          .eq("on_chain_id", pid);
+        if (daoErr) {
+          console.warn(`[INDEXER][DAO_SYNC][WARN] proposal_id=${pid} ${daoErr.message}`);
+        } else {
+          console.log(`[INDEXER][DAO_SYNC][OK] proposal_id=${pid} → ${dbPhase}`);
+        }
+      }
+
+      // ── PENDING_ACTIONS enrolment ────────────────────────────────
+      // Succeeded (4) and Queued (5) enter the Negative Consent
+      // timelock. Insert once, keyed on onchain_proposal_id.
+      if (stateInt === 4 || stateInt === 5) {
+        const { data: existing } = await supabaseAdmin
+          .from("dao_pending_actions")
+          .select("id")
+          .eq("onchain_proposal_id", pid)
+          .maybeSingle();
+        if (!existing) {
+          const title = (row.description || "Governance action").split("\n")[0].slice(0, 200);
+          const { error: pendErr } = await supabaseAdmin
+            .from("dao_pending_actions")
+            .insert({
+              title,
+              description: row.description ?? null,
+              category: "governance",
+              timelock_expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+              onchain_proposal_id: pid,
+              status: "pending",
+            });
+          if (pendErr) {
+            console.warn(`[INDEXER][PENDING_ACTIONS][WARN] proposal_id=${pid} ${pendErr.message}`);
+          } else {
+            console.log(`[INDEXER][PENDING_ACTIONS][OK] proposal_id=${pid} enrolled`);
+          }
+        }
+      }
     }
 
     console.log(
