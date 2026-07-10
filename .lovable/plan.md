@@ -1,25 +1,31 @@
-## Problem
+## Extend Splash Logo Reveal & Fade
 
-On iPhone 11 the splash video doesn't autoplay — iOS shows the native "tap to play" glyph and the timeline still advances to the slides while the video never renders. iPhone 15 plays it fine. This is a classic older-iOS/WKWebView autoplay-gating issue, not a timing bug.
+Make the logo an experience — let it breathe, glow, and fade gracefully instead of flashing away.
 
-Root causes on older iOS WebKit:
-1. React's `muted={true}` sets the DOM property but sometimes not the HTML attribute in time — iOS only honors autoplay when the `muted` **attribute** is present at parse time.
-2. Missing `webkit-playsinline` (legacy attribute still required on iOS 13/14-era WebKit inside WKWebView).
-3. No imperative `.play()` fallback — if autoplay is deferred, nothing ever kicks it off.
-4. `controls={false}` doesn't suppress the iOS "poster play button" overlay that appears when autoplay is blocked; only actually playing (or hiding the element) removes it.
+### New Timeline (`src/components/FlashingSplashScreen.tsx`)
 
-## Fix
+```text
+0ms      → Video starts (full 8s rush)
+8000ms   → Video ends, logo begins fade-IN (slow, 1.2s ease-out with subtle scale-up from 0.92 → 1.0)
+9200ms   → Logo fully visible, holds with a gentle glow/pulse
+10700ms  → Logo begins fade-OUT (1.5s ease-in-out, scale 1.0 → 1.04 for a "release" feel)
+12200ms  → White screen fades away (0.8s)
+13000ms  → onComplete fires → app becomes interactive
+```
 
-Edit only `src/components/FlashingSplashScreen.tsx`:
+Total splash: **~13 seconds** (up from 8.7s). Per user: load time is not a concern — this is a "brought to life" moment.
 
-1. Replace the JSX `muted` prop with `defaultMuted` plus a ref callback that sets the `muted` attribute directly, and add `webkit-playsinline=""` alongside `playsInline`.
-2. On mount, call `videoRef.current.play()` inside a `.catch()` — if it rejects (autoplay blocked), immediately advance the splash to the `logo` phase so the user never sees the stuck play glyph.
-3. Add `poster=""` (empty) and `object-cover` stays, so no default frame with a play button is shown before the first video frame decodes.
-4. Keep the existing 8s → logo → white → complete timeline unchanged for devices where playback succeeds.
+### Changes
 
-No other files change. No dependency changes. No native/Swift changes.
+1. **Phase timing constants** — extend `LOGO_FADE_IN`, add `LOGO_HOLD`, extend `LOGO_FADE_OUT`, extend `WHITE_FADE`.
+2. **Logo element** — replace the abrupt opacity flip with a multi-stage transition:
+   - Fade-in: `opacity 0 → 1` over 1200ms, `scale 0.92 → 1.0`, ease-out
+   - Hold: soft glow (drop-shadow pulse) for 1500ms
+   - Fade-out: `opacity 1 → 0` over 1500ms, `scale 1.0 → 1.04`, ease-in-out
+3. **White overlay** — extend fade to 800ms so it dissolves rather than blinks.
+4. **Skip control** — keep existing tap-to-skip so users who've seen it can bypass.
 
-## Verification
+### Not changing
 
-- iPhone 15: video still plays the full 8s clip, then logo, then fade — unchanged behavior.
-- iPhone 11: either the video now autoplays (attribute-level `muted` + `webkit-playsinline` + imperative `play()`), or if WebKit still blocks it, the splash skips straight to the logo/fade instead of showing a stuck play button while the timeline runs behind it.
+- Video phase (still full 8s, iPhone 11 autoplay fallback intact)
+- Assets, layout, colors, or any other component
