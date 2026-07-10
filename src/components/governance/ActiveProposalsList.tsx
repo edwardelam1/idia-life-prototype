@@ -199,11 +199,16 @@ export function isVotingClosed(
 
 const MOTION_DELIBERATION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * Deadline resolver for DB-only governance rows (no on-chain id, or a blank
+ * on_chain_id string). Any such row is considered expired when its end_date
+ * has passed OR when its created_at falls outside the 7-day deliberation
+ * window. Applies to motions AND legacy DB-only proposals alike.
+ */
 export function isExpiredDbMotion(
   proposal: Pick<Proposal, "on_chain_id" | "committee_id" | "created_at" | "end_date">,
 ): boolean {
-  if (proposal.on_chain_id?.trim()) return false;
-  if (!proposal.committee_id) return false;
+  if (proposal.on_chain_id && proposal.on_chain_id.trim() !== "") return false;
   if (isVotingClosed(undefined, proposal.end_date)) return true;
   if (!proposal.created_at) return false;
   const createdAt = new Date(proposal.created_at).getTime();
@@ -1133,10 +1138,14 @@ export const ProposalCard: React.FC<{
 
   // ── Shared chain-derived display values ────────────────────────────
   const chainName = chain.state != null ? STATE_NAME[chain.state] : null;
-  const isActive = chain.state === 1;
+  const rawIsActive = chain.state === 1;
   const isFinalDefeated = chain.state != null && FINAL_DEFEATED.has(chain.state);
   const isFinalPassed = chain.state != null && FINAL_PASSED.has(chain.state);
-  const isFinal = isFinalDefeated || isFinalPassed;
+  // Deadline resolver — a proposal whose voting window has closed can never
+  // render as Live/Active/Deliberation regardless of DB status text.
+  const deadlineClosed = isVotingClosed(chain, proposal.end_date) || isExpiredDbMotion(proposal);
+  const isFinal = isFinalDefeated || isFinalPassed || (deadlineClosed && !isFinalPassed);
+  const isActive = rawIsActive && !deadlineClosed;
   // OZ semantics: For + Abstain count toward quorum; Against does not.
   const quorumReached = chain.quorum > 0 && (chain.forVotes + chain.abstainVotes) >= chain.quorum;
   const majorityFor = chain.forVotes > chain.againstVotes;
@@ -1288,11 +1297,13 @@ export const ProposalCard: React.FC<{
               ? "border-amber-200 bg-amber-50/60 text-amber-700 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-900/50"
               : "border-slate-200 bg-slate-50 text-slate-600 dark:bg-slate-900/40 dark:text-slate-300 dark:border-slate-800";
   const statusIcon = isFinalDefeated ? "✘" : isFinalPassed ? "✅" : isPassing ? "✅" : isFailing ? "⚠" : isActive ? "⚡" : chain.state === 0 ? "⏳" : "•";
-  const statusLabel = isPassing
-    ? "Passing · Voting Open"
-    : isFailing
-      ? "Failing · Voting Open"
-      : chainName || (chain.state === null ? "Syncing" : proposal.status);
+  const statusLabel = deadlineClosed && !isFinalPassed
+    ? "Voting Closed · Deadline Passed"
+    : isPassing
+      ? "Passing · Voting Open"
+      : isFailing
+        ? "Failing · Voting Open"
+        : chainName || (chain.state === null ? "Syncing" : proposal.status);
 
   return (
     <>
