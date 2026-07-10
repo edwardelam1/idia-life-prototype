@@ -1559,6 +1559,136 @@ export type Database = {
         }
         Relationships: []
       }
+      dao_execution_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json
+          task_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          payload?: Json
+          task_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          payload?: Json
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dao_execution_events_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "dao_execution_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dao_execution_extensions: {
+        Row: {
+          created_at: string
+          extension_onchain_id: string | null
+          extension_proposal_id: string | null
+          id: string
+          reason: string
+          requested_seconds: number
+          resolved_at: string | null
+          state: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          extension_onchain_id?: string | null
+          extension_proposal_id?: string | null
+          id?: string
+          reason: string
+          requested_seconds: number
+          resolved_at?: string | null
+          state?: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          extension_onchain_id?: string | null
+          extension_proposal_id?: string | null
+          id?: string
+          reason?: string
+          requested_seconds?: number
+          resolved_at?: string | null
+          state?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dao_execution_extensions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "dao_execution_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dao_execution_tasks: {
+        Row: {
+          assignee_id: string | null
+          category: string | null
+          created_at: string
+          execution_deadline_at: string | null
+          execution_tx_hash: string | null
+          failure_reason: string | null
+          granted_extension_seconds: number
+          id: string
+          initial_deadline_at: string | null
+          onchain_proposal_id: string | null
+          proposal_id: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          category?: string | null
+          created_at?: string
+          execution_deadline_at?: string | null
+          execution_tx_hash?: string | null
+          failure_reason?: string | null
+          granted_extension_seconds?: number
+          id?: string
+          initial_deadline_at?: string | null
+          onchain_proposal_id?: string | null
+          proposal_id: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_id?: string | null
+          category?: string | null
+          created_at?: string
+          execution_deadline_at?: string | null
+          execution_tx_hash?: string | null
+          failure_reason?: string | null
+          granted_extension_seconds?: number
+          id?: string
+          initial_deadline_at?: string | null
+          onchain_proposal_id?: string | null
+          proposal_id?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       dao_hats: {
         Row: {
           created_at: string | null

@@ -16,9 +16,11 @@ import ExecutionPhaseList from "./governance/ExecutionPhaseList";
 
 import MSAComplianceCard from "./governance/MSAComplianceCard";
 import TreasuryFlows from "./governance/TreasuryFlows";
+import ExecutionTracker from "./governance/ExecutionTracker";
 import CommitteesList from "./governance/CommitteesList";
 import CommitteeWorkspace from "./governance/CommitteeWorkspace";
 import ApplicationReviewQueue from "./governance/ApplicationReviewQueue";
+
 import AuditFeed from "./governance/AuditFeed";
 import WelcomeManualGate from "./governance/WelcomeManualGate";
 import CreateDaoProposalModal from "./governance/CreateDaoProposalModal";
@@ -182,7 +184,9 @@ const DelawarePortal: React.FC = () => (
   <div className="space-y-5 animate-in slide-in-from-left-4 duration-300">
     <MSAComplianceCard />
     <TreasuryFlows />
+    <ExecutionTracker />
     <ApplicationReviewQueue />
+
     <CommitteesList />
     <section className="space-y-3">
       <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">

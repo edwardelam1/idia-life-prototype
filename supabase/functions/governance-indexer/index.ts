@@ -297,7 +297,47 @@ serve(async (req) => {
           }
         }
       }
+
+      // ── EXECUTION_TRACKER enrolment ──────────────────────────────
+      // When a proposal enters Queued (5) it's post-timelock and ready
+      // to execute — surface it in the Delaware MSA Execution Tracker.
+      if (stateInt === 5) {
+        // Find the matching dao_proposals row (if any) to seed title/category.
+        const { data: daoProp } = await supabaseAdmin
+          .from("dao_proposals")
+          .select("id, title, category")
+          .eq("on_chain_id", pid)
+          .maybeSingle();
+        if (daoProp) {
+          const { data: existingTask } = await supabaseAdmin
+            .from("dao_execution_tasks")
+            .select("id")
+            .eq("proposal_id", daoProp.id)
+            .maybeSingle();
+          if (!existingTask) {
+            const deadline = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+            const { error: taskErr } = await supabaseAdmin
+              .from("dao_execution_tasks")
+              .insert({
+                proposal_id: daoProp.id,
+                onchain_proposal_id: pid,
+                title: daoProp.title || (row.description || "Governance action").split("\n")[0].slice(0, 200),
+                category: daoProp.category ?? null,
+                execution_deadline_at: deadline,
+                initial_deadline_at: deadline,
+                status: "ready",
+              });
+            if (taskErr) {
+              console.warn(`[INDEXER][EXECUTION_TRACKER][WARN] proposal_id=${pid} ${taskErr.message}`);
+            } else {
+              console.log(`[INDEXER][EXECUTION_TRACKER][OK] proposal_id=${pid} enrolled`);
+            }
+
+          }
+        }
+      }
     }
+
 
     console.log(
       `[INDEXER][SWEEP][END:OK] processed=${rows.length} anchored=${anchored.length} failed=${failed.length}`,
