@@ -10782,6 +10782,7 @@ export type Database = {
       }
       get_average_rating: { Args: { p_ratee_id: string }; Returns: number }
       get_hub_balance: { Args: { uid: string }; Returns: number }
+      get_omni_aggregates: { Args: { pseudo_id: string }; Returns: Json }
       get_real_library_yield: {
         Args: never
         Returns: {
