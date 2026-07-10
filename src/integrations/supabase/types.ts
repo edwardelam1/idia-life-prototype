@@ -1647,7 +1647,7 @@ export type Database = {
           description: string | null
           escrow_target: string | null
           id: string
-          onchain_proposal_id: number | null
+          onchain_proposal_id: string | null
           processed_at: string | null
           status: string | null
           timelock_expires_at: string
@@ -1662,7 +1662,7 @@ export type Database = {
           description?: string | null
           escrow_target?: string | null
           id?: string
-          onchain_proposal_id?: number | null
+          onchain_proposal_id?: string | null
           processed_at?: string | null
           status?: string | null
           timelock_expires_at: string
@@ -1677,7 +1677,7 @@ export type Database = {
           description?: string | null
           escrow_target?: string | null
           id?: string
-          onchain_proposal_id?: number | null
+          onchain_proposal_id?: string | null
           processed_at?: string | null
           status?: string | null
           timelock_expires_at?: string
