@@ -340,8 +340,14 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
               disabled={isSubmitting}
               className="bg-muted/40 border-input text-foreground placeholder:text-muted-foreground resize-none"
             />
-            <p className="text-[10px] text-muted-foreground text-right">
-              {description.length}/1000
+            <div className="flex justify-between text-[10px] pt-0.5">
+              <span className={wordCount >= MIN_WORDS ? "text-emerald-600 font-semibold" : "text-muted-foreground"}>
+                {wordCount} / {MIN_WORDS} words min {wordCount >= MIN_WORDS ? "✓" : ""}
+              </span>
+              <span className="text-muted-foreground">{description.length}/1000</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground pt-1 leading-relaxed">
+              Proposals are AI-screened for structural clarity and legal risk before anchoring on-chain.
             </p>
           </div>
 
