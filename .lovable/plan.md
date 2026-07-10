@@ -1,44 +1,25 @@
-## Goal
+## Problem
 
-Prevent low-effort or legally risky proposals from ever anchoring on-chain by enforcing:
-1. A **hard 50-word minimum** on the description (client-side, pre-signature).
-2. A **pre-chain AI validation gate** that checks structure/legibility and screens for content that could legally harm IDIA Data Inc. or IDIA DUNA.
+Pressing **Veto** on `PendingActionsCarousel` shows the "Mobile Device Required — Secure Enclave attestation..." toast on iPhone, even though other ACA + biometric features (approve, sponsor, reject, promote, extend, etc.) work fine on the same device.
 
-Currently AI validation runs *after* the on-chain anchor + DB insert, so bad proposals still land live. This flips the order: validate first, chain second.
+## Root cause
 
-## Changes
+`castVeto` in `src/components/governance/PendingActionsCarousel.tsx` guards the flow with `isNative()` from `src/services/platform.ts`, which returns `Capacitor.isNativePlatform()`. The iOS shell is a **pure WKWebView wrapper** using a custom bridge (`window.webkit.messageHandlers.triggerBiologicalCapture`), not a Capacitor runtime — so `Capacitor.isNativePlatform()` is `false` and the veto is blocked before the bridge is ever called.
 
-### 1. `src/components/governance/CreateDaoProposalModal.tsx`
-- Add a live word-count helper under the description field (`X / 50 min`), green when ≥50.
-- Require `title.trim().length >= 5`, `category` selected, and `description` word count `>= 50` before the Submit button enables (remove the "testing mode" bypass on required fields).
-- On submit, **before** calling `walletService.getConnectedSigner()` for the chain anchor:
-  1. Invoke the upgraded `validate-proposal` edge function with `{ title, description, category }` in a **pre-flight** mode (no `proposalId` yet).
-  2. If the function returns `status: "rejected"` or `legal_risk: "high"`, show a destructive toast with the returned `feedback` (and `legal_reasons` if present), abort submission — no wallet prompt, no DB write.
-  3. If `status: "under_review"` with medium legal risk, show a confirmation dialog listing concerns; user must explicitly proceed.
-  4. Only on `status: "approved"` (or user-confirmed under_review) do we proceed to the existing chain-anchor + DB insert flow.
-- Remove the redundant post-insert `validate-proposal` call (validation now gates entry, not audits it after).
-- Keep the `TEMP_DISABLE_AI_VALIDATION` flag but default it to `false` and only skip the AI call — the 50-word gate always applies.
+`generateACAHash` (used by every working ACA flow) correctly detects native by probing `window.webkit.messageHandlers.triggerBiologicalCapture`. Veto is the only touchpoint using the wrong signal.
 
-### 2. `supabase/functions/validate-proposal/index.ts`
-- Support pre-flight mode: if `proposalId` is omitted, skip the DB update and just return the verdict.
-- Rewrite the system + user prompt to explicitly score two axes:
-  - **Structural legibility** (0–10): coherent English, on-topic, actionable, ≥50 meaningful words.
-  - **Legal risk to IDIA Data Inc. / IDIA DUNA** (`none` | `low` | `medium` | `high`) with `legal_reasons: string[]`. Flag: defamation, incitement, targeted harassment, promises of unregistered securities/yields, unlawful directives, IP infringement, doxxing, sanctions/OFAC concerns, or fiduciary-breach instructions.
-- Return JSON: `{ score, feedback, legal_risk, legal_reasons, status }` where `status` is:
-  - `approved` — score ≥ 7 AND legal_risk in (`none`,`low`).
-  - `under_review` — score 4–6 OR legal_risk `medium`.
-  - `rejected` — score < 4 OR legal_risk `high`.
-- Switch the model call to Lovable AI Gateway (`openai/gpt-5.5` via `LOVABLE_API_KEY`) using the AI SDK `Output.object` pattern rather than raw OpenAI — matches project standard and removes the `OPENAI_API_KEY` dependency for this function.
-- Keep the post-insert branch (`proposalId` present) working for the legacy `ProposalForm.tsx` path so it doesn't break.
+## Fix
 
-### 3. Minor
-- Add a small `countWords(text)` util inline in the modal (`text.trim().split(/\s+/).filter(Boolean).length`).
-- Toast copy for rejection is user-facing but never quotes the raw model output verbatim — always via `feedback`.
+In `src/components/governance/PendingActionsCarousel.tsx`:
 
-## Out of scope
-- No changes to `ProposalForm.tsx` (legacy path), motion escalation, or the Governor contract.
-- No new DB columns; verdict is transient pre-chain.
+1. Remove the `isNative()` import + pre-flight guard on `castVeto`.
+2. Replace it with the same detection `generateACAHash` uses — probe `window.webkit.messageHandlers.triggerBiologicalCapture`. If missing (i.e. web preview), show the existing "Mobile Device Required" toast; otherwise proceed.
+3. Preserve the existing error path: `generateACAHash` already surfaces a proper toast when the enclave handshake is rejected, so no behavior change on real failures.
 
-## Technical notes
-- Pre-flight validation adds ~1–3s latency before the wallet prompt — acceptable trade for blocking harmful on-chain writes.
-- Requires `LOVABLE_API_KEY` secret (already present per project standards; will prompt to add if missing).
+No edge-function or DB changes needed — the veto insert and `dao-veto-tally` invocation already succeed once the ACA hash is produced.
+
+## Verification
+
+- On iPhone (WKWebView shell): Veto button now triggers Face ID / Touch ID, writes to `dao_vetoes`, and calls `dao-veto-tally`.
+- In Lovable web preview: still blocked with the "Mobile Device Required" toast (unchanged).
+- Other ACA flows: untouched.
