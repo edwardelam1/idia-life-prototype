@@ -7,7 +7,7 @@ interface FlashingSplashScreenProps {
 }
 
 const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
-  const [phase, setPhase] = useState<'video' | 'logo' | 'white'>('video');
+  const [phase, setPhase] = useState<'video' | 'logo' | 'logoFadeOut' | 'white'>('video');
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -16,7 +16,6 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    // Force the muted attribute at the DOM level (iOS gates autoplay on the attribute, not just the property).
     v.muted = true;
     v.setAttribute('muted', '');
     v.setAttribute('webkit-playsinline', 'true');
@@ -24,7 +23,6 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     const p = v.play();
     if (p && typeof p.catch === 'function') {
       p.catch(() => {
-        // Autoplay blocked — skip the video phase so the iOS "tap to play" glyph never lingers.
         setAutoplayBlocked(true);
       });
     }
@@ -32,18 +30,30 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
 
   useEffect(() => {
     if (autoplayBlocked) {
-      // Collapse the timeline: go straight to logo → white → done.
+      // Collapse the video phase but still give the logo its cinematic reveal.
       const t1 = setTimeout(() => setPhase('logo'), 0);
-      const t2 = setTimeout(() => setPhase('white'), 500);
-      const t3 = setTimeout(() => onComplete(), 900);
-      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+      const t2 = setTimeout(() => setPhase('logoFadeOut'), 2700);      // hold 1.5s after 1.2s fade-in
+      const t3 = setTimeout(() => setPhase('white'), 4200);             // 1.5s fade-out
+      const t4 = setTimeout(() => onComplete(), 5000);                  // 0.8s white dissolve
+      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
     }
-    // Normal timeline: 0–8000ms video, 8000–8400ms logo, 8400–8700ms white, then complete.
+    // Cinematic timeline:
+    //  0–8000ms   video
+    //  8000ms     logo fade-IN begins (1.2s)
+    //  9200ms     logo fully visible, holds with glow (1.5s)
+    // 10700ms     logo fade-OUT begins (1.5s)
+    // 12200ms     white dissolves (0.8s)
+    // 13000ms     complete
     const t1 = setTimeout(() => setPhase('logo'), 8000);
-    const t2 = setTimeout(() => setPhase('white'), 8400);
-    const t3 = setTimeout(() => onComplete(), 8700);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    const t2 = setTimeout(() => setPhase('logoFadeOut'), 10700);
+    const t3 = setTimeout(() => setPhase('white'), 12200);
+    const t4 = setTimeout(() => onComplete(), 13000);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
   }, [onComplete, autoplayBlocked]);
+
+  const logoVisible = phase === 'logo';
+  const logoReleasing = phase === 'logoFadeOut' || phase === 'white';
+
 
   return (
     <div
