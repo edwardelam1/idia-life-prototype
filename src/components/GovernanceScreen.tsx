@@ -184,7 +184,9 @@ const DelawarePortal: React.FC = () => (
   <div className="space-y-5 animate-in slide-in-from-left-4 duration-300">
     <MSAComplianceCard />
     <TreasuryFlows />
+    <ExecutionTracker />
     <ApplicationReviewQueue />
+
     <CommitteesList />
     <section className="space-y-3">
       <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
