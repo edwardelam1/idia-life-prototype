@@ -153,7 +153,10 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
 
       try {
         if (proposal.lifecycle_phase === "archived") {
-          if (alive) setDeadlineState({ label: "Voting Closed · Legacy Governor", tone: "ended" });
+          const label = (proposal.status || "").toLowerCase().includes("legacy")
+            ? "Voting Closed · Legacy Governor"
+            : "Voting Closed · Deadline Passed";
+          if (alive) setDeadlineState({ label, tone: "ended" });
         } else {
           const SECONDS_PER_BLOCK = 2;
           const VOTING_DELAY_BLOCKS = 43200;
