@@ -1297,11 +1297,13 @@ export const ProposalCard: React.FC<{
               ? "border-amber-200 bg-amber-50/60 text-amber-700 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-900/50"
               : "border-slate-200 bg-slate-50 text-slate-600 dark:bg-slate-900/40 dark:text-slate-300 dark:border-slate-800";
   const statusIcon = isFinalDefeated ? "✘" : isFinalPassed ? "✅" : isPassing ? "✅" : isFailing ? "⚠" : isActive ? "⚡" : chain.state === 0 ? "⏳" : "•";
-  const statusLabel = isPassing
-    ? "Passing · Voting Open"
-    : isFailing
-      ? "Failing · Voting Open"
-      : chainName || (chain.state === null ? "Syncing" : proposal.status);
+  const statusLabel = deadlineClosed && !isFinalPassed
+    ? "Voting Closed · Deadline Passed"
+    : isPassing
+      ? "Passing · Voting Open"
+      : isFailing
+        ? "Failing · Voting Open"
+        : chainName || (chain.state === null ? "Syncing" : proposal.status);
 
   return (
     <>
