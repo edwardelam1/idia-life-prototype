@@ -7271,6 +7271,42 @@ export type Database = {
         }
         Relationships: []
       }
+      settlement_ledger_repair_queue: {
+        Row: {
+          blockchain_tx_hash: string | null
+          created_at: string
+          error: string | null
+          id: string
+          payload: Json | null
+          phase: string
+          reference_id: string
+          resolved_at: string | null
+          user_id: string
+        }
+        Insert: {
+          blockchain_tx_hash?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          payload?: Json | null
+          phase: string
+          reference_id: string
+          resolved_at?: string | null
+          user_id: string
+        }
+        Update: {
+          blockchain_tx_hash?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          payload?: Json | null
+          phase?: string
+          reference_id?: string
+          resolved_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       settlement_locks: {
         Row: {
           lock_key: string
@@ -7291,24 +7327,39 @@ export type Database = {
       }
       settlement_queue: {
         Row: {
+          attempts: number
+          completed_at: string | null
           created_at: string | null
           id: string
+          last_attempt_at: string | null
+          last_error: string | null
           payload: Json
           reference_id: string
+          skipped_contributors: Json | null
           status: string | null
         }
         Insert: {
+          attempts?: number
+          completed_at?: string | null
           created_at?: string | null
           id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
           payload: Json
           reference_id: string
+          skipped_contributors?: Json | null
           status?: string | null
         }
         Update: {
+          attempts?: number
+          completed_at?: string | null
           created_at?: string | null
           id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
           payload?: Json
           reference_id?: string
+          skipped_contributors?: Json | null
           status?: string | null
         }
         Relationships: []
