@@ -29,7 +29,7 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
     {
       title: "Earn From Your Data",
       description:
-        "Transform your digital footprint into passive income. Earn IDIA-USD by consensually sharing your anonymized data with trusted partners.",
+        "Transform your digital footprint into passive income. Earn USDC & IDIA Token by consensually sharing your anonymized data with trusted partners.",
       gradient: "from-teal-600 to-emerald-600",
     },
     {
