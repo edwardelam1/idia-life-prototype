@@ -11,13 +11,13 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    // Phase 1: Video plays (0–3200ms)
-    // Phase 2: Logo emerges (3200–3600ms)
-    const t1 = setTimeout(() => setPhase('logo'), 3200);
-    // Phase 3: White fade (3600–3900ms)
-    const t2 = setTimeout(() => setPhase('white'), 3600);
+    // Phase 1: Video plays full 8-second clip (0–8000ms)
+    // Phase 2: Logo emerges (8000–8400ms)
+    const t1 = setTimeout(() => setPhase('logo'), 8000);
+    // Phase 3: White fade (8400–8700ms)
+    const t2 = setTimeout(() => setPhase('white'), 8400);
     // Complete
-    const t3 = setTimeout(() => onComplete(), 3900);
+    const t3 = setTimeout(() => onComplete(), 8700);
 
     return () => {
       clearTimeout(t1);
