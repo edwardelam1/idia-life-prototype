@@ -477,12 +477,42 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
 
     console.info("[BEGIN: Phase_3_Contributor.BatchExecution] Initializing sequential transaction pipeline.");
     try {
-      // Fetch authoritative starting nonce from Base RPC so viem can't reuse or skip slots.
-      let currentNonce = await client.getTransactionCount({
-        address: account.address,
-        blockTag: "pending",
-      });
-      console.info(`[PROCESS: Batch.Sequencer] Base RPC verified starting nonce: ${currentNonce}`);
+      // Concurrency-safe helper: refetches pending nonce every attempt and retries on
+      // nonce/underpriced/in-flight collisions caused by parallel Edge Function containers.
+      const sendWithNonceRetry = async (
+        txFn: (nonce: number) => Promise<`0x${string}`>,
+        label: string,
+      ): Promise<{ hash: `0x${string}`; receipt: any }> => {
+        const maxRetries = 5;
+        let attempt = 0;
+        while (attempt < maxRetries) {
+          const nonce = await client.getTransactionCount({
+            address: account.address,
+            blockTag: "pending",
+          });
+          console.info(`[PROCESS: Batch.Sequencer] Verified nonce: ${nonce} (${label} attempt ${attempt + 1})`);
+          try {
+            const hash = await txFn(nonce);
+            const receipt = await client.waitForTransactionReceipt({ hash, confirmations: 1 });
+            return { hash, receipt };
+          } catch (err: any) {
+            const msg = String(err?.message ?? err ?? "").toLowerCase();
+            const isNonceCollision =
+              msg.includes("nonce") ||
+              msg.includes("underpriced") ||
+              msg.includes("in-flight transaction limit") ||
+              msg.includes("already known");
+            if (!isNonceCollision) throw err;
+            attempt++;
+            const backoffMs = Math.pow(2, attempt) * 500;
+            console.warn(
+              `[WARN: Batch.Item.Collision] ${label} attempt ${attempt} nonce collision (${err?.message ?? err}) — yielding ${backoffMs}ms`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, backoffMs));
+          }
+        }
+        throw new Error(`Max retries exhausted for ${label} due to sequencer congestion.`);
+      };
 
       for (let i = 0; i < contributing_users.length; i++) {
         const contributor = contributing_users[i];
@@ -503,44 +533,44 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
         console.info(`[BEGIN: Batch.Item] Processing transfer ${i + 1}/${contributing_users.length} to ${lifeWallet}`);
 
         try {
-          // 1. Yield transfer (USDC)
-          const yieldHash = await client.writeContract({
-            address: USDC_ADDRESS,
-            abi: ERC20_ABI,
-            functionName: "transfer",
-            args: [lifeWallet as `0x${string}`, parseUnits(perContributorYield.toFixed(6), 6)],
-            account,
-            nonce: currentNonce,
-          });
-          currentNonce++;
-          console.info(
-            `[STATUS: Batch.Item] Yield TX Broadcasted. Hash: ${yieldHash}. Nonce advanced to ${currentNonce}. Awaiting network confirmation...`,
+          // 1. Yield transfer (USDC) — nonce-safe with retry
+          const { hash: yieldHash, receipt: yieldReceipt } = await sendWithNonceRetry(
+            (nonce) =>
+              client.writeContract({
+                address: USDC_ADDRESS,
+                abi: ERC20_ABI,
+                functionName: "transfer",
+                args: [lifeWallet as `0x${string}`, parseUnits(perContributorYield.toFixed(6), 6)],
+                account,
+                nonce,
+              }),
+            "yield",
           );
-          const yieldReceipt = await client.waitForTransactionReceipt({ hash: yieldHash, confirmations: 1 });
+          console.info(`[STATUS: Batch.Item] Yield TX Broadcasted. Hash: ${yieldHash}. Confirmed.`);
           if (yieldReceipt.status === "success") {
             console.info(`[END: Batch.Item] Yield transfer successful. Block: ${yieldReceipt.blockNumber}`);
           } else {
             console.error(`[ERROR: Batch.Item] Yield transaction reverted on-chain. Hash: ${yieldHash}`);
           }
 
-          // 2. Royalty proposal (escrow)
-          const proposalHash = await client.writeContract({
-            address: ESCROW_ECOSYSTEM,
-            abi: ESCROW_ABI,
-            functionName: "proposeDistribution",
-            args: [
-              lifeWallet as `0x${string}`,
-              idiaAwardAmount,
-              `Automated royalty yield proposal: Ref ${ingestionReference}`,
-            ],
-            account,
-            nonce: currentNonce,
-          });
-          currentNonce++;
-          console.info(
-            `[STATUS: Batch.Item] Proposal TX Broadcasted. Hash: ${proposalHash}. Nonce advanced to ${currentNonce}. Awaiting network confirmation...`,
+          // 2. Royalty proposal (escrow) — nonce-safe with retry
+          const { hash: proposalHash, receipt: proposalReceipt } = await sendWithNonceRetry(
+            (nonce) =>
+              client.writeContract({
+                address: ESCROW_ECOSYSTEM,
+                abi: ESCROW_ABI,
+                functionName: "proposeDistribution",
+                args: [
+                  lifeWallet as `0x${string}`,
+                  idiaAwardAmount,
+                  `Automated royalty yield proposal: Ref ${ingestionReference}`,
+                ],
+                account,
+                nonce,
+              }),
+            "proposal",
           );
-          const proposalReceipt = await client.waitForTransactionReceipt({ hash: proposalHash, confirmations: 1 });
+          console.info(`[STATUS: Batch.Item] Proposal TX Broadcasted. Hash: ${proposalHash}. Confirmed.`);
           if (proposalReceipt.status === "success") {
             console.info(`[END: Batch.Item] Proposal successful. Block: ${proposalReceipt.blockNumber}`);
           } else {
@@ -604,16 +634,6 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
             console.error(
               `[ERROR: Batch.Item.Repair] repair-queue insert failed: ${repairError?.message ?? repairError}`,
             );
-          }
-          // Re-sync nonce from chain to heal from dropped/rejected txs.
-          try {
-            currentNonce = await client.getTransactionCount({
-              address: account.address,
-              blockTag: "pending",
-            });
-            console.info(`[PROCESS: Batch.Sequencer] Nonce re-synced from chain after error: ${currentNonce}`);
-          } catch (nonceError: any) {
-            console.error(`[ERROR: Batch.Sequencer] Nonce re-sync failed: ${nonceError?.message ?? nonceError}`);
           }
           console.info(`[END: Batch.Item.Error]`);
           continue;
