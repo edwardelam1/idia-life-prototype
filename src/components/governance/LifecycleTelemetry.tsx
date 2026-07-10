@@ -61,7 +61,7 @@ export const PHASE_META = {
   },
   archived: {
     icon: "📦",
-    label: "Archived · Legacy Governor",
+    label: "Archived",
     color:
       "text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800",
   },
