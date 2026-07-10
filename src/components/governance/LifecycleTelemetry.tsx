@@ -10,7 +10,7 @@ import { stage } from "@/lib/stageLogger";
 import { ethers } from "ethers";
 import { PROTOCOL, ACTIVE_DEPLOYMENT, GOVERNOR_ABI } from "@/config/contracts";
 import { NETWORKS } from "@/services/walletService";
-import { readChainState } from "./ActiveProposalsList";
+import { readChainState, isVotingClosed } from "./ActiveProposalsList";
 
 interface ProposalLite {
   id: string;
@@ -61,7 +61,7 @@ export const PHASE_META = {
   },
   archived: {
     icon: "📦",
-    label: "Archived · Legacy Governor",
+    label: "Archived",
     color:
       "text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800",
   },
@@ -153,7 +153,10 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
 
       try {
         if (proposal.lifecycle_phase === "archived") {
-          if (alive) setDeadlineState({ label: "Voting Closed · Legacy Governor", tone: "ended" });
+          const label = (proposal.status || "").toLowerCase().includes("legacy")
+            ? "Voting Closed · Legacy Governor"
+            : "Voting Closed · Deadline Passed";
+          if (alive) setDeadlineState({ label, tone: "ended" });
         } else {
           const SECONDS_PER_BLOCK = 2;
           const VOTING_DELAY_BLOCKS = 43200;
@@ -314,14 +317,32 @@ const LifecycleTelemetry: React.FC = () => {
 
           const stateChecks = await Promise.all(
             rows.map(async (r) => {
+              // DB-only rows (motions): archive when end_date has passed and
+              // the phase isn't terminal-success.
+              const dbClosed = isVotingClosed(undefined, r.end_date);
+              const dbPhase = dbPhaseFor(r);
+              const isTerminalSuccess = ["succeeded", "queued", "executed"].includes(dbPhase);
+
               if (!r.on_chain_id) {
-                return { ...r, lifecycle_phase: dbPhaseFor(r), status: r.status ?? "In Deliberation" };
+                if (dbClosed && !isTerminalSuccess) {
+                  return { ...r, lifecycle_phase: "archived" as const, status: "Voting Closed · Deadline Passed" };
+                }
+                return { ...r, lifecycle_phase: dbPhase, status: r.status ?? "In Deliberation" };
               }
 
               try {
                 const cs = await readChainState(r.on_chain_id);
                 const st = cs.state;
                 console.log(`[TELEMETRY_BUCKET] ref=${r.on_chain_id} resolved state=${st}`);
+
+                // Deadline-aware short-circuit: chain deadline block passed
+                // (or DB end_date passed) and not a success/queued/executed
+                // terminal state → archive.
+                const chainClosed = isVotingClosed(cs, r.end_date);
+                const chainTerminalSuccess = st === 4 || st === 5 || st === 7;
+                if (chainClosed && !chainTerminalSuccess) {
+                  return { ...r, lifecycle_phase: "archived" as const, status: "Voting Closed · Deadline Passed" };
+                }
 
                 if (st === 0) return { ...r, lifecycle_phase: "pending" as const, status: "Voting Delay" };
                 if (st === 1) {
@@ -336,12 +357,15 @@ const LifecycleTelemetry: React.FC = () => {
                 if (st === 5) return { ...r, lifecycle_phase: "queued" as const, status: "Timelocked" };
                 if (st === 7) return { ...r, lifecycle_phase: "executed" as const, status: "Executed" };
 
-                // st === 2 (canceled) / 3 (defeated) / 6 (expired) → preserve DB truth
+                // st === 2 (canceled) / 3 (defeated) / 6 (expired) → archive
+                if (st === 2 || st === 3 || st === 6) {
+                  return { ...r, lifecycle_phase: "archived" as const, status: st === 2 ? "Canceled" : st === 6 ? "Expired" : "Defeated" };
+                }
                 if (st === null) {
                   // Current Governor can't resolve this id → belongs to a previous Governor.
                   return { ...r, lifecycle_phase: "archived" as const, status: "Legacy Governor" };
                 }
-                return { ...r, lifecycle_phase: dbPhaseFor(r), status: r.status ?? "Archived" };
+                return { ...r, lifecycle_phase: "archived" as const, status: r.status ?? "Archived" };
               } catch (chainErr: any) {
                 console.error(`[TELEMETRY_BUCKET][ARCHIVED] Chain read failed for ${r.on_chain_id}: ${chainErr?.message}. Treating as legacy-governor archive.`);
                 return { ...r, lifecycle_phase: "archived" as const, status: "Legacy Governor" };

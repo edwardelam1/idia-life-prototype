@@ -170,11 +170,30 @@ export interface Proposal {
   on_chain_id?: string | null;
   lifecycle_phase?: string | null;
   created_at?: string | null;
+  end_date?: string | null;
   indexed_state?: number | null;
   proposal_targets?: string[] | null;
   proposal_values?: string[] | null;
   proposal_calldatas?: string[] | null;
   chain_description?: string | null;
+}
+
+/**
+ * Deadline-aware "voting closed" predicate. Chain deadline block wins when
+ * available; falls back to the DB end_date for motions that never anchored.
+ */
+export function isVotingClosed(
+  chain: Pick<ChainState, "currentBlock" | "deadlineBlock"> | undefined | null,
+  dbEndDate: string | null | undefined,
+): boolean {
+  if (chain?.currentBlock != null && chain?.deadlineBlock != null && chain.deadlineBlock > 0) {
+    if (chain.currentBlock > chain.deadlineBlock) return true;
+  }
+  if (dbEndDate) {
+    const t = new Date(dbEndDate).getTime();
+    if (Number.isFinite(t) && t <= Date.now()) return true;
+  }
+  return false;
 }
 
 const sameEvmAddress = (a?: string | null, b?: string | null) =>
@@ -214,6 +233,16 @@ export function classifyProposalBucket(proposal: Proposal, chainState?: ChainSta
   const phase = (proposal.lifecycle_phase || "").toLowerCase();
   if (phase === "archived" || phase === "drift") return "DEFEATED";
   const hasOnChainId = !!proposal.on_chain_id?.trim();
+
+  // Deadline-aware short-circuit: if voting is closed (chain deadline block
+  // passed OR DB end_date in the past) and the proposal has not reached a
+  // success/queued/executed terminal state, route it to the archive.
+  const votingClosed = isVotingClosed(chainState, proposal.end_date);
+  const terminalSuccess =
+    (chainState?.state != null && FINAL_PASSED.has(chainState.state)) ||
+    ["succeeded", "queued", "executed", "settled"].includes(phase);
+  if (votingClosed && !terminalSuccess) return "DEFEATED";
+
   if (chainState?.state != null) return classifyBucket(chainState.state, hasOnChainId);
   // Chain read completed but the current Governor doesn't recognize this id
   // (legacy Governor orphan). Archive it — don't trust the DB "active" phase.
@@ -1638,7 +1667,7 @@ const ActiveProposalsList: React.FC<{
         // Sequential to avoid RPC 429s — Supabase first (cheap), then on-chain.
         const dbProposals = await (supabase as any)
           .from("dao_proposals")
-          .select("id, title, description, status, proposer_id, on_chain_id, lifecycle_phase, created_at, proposal_targets, proposal_values, proposal_calldatas")
+          .select("id, title, description, status, proposer_id, on_chain_id, lifecycle_phase, created_at, end_date, proposal_targets, proposal_values, proposal_calldatas")
           .order("created_at", { ascending: false });
         if (dbProposals.error) throw dbProposals.error;
 
