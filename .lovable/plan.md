@@ -1,31 +1,20 @@
-## Extend Splash Logo Reveal & Fade
+Update the unauthenticated onboarding slide deck (LandingScreen.tsx) so the gradient slides fill the entire viewport and the text is positioned so the navigation arrows never overlap it.
 
-Make the logo an experience — let it breathe, glow, and fade gracefully instead of flashing away.
+1. Remove the blue header/footer frame
+- Change the root container from the slate-900/800 gradient to a neutral background so the slide gradients become the only visible color.
+- Make the carousel container absolutely positioned (`inset-0`) so each slide gradient bleeds all the way to the top, bottom, and edges of the screen.
+- Keep the logo, navigation arrows, dot indicators, and "Get Started" button as absolute overlays on top of the gradient.
+- Add safe-area-aware padding for the logo and bottom controls so they stay clear of notches/home indicators.
 
-### New Timeline (`src/components/FlashingSplashScreen.tsx`)
+2. Raise and even out the slide text
+- Change each slide's inner content from `justify-center items-center mt-32` to `justify-start pt-24` (or similar) so the title sits higher in the viewport and uses the top whitespace instead of floating in the middle.
+- Keep the text horizontally centered with a `max-w-sm` width.
+- Because the arrows are vertically centered in the full-height carousel, moving the title/description block into the upper third keeps it clear of the arrows while still leaving the bottom third for the CTA and dots.
 
-```text
-0ms      → Video starts (full 8s rush)
-8000ms   → Video ends, logo begins fade-IN (slow, 1.2s ease-out with subtle scale-up from 0.92 → 1.0)
-9200ms   → Logo fully visible, holds with a gentle glow/pulse
-10700ms  → Logo begins fade-OUT (1.5s ease-in-out, scale 1.0 → 1.04 for a "release" feel)
-12200ms  → White screen fades away (0.8s)
-13000ms  → onComplete fires → app becomes interactive
-```
+3. Preserve behavior and contrast
+- Keep the existing slide transitions, swipe/touch handling, arrow navigation, dot controls, and sign-up callback.
+- Verify white text remains readable on the teal/emerald/green slide gradients.
+- Adjust the bottom CTA spacing to sit just above the safe-area so it does not overlap the dot indicators.
 
-Total splash: **~13 seconds** (up from 8.7s). Per user: load time is not a concern — this is a "brought to life" moment.
-
-### Changes
-
-1. **Phase timing constants** — extend `LOGO_FADE_IN`, add `LOGO_HOLD`, extend `LOGO_FADE_OUT`, extend `WHITE_FADE`.
-2. **Logo element** — replace the abrupt opacity flip with a multi-stage transition:
-   - Fade-in: `opacity 0 → 1` over 1200ms, `scale 0.92 → 1.0`, ease-out
-   - Hold: soft glow (drop-shadow pulse) for 1500ms
-   - Fade-out: `opacity 1 → 0` over 1500ms, `scale 1.0 → 1.04`, ease-in-out
-3. **White overlay** — extend fade to 800ms so it dissolves rather than blinks.
-4. **Skip control** — keep existing tap-to-skip so users who've seen it can bypass.
-
-### Not changing
-
-- Video phase (still full 8s, iPhone 11 autoplay fallback intact)
-- Assets, layout, colors, or any other component
+4. Verify
+- Preview the LandingScreen route in the browser and check on both mobile and desktop viewports that the gradient reaches the edges, the title is high enough, and the left/right arrows sit below or beside the title block, not on top of it.
