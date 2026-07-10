@@ -112,7 +112,7 @@ const PendingActionsCarousel: React.FC<PendingActionsCarouselProps> = ({ escrowT
 
   const castVeto = async (actionId: string) => {
     console.log(`[VETO_ACTION] START: Initializing Negative Consent sequence for action: ${actionId}`);
-    if (!isNative()) {
+    if (!hasNativeEnclaveBridge()) {
       toast({
         title: "Mobile Device Required",
         description: "Veto actions require Secure Enclave attestation. Please use the iOS or Android app.",
