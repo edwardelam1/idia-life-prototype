@@ -33,6 +33,7 @@ import { generateACAHash } from "@/utils/acaGenerator";
 import { isNative } from "@/services/platform";
 import { getAscensionLevel, LEVEL_LABEL, LEVEL_BADGE_CLASS } from "@/utils/governanceGate";
 import CommitteeRosterModal from "./CommitteeRosterModal";
+import InfoTip from "./InfoTip";
 
 // We keep the structural UI metadata static, but all metrics are hydrated live.
 const COMMITTEES_META = [
