@@ -24,6 +24,7 @@ import ApplicationReviewQueue from "./governance/ApplicationReviewQueue";
 import AuditFeed from "./governance/AuditFeed";
 import WelcomeManualGate from "./governance/WelcomeManualGate";
 import CreateDaoProposalModal from "./governance/CreateDaoProposalModal";
+import InfoTip from "./governance/InfoTip";
 import { PROTOCOL, ACTIVE_DEPLOYMENT } from "@/config/contracts";
 import { ACTION_REQUIRED_LEVEL, getAscensionLevel, type AscensionLevel } from "@/utils/governanceGate";
 
