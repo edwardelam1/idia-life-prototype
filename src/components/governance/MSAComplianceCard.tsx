@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Activity, Loader2, Zap, RefreshCw } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
+import InfoTip from "./InfoTip";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
