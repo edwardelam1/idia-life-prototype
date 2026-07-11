@@ -11238,6 +11238,7 @@ export type Database = {
         | "hub_protocol_fee"
         | "synapse_purchase"
         | "."
+        | "idia_royalty_yield"
       sync_status: "pending" | "processing" | "completed" | "failed"
       user_role: "leadership" | "manager" | "employee" | "csuite"
     }
@@ -11400,6 +11401,7 @@ export const Constants = {
         "hub_protocol_fee",
         "synapse_purchase",
         ".",
+        "idia_royalty_yield",
       ],
       sync_status: ["pending", "processing", "completed", "failed"],
       user_role: ["leadership", "manager", "employee", "csuite"],
