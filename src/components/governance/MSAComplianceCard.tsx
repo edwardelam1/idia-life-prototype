@@ -300,6 +300,9 @@ const MSAComplianceCard: React.FC = () => {
           <h3 className="text-[10px] font-black uppercase tracking-widest text-teal-800 dark:text-teal-200 flex items-center gap-2">
             <Zap size={14} className="text-teal-600 dark:text-teal-300" />
             Oracle Telemetry · Shared Schema · 30D
+            <InfoTip label="Delaware MSA Oracle">
+              Compliance telemetry for the Delaware Master Services Agreement — tracks per-channel data egress against the schema every DAO participant signed on to.
+            </InfoTip>
           </h3>
           <button
             onClick={() => fetchMetrics(true)}
