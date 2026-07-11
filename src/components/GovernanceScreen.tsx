@@ -206,6 +206,9 @@ const DelawarePortal: React.FC = () => (
     <section className="space-y-3">
       <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
         <Gavel size={14} className="text-teal-600" /> Committee Deliberations · Motion Threads
+        <InfoTip label="Motion Threads">
+          Committees deliberate here before anything goes to a vote. Members draft motions, gather endorsements, and — once a motion clears 3 endorsements — escalate it into an on-chain proposal.
+        </InfoTip>
       </h2>
       <CommitteeWorkspaceBoundary />
     </section>
