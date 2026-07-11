@@ -168,6 +168,9 @@ const ArchiveProposalsList: React.FC<Props> = ({ balance, votingPower, refreshTr
             <span className="text-[9px] font-black uppercase tracking-widest text-rose-600 bg-rose-100 dark:text-rose-200 dark:bg-rose-900/40 px-2 py-0.5 rounded-full">
               {proposals.length}
             </span>
+            <InfoTip label="Archive">
+              Proposals that failed to reach quorum, were voted down, or were canceled. Also holds legacy proposals from the previous governor contract.
+            </InfoTip>
           </div>
           <ChevronDown
             className={`w-4 h-4 text-rose-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
