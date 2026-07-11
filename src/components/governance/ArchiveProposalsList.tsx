@@ -3,6 +3,7 @@ import { Archive, ChevronDown, Loader2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import InfoTip from "./InfoTip";
 import { stage } from "@/lib/stageLogger";
 import { governanceService, type ProposalOnChain } from "@/services/governanceService";
 import {
