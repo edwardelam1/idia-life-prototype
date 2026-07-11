@@ -400,6 +400,9 @@ const CommitteesList: React.FC = () => {
             : ascensionLevel === 2
               ? "Oversight Matrix"
               : "Level 1 Ascension"}
+          <InfoTip label="Delaware Registry">
+            Directory of DAO committees under the Delaware MSA. L1 members apply, L2 chairs oversee rosters, and L3 Tophats can provision active hats via override.
+          </InfoTip>
         </h2>
         <p className="text-xs text-muted-foreground mt-1">
           {ascensionLevel === 3
