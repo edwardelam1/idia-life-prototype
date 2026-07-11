@@ -6,6 +6,7 @@ import { toast } from "@/hooks/use-toast";
 import ManualViewerModal from "./ManualViewerModal";
 import ReattestDialog from "./ReattestDialog";
 import InfoTip from "./InfoTip";
+import InfoTip from "./InfoTip";
 
 type HatType = "tophat" | "security_council" | "product_xr" | "legal_defense" | "sociorelational";
 type Eligibility = "active" | "grayed" | "severed";
