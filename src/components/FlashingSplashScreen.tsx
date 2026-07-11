@@ -109,11 +109,18 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
         disablePictureInPicture
         disableRemotePlayback
         poster=""
+        onPlaying={() => {
+          if (!toneRef.current) {
+            toneRef.current = new SplashTone();
+            toneRef.current.start(0.05);
+          }
+        }}
         className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in"
         style={{
           opacity: phase === 'video' && !autoplayBlocked ? 1 : 0,
         }}
       />
+
 
 
       {/* Logo emerging — cinematic fade-in, glowing hold, graceful release */}
