@@ -244,6 +244,9 @@ const ExecutionPhaseList: React.FC<Props> = ({ balance, votingPower, refreshTrig
             <span className="text-[9px] font-black uppercase tracking-widest text-amber-800 bg-amber-100 dark:text-amber-200 dark:bg-amber-900/40 px-2 py-0.5 rounded-full">
               {proposals.length}
             </span>
+            <InfoTip label="Execution Phase">
+              Passed proposals sitting in the timelock queue. After the delay expires, anyone can trigger the on-chain execution.
+            </InfoTip>
           </div>
           <ChevronDown
             className={`w-4 h-4 text-amber-600 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
