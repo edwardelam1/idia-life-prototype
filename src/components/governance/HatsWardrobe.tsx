@@ -139,8 +139,11 @@ const HatsWardrobe: React.FC = () => {
   return (
     <div className="space-y-2">
       <div className="flex justify-between items-center px-2 gap-2">
-        <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+        <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
           Hats Wardrobe · Role Authority
+          <InfoTip label="Hats Wardrobe">
+            Your on-chain roles inside the DAO. <strong>Active</strong> hats grant authority. <strong>Gray</strong> hats need re-attestation within 30 days or they lock. <strong>Severed</strong> means you don't hold that role. L3 Tophats honorarily hold every committee hat.
+          </InfoTip>
         </h3>
         <button
           type="button"
