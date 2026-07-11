@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -8,14 +8,14 @@ interface InfoTipProps {
   children: React.ReactNode;
   side?: "top" | "right" | "bottom" | "left";
   className?: string;
-  /** Slightly larger circular hit target */
   size?: "xs" | "sm";
 }
 
 /**
- * Tap-to-reveal (?) tooltip. Uses a <span role="button"> so it can safely sit
- * inside <button>/<CollapsibleTrigger> without violating nested-button HTML.
- * Stops propagation so tapping the (?) never fires the parent trigger.
+ * Tap-to-reveal (?) tooltip. Controlled Popover so tapping the icon
+ * reliably toggles the content, even when nested inside other triggers
+ * (e.g. CollapsibleTrigger). Stops propagation so the parent trigger
+ * doesn't also fire.
  */
 const InfoTip: React.FC<InfoTipProps> = ({
   label,
@@ -24,23 +24,31 @@ const InfoTip: React.FC<InfoTipProps> = ({
   className,
   size = "xs",
 }) => {
+  const [open, setOpen] = useState(false);
   const dim = size === "xs" ? "w-4 h-4" : "w-5 h-5";
   const icon = size === "xs" ? 10 : 12;
 
+  const toggle = (e: React.SyntheticEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setOpen((v) => !v);
+  };
+
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <span
           role="button"
           tabIndex={0}
           aria-label={`What is ${label}?`}
-          onClick={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-          }}
+          aria-expanded={open}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onClick={toggle}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
-              e.stopPropagation();
+              toggle(e);
             }
           }}
           className={cn(
@@ -56,8 +64,9 @@ const InfoTip: React.FC<InfoTipProps> = ({
         side={side}
         align="center"
         sideOffset={6}
-        className="max-w-[240px] p-3 rounded-2xl text-[11px] leading-relaxed font-medium bg-popover text-popover-foreground shadow-xl border border-border"
+        className="z-[80] max-w-[240px] p-3 rounded-2xl text-[11px] leading-relaxed font-medium bg-popover text-popover-foreground shadow-xl border border-border"
         onClick={(e) => e.stopPropagation()}
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <p className="text-[10px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-300 mb-1">
           {label}
