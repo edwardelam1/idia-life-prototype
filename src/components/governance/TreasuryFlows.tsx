@@ -3,7 +3,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { TrendingUp, ArrowDownRight, ArrowUpRight, Loader2, Activity } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
-import InfoTip from "./InfoTip";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
@@ -151,9 +150,6 @@ const TreasuryFlows: React.FC = () => {
           <h3 className="text-[10px] font-black uppercase tracking-widest text-teal-800 dark:text-teal-200 flex items-center gap-2">
             <TrendingUp size={14} className="text-teal-600 dark:text-teal-300" />
             Global Treasury Flows · 30D Window
-            <InfoTip label="Treasury Flows">
-              Aggregate synapse-credit inflows and outflows across the DAO over the last 30 days. Sourced from the on-chain settlement ledger.
-            </InfoTip>
           </h3>
           <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-muted-foreground">Synapse Credits</div>
         </div>

@@ -3,7 +3,6 @@ import { Lock, ChevronDown, Loader2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import InfoTip from "./InfoTip";
 import { stage } from "@/lib/stageLogger";
 import { governanceService, type ProposalOnChain } from "@/services/governanceService";
 import {
@@ -169,9 +168,6 @@ const LockedProposalsList: React.FC<Props> = ({ balance, votingPower, refreshTri
             <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded-full">
               {proposals.length}
             </span>
-            <InfoTip label="Locked Proposals">
-              Proposals held in escrow pending review — typically awaiting sponsorship, risk clearance, or a scheduled activation window.
-            </InfoTip>
           </div>
           <ChevronDown
             className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`}

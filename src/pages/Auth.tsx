@@ -9,24 +9,6 @@ import { Eye, EyeOff, Mail, Lock, User, KeyRound } from "lucide-react";
 import { runVaultGuard } from "@/lib/vaultGuard";
 import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
 
-const OAUTH_SPLASH_SUPPRESS_UNTIL_KEY = "idia_oauth_splash_suppress_until_v1";
-const OAUTH_SPLASH_SUPPRESS_MS = 2 * 60 * 1000;
-
-const suppressSplashDuringOAuthReturn = () => {
-  try {
-    const until = String(Date.now() + OAUTH_SPLASH_SUPPRESS_MS);
-    sessionStorage.setItem(OAUTH_SPLASH_SUPPRESS_UNTIL_KEY, until);
-    localStorage.setItem(OAUTH_SPLASH_SUPPRESS_UNTIL_KEY, until);
-  } catch {}
-};
-
-const clearOAuthSplashSuppression = () => {
-  try {
-    sessionStorage.removeItem(OAUTH_SPLASH_SUPPRESS_UNTIL_KEY);
-    localStorage.removeItem(OAUTH_SPLASH_SUPPRESS_UNTIL_KEY);
-  } catch {}
-};
-
 const Auth = () => {
   const [searchParams] = useSearchParams();
   const defaultIsLogin = searchParams.get("mode") !== "signup";
@@ -59,7 +41,6 @@ const Auth = () => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session && !isResetMode) {
-        clearOAuthSplashSuppression();
         console.log("[START] Auth: post-auth Vault Guard handoff");
         try {
           const { isNewUser } = await runVaultGuard(session.user.id);
@@ -126,7 +107,6 @@ const Auth = () => {
 
   const handleOAuthSignIn = async (provider: "google" | "apple") => {
     setIsLoading(true);
-    suppressSplashDuringOAuthReturn();
     console.log(`[START] OAuth Sign-In Dispatch · provider=${provider}`);
     try {
       const { Capacitor } = await import("@capacitor/core");
@@ -257,7 +237,6 @@ const Auth = () => {
       }
       console.log(`[END] OAuth Sign-In Dispatch · provider=${provider}`);
     } catch (error: any) {
-      clearOAuthSplashSuppression();
       console.error(`[END:FAIL] OAuth Sign-In · provider=${provider}`, error?.message || error);
       toast({ title: `${provider} Sign In failed`, description: error.message, variant: "destructive" });
       setIsLoading(false);

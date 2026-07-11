@@ -1,32 +1,35 @@
-## Diagnosis
+## Problem
 
-After a successful Apple/Google auth handshake, Supabase persists the session — but on the next mount (or the reload triggered by the OAuth return), `App.tsx` runs a "session guard" that treats **any HS256-signed access token** (tokens beginning with `eyJhbGciOiJIUzI1NiI`) as a legacy/compromised token and immediately calls `supabase.auth.signOut({ scope: 'local' })` followed by `window.location.reload()`.
+Life, Shop, and the Pro dashboards (HRI, CPM, Pure Alpha) were built with a hardcoded glossy-light aesthetic. Their root containers and cards use `bg-white` / `bg-slate-*` / `text-slate-*` utilities, which ignore the theme, so in dark mode the middle section renders as a big white block.
 
-Supabase's default access-token signing algorithm for this project is HS256, so **every legitimate session** matches that "legacy" pattern. Result:
+## Scope
 
-1. User completes Apple/Google auth → session lands in local storage.
-2. `Auth.tsx` `onAuthStateChange` fires → navigates to `/`.
-3. `App.tsx` re-mounts on `/` → guard sees HS256 token → purges the session → reloads.
-4. Reload lands on `/` with no session → `Index.tsx` renders `LandingScreen` (splash is correctly suppressed by the earlier fix, so the user just sees the slides).
+Presentation-only change. No logic, no data, no component structure. Swap hardcoded neutrals for semantic tokens so the same UI adapts to `.dark`.
 
-This matches exactly what the user is reporting: "capturing my authentication" but ending on the slide screen instead of the wallet.
+## Token mapping
 
-## Fix
+- `bg-white` (page/container/card surface) → `bg-background` for page shells, `bg-card` for cards, popovers, dialogs
+- `bg-slate-50` / `bg-slate-50/30` / `bg-slate-50/50` (subtle surface) → `bg-muted` or `bg-muted/50`
+- `border-slate-50` / `border-slate-100` / `border-slate-200` → `border-border`
+- `text-slate-900` / `text-slate-700` → `text-foreground`
+- `text-slate-500` / `text-slate-400` / `text-slate-300` → `text-muted-foreground`
+- `bg-slate-900 text-white` (active pill/button) → `bg-primary text-primary-foreground`
+- Keep semantic accent colors (teal, orange, amber) — those are brand, not neutral surface
 
-Remove the HS256 "legacy token" purge in `src/App.tsx`. That heuristic was written for a one-time JWT-secret rotation event and is now indiscriminately signing every user out. Keep the rest of the session bootstrap intact (`getSession`, `onAuthStateChange`, deep-link handling).
+Explicit exclusions (do not touch):
+- Chart fills / SVG stroke colors that encode data
+- Gamma-warning orange states
+- Trust-Blue / Amber brand accents
 
-### Change
+## Files to edit
 
-**`src/App.tsx`** — delete the `AUTH_SESSION_GUARD` block (lines ~53–67) that:
-- Reads the session,
-- Flags any token starting with `eyJhbGciOiJIUzI1NiI` as legacy,
-- Calls `signOut({ scope: 'local' })` and `window.location.reload()`.
-
-Leave everything below it (the normal `getSession().then(...)`, `onAuthStateChange` subscription, and deep-link listener) unchanged.
+1. `src/components/enhanced/LifeScreen.tsx` — replace `bg-white` on the root wrapper, Cards, and DialogContent with `bg-card` / `bg-background`; borders → `border-border`.
+2. `src/components/ShopScreen.tsx` — root `bg-white min-h-screen` → `bg-background min-h-screen`; search input, category pills, product tiles, sticky detail header, merchant cards → `bg-card` + `border-border`; unselected pill text → `text-muted-foreground`.
+3. `src/components/pro/HRIDashboard.tsx` — the panel `bg-white` → `bg-card`.
+4. `src/components/pro/CPMDashboard.tsx` — root wrapper `bg-white min-h-screen` → `bg-background min-h-screen`; inner panels/cards `bg-white` → `bg-card`; slate borders/text → semantic tokens; Tooltip content → `bg-popover text-popover-foreground border-border`.
+5. `src/components/pro/PureAlphaDashboard.tsx` — same treatment as CPM: root `bg-white` → `bg-background`; view-switcher pills active `bg-slate-900 text-white` → `bg-primary text-primary-foreground`, inactive `bg-white … border-slate-200` → `bg-card … border-border`; log rows and empty states `bg-white` → `bg-card`; muted panels → `bg-muted/50`.
 
 ## Verification
 
-- Sign in with Apple → should route straight into `MainApp` (wallet tab).
-- Sign in with Google → same.
-- Email/password sign in → same.
-- Refresh while signed in → stays signed in, no forced reload loop.
+- Toggle Settings → Appearance → Dark, then visit Life, Shop, Pro → HRI, Pro → CPM, Pro → Pure Alpha, and confirm no white slab; also toggle back to Light and confirm no visual regression.
+- Grep after edit: `rg "bg-white|bg-slate-|text-slate-|border-slate-" src/components/enhanced/LifeScreen.tsx src/components/ShopScreen.tsx src/components/pro/{HRI,CPM,PureAlpha}Dashboard.tsx` should return only intentional brand/data-color usages.
