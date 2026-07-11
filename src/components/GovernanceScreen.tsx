@@ -73,8 +73,11 @@ const IdiaGovernanceCard: React.FC<{ idiaBalance: number; chainVerified: boolean
     <CardContent className="p-7">
       <div className="flex justify-between items-start">
         <div className="space-y-1">
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60">
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60 flex items-center gap-1.5">
             IDIA Governance Token
+            <InfoTip label="IDIA Governance Token" side="bottom">
+              Your on-chain voting weight. 1 IDIA = 1 vote once you've activated (self-delegated). Balance is read live from the ERC20Votes contract on Base mainnet.
+            </InfoTip>
           </p>
           <h1 className="text-4xl font-black truncate">
             {idiaBalance.toLocaleString(undefined, { maximumFractionDigits: 4 })}{" "}
