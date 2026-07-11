@@ -52,6 +52,9 @@ const Index = () => {
     return <LandingScreen onSignUp={handleSignUp} />;
   }
 
+  // Authenticated: never replay splash (avoids post-OAuth loop-back to splash)
+  
+
   return <MainApp />;
 };
 
