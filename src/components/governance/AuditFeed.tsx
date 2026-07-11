@@ -23,6 +23,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import InfoTip from "./InfoTip";
 
 interface LedgerRow {
   id: string;
@@ -134,14 +135,9 @@ const AuditFeed: React.FC = () => {
               <History size={14} className="text-teal-600" /> Immutable Audit Trail
             </h2>
             <div className="flex items-center gap-2">
-              {/* Collapsed Info Tooltip */}
-              <div className="relative flex items-center" onClick={(e) => e.stopPropagation()}>
-                <Info size={14} className="text-muted-foreground/50 hover:text-teal-600 transition-colors cursor-help" />
-                <div className="absolute right-0 top-full mt-2 w-60 p-3 bg-slate-800 text-slate-100 text-[10px] rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
-                  <span className="font-bold uppercase tracking-widest text-teal-400 block mb-1">System of Record</span>
-                  This ledger cryptographically anchors every action, signature, and state change within the protocol. Each event generates an auditable hash (ACA), ensuring complete legal transparency.
-                </div>
-              </div>
+              <InfoTip label="Immutable Audit Trail" side="left">
+                This ledger cryptographically anchors every action, signature, and state change in the protocol. Each event generates an auditable hash (ACA), ensuring complete legal transparency.
+              </InfoTip>
               <ChevronDown
                 size={16}
                 className="text-muted-foreground transition-transform duration-300 group-data-[state=open]:rotate-180"

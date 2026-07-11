@@ -24,6 +24,7 @@ import ApplicationReviewQueue from "./governance/ApplicationReviewQueue";
 import AuditFeed from "./governance/AuditFeed";
 import WelcomeManualGate from "./governance/WelcomeManualGate";
 import CreateDaoProposalModal from "./governance/CreateDaoProposalModal";
+import InfoTip from "./governance/InfoTip";
 import { PROTOCOL, ACTIVE_DEPLOYMENT } from "@/config/contracts";
 import { ACTION_REQUIRED_LEVEL, getAscensionLevel, type AscensionLevel } from "@/utils/governanceGate";
 
@@ -72,8 +73,11 @@ const IdiaGovernanceCard: React.FC<{ idiaBalance: number; chainVerified: boolean
     <CardContent className="p-7">
       <div className="flex justify-between items-start">
         <div className="space-y-1">
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60">
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60 flex items-center gap-1.5">
             IDIA Governance Token
+            <InfoTip label="IDIA Governance Token" side="bottom">
+              Your on-chain voting weight. 1 IDIA = 1 vote once you've activated (self-delegated). Balance is read live from the ERC20Votes contract on Base mainnet.
+            </InfoTip>
           </p>
           <h1 className="text-4xl font-black truncate">
             {idiaBalance.toLocaleString(undefined, { maximumFractionDigits: 4 })}{" "}
@@ -111,6 +115,9 @@ const WyomingPortal: React.FC<{
     <section className="space-y-3">
       <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
         <Zap size={14} className="text-orange-500" /> Pending Actions · Negative Consent
+        <InfoTip label="Pending Actions">
+          Time-sensitive queue where the Security Council can veto queued executions before they land on-chain. Silence here counts as consent — that's why it's called "negative consent."
+        </InfoTip>
       </h2>
       <PendingActionsCarousel escrowTargets={PROTOCOL.escrow} />
     </section>
@@ -119,15 +126,23 @@ const WyomingPortal: React.FC<{
       <div className="flex items-center justify-between px-2">
         <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
           <Gavel size={14} className="text-teal-600" /> Active Proposals · 1:1 Vote
+          <InfoTip label="Active Proposals">
+            On-chain proposals currently open for voting. Each IDIA token counts as one vote once you've activated (self-delegated) your voting power. Quorum is read live from the governor contract.
+          </InfoTip>
         </h2>
         {canSubmitProposal && (
-          <Button
-            size="sm"
-            onClick={onOpenCreateModal}
-            className="h-8 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[9px] tracking-widest rounded-full px-3 shrink-0"
-          >
-            <Plus size={12} className="mr-1" /> Submit Proposal
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              onClick={onOpenCreateModal}
+              className="h-8 bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,25%)] text-white font-black uppercase text-[9px] tracking-widest rounded-full px-3 shrink-0"
+            >
+              <Plus size={12} className="mr-1" /> Submit Proposal
+            </Button>
+            <InfoTip label="Submit Proposal" side="left">
+              Only L3 Tophat holders can submit proposals directly. L1 and L2 members must start a motion in their committee and escalate it after 3 endorsements.
+            </InfoTip>
+          </div>
         )}
       </div>
       <ActiveProposalsList
@@ -142,6 +157,9 @@ const WyomingPortal: React.FC<{
     <section className="space-y-3">
       <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
         <Activity size={14} className="text-teal-600" /> Lifecycle Telemetry
+        <InfoTip label="Lifecycle Telemetry">
+          Live view of every proposal's on-chain state — Pending, Active, Succeeded, Defeated, Queued, Executed, or Archived from a prior governor.
+        </InfoTip>
       </h2>
       <LifecycleTelemetry />
     </section>
@@ -191,6 +209,9 @@ const DelawarePortal: React.FC = () => (
     <section className="space-y-3">
       <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
         <Gavel size={14} className="text-teal-600" /> Committee Deliberations · Motion Threads
+        <InfoTip label="Motion Threads">
+          Committees deliberate here before anything goes to a vote. Members draft motions, gather endorsements, and — once a motion clears 3 endorsements — escalate it into an on-chain proposal.
+        </InfoTip>
       </h2>
       <CommitteeWorkspaceBoundary />
     </section>

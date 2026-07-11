@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { getAscensionLevel, type AscensionLevel } from "@/utils/governanceGate";
 import { cn } from "@/lib/utils";
+import InfoTip from "./InfoTip";
 
 type TaskStatus = "ready" | "executing" | "executed" | "failed" | "overdue" | "extension_pending";
 
@@ -168,6 +169,9 @@ const ExecutionTracker: React.FC = () => {
               <h3 className="text-[11px] font-black uppercase tracking-widest text-amber-900 dark:text-amber-200">
                 Execution Tracker
               </h3>
+              <InfoTip label="Execution Tracker">
+                Post-timelock lifecycle for approved proposals. L2 oversight chairs and L3 Tophats manage the clock; everyone else sees status and countdown.
+              </InfoTip>
             </div>
             <span className="text-[9px] font-black uppercase tracking-widest text-amber-800/70 dark:text-amber-200/60">
               {canManage ? "Officer Console" : "Public View"}
