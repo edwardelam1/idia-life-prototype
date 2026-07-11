@@ -7065,6 +7065,27 @@ export type Database = {
         }
         Relationships: []
       }
+      relayer_mutex: {
+        Row: {
+          expires_at: string | null
+          id: string
+          locked_at: string | null
+          locked_by: string | null
+        }
+        Insert: {
+          expires_at?: string | null
+          id: string
+          locked_at?: string | null
+          locked_by?: string | null
+        }
+        Update: {
+          expires_at?: string | null
+          id?: string
+          locked_at?: string | null
+          locked_by?: string | null
+        }
+        Relationships: []
+      }
       remediation_plans: {
         Row: {
           actions: Json
@@ -10741,6 +10762,10 @@ export type Database = {
       }
     }
     Functions: {
+      acquire_relayer_lock: {
+        Args: { run_id: string; timeout_seconds?: number }
+        Returns: boolean
+      }
       anonymize_location: {
         Args: { lat: number; lng: number }
         Returns: string
@@ -11067,6 +11092,7 @@ export type Database = {
         Args: { _application_id: string }
         Returns: number
       }
+      release_relayer_lock: { Args: { run_id: string }; Returns: undefined }
       revoke_employee: {
         Args: { _employee_id: string }
         Returns: {
