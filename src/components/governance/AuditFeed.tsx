@@ -23,6 +23,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import InfoTip from "./InfoTip";
 
 interface LedgerRow {
   id: string;
