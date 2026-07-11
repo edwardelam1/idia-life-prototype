@@ -208,6 +208,9 @@ const SuccessfulProposalsList: React.FC<Props> = ({ balance, votingPower, refres
             <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-100 dark:text-emerald-200 dark:bg-emerald-900/40 px-2 py-0.5 rounded-full">
               {proposals.length}
             </span>
+            <InfoTip label="Successful Archive">
+              Proposals that met quorum and passed. These may still be queued in the timelock or fully executed on-chain.
+            </InfoTip>
           </div>
           <ChevronDown
             className={`w-4 h-4 text-emerald-600 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
