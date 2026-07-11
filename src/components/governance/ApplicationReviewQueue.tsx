@@ -175,6 +175,9 @@ const ApplicationReviewQueue: React.FC = () => {
     <section className="space-y-3">
       <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
         <ShieldCheck size={14} className="text-teal-600" /> Application Review Queue · L{level}
+        <InfoTip label="Application Review Queue">
+          Pending committee applications awaiting endorsement, approval, or rejection. L2 chairs endorse or reject; L3 Tophats can approve straight to hat provisioning.
+        </InfoTip>
       </h2>
 
       {apps.length === 0 ? (
