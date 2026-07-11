@@ -12,6 +12,23 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   const [phase, setPhase] = useState<'video' | 'logo' | 'logoFadeOut' | 'white'>('video');
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const toneRef = useRef<SplashTone | null>(null);
+
+  // Fade tone out as the logo appears; fully stop on unmount / skip.
+  useEffect(() => {
+    if (phase === 'logo' || phase === 'logoFadeOut' || phase === 'white') {
+      toneRef.current?.fadeOut(1200);
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    return () => {
+      toneRef.current?.stop();
+      toneRef.current = null;
+    };
+  }, []);
+
+
 
   // Attempt imperative play on mount — older iOS (iPhone 11-era WebKit)
   // often defers autoplay until an explicit .play() call, even when muted.
