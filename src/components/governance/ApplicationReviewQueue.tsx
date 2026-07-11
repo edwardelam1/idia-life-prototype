@@ -10,6 +10,7 @@ import { generateACAHash } from "@/utils/acaGenerator";
 import { recordACA } from "@/utils/acaLedger";
 import { stage } from "@/lib/stageLogger";
 import { getAscensionLevel, type AscensionLevel } from "@/utils/governanceGate";
+import InfoTip from "./InfoTip";
 
 interface PendingApplication {
   id: string;
