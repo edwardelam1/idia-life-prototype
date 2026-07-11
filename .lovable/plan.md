@@ -1,40 +1,35 @@
-# Enable Push Notifications via Native Entitlements
+## Problem
 
-The iOS raw-WKWebView shell and the Android Capacitor shell now both have push entitlements enabled. The web layer just needs to bridge to them correctly and persist the returned device token so Supabase can dispatch pushes.
+Life, Shop, and the Pro dashboards (HRI, CPM, Pure Alpha) were built with a hardcoded glossy-light aesthetic. Their root containers and cards use `bg-white` / `bg-slate-*` / `text-slate-*` utilities, which ignore the theme, so in dark mode the middle section renders as a big white block.
 
-## What's wrong today
+## Scope
 
-- `usePushNotifications.ts` only speaks to the iOS `nativePush` WebKit bridge. On Android it falls through to the browser `Notification` API, which returns a fake `web-*` token and never asks Android for POST_NOTIFICATIONS or registers with FCM.
-- No listener is attached at app boot, so if Swift/Kotlin fires `push:token-received` before the settings screen mounts, the token is dropped.
-- Tokens are written to `push_tokens` but there is no confirmation surfaced to the user, and failed platform detection leaves the toggle in a lying state.
+Presentation-only change. No logic, no data, no component structure. Swap hardcoded neutrals for semantic tokens so the same UI adapts to `.dark`.
 
-## Changes
+## Token mapping
 
-### 1. `src/hooks/usePushNotifications.ts`
-- Add an Android branch that prefers Capacitor's `@capacitor/push-notifications` plugin (already available in the Android shell) — `PushNotifications.requestPermissions()` + `register()`, then persist the FCM `token.value` with `platform: 'android'`.
-- Keep the iOS `window.webkit.messageHandlers.nativePush` bridge but also honor an initial token delivered before the listener attaches (read `window.__idiaPendingPushToken` if Swift stashed it early).
-- Return a discriminated result `{ ok: boolean; platform: 'ios'|'android'|'web'; reason?: string }` so the UI can show the exact denial cause.
+- `bg-white` (page/container/card surface) → `bg-background` for page shells, `bg-card` for cards, popovers, dialogs
+- `bg-slate-50` / `bg-slate-50/30` / `bg-slate-50/50` (subtle surface) → `bg-muted` or `bg-muted/50`
+- `border-slate-50` / `border-slate-100` / `border-slate-200` → `border-border`
+- `text-slate-900` / `text-slate-700` → `text-foreground`
+- `text-slate-500` / `text-slate-400` / `text-slate-300` → `text-muted-foreground`
+- `bg-slate-900 text-white` (active pill/button) → `bg-primary text-primary-foreground`
+- Keep semantic accent colors (teal, orange, amber) — those are brand, not neutral surface
 
-### 2. `src/utils/pushBootstrap.ts` (new)
-- Mount once from `App.tsx`. Attaches global listeners for `push:token-received` / `push:permission-denied` (iOS) and Capacitor's `pushNotificationsService` `registration` / `registrationError` events (Android) so a token arriving during cold-boot is persisted to `push_tokens` for the signed-in user even if Settings never opens.
-- Also registers a foreground `pushNotificationReceived` handler that routes through `notify.info(...)` so incoming pushes surface in-app (respecting Focus Mode via existing `notify.ts`).
+Explicit exclusions (do not touch):
+- Chart fills / SVG stroke colors that encode data
+- Gamma-warning orange states
+- Trust-Blue / Amber brand accents
 
-### 3. `src/components/settings/NotificationSettings.tsx`
-- Use the richer result from `enablePush()` to show a precise toast when permission is denied vs. when the bridge is missing (older shell build), and disable the switch while the request is in flight.
+## Files to edit
 
-### 4. `src/vite-env.d.ts`
-- Add `window.__idiaPendingPushToken?: string` so the early-token handoff is typed.
+1. `src/components/enhanced/LifeScreen.tsx` — replace `bg-white` on the root wrapper, Cards, and DialogContent with `bg-card` / `bg-background`; borders → `border-border`.
+2. `src/components/ShopScreen.tsx` — root `bg-white min-h-screen` → `bg-background min-h-screen`; search input, category pills, product tiles, sticky detail header, merchant cards → `bg-card` + `border-border`; unselected pill text → `text-muted-foreground`.
+3. `src/components/pro/HRIDashboard.tsx` — the panel `bg-white` → `bg-card`.
+4. `src/components/pro/CPMDashboard.tsx` — root wrapper `bg-white min-h-screen` → `bg-background min-h-screen`; inner panels/cards `bg-white` → `bg-card`; slate borders/text → semantic tokens; Tooltip content → `bg-popover text-popover-foreground border-border`.
+5. `src/components/pro/PureAlphaDashboard.tsx` — same treatment as CPM: root `bg-white` → `bg-background`; view-switcher pills active `bg-slate-900 text-white` → `bg-primary text-primary-foreground`, inactive `bg-white … border-slate-200` → `bg-card … border-border`; log rows and empty states `bg-white` → `bg-card`; muted panels → `bg-muted/50`.
 
-### 5. `capacitor.config.ts`
-- Add the `PushNotifications` plugin block with `presentationOptions: ['badge','sound','alert']` so the Android shell displays heads-up notifications when the app is foregrounded. No changes to iOS entitlements — already handled in the native shell.
+## Verification
 
-## Technical notes
-
-- iOS shell already calls APNs registration at launch and dispatches `push:token-received`; nothing native needs to change.
-- Android shell uses Capacitor, so `@capacitor/push-notifications` is the correct API — no custom Kotlin bridge required. If the package isn't installed yet the bootstrap will detect its absence and no-op gracefully.
-- The `push_tokens` table is already keyed on `(user_id, token)` with upsert, so re-registrations are safe.
-
-## Out of scope
-
-- Server-side dispatch (APNs/FCM sender) — the token registration is the missing piece; sending is handled by existing edge functions.
-- Notification categories / action buttons.
+- Toggle Settings → Appearance → Dark, then visit Life, Shop, Pro → HRI, Pro → CPM, Pro → Pure Alpha, and confirm no white slab; also toggle back to Light and confirm no visual regression.
+- Grep after edit: `rg "bg-white|bg-slate-|text-slate-|border-slate-" src/components/enhanced/LifeScreen.tsx src/components/ShopScreen.tsx src/components/pro/{HRI,CPM,PureAlpha}Dashboard.tsx` should return only intentional brand/data-color usages.
