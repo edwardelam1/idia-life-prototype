@@ -1,50 +1,47 @@
-## Adopt `merge/lovable-sync-2` from GitHub
+## 1. Swap `crazy-8-security` from Gemini → OpenAI
 
-I cloned the branch (`7cd2ddf` — "Add SynapseVault approval to provisioning, update GovernorV3 address") and diffed it against the current project. Here's what it changes and how I'd apply it — **plus two issues in the branch you need to know about before I copy anything in**.
+Edit `supabase/functions/crazy-8-security/index.ts`:
 
-### ⚠️ Issues found in the branch
+- Replace `GEMINI_API_KEY` env read with `OPENAI_API_KEY`.
+- Replace `callGeminiAPI(prompt)` with `callOpenAI(prompt)` that POSTs to `https://api.openai.com/v1/chat/completions`:
+  - Model: `gpt-4o-mini` (fast, cheap, JSON-mode capable — good fit for the 8 agent JSON schemas). Ask if you'd prefer `gpt-4o`.
+  - Body: `{ model, messages: [{role:"system", content: persona-agnostic instruction to return strict JSON}, {role:"user", content: prompt}], response_format: { type: "json_object" }, temperature: 0.1, max_tokens: 2048 }`
+  - Headers: `Authorization: Bearer ${OPENAI_API_KEY}`, `Content-Type: application/json`.
+  - Parse `data.choices[0].message.content` as JSON; keep the existing "invalid JSON" fallback shape.
+- Update startup log line to `OPENAI_API_KEY configured: …` and bump version tag to `v3.0 (openai)`.
+- Leave all agent personas, routing, `logSecurityEvent`, auth guard, and CORS untouched.
 
-1. **`supabase/functions/relay-governance-action/index.ts` contains unresolved Git merge conflict markers** (`<<<<<<< Updated upstream` … `>>>>>>> Stashed changes` at lines 31, 44, 57, 74). The file will not run as-is. It also drops the env-first `GOVERNOR_ADDRESS` resolver we added last week and hardcodes the fallback.
-2. **`supabase/functions/governance-indexer/index.ts`** in the branch is a *different* revision (521 lines vs our 350) — it appears to be an older/parallel rewrite, not a strict superset. Blindly overwriting would lose our recent lifecycle-phase archival work.
+No secret work needed — user confirmed `OPENAI_API_KEY` is already in Supabase.
 
-I will **not** overwrite those two files silently. See "Files I'll skip / reconcile" below.
+## 2. Route negative-consent survivors to Execution Phase + Tracker
 
-### What I'll copy in (safe adds)
+**Root cause:** Today, `dao_execution_tasks` and the "Archive · Execution Phase" list only enrol when the on-chain governor reports state = 5 (Queued). "Test proposal for new contract" cleared negative consent (`dao_pending_actions.status = 'executed'`) but its on-chain state is still 4 (Succeeded) — so it lives in "Successful Quorum Reached" and never appears in the Execution Tracker or Execution Phase archive.
 
-**New edge functions** (10 new folders, all self-contained, no conflicts):
-- `funding-round-distribute/`, `funding-round-indexer/`
-- `mint-liability-receipt/`
-- `pending-wallet-recovery/`
-- `synapse-purchase-listener/`
-- `team-initial-distribution/`, `team-recovery/`, `team-vesting-monthly-push/`, `vesting-monthly-push/`
+Fix: treat "pending action executed" (i.e. survived negative consent) as an equivalent trigger for execution-phase enrolment.
 
-**New contracts** under `contracts/Contracts/`:
-- `DeployTimelock.sol`, `IDIA.sol`, `IDIAEscrow.sol`, `IDIAFundingRound.sol`, `IDIAGovernor.sol`, `IDIAGovernorV3.sol`, `IDIALiabilityReceipt.sol`, `IDIAPoolDeployerModule.sol`, `IDIAPoolFactory.sol`, `IDIARegistry.sol`
+### 2a. `dao-veto-tally/index.ts`
 
-**`src/services/walletService.ts`** — adds the SynapseVault approval flow:
-- New `"approving_vault"` provisioning state + `vaultApproveTxHash` on the result type
-- New `SYNAPSE_VAULT_ADDRESSES` mainnet constant (`0x7F46293d51Ca3264f060eFC92233b40A76130b4A`)
-- Cosmetic edits (removes emojis from comments/logs, rewraps section dividers)
+When the tally transitions status to `executed` (timelock expired, veto threshold not met):
 
-### Files I'll skip / reconcile (need your call)
+1. Look up `dao_proposals` by `onchain_proposal_id`.
+2. If found:
+   - Update `dao_proposals`: `lifecycle_phase = 'awaiting_execution'`, `status = 'awaiting_execution'`.
+   - Upsert into `dao_execution_tasks` (keyed on `proposal_id`): `{ proposal_id, onchain_proposal_id, title, category, execution_deadline_at = now + 7d, initial_deadline_at = same, status: 'ready' }` — skip if a row already exists.
+3. Best-effort — warn and continue on error, don't break the tally response.
 
-| File | Branch state | Recommendation |
-|---|---|---|
-| `supabase/functions/relay-governance-action/index.ts` | Has merge conflict markers, hardcodes governor | **Skip** — keep our current version |
-| `supabase/functions/governance-indexer/index.ts` | Different lineage than ours | **Skip** — keep our current version (has lifecycle archival) |
-| `android/` directory | Full native Android scaffold | **Skip** — Capacitor generates this from `npx cap add android`; committing it into the repo would fight the build. Confirm if you actually want it tracked. |
-| `.env` | Differs | **Skip** — never overwrite local env |
-| `package-lock.json` | Differs | **Skip** — regenerated on install |
-| `supabase/.temp/*` | Local CLI cache | **Skip** |
+### 2b. `dao-timelock-sweep` (cron) — same enrolment
 
-### Order of operations
-1. Copy the 10 new edge function folders into `supabase/functions/`.
-2. Copy the 10 new `.sol` files into `contracts/Contracts/`.
-3. Overwrite `src/services/walletService.ts` with the branch version (SynapseVault approval flow).
-4. Leave `relay-governance-action`, `governance-indexer`, `android/`, `.env`, and `package-lock.json` untouched.
-5. Run typecheck / build afterward to verify nothing in the new edge functions imports something we don't have.
+The 48h auto-sweep marks pending actions `executed` without calling `dao-veto-tally`. Apply the same "look up dao_proposals + upsert execution task + flip lifecycle_phase" block there so cron-driven survivors also appear. (Read the file first to confirm the exact update site; add the block immediately after the `status → 'executed'` write.)
 
-### Confirm before I proceed
-- **OK to skip the two conflicted governance edge functions?** (Strongly recommended — the branch versions are broken/older.)
-- **OK to skip the `android/` directory?** (Or do you want it committed?)
-- **Anything else** in `merge/lovable-sync-2` you specifically want pulled that I've marked skip?
+### 2c. `ExecutionPhaseList.tsx`
+
+Extend `EXECUTION_PHASES` set to include `awaiting_execution` so the frontend picks up rows the indexer/veto-tally now mark, even when the chain state is still 4 (Succeeded). No other UI changes needed — `ProposalCard`, glow, notification, and seen-set logic all keep working.
+
+### 2d. Backfill the existing survivor
+
+One-off migration (via supabase--migration): for every `dao_pending_actions` row with `status = 'executed'` that has an `onchain_proposal_id` matching a `dao_proposals.on_chain_id`, run the 2a logic (update lifecycle_phase + upsert execution task). Covers "Test proposal for new contract" and any other historical rows that already survived negative consent.
+
+## Verification
+
+- Deploy `crazy-8-security`; hit `/health`; run one agent call end-to-end and confirm no `Gemini API error` in logs.
+- Deploy `dao-veto-tally` + `dao-timelock-sweep`; run the backfill migration; refresh the governance tab and confirm "Test proposal for new contract" now appears under **Archive · Execution Phase** and in the **Execution Tracker** card on the Delaware MSA panel.
