@@ -80,6 +80,10 @@ serve(async (req) => {
         .update(update)
         .eq("id", actionId);
       if (updErr) throw updErr;
+
+      if (nextStatus === "executed") {
+        await enrollExecutionTask(supabase, actionId, log);
+      }
     } else {
       await supabase.from("dao_pending_actions").update({ veto_count: count ?? 0 }).eq("id", actionId);
     }
