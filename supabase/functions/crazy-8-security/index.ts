@@ -216,7 +216,7 @@ Provide anomaly analysis in this JSON format:
   "patterns_observed": ["pattern1", "pattern2"]
 }`;
 
-  return await callGeminiAPI(prompt);
+  return await callOpenAI(prompt);
 }
 
 async function runPredictiveAnalytics(action: any, data: any, context: any) {
@@ -239,7 +239,7 @@ Provide predictive analysis in this JSON format:
 }`;
 
   console.log("Predictive Analytics Prompt:", prompt);
-  return await callGeminiAPI(prompt);
+  return await callOpenAI(prompt);
 }
 
 async function runThreatHunting(action: any, data: any, context: any) {
@@ -261,7 +261,7 @@ Provide threat hunting results in this JSON format:
   "containment_recommendations": ["action1", "action2"]
 }`;
 
-  return await callGeminiAPI(prompt);
+  return await callOpenAI(prompt);
 }
 
 async function runSecurityOrchestration(action: any, data: any, context: any) {
@@ -284,7 +284,7 @@ Provide orchestration plan in this JSON format:
   "resource_requirements": ["resource1", "resource2"]
 }`;
 
-  return await callGeminiAPI(prompt);
+  return await callOpenAI(prompt);
 }
 
 async function runAccessManagement(action: any, data: any, context: any) {
@@ -306,7 +306,7 @@ Provide access analysis in this JSON format:
   "compliance_status": "compliant|violation|review_required"
 }`;
 
-  return await callGeminiAPI(prompt);
+  return await callOpenAI(prompt);
 }
 
 async function runDataProtection(action: any, data: any, context: any) {
@@ -328,7 +328,7 @@ Provide DLP analysis in this JSON format:
   "compliance_impact": "none|minor|major|critical"
 }`;
 
-  return await callGeminiAPI(prompt);
+  return await callOpenAI(prompt);
 }
 
 async function runAdversarialDefense(action: any, data: any, context: any) {
@@ -350,7 +350,7 @@ Provide adversarial analysis in this JSON format:
   "model_integrity": "intact|compromised|uncertain"
 }`;
 
-  return await callGeminiAPI(prompt);
+  return await callOpenAI(prompt);
 }
 
 async function runExplainableAnalysis(action: any, data: any, context: any) {
@@ -372,7 +372,7 @@ Provide explainable analysis in this JSON format:
   "next_steps": "Clear guidance on what happens next"
 }`;
 
-  return await callGeminiAPI(prompt);
+  return await callOpenAI(prompt);
 }
 
 async function callOpenAI(prompt: any) {
