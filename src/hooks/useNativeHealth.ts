@@ -59,6 +59,50 @@ export function useNativeHealth() {
     } finally { setIsSyncing(false); }
   }, [healthAllowed]);
 
+  // Periodic auto-sync: ensures Apple Health data does not go stale beyond the 6h window.
+  // HealthKit only exists on-device, so the "trigger" must run in the client while the app is alive
+  // (foregrounded or resumed). We check on mount, on visibility change, and every 6h via interval.
+  const runIfStale = useCallback(async () => {
+    if (!healthAllowed || !isNative()) return;
+    if (autoSyncInFlight.current || isSyncing) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: conn } = await supabase
+        .from('data_connections')
+        .select('last_sync_at')
+        .eq('user_id', user.id)
+        .eq('connection_type', 'apple_health')
+        .maybeSingle();
+      const last = conn?.last_sync_at ? new Date(conn.last_sync_at).getTime() : 0;
+      const stale = !last || (Date.now() - last) >= STALE_THRESHOLD_MS;
+      if (!stale) return;
+      autoSyncInFlight.current = true;
+      const r = await healthService.quickSync();
+      setLastSync(r);
+      if (!r.success) setError(r.error || 'Auto-sync failed');
+    } catch (e) {
+      console.warn('[useNativeHealth] auto-sync check failed', e);
+    } finally {
+      autoSyncInFlight.current = false;
+    }
+  }, [healthAllowed, isSyncing]);
+
+  useEffect(() => {
+    if (!healthAllowed || !isNative()) return;
+    // Initial check on mount / auth-ready
+    runIfStale();
+    // Recheck when app returns to foreground
+    const onVisible = () => { if (document.visibilityState === 'visible') runIfStale(); };
+    document.addEventListener('visibilitychange', onVisible);
+    // Rolling 6h interval while app is alive
+    autoSyncTimerRef.current = setInterval(runIfStale, STALE_THRESHOLD_MS);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      if (autoSyncTimerRef.current) clearInterval(autoSyncTimerRef.current);
+    };
+  }, [healthAllowed, runIfStale]);
+
   return { status, isAvailable: status?.available ?? false, isSyncing, lastSync, error,
     requestPermissions, quickSync, fetchRange, isNativePlatform: isNative() };
 }
