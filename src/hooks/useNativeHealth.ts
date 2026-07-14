@@ -1,8 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { healthService } from '@/services/healthService';
 import type { HealthSyncResult, HealthServiceStatus } from '@/services/healthService';
 import { isNative } from '@/services/platform';
 import { useProfile } from '@/hooks/useProfile';
+import { supabase } from '@/integrations/supabase/client';
+
+// Auto-sync threshold: matches the "synced recently" UI window (6 hours)
+const STALE_THRESHOLD_MS = 6 * 60 * 60 * 1000;
 
 export function useNativeHealth() {
   const [status, setStatus] = useState<HealthServiceStatus | null>(null);
@@ -11,6 +15,8 @@ export function useNativeHealth() {
   const [error, setError] = useState<string | null>(null);
   const { preferences } = useProfile();
   const healthAllowed = (preferences as any)?.privacy_health !== false;
+  const autoSyncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoSyncInFlight = useRef(false);
 
   useEffect(() => { healthService.getStatus().then(setStatus).catch(console.error); }, []);
 
