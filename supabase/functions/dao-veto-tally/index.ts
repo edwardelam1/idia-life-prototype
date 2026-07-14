@@ -6,6 +6,69 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/**
+ * When a pending action survives negative consent (status → 'executed'),
+ * enrol the matching dao_proposals row into the Execution Tracker and flip
+ * its lifecycle phase so it surfaces under Archive · Execution Phase.
+ */
+async function enrollExecutionTask(
+  supabase: ReturnType<typeof createClient>,
+  actionId: string,
+  log: (tag: string, msg: string) => void,
+) {
+  try {
+    const { data: action } = await supabase
+      .from("dao_pending_actions")
+      .select("onchain_proposal_id, title, category")
+      .eq("id", actionId)
+      .maybeSingle();
+    if (!action?.onchain_proposal_id) {
+      log("EXEC_ENROL", `Skipped — no onchain_proposal_id on action ${actionId}`);
+      return;
+    }
+
+    const { data: prop } = await supabase
+      .from("dao_proposals")
+      .select("id, title, category")
+      .eq("on_chain_id", action.onchain_proposal_id)
+      .maybeSingle();
+    if (!prop) {
+      log("EXEC_ENROL", `No dao_proposals row for onchain_id=${action.onchain_proposal_id}`);
+      return;
+    }
+
+    await supabase
+      .from("dao_proposals")
+      .update({ status: "awaiting_execution", lifecycle_phase: "awaiting_execution" })
+      .eq("id", prop.id);
+
+    const { data: existing } = await supabase
+      .from("dao_execution_tasks")
+      .select("id")
+      .eq("proposal_id", prop.id)
+      .maybeSingle();
+
+    if (!existing) {
+      const deadline = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { error: taskErr } = await supabase.from("dao_execution_tasks").insert({
+        proposal_id: prop.id,
+        onchain_proposal_id: action.onchain_proposal_id,
+        title: prop.title || action.title || "Governance action",
+        category: prop.category ?? action.category ?? null,
+        execution_deadline_at: deadline,
+        initial_deadline_at: deadline,
+        status: "ready",
+      });
+      if (taskErr) log("EXEC_ENROL", `Insert warn: ${taskErr.message}`);
+      else log("EXEC_ENROL", `Enrolled proposal ${prop.id} into execution tracker`);
+    } else {
+      log("EXEC_ENROL", `Execution task already exists for proposal ${prop.id}`);
+    }
+  } catch (e) {
+    log("EXEC_ENROL", `Warn: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
