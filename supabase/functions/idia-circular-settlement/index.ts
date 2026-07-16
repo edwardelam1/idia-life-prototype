@@ -42,6 +42,11 @@ const GLOBAL_WAR_CHEST = "0x0910EF34C9F59A90d90FF505B1036DEed4a25d59";
 // USDC on Base Mainnet
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
+// IDIA token on Base Mainnet — direct ERC-20 transferFrom target
+// (bypasses phantom Escrow.automatedDistribute; relayer holds allowance
+// from ESCROW_ECOSYSTEM already).
+const IDIA_TOKEN_ADDRESS = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
+
 // System wallets
 const SYSTEM_CASH_REGISTER = "0x649436db4d9352240d1132d9372293e5cc6af0e3";
 
@@ -55,6 +60,17 @@ const ERC20_ABI = [
     type: "function",
     stateMutability: "nonpayable",
     inputs: [
+      { name: "to", type: "address" },
+      { name: "value", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "transferFrom",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "from", type: "address" },
       { name: "to", type: "address" },
       { name: "value", type: "uint256" },
     ],
@@ -625,29 +641,27 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
             });
             yieldSettled = true;
 
-            // 2. IDIA royalty award — 1:1 vs USDC yield via automatedDistribute
-            //    (immediately safeTransfers IDIA to contributor; no manual approval).
+            // 2. IDIA royalty award — direct ERC-20 transferFrom on IDIA token.
+            //    Bypasses Escrow.automatedDistribute (phantom state-update that
+            //    did not move tokens). Relayer already holds allowance from
+            //    ESCROW_ECOSYSTEM, so pull tokens: FROM escrow → TO contributor.
             const { hash: idiaHash, receipt: idiaReceipt } = await sendWithNonceRetry(
               (nonce) =>
                 client.writeContract({
-                  address: ESCROW_ECOSYSTEM,
-                  abi: ESCROW_ABI,
-                  functionName: "automatedDistribute",
-                  args: [
-                    lifeWallet as `0x${string}`,
-                    idiaAwardAmount,
-                    `1:1 IDIA royalty award · Ref ${ingestionReference}`,
-                  ],
+                  address: IDIA_TOKEN_ADDRESS,
+                  abi: ERC20_ABI,
+                  functionName: "transferFrom",
+                  args: [ESCROW_ECOSYSTEM as `0x${string}`, lifeWallet as `0x${string}`, idiaAwardAmount],
                   account,
                   nonce,
                 }),
               "idia_award",
             );
-            console.info(`[STATUS: Batch.Item] IDIA automatedDistribute Broadcasted. Hash: ${idiaHash}. Confirmed.`);
+            console.info(`[STATUS: Batch.Item] IDIA transferFrom Broadcasted. Hash: ${idiaHash}.`);
             if (idiaReceipt.status === "success") {
-              console.info(`[END: Batch.Item] IDIA automatedDistribute successful. Block: ${idiaReceipt.blockNumber}`);
+              console.info(`[END: Batch.Item] IDIA transferFrom successful. Block: ${idiaReceipt.blockNumber}`);
             } else {
-              console.error(`[ERROR: Batch.Item] IDIA automatedDistribute reverted. Hash: ${idiaHash}`);
+              console.error(`[ERROR: Batch.Item] IDIA transferFrom reverted. Hash: ${idiaHash}`);
             }
 
             // 3. Ledger insert — IDIA royalty yield row (enum: idia_royalty_yield).
