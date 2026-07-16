@@ -1559,6 +1559,45 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_prep_list: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          item_name: string
+          location: string
+          on_hand: number
+          par_level: number
+          station: string
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          item_name: string
+          location: string
+          on_hand?: number
+          par_level?: number
+          station?: string
+          unit?: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          item_name?: string
+          location?: string
+          on_hand?: number
+          par_level?: number
+          station?: string
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       dao_execution_events: {
         Row: {
           actor_id: string | null
@@ -2318,6 +2357,8 @@ export type Database = {
       }
       device_provisioning_blueprints: {
         Row: {
+          assigned_at: string | null
+          assigned_employee_id: string | null
           business_id: string
           code: string
           created_at: string
@@ -2328,6 +2369,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assigned_at?: string | null
+          assigned_employee_id?: string | null
           business_id: string
           code: string
           created_at?: string
@@ -2338,6 +2381,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assigned_at?: string | null
+          assigned_employee_id?: string | null
           business_id?: string
           code?: string
           created_at?: string
@@ -2348,6 +2393,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "device_provisioning_blueprints_assigned_employee_id_fkey"
+            columns: ["assigned_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_provisioning_blueprints_assigned_employee_id_fkey"
+            columns: ["assigned_employee_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "device_provisioning_blueprints_business_id_fkey"
             columns: ["business_id"]
@@ -10778,6 +10837,27 @@ export type Database = {
         }
         Returns: number
       }
+      assign_provisioning_code: {
+        Args: { _code: string; _employee_id: string }
+        Returns: {
+          assigned_at: string | null
+          assigned_employee_id: string | null
+          business_id: string
+          code: string
+          created_at: string
+          id: string
+          label: string
+          payload: Json
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "device_provisioning_blueprints"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       auto_promote_pending_veto: { Args: never; Returns: number }
       calculate_business_health_index: {
         Args: { p_business_id: string; p_location_id?: string }
@@ -11191,6 +11271,27 @@ export type Database = {
         Returns: {
           request_id: number
         }[]
+      }
+      unassign_provisioning_code: {
+        Args: { _code: string }
+        Returns: {
+          assigned_at: string | null
+          assigned_employee_id: string | null
+          business_id: string
+          code: string
+          created_at: string
+          id: string
+          label: string
+          payload: Json
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "device_provisioning_blueprints"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       update_raw_health_data_status: {
         Args: {
