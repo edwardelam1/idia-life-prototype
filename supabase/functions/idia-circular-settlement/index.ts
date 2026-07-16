@@ -575,6 +575,12 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
             `[BEGIN: Batch.Item] Processing transfer ${i + 1}/${contributing_users.length} to ${lifeWallet}`,
           );
 
+          // Per-phase progress flags — used by the catch block to route the
+          // single failed-row ledger insert to the correct phase and prevent
+          // an IDIA revert from being logged as a duplicate USDC payout.
+          let yieldSettled = false;
+          let idiaSettled = false;
+
           try {
             // 1. Yield transfer (USDC) — nonce-safe with retry
             const { hash: yieldHash, receipt: yieldReceipt } = await sendWithNonceRetry(
@@ -595,6 +601,29 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
             } else {
               console.error(`[ERROR: Batch.Item] Yield transaction reverted on-chain. Hash: ${yieldHash}`);
             }
+
+            // Ledger insert for the USDC yield row FIRST — once it lands (or
+            // is queued for repair), we mark yieldSettled so a subsequent
+            // IDIA failure cannot cause a duplicate data_sale_payout row.
+            const yieldStatus = yieldReceipt.status === "success" ? "completed" : "failed";
+            await insertLedgerWithRepair(supabase, {
+              reference_id: ingestionReference,
+              user_id: contributor.user_id,
+              phase: "contributor_yield",
+              blockchain_tx_hash: yieldHash,
+              row: {
+                user_id: contributor.user_id,
+                amount: perContributorYield,
+                entry_type: "deposit",
+                transaction_type: "data_sale_payout",
+                status: yieldStatus,
+                blockchain_tx_hash: yieldHash,
+                is_settled: yieldStatus === "completed",
+                settled_at: new Date().toISOString(),
+                description: `Pro-rata USDC yield for Ref: ${ingestionReference}`,
+              },
+            });
+            yieldSettled = true;
 
             // 2. IDIA royalty award — 1:1 vs USDC yield via automatedDistribute
             //    (immediately safeTransfers IDIA to contributor; no manual approval).
@@ -621,43 +650,26 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
               console.error(`[ERROR: Batch.Item] IDIA automatedDistribute reverted. Hash: ${idiaHash}`);
             }
 
-            // 3. Ledger inserts — USDC yield row + matching IDIA award row
-            const yieldStatus = yieldReceipt.status === "success" ? "completed" : "failed";
+            // 3. Ledger insert — IDIA royalty yield row (enum: idia_royalty_yield).
             const idiaStatus = idiaReceipt.status === "success" ? "completed" : "failed";
             await insertLedgerWithRepair(supabase, {
               reference_id: ingestionReference,
               user_id: contributor.user_id,
-              phase: "contributor_yield",
-              blockchain_tx_hash: yieldHash,
-              row: {
-                user_id: contributor.user_id,
-                amount: perContributorYield,
-                entry_type: "deposit",
-                transaction_type: "data_sale_payout",
-                status: yieldStatus,
-                blockchain_tx_hash: yieldHash,
-                is_settled: true,
-                settled_at: new Date().toISOString(),
-                description: `Pro-rata USDC yield for Ref: ${ingestionReference}`,
-              },
-            });
-            await insertLedgerWithRepair(supabase, {
-              reference_id: ingestionReference,
-              user_id: contributor.user_id,
-              phase: "contributor_idia_award",
+              phase: "idia_royalty_yield",
               blockchain_tx_hash: idiaHash,
               row: {
                 user_id: contributor.user_id,
                 amount: perContributorYield,
                 entry_type: "deposit",
-                transaction_type: "data_sale_idia_award",
+                transaction_type: "idia_royalty_yield",
                 status: idiaStatus,
                 blockchain_tx_hash: idiaHash,
                 is_settled: idiaStatus === "completed",
                 settled_at: new Date().toISOString(),
-                description: `1:1 IDIA royalty award for Ref: ${ingestionReference}`,
+                description: `1:1 IDIA royalty yield for Ref: ${ingestionReference}`,
               },
             });
+            idiaSettled = true;
 
             contributorPayouts.push({
               wallet: lifeWallet,
@@ -670,32 +682,49 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
           } catch (txError: any) {
             console.info(`[BEGIN: Batch.Item.Error]`);
             console.error(`[FATAL STALL: Batch.Item] Failed executing transfer for ${lifeWallet}: ${txError.message}`);
+            // Phase-accurate failure routing. Exactly ONE failed row is
+            // emitted, mapped to the phase that actually failed:
+            //   - yield not yet settled  → data_sale_payout failed row
+            //   - yield settled, IDIA not → idia_royalty_yield failed row
+            //   - both settled            → no extra row (bookkeeping post-phase)
+            // This eliminates the double-payout bleed where an IDIA revert
+            // was previously logged as a second data_sale_payout row.
+            const failedPhase = !yieldSettled
+              ? { phase: "contributor_yield", transaction_type: "data_sale_payout", label: "pro-rata USDC yield" }
+              : !idiaSettled
+                ? {
+                    phase: "idia_royalty_yield",
+                    transaction_type: "idia_royalty_yield",
+                    label: "1:1 IDIA royalty yield",
+                  }
+                : null;
             skippedContributors.push({
               user_id: contributor.user_id,
-              reason: `tx_error: ${txError?.message ?? "unknown"}`,
+              reason: `tx_error[${failedPhase?.phase ?? "post_settlement"}]: ${txError?.message ?? "unknown"}`,
             });
-            // Route failure through repair queue so reconciliation can pick it up.
-            try {
-              await insertLedgerWithRepair(supabase, {
-                reference_id: ingestionReference,
-                user_id: contributor.user_id,
-                phase: "contributor_yield",
-                blockchain_tx_hash: null,
-                row: {
+            if (failedPhase) {
+              try {
+                await insertLedgerWithRepair(supabase, {
+                  reference_id: ingestionReference,
                   user_id: contributor.user_id,
-                  amount: perContributorYield,
-                  entry_type: "deposit",
-                  transaction_type: "data_sale_payout",
-                  status: "failed",
+                  phase: failedPhase.phase,
                   blockchain_tx_hash: null,
-                  is_settled: false,
-                  description: `Failed pro-rata yield for Ref: ${ingestionReference} — ${txError?.message ?? "unknown"}`,
-                },
-              });
-            } catch (repairError: any) {
-              console.error(
-                `[ERROR: Batch.Item.Repair] repair-queue insert failed: ${repairError?.message ?? repairError}`,
-              );
+                  row: {
+                    user_id: contributor.user_id,
+                    amount: perContributorYield,
+                    entry_type: "deposit",
+                    transaction_type: failedPhase.transaction_type,
+                    status: "failed",
+                    blockchain_tx_hash: null,
+                    is_settled: false,
+                    description: `Failed ${failedPhase.label} for Ref: ${ingestionReference} — ${txError?.message ?? "unknown"}`,
+                  },
+                });
+              } catch (repairError: any) {
+                console.error(
+                  `[ERROR: Batch.Item.Repair] repair-queue insert failed: ${repairError?.message ?? repairError}`,
+                );
+              }
             }
             console.info(`[END: Batch.Item.Error]`);
             continue;
