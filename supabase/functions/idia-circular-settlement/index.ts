@@ -101,6 +101,17 @@ const ESCROW_ABI = [
     ],
     outputs: [{ name: "proposalId", type: "uint256" }],
   },
+  {
+    name: "automatedDistribute",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "recipient", type: "address" },
+      { name: "amount", type: "uint256" },
+      { name: "reason", type: "string" },
+    ],
+    outputs: [{ name: "proposalId", type: "uint256" }],
+  },
 ] as const;
 
 const corsHeaders = {
@@ -502,7 +513,8 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
       const totalRoyaltyPool = total_fiat_amount * REVENUE_SPLIT.DATA_YIELD;
       const perContributorYield = totalRoyaltyPool / contributing_users.length;
       const contributorPayouts = [];
-      const idiaAwardAmount = parseUnits("1", 18);
+      // 1:1 IDIA award mirrors each contributor's USDC yield (18-decimal IDIA vs 6-decimal USDC).
+      const idiaAwardAmount = parseUnits(perContributorYield.toFixed(6), 18);
 
       console.info("[BEGIN: Phase_3_Contributor.BatchExecution] Initializing sequential transaction pipeline.");
       try {
@@ -584,32 +596,34 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
               console.error(`[ERROR: Batch.Item] Yield transaction reverted on-chain. Hash: ${yieldHash}`);
             }
 
-            // 2. Royalty proposal (escrow) — nonce-safe with retry
-            const { hash: proposalHash, receipt: proposalReceipt } = await sendWithNonceRetry(
+            // 2. IDIA royalty award — 1:1 vs USDC yield via automatedDistribute
+            //    (immediately safeTransfers IDIA to contributor; no manual approval).
+            const { hash: idiaHash, receipt: idiaReceipt } = await sendWithNonceRetry(
               (nonce) =>
                 client.writeContract({
                   address: ESCROW_ECOSYSTEM,
                   abi: ESCROW_ABI,
-                  functionName: "proposeDistribution",
+                  functionName: "automatedDistribute",
                   args: [
                     lifeWallet as `0x${string}`,
                     idiaAwardAmount,
-                    `Automated royalty yield proposal: Ref ${ingestionReference}`,
+                    `1:1 IDIA royalty award · Ref ${ingestionReference}`,
                   ],
                   account,
                   nonce,
                 }),
-              "proposal",
+              "idia_award",
             );
-            console.info(`[STATUS: Batch.Item] Proposal TX Broadcasted. Hash: ${proposalHash}. Confirmed.`);
-            if (proposalReceipt.status === "success") {
-              console.info(`[END: Batch.Item] Proposal successful. Block: ${proposalReceipt.blockNumber}`);
+            console.info(`[STATUS: Batch.Item] IDIA automatedDistribute Broadcasted. Hash: ${idiaHash}. Confirmed.`);
+            if (idiaReceipt.status === "success") {
+              console.info(`[END: Batch.Item] IDIA automatedDistribute successful. Block: ${idiaReceipt.blockNumber}`);
             } else {
-              console.error(`[ERROR: Batch.Item] Proposal reverted on-chain. Hash: ${proposalHash}`);
+              console.error(`[ERROR: Batch.Item] IDIA automatedDistribute reverted. Hash: ${idiaHash}`);
             }
 
-            // 3. Ledger insert
+            // 3. Ledger inserts — USDC yield row + matching IDIA award row
             const yieldStatus = yieldReceipt.status === "success" ? "completed" : "failed";
+            const idiaStatus = idiaReceipt.status === "success" ? "completed" : "failed";
             await insertLedgerWithRepair(supabase, {
               reference_id: ingestionReference,
               user_id: contributor.user_id,
@@ -624,14 +638,31 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
                 blockchain_tx_hash: yieldHash,
                 is_settled: true,
                 settled_at: new Date().toISOString(),
-                description: `Pro-rata yield for Ref: ${ingestionReference}`,
+                description: `Pro-rata USDC yield for Ref: ${ingestionReference}`,
+              },
+            });
+            await insertLedgerWithRepair(supabase, {
+              reference_id: ingestionReference,
+              user_id: contributor.user_id,
+              phase: "contributor_idia_award",
+              blockchain_tx_hash: idiaHash,
+              row: {
+                user_id: contributor.user_id,
+                amount: perContributorYield,
+                entry_type: "deposit",
+                transaction_type: "data_sale_idia_award",
+                status: idiaStatus,
+                blockchain_tx_hash: idiaHash,
+                is_settled: idiaStatus === "completed",
+                settled_at: new Date().toISOString(),
+                description: `1:1 IDIA royalty award for Ref: ${ingestionReference}`,
               },
             });
 
             contributorPayouts.push({
               wallet: lifeWallet,
               yield_hash: yieldHash,
-              proposal_hash: proposalHash,
+              idia_hash: idiaHash,
             });
 
             // 4. RPC rate-limit buffer
