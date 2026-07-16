@@ -513,7 +513,8 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
       const totalRoyaltyPool = total_fiat_amount * REVENUE_SPLIT.DATA_YIELD;
       const perContributorYield = totalRoyaltyPool / contributing_users.length;
       const contributorPayouts = [];
-      const idiaAwardAmount = parseUnits("1", 18);
+      // 1:1 IDIA award mirrors each contributor's USDC yield (18-decimal IDIA vs 6-decimal USDC).
+      const idiaAwardAmount = parseUnits(perContributorYield.toFixed(6), 18);
 
       console.info("[BEGIN: Phase_3_Contributor.BatchExecution] Initializing sequential transaction pipeline.");
       try {
