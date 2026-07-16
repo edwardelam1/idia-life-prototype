@@ -101,6 +101,17 @@ const ESCROW_ABI = [
     ],
     outputs: [{ name: "proposalId", type: "uint256" }],
   },
+  {
+    name: "automatedDistribute",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "recipient", type: "address" },
+      { name: "amount", type: "uint256" },
+      { name: "reason", type: "string" },
+    ],
+    outputs: [{ name: "proposalId", type: "uint256" }],
+  },
 ] as const;
 
 const corsHeaders = {
