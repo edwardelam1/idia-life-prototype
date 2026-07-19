@@ -1292,6 +1292,39 @@ export type Database = {
         }
         Relationships: []
       }
+      consent_registry: {
+        Row: {
+          aca_hash_key: string | null
+          consent_type: string
+          created_at: string
+          decision: string
+          document_version: string
+          id: string
+          payload: Json
+          user_id: string
+        }
+        Insert: {
+          aca_hash_key?: string | null
+          consent_type: string
+          created_at?: string
+          decision: string
+          document_version: string
+          id?: string
+          payload?: Json
+          user_id: string
+        }
+        Update: {
+          aca_hash_key?: string | null
+          consent_type?: string
+          created_at?: string
+          decision?: string
+          document_version?: string
+          id?: string
+          payload?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
       creator_profiles: {
         Row: {
           created_at: string | null
