@@ -51,6 +51,7 @@ import {
   Network,
   ExternalLink,
 } from "lucide-react";
+import idiaHubLogo from "@/assets/idia-hub-logo.png.asset.json";
 
 interface Transaction {
   id: string;
