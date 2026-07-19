@@ -1,37 +1,67 @@
-## Fix 1 — 401 on cron-driven DAO edge functions
 
-Diagnosis confirmed from `cron.job`:
+## Authority of Record (AoR) Consent Flow
 
-- `dao-treasury-ingest` (jobid 47) sends `apikey` but no `Authorization: Bearer` — the function requires `Authorization === "Bearer` IDIA_SERVICE_ROLE_KEY`"`.
-- `dao-veto-tally-15min` (jobid 60) sends neither `apikey` nor `Authorization` and the function requires a valid user JWT with `sub` (cron has no user, so this can never succeed as written).
-- `dao-hat-eligibility-daily` (59), `dao-proposal-tally-10min` (62), `dao-timelock-sweep-15min` (61), `mint-liability-receipt` (66), `pending-wallet-recovery` (67) also fire without any auth — same 401 latent risk.
+Add a second, biometric-gated consent screen that runs immediately after the user accepts the Terms of Service. Choice (Authorize or Decline) is recorded in a new consent-registry table, mirrored into `user_aca_records`, and stamped on `auth.user_metadata`.
 
-Actions:
+### 1. Database — new registry table
 
-1. Reschedule every cron job above with a full `Authorization: Bearer <`IDIA_SERVICE_ROLE_KEY`>` header (plus keep `apikey`). Use one migration via `supabase--insert` (contains keys, cannot go in migration tool). Unschedule the broken ones first (`cron.unschedule('dao-treasury-ingest')`, `'dao-veto-tally-15min'`, `'dao-timelock-sweep-15min'`, `'dao-hat-eligibility-daily'`, `'dao-proposal-tally-10min'`, `'mint-liability-receipt'`, `'pending-wallet-recovery'`), then re-`cron.schedule` each with the service-role bearer.
-2. Relax `dao-veto-tally/index.ts`: accept a `Bearer <`IDIA_SERVICE_ROLE_KEY`>` cron caller as an alternative to a user JWT (`if (token ===` IDIA_SERVICE_ROLE_KEY`) skip getClaims`), so scheduled sweeps of stale actions actually run. Keep the JWT path for user-triggered tallies.
+Migration to create `public.consent_registry`:
 
-## Fix 2 — Missing 1:1 IDIA royalty distribution on settlement
+- `id uuid pk`, `user_id uuid` (references auth.users via id, no FK), `consent_type text` (e.g. `TOS_V1`, `AUTHORITY_OF_RECORD_V1`), `decision text` (`accepted` | `declined`), `document_version text`, `aca_hash_key text`, `payload jsonb`, `created_at timestamptz default now()`
+- Unique index on `(user_id, consent_type, document_version)` so a decision is captured once per version (updatable via new row on version bump)
+- GRANTs: `authenticated` = SELECT/INSERT own rows; `service_role` = ALL; no `anon`
+- RLS: user can SELECT/INSERT rows where `user_id = auth.uid()`; no UPDATE/DELETE from clients
+- Also backfill the existing ToS acceptance into `consent_registry` on the next accept (going forward only — no historical rewrite)
 
-Root cause in `supabase/functions/idia-circular-settlement/index.ts`:
+### 2. New page/modal — `AuthorityOfRecordConsent`
 
-- Contributor payout loop calls `Escrow.proposeDistribution(recipient, 1 IDIA, reason)`. That only *creates a pending proposal* — it never transfers IDIA. Contributors see USDC but no IDIA because approval never runs.
-- Amount is hardcoded to `parseUnits("1", 18)` (1 IDIA per contributor), not the 1:1 vs USDC payout the spec calls for.
-- The new `IDIAEscrow.sol` (merge/lovable-sync-2) added `automatedDistribute(recipient, amount, reason)` which immediately `safeTransfer`s IDIA when called by an approved `automatedDistributor`.
+New route `/authority-of-record` (and component `src/pages/AuthorityOfRecord.tsx`), styled to match `TermsOfService.tsx` shell (glass card, gradient header, safe-area padding).
 
-Actions:
+Content shown verbatim:
 
-1. In `idia-circular-settlement/index.ts`:
-  - Extend `ESCROW_ABI` with `automatedDistribute(address,uint256,string) returns (uint256)`.
-  - Replace the `proposeDistribution` call (~line 588) with `automatedDistribute`.
-  - Set `idiaAwardAmount = parseUnits(perContributorYield.toFixed(6), 18)` so the IDIA award mirrors each contributor's USDC yield 1:1.
-  - Update the ledger `description` and add an `idia_award_amount` field so the wallet dashboard can label it.
-2. In the same loop, insert a matching `fiat_ledger`/`settlement_queue` row of type `data_sale_idia_award` so `WalletDashboard.tsx` history shows the IDIA payout alongside the USDC one.
-3. Backfill: after deploy, re-run `settlement-reconcile-ref` for recent `SYN-*` refs whose contributor payouts are missing IDIA hashes so contributors (including the user's son on `0x…b582`) receive their retroactive 1:1 IDIA award.
+> **Authority of Record Authorization**
+>
+> To protect your digital identity from unauthorized surveillance, you have the option to appoint IDIA Data Inc. as your Authority of Record.
+>
+> By clicking 'Authorize', you are granting IDIA limited Power of Attorney to manage your digital identity assets and initiate legal claims on your behalf against entities that misappropriate them. This is an elective protection to ensure you are represented in the fight against mass surveillance.
 
-Prereq the user must confirm/handle on-chain (not code): the settlement relayer wallet (`SYNAPSE_RELAYER_PRIVATE_KEY` signer) must be registered on `IDIAEscrow` via `setAutomatedDistributor(<relayer>)` from the owner Safe, and the ecosystem escrow must hold enough IDIA to cover awards. If either is missing, `automatedDistribute` will revert `NotAuthorized` / `InsufficientBalance` and we'll see it immediately in the function logs.
+Two mutually exclusive radio options:
+- `I Authorize IDIA Data Inc. as my Authority of Record.`
+- `I decline this protection.`
 
-## Verification
+Single **Continue** button (disabled until one option is selected).
 
-- After cron re-schedule: watch `dao-treasury-ingest` and `dao-veto-tally` logs for one full 15-minute cycle — no more 401, `[DAO_EXECUTION_END]` lines appear.
-- After settlement fix: trigger one live IDIA Hub synapse credit consumption event, confirm `[END: Batch.Item] IDIA automatedDistribute successful` in `idia-circular-settlement` logs, contributor wallets show non-zero IDIA on-chain, and Wallet History renders both `data_sale_payout` (USDC) and `data_sale_idia_award` (IDIA) rows.
+### 3. Biometric ACA capture
+
+On Continue:
+1. Call `generateACAHash(user.id, 'AUTHORITY_OF_RECORD_V1', ['AOR_AUTHORIZATION', decision === 'accepted' ? 'POA_GRANTED' : 'POA_DECLINED'])` — this triggers Face ID / Touch ID via the existing WKWebView bridge (same path used by ToS).
+2. Insert into `consent_registry` with decision, version `v1`, `aca_hash_key`, and full payload.
+3. Mirror into `user_aca_records` (same pattern as ToS).
+4. Log a `device_events` row: `event_type='aor_consent_ack'`, payload includes decision + ACA.
+5. `supabase.auth.updateUser({ data: { aor_decision, aor_decided_at, aor_version: 'v1' } })`.
+6. Toast success and `navigate('/')`.
+
+Failure of biometric bridge → same handling as ToS (`ACA_PROMPT_REJECTED` toast, stay on screen).
+
+### 4. Routing — chain after ToS
+
+`src/pages/TermsOfService.tsx`: after successful acceptance, replace `navigate('/')` with `navigate('/authority-of-record')`.
+
+`src/App.tsx`: register the new route.
+
+Gate in `src/pages/Index.tsx` / `MainApp`: if the authenticated user has `tos_accepted_at` but no `aor_decision` in `user_metadata`, redirect to `/authority-of-record` before rendering `MainApp`. This covers users who accepted ToS previously.
+
+### 5. Non-goals
+
+- No changes to ToS copy, ToS versioning, or existing ACA generator.
+- Decline is a valid, permanent-for-this-version choice — user is not re-prompted unless we bump to `AUTHORITY_OF_RECORD_V2`.
+- No change to smart contracts or edge functions.
+
+### Technical summary
+
+| Area | Change |
+|---|---|
+| DB | New `public.consent_registry` table + RLS + GRANTs |
+| Frontend | New `AuthorityOfRecord.tsx` page, new `/authority-of-record` route, gate in `Index.tsx` |
+| Flow | ToS accept → AoR screen → biometric ACA → registry insert + auth metadata → `/` |
+| Reuse | `generateACAHash`, `user_aca_records`, `device_events`, existing styling primitives |
