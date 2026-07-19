@@ -158,6 +158,7 @@ const App = () => {
               <Route path="/dashboard" element={session ? <Index /> : <Navigate to="/auth" replace />} />
               
               <Route path="/terms" element={session ? <TermsOfService /> : <Navigate to="/auth" replace />} />
+              <Route path="/authority-of-record" element={session ? <AuthorityOfRecord /> : <Navigate to="/auth" replace />} />
               <Route path="/recovery-phrase" element={session ? <RecoveryPhrase /> : <Navigate to="/auth" replace />} />
               <Route path="/settings" element={session ? <Settings /> : <Navigate to="/auth" replace />} />
               <Route path="/settings/ledger" element={session ? <IdentityLedger /> : <Navigate to="/auth" replace />} />
