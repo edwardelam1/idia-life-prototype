@@ -16,6 +16,7 @@ import NotFound from "./pages/NotFound";
 import SecureVault from "./pages/SecureVault";
 import RecoveryPhrase from "./pages/RecoveryPhrase";
 import TermsOfService from "./pages/TermsOfService";
+import AuthorityOfRecord from "./pages/AuthorityOfRecord";
 
 // NFC PAYMENT IMPORTS
 import { usePaymentDeepLink } from "@/hooks/usePaymentDeepLink";
