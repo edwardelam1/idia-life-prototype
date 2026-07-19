@@ -82,6 +82,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [setupMode, setSetupMode] = useState<"create" | "import" | "view-seed">("create");
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isCopying, setIsCopying] = useState(false);
+  const [synapseCredits, setSynapseCredits] = useState<number>(0);
 
   useEffect(() => {
     console.log("[IDENTITY_SYNC:START] Evaluating profile hydration state...");
