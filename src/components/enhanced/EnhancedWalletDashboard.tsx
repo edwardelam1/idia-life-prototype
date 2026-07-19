@@ -596,7 +596,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                         </p>
                       </div>
                       <a
-                        href="https://hub.thebigidia.com"
+                        href="https://hub.thebigidia.com/dashboard"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex flex-col items-center gap-1 shrink-0 hover:opacity-80 transition-opacity"
