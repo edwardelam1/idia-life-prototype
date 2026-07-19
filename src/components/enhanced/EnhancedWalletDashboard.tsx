@@ -358,18 +358,12 @@ const EnhancedWalletDashboard: React.FC = () => {
       const latestSynapse = (synapseResult.data || [])[0] as any | undefined;
       if (latestSynapse) {
         const running =
-          latestSynapse.balance_after ??
-          latestSynapse.balance_fiat_usd ??
-          latestSynapse.balance_usdc_stable ??
-          null;
+          latestSynapse.balance_after ?? latestSynapse.balance_fiat_usd ?? latestSynapse.balance_usdc_stable ?? null;
         if (running !== null && running !== undefined) {
           setSynapseCredits(Number(running));
         } else {
           // Fallback: sum signed amounts across ledger.
-          const total = (synapseResult.data || []).reduce(
-            (acc: number, r: any) => acc + Number(r.amount ?? 0),
-            0,
-          );
+          const total = (synapseResult.data || []).reduce((acc: number, r: any) => acc + Number(r.amount ?? 0), 0);
           setSynapseCredits(total);
         }
       }
@@ -598,11 +592,11 @@ const EnhancedWalletDashboard: React.FC = () => {
                         <p className="text-xs text-muted-foreground">Synapse Credits</p>
                         <p className="text-2xl font-bold mt-1">
                           {synapseCredits.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                          <span className="text-sm text-muted-foreground font-normal ml-1">CREDS</span>
+                          <span className="text-sm text-muted-foreground font-normal ml-1">CR</span>
                         </p>
                       </div>
                       <a
-                        href="https://www.hub.thebigidia.com"
+                        href="https://hub.thebigidia.com"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex flex-col items-center gap-1 shrink-0 hover:opacity-80 transition-opacity"
@@ -620,7 +614,6 @@ const EnhancedWalletDashboard: React.FC = () => {
                     </div>
                   </div>
                 </div>
-
 
                 {/* Voting Power */}
                 <div className="p-3 bg-secondary/30 rounded-lg border">
