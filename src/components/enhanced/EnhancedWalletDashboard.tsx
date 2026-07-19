@@ -51,6 +51,7 @@ import {
   Network,
   ExternalLink,
 } from "lucide-react";
+import idiaHubLogo from "@/assets/idia-hub-logo.png.asset.json";
 
 interface Transaction {
   id: string;
@@ -82,6 +83,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [setupMode, setSetupMode] = useState<"create" | "import" | "view-seed">("create");
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isCopying, setIsCopying] = useState(false);
+  const [synapseCredits, setSynapseCredits] = useState<number>(0);
 
   useEffect(() => {
     console.log("[IDENTITY_SYNC:START] Evaluating profile hydration state...");
@@ -352,6 +354,26 @@ const EnhancedWalletDashboard: React.FC = () => {
         })
         .filter(Boolean) as Transaction[];
 
+      // Latest ledger row carries running balance_after → off-chain Synapse Credits total.
+      const latestSynapse = (synapseResult.data || [])[0] as any | undefined;
+      if (latestSynapse) {
+        const running =
+          latestSynapse.balance_after ??
+          latestSynapse.balance_fiat_usd ??
+          latestSynapse.balance_usdc_stable ??
+          null;
+        if (running !== null && running !== undefined) {
+          setSynapseCredits(Number(running));
+        } else {
+          // Fallback: sum signed amounts across ledger.
+          const total = (synapseResult.data || []).reduce(
+            (acc: number, r: any) => acc + Number(r.amount ?? 0),
+            0,
+          );
+          setSynapseCredits(total);
+        }
+      }
+
       setTransactions(
         [...mappedTx, ...mappedSynapse].sort(
           (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
@@ -569,18 +591,36 @@ const EnhancedWalletDashboard: React.FC = () => {
                     </p>
                   </div>
 
-                  {/* USDC */}
+                  {/* Synapse Credits (off-chain ledger total) + Hub link */}
                   <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 rounded-lg border">
-                    <p className="text-xs text-muted-foreground">USDC</p>
-                    <p className="text-2xl font-bold mt-1">
-                      $
-                      {balances?.usdc
-                        ? parseFloat(balances.usdc.balanceFormatted).toFixed(2)
-                        : (walletBalance?.usdc_balance ?? 0).toFixed(2)}
-                      <span className="text-sm text-muted-foreground font-normal ml-1">USDC</span>
-                    </p>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs text-muted-foreground">Synapse Credits</p>
+                        <p className="text-2xl font-bold mt-1">
+                          {synapseCredits.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                          <span className="text-sm text-muted-foreground font-normal ml-1">CREDS</span>
+                        </p>
+                      </div>
+                      <a
+                        href="https://www.hub.thebigidia.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex flex-col items-center gap-1 shrink-0 hover:opacity-80 transition-opacity"
+                        aria-label="Visit The IDIA Hub"
+                      >
+                        <img
+                          src={idiaHubLogo.url}
+                          alt="The IDIA Hub"
+                          className="w-10 h-10 rounded-lg object-cover shadow-sm"
+                        />
+                        <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                          The IDIA Hub
+                        </span>
+                      </a>
+                    </div>
                   </div>
                 </div>
+
 
                 {/* Voting Power */}
                 <div className="p-3 bg-secondary/30 rounded-lg border">
