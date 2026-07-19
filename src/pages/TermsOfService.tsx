@@ -71,8 +71,22 @@ const TermsOfService = () => {
       if (authError) throw authError;
       console.log("[TOS_FLOW] Auth Metadata Updated.");
 
+      // Mirror ToS into consent_registry (best-effort, idempotent via unique index)
+      try {
+        await (supabase as any).from("consent_registry").insert({
+          user_id: user.id,
+          consent_type: "TOS_V1",
+          decision: "accepted",
+          document_version: "v1",
+          aca_hash_key: payload.aca_hash_key,
+          payload,
+        });
+      } catch (e) {
+        console.warn("[TOS_FLOW] consent_registry mirror skipped:", e);
+      }
+
       toast.success("Identity Ledger Updated: ToS Accepted");
-      navigate("/");
+      navigate("/authority-of-record");
     } catch (error: any) {
       console.error(`[TOS_FLOW] CRITICAL STALL: ${error.message}`);
       toast.error("Compliance capture failed. System entry denied.");
