@@ -213,6 +213,64 @@ const EnhancedWalletDashboard: React.FC = () => {
     }
   };
 
+  // ── Native Bridge Auth Handover ──
+
+  const handleHubTap = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    console.log(
+      "🔗 [HUB_BRIDGE_LOG][BEGIN: React.HubBridge.Initiate] Checking for active native shell bridge hooks...",
+    );
+
+    try {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error(
+          "🚨 [HUB_BRIDGE_LOG][FATAL: React.HubBridge.SessionError] Supabase returned an error:",
+          error.message,
+        );
+        return;
+      }
+
+      if (session) {
+        // Safely evaluate if running inside iOS native shell wrapper
+        if (
+          (window as any).webkit &&
+          (window as any).webkit.messageHandlers &&
+          (window as any).webkit.messageHandlers.openExternalHub
+        ) {
+          console.log(
+            "🔗 [HUB_BRIDGE_LOG][PROCESS: React.HubBridge.Handover] Native shell message handler found. Executing secure token handover...",
+          );
+
+          (window as any).webkit.messageHandlers.openExternalHub.postMessage({
+            accessToken: session.access_token,
+            refreshToken: session.refresh_token,
+            expiry: session.expires_in,
+          });
+        } else {
+          console.log(
+            "🔗 [HUB_BRIDGE_LOG][PROCESS: React.HubBridge.Fallback] Running in a standard web browser context. Redirecting normally.",
+          );
+          window.location.href = "https://hub.thebigidia.com/dashboard";
+        }
+      } else {
+        console.warn(
+          "🚨 [HUB_BRIDGE_LOG][FATAL: React.HubBridge.SessionMissing] No active session found locally to execute handover.",
+        );
+        // Fallback: Just open the hub normally
+        window.location.href = "https://hub.thebigidia.com/dashboard";
+      }
+    } catch (err: any) {
+      console.error(
+        `🚨 [HUB_BRIDGE_LOG][FATAL: React.HubBridge.Exception] Unhandled exception during handover: ${err.message}`,
+      );
+    }
+  };
+
   // ── Refs and state ──
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -595,11 +653,9 @@ const EnhancedWalletDashboard: React.FC = () => {
                           <span className="text-sm text-muted-foreground font-normal ml-1">CR</span>
                         </p>
                       </div>
-                      <a
-                        href="https://hub.thebigidia.com/dashboard"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex flex-col items-center gap-1 shrink-0 hover:opacity-80 transition-opacity"
+                      <button
+                        onClick={handleHubTap}
+                        className="flex flex-col items-center gap-1 shrink-0 hover:opacity-80 transition-opacity bg-transparent border-none p-0 outline-none"
                         aria-label="Visit The IDIA Hub"
                       >
                         <img
@@ -610,7 +666,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                         <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
                           The IDIA Hub
                         </span>
-                      </a>
+                      </button>
                     </div>
                   </div>
                 </div>
