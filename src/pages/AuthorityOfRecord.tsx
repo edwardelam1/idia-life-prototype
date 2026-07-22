@@ -160,7 +160,7 @@ const AuthorityOfRecord = () => {
                   {decision === "declined" && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold">I decline this protection.</p>
+                  <p className="text-sm font-semibold">I decline this service.</p>
                   <p className="text-xs text-muted-foreground mt-1">No POA granted. You may revisit this later.</p>
                 </div>
               </div>
