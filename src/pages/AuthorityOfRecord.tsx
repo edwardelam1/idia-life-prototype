@@ -72,9 +72,7 @@ const AuthorityOfRecord = () => {
       console.log("[AOR_FLOW] Auth Metadata Updated.");
 
       toast.success(
-        decision === "accepted"
-          ? "Authority of Record authorization recorded"
-          : "Decision recorded — protection declined",
+        decision === "accepted" ? "Authority of Record authorization recorded" : "Decision recorded — service declined",
       );
       navigate("/");
     } catch (error: any) {
