@@ -1,7 +1,8 @@
-// Index page — straight to MainApp after auth
+// Index page — routes users through consent gate after auth
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { nextConsentRoute } from '@/config/consent';
 import FlashingSplashScreen from '@/components/FlashingSplashScreen';
 import LandingScreen from '@/components/LandingScreen';
 import MainApp from '@/components/MainApp';
@@ -16,19 +17,21 @@ const Index = () => {
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
       setIsAuthenticated(!!user);
-      // AoR gate: if user accepted ToS but hasn't decided AoR, route them there.
       if (user) {
-        const meta: any = user.user_metadata || {};
-        if (meta.tos_accepted_at && !meta.aor_decision) {
-          navigate('/authority-of-record', { replace: true });
-        }
+        const target = nextConsentRoute(user.user_metadata as any);
+        if (target) navigate(target, { replace: true });
       }
     };
 
     checkAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setIsAuthenticated(!!session?.user);
+      const user = session?.user;
+      setIsAuthenticated(!!user);
+      if (user) {
+        const target = nextConsentRoute(user.user_metadata as any);
+        if (target) navigate(target, { replace: true });
+      }
     });
 
     return () => subscription.unsubscribe();
