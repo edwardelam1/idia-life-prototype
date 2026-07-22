@@ -110,8 +110,8 @@ const AuthorityOfRecord = () => {
             <p className="text-sm leading-relaxed text-muted-foreground">
               By clicking <strong>Authorize</strong>, you are granting IDIA limited Power of Attorney to manage your
               digital identity assets and initiate legal claims on your behalf against entities that misappropriate
-              them. This is an <em>elective</em> protection to ensure you are represented in the fight against mass
-              surveillance.
+              them. This is an <em>elective</em> technical service to ensure you are represented in the fight against
+              mass surveillance and unauthorized digital identity commercialization.
             </p>
           </div>
 
