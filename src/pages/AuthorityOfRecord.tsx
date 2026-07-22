@@ -26,23 +26,18 @@ const AuthorityOfRecord = () => {
       if (userError || !user) throw new Error("Identity verification failed.");
       console.log(`[AOR_FLOW] Identity Confirmed: ${user.id}`);
 
-      const scopes = [
-        "AOR_AUTHORIZATION",
-        decision === "accepted" ? "POA_GRANTED" : "POA_DECLINED",
-      ];
+      const scopes = ["AOR_AUTHORIZATION", decision === "accepted" ? "POA_GRANTED" : "POA_DECLINED"];
       const { payload } = await generateACAHash(user.id, "AUTHORITY_OF_RECORD_V1", scopes);
       console.log("[AOR_FLOW] ACA Hash Generated.");
 
-      const { error: registryError } = await (supabase as any)
-        .from("consent_registry")
-        .insert({
-          user_id: user.id,
-          consent_type: "AUTHORITY_OF_RECORD_V1",
-          decision,
-          document_version: "v1",
-          aca_hash_key: payload.aca_hash_key,
-          payload,
-        });
+      const { error: registryError } = await (supabase as any).from("consent_registry").insert({
+        user_id: user.id,
+        consent_type: "AUTHORITY_OF_RECORD_V1",
+        decision,
+        document_version: "v1",
+        aca_hash_key: payload.aca_hash_key,
+        payload,
+      });
       if (registryError) throw registryError;
       console.log("[AOR_FLOW] Consent Registry Recorded.");
 
@@ -109,14 +104,14 @@ const AuthorityOfRecord = () => {
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           <div className="rounded-xl border border-border/60 bg-muted/20 p-5 space-y-4">
             <p className="text-sm leading-relaxed text-foreground">
-              To protect your digital identity from unauthorized surveillance, you have the option to appoint{" "}
-              <strong>IDIA Data Inc.</strong> as your <strong>Authority of Record</strong>.
+              To monetize your digital identity from authorized and unauthorized surveillance, you have the option to
+              appoint <strong>IDIA Data Inc.</strong> as your <strong>Authority of Record</strong>.
             </p>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              By clicking <strong>Authorize</strong>, you are granting IDIA limited Power of Attorney to manage
-              your digital identity assets and initiate legal claims on your behalf against entities that
-              misappropriate them. This is an <em>elective</em> protection to ensure you are represented in the
-              fight against mass surveillance.
+              By clicking <strong>Authorize</strong>, you are granting IDIA limited Power of Attorney to manage your
+              digital identity assets and initiate legal claims on your behalf against entities that misappropriate
+              them. This is an <em>elective</em> protection to ensure you are represented in the fight against mass
+              surveillance.
             </p>
           </div>
 
@@ -139,12 +134,8 @@ const AuthorityOfRecord = () => {
                   {decision === "accepted" && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold">
-                    I Authorize IDIA Data Inc. as my Authority of Record.
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Grants limited POA for identity-asset defense.
-                  </p>
+                  <p className="text-sm font-semibold">I Authorize IDIA Data Inc. as my Authority of Record.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Grants limited POA for identity-asset defense.</p>
                 </div>
               </div>
             </button>
@@ -168,9 +159,7 @@ const AuthorityOfRecord = () => {
                 </div>
                 <div>
                   <p className="text-sm font-semibold">I decline this protection.</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    No POA granted. You may revisit this later.
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">No POA granted. You may revisit this later.</p>
                 </div>
               </div>
             </button>
