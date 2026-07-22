@@ -119,6 +119,16 @@ const TermsOfService = () => {
           </div>
         </div>
 
+        {isReAcceptance && (
+          <div className="px-6 py-3 bg-amber-500/10 border-b border-amber-500/30 flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              Our Terms have been updated. Please review and re-accept to continue using IDIA.
+            </p>
+          </div>
+        )}
+
+
         {/* Scrollable Document View */}
         <div
           ref={scrollContainerRef}
