@@ -96,7 +96,9 @@ const AuthorityOfRecord = () => {
           </div>
           <div>
             <h1 className="text-lg font-bold tracking-tight">Authority of Record Authorization</h1>
-            <p className="text-xs text-muted-foreground">Elective protection — biometric confirmation required.</p>
+            <p className="text-xs text-muted-foreground">
+              Elective Technical Service — biometric confirmation required.
+            </p>
           </div>
         </div>
 
