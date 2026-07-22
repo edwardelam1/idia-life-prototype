@@ -1,18 +1,27 @@
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { Button } from "@/components/ui/button";
-import { Download, ShieldCheck } from "lucide-react";
+import { Download, ShieldCheck, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { REQUIRED_TOS_VERSION } from "@/config/consent";
 
 const TOS_PDF_URL = "/legal/IDIA_Protocol_Terms_of_Service.pdf";
 
 const TermsOfService = () => {
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isReAcceptance, setIsReAcceptance] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      const prior = (user?.user_metadata as any)?.tos_version;
+      if (prior && prior !== REQUIRED_TOS_VERSION) setIsReAcceptance(true);
+    });
+  }, []);
 
   const handleScroll = () => {
     const el = scrollContainerRef.current;
@@ -36,7 +45,7 @@ const TermsOfService = () => {
       if (userError || !user) throw new Error("Identity verification failed.");
       console.log(`[TOS_FLOW] Identity Confirmed: ${user.id}`);
 
-      const { payload } = await generateACAHash(user.id, "TERMS_OF_SERVICE_V1", [
+      const { payload } = await generateACAHash(user.id, `TERMS_OF_SERVICE_${REQUIRED_TOS_VERSION.toUpperCase()}`, [
         "TOS_ACCEPTANCE",
         "LEGAL_BINDING",
       ]);
@@ -49,7 +58,7 @@ const TermsOfService = () => {
           surface: "onboarding",
           feature: "terms_of_service",
           document: "IDIA_Protocol_Terms_of_Service",
-          version: "v1",
+          version: REQUIRED_TOS_VERSION,
           acknowledgement: "I_ACCEPT",
           aca: payload,
         },
@@ -59,14 +68,14 @@ const TermsOfService = () => {
 
       const { error: acaError } = await (supabase as any).from("user_aca_records").insert({
         platform_guid: user.id,
-        consent_type: "TOS_ACCEPTANCE_V1",
+        consent_type: `TOS_ACCEPTANCE_${REQUIRED_TOS_VERSION.toUpperCase()}`,
         aca_hash_key: payload.aca_hash_key,
       });
       if (acaError) throw acaError;
       console.log("[TOS_FLOW] ACA Record Mirrored.");
 
       const { error: authError } = await supabase.auth.updateUser({
-        data: { tos_accepted_at: new Date().toISOString(), tos_version: "v1" },
+        data: { tos_accepted_at: new Date().toISOString(), tos_version: REQUIRED_TOS_VERSION },
       });
       if (authError) throw authError;
       console.log("[TOS_FLOW] Auth Metadata Updated.");
@@ -75,9 +84,9 @@ const TermsOfService = () => {
       try {
         await (supabase as any).from("consent_registry").insert({
           user_id: user.id,
-          consent_type: "TOS_V1",
+          consent_type: `TOS_${REQUIRED_TOS_VERSION.toUpperCase()}`,
           decision: "accepted",
-          document_version: "v1",
+          document_version: REQUIRED_TOS_VERSION,
           aca_hash_key: payload.aca_hash_key,
           payload,
         });
