@@ -22,6 +22,7 @@ import AuthorityOfRecord from "./pages/AuthorityOfRecord";
 import { usePaymentDeepLink } from "@/hooks/usePaymentDeepLink";
 import NfcPaymentModal from "@/components/NfcPaymentModal";
 import { startPushBootstrap } from "@/utils/pushBootstrap";
+import ConsentGate from "@/components/ConsentGate";
 // Architectural Note: Defined outside to prevent re-instantiation on re-renders
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -155,14 +156,16 @@ const App = () => {
             <Routes>
               <Route path="/auth" element={session ? <Navigate to="/" replace /> : <Auth />} />
               <Route path="/" element={<Index />} />
-              <Route path="/dashboard" element={session ? <Index /> : <Navigate to="/auth" replace />} />
-              
+              <Route path="/dashboard" element={session ? <ConsentGate><Index /></ConsentGate> : <Navigate to="/auth" replace />} />
+
+              {/* Consent screens are reachable while signed-in without the gate — they're the gate targets */}
               <Route path="/terms" element={session ? <TermsOfService /> : <Navigate to="/auth" replace />} />
               <Route path="/authority-of-record" element={session ? <AuthorityOfRecord /> : <Navigate to="/auth" replace />} />
-              <Route path="/recovery-phrase" element={session ? <RecoveryPhrase /> : <Navigate to="/auth" replace />} />
-              <Route path="/settings" element={session ? <Settings /> : <Navigate to="/auth" replace />} />
-              <Route path="/settings/ledger" element={session ? <IdentityLedger /> : <Navigate to="/auth" replace />} />
-              <Route path="/secure-vault" element={session ? <SecureVault /> : <Navigate to="/auth" replace />} />
+
+              <Route path="/recovery-phrase" element={session ? <ConsentGate><RecoveryPhrase /></ConsentGate> : <Navigate to="/auth" replace />} />
+              <Route path="/settings" element={session ? <ConsentGate><Settings /></ConsentGate> : <Navigate to="/auth" replace />} />
+              <Route path="/settings/ledger" element={session ? <ConsentGate><IdentityLedger /></ConsentGate> : <Navigate to="/auth" replace />} />
+              <Route path="/secure-vault" element={session ? <ConsentGate><SecureVault /></ConsentGate> : <Navigate to="/auth" replace />} />
               <Route path="/secure_vault" element={<Navigate to="/secure-vault" replace />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
