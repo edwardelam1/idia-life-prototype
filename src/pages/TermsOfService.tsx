@@ -18,10 +18,16 @@ const TermsOfService = () => {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      const prior = (user?.user_metadata as any)?.tos_version;
+      const meta = (user?.user_metadata as any) || {};
+      // Belt-and-braces: block direct /terms access before age verification.
+      if (meta.age_verified !== true) {
+        navigate("/age-verification", { replace: true });
+        return;
+      }
+      const prior = meta.tos_version;
       if (prior && prior !== REQUIRED_TOS_VERSION) setIsReAcceptance(true);
     });
-  }, []);
+  }, [navigate]);
 
   const handleScroll = () => {
     const el = scrollContainerRef.current;
