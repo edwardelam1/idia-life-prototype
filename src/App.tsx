@@ -17,6 +17,7 @@ import SecureVault from "./pages/SecureVault";
 import RecoveryPhrase from "./pages/RecoveryPhrase";
 import TermsOfService from "./pages/TermsOfService";
 import AuthorityOfRecord from "./pages/AuthorityOfRecord";
+import AgeVerification from "./pages/AgeVerification";
 
 // NFC PAYMENT IMPORTS
 import { usePaymentDeepLink } from "@/hooks/usePaymentDeepLink";
@@ -159,6 +160,7 @@ const App = () => {
               <Route path="/dashboard" element={session ? <ConsentGate><Index /></ConsentGate> : <Navigate to="/auth" replace />} />
 
               {/* Consent screens are reachable while signed-in without the gate — they're the gate targets */}
+              <Route path="/age-verification" element={session ? <AgeVerification /> : <Navigate to="/auth" replace />} />
               <Route path="/terms" element={session ? <TermsOfService /> : <Navigate to="/auth" replace />} />
               <Route path="/authority-of-record" element={session ? <AuthorityOfRecord /> : <Navigate to="/auth" replace />} />
 
