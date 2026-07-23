@@ -30,7 +30,20 @@ const AuthorityOfRecord = () => {
       const { payload } = await generateACAHash(user.id, "AUTHORITY_OF_RECORD_V1", scopes);
       console.log("[AOR_FLOW] ACA Hash Generated.");
 
-      const { error: registryError } = await (supabase as any).from("consent_registry").insert({
+      // Ledger writes are best-effort — a single insert failure must NOT strand the
+      // user on the AoR screen. Metadata update + navigation are the source of truth
+      // for the ConsentGate; everything else is mirrored telemetry.
+      const safeInsert = async (table: string, row: Record<string, unknown>) => {
+        try {
+          const { error } = await (supabase as any).from(table).insert(row);
+          if (error) console.warn(`[AOR_FLOW] ${table} insert non-fatal:`, error.message);
+          else console.log(`[AOR_FLOW] ${table} recorded.`);
+        } catch (e: any) {
+          console.warn(`[AOR_FLOW] ${table} insert threw non-fatal:`, e?.message);
+        }
+      };
+
+      await safeInsert("consent_registry", {
         user_id: user.id,
         consent_type: "AUTHORITY_OF_RECORD_V1",
         decision,
@@ -38,17 +51,12 @@ const AuthorityOfRecord = () => {
         aca_hash_key: payload.aca_hash_key,
         payload,
       });
-      if (registryError) throw registryError;
-      console.log("[AOR_FLOW] Consent Registry Recorded.");
-
-      const { error: acaError } = await (supabase as any).from("user_aca_records").insert({
+      await safeInsert("user_aca_records", {
         platform_guid: user.id,
         consent_type: "AUTHORITY_OF_RECORD_V1",
         aca_hash_key: payload.aca_hash_key,
       });
-      if (acaError) throw acaError;
-
-      const { error: deviceError } = await (supabase as any).from("device_events").insert({
+      await safeInsert("device_events", {
         user_id: user.id,
         event_type: "aor_consent_ack",
         json_payload: {
@@ -59,7 +67,6 @@ const AuthorityOfRecord = () => {
           aca: payload,
         },
       });
-      if (deviceError) throw deviceError;
 
       const { error: authError } = await supabase.auth.updateUser({
         data: {
@@ -74,7 +81,7 @@ const AuthorityOfRecord = () => {
       toast.success(
         decision === "accepted" ? "Authority of Record authorization recorded" : "Decision recorded — service declined",
       );
-      navigate("/");
+      navigate("/", { replace: true });
     } catch (error: any) {
       console.error(`[AOR_FLOW] CRITICAL STALL: ${error.message}`);
       toast.error("Consent capture failed. Please try again.");

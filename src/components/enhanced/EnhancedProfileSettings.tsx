@@ -233,8 +233,8 @@ const EnhancedProfileSettings: React.FC = () => {
         <CardContent className={cardBody}>
           <div className="grid grid-cols-3 gap-2">
             <div className="text-center p-2 bg-muted rounded-md">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Cash</p>
-              <p className="text-base font-semibold">${(balance.cash_balance || 0).toFixed(2)}</p>
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">ETH</p>
+              <p className="text-base font-semibold">{(balance.eth_balance || 0).toFixed(4)}</p>
             </div>
             <div className="text-center p-2 bg-muted rounded-md">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">USDC</p>
