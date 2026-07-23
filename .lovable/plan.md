@@ -1,54 +1,57 @@
-## Goal
-Force every user (new + existing) on their next login to (1) accept the new Terms of Service v2 and (2) record an Authority of Record decision (accepted or declined). No user may reach the app shell without both attestations on file for the current versions.
+## Add 18+ Age Verification Gate (Pre-ToS Onboarding)
 
-## Version bump
-Set the required versions as constants (single source of truth):
-- `REQUIRED_TOS_VERSION = "v2"`
-- `REQUIRED_AOR_VERSION = "v1"` (unchanged)
+Insert a new age verification screen as the **first onboarding step**, immediately before Terms of Service. DOB stays on-device (Secure Enclave / localPIIVault) — zero PII in Supabase. Only a boolean `age_verified` + timestamp is persisted to `auth.users.user_metadata` so the gate remembers cleared users without ever storing the raw birthdate.
 
-Because the required ToS version is now `v2`, every existing user (whose `user_metadata.tos_version` is `v1` or missing) will be forced through the ToS screen again on next login. Their prior v1 acceptance stays on the ledger for audit history — we do not delete it.
-
-## Gate logic (single enforcement point)
-
-Rewrite the auth/consent gate in `src/pages/Index.tsx` so that after a session is confirmed, the user is redirected based on this precedence:
+### Flow
 
 ```text
-if !user                         -> stay (landing)
-else if tos_version !== "v2"     -> /terms
-else if !aor_decision            -> /authority-of-record
-else                             -> MainApp
+Sign in / Sign up
+      ↓
+/age-verification  ← NEW, blocks everything until cleared
+      ↓
+/terms (ToS v2)
+      ↓
+/authority-of-record (AoR v1)
+      ↓
+App
 ```
 
-Apply the same check inside `src/App.tsx` route guards so a user can't bypass by typing `/dashboard`, `/settings`, `/secure-vault`, etc. Wrap all authenticated routes with a small `ConsentGate` component that reads `user.user_metadata` and redirects to `/terms` or `/authority-of-record` when either attestation is missing/outdated.
+### Files
 
-`/terms` and `/authority-of-record` remain reachable while signed in (so the gate can send users there). `/auth` still redirects home when a session exists — that home route then re-runs the gate and pushes them to `/terms`.
+**New: `src/pages/AgeVerification.tsx`**
+- Native `<input type="date">` → summons iOS wheel picker inside the WKWebView shell automatically.
+- Compute 18-year cutoff on mount, apply as `max` attribute (physical UI lock against selecting a minor year).
+- On submit: re-validate cutoff in JS, store `dob` in `localPIIVault` (Secure Enclave via existing wrapper), update `auth.users.user_metadata` with `{ age_verified: true, age_verified_at: <ISO>, age_verification_version: "v1" }` — **no raw DOB in Supabase**.
+- Granular `[BEGIN]/[END]` console logging with the `🛡️ [DOB_LOG]` prefix as specified.
+- Rejection screen for minors with a clear message; no retry loop (block the session).
+- Glassmorphism / Trust-Blue styling using existing tokens (not the raw Tailwind dark palette from the snippet).
 
-## ToS screen changes (`src/pages/TermsOfService.tsx`)
-- Change `tos_version` written to metadata + `document_version` in `consent_registry` + `consent_type` in `user_aca_records` from `"v1"`/`"TOS_ACCEPTANCE_V1"`/`"TOS_V1"` to `"v2"`/`"TOS_ACCEPTANCE_V2"`/`"TOS_V2"`.
-- Source `sourceId` for ACA becomes `"TERMS_OF_SERVICE_V2"`.
-- On success, keep redirect to `/authority-of-record`.
-- Add a short banner at the top when `user_metadata.tos_version === "v1"` saying "Our Terms have been updated. Please review and re-accept to continue."
+**New: `src/config/consent.ts`** — extend
+- Add `REQUIRED_AGE_VERIFICATION_VERSION = "v1"`.
 
-## AoR screen (`src/pages/AuthorityOfRecord.tsx`)
-No content change. Ensure that after either decision (accepted or declined) we still write `aor_decision` + `aor_version` to metadata and the `consent_registry` row — this already happens; verify only.
+**Edit: `src/components/ConsentGate.tsx`**
+- Add first check: if `user.user_metadata.age_verification_version !== "v1"` (or `age_verified !== true`), redirect to `/age-verification`.
+- This check runs **before** the ToS check, so age gate always wins.
 
-## No database migration required
-`consent_registry` already supports multiple versions per user (rows are append-only). We rely on `auth.users.user_metadata` fields (`tos_version`, `aor_decision`, `aor_version`) as the fast runtime check, and the registry as the immutable ledger.
+**Edit: `src/App.tsx`**
+- Register `/age-verification` route (public, not wrapped in ConsentGate itself to avoid a redirect loop).
 
-## Files to edit
-- `src/pages/Index.tsx` — new precedence gate using `REQUIRED_TOS_VERSION`.
-- `src/App.tsx` — wrap authenticated routes with `ConsentGate` (or reuse the same check inline) so `/dashboard`, `/settings`, `/secure-vault`, `/settings/ledger`, `/recovery-phrase` all enforce the gate.
-- `src/pages/TermsOfService.tsx` — bump version strings to `v2` and add the "updated terms" banner.
-- (new) `src/config/consent.ts` — export `REQUIRED_TOS_VERSION` and `REQUIRED_AOR_VERSION` constants used by the gate and the ToS screen.
+**Edit: `src/pages/Index.tsx`**
+- Add the same age check ahead of the ToS/AoR checks so entering `/` also routes correctly.
 
-## Verification
-- Existing user with `tos_version: "v1"` + `aor_decision: "accepted"` → forced to `/terms` on next login, then `/authority-of-record` (re-decision required since ToS version changed? — **decision needed**, see below), then app.
-- New signup → `/terms` → `/authority-of-record` → app.
-- Signed-in user manually navigating to `/dashboard` without either attestation → redirected out.
+**Edit: `src/pages/TermsOfService.tsx`**
+- Guard at top: if user hits `/terms` without `age_verified`, redirect to `/age-verification`. (Belt-and-braces — ConsentGate already covers this, but this route can be reached directly.)
 
-## Open question
-When a user re-accepts ToS v2, should they also be forced to re-affirm AoR (fresh decision on v1) even if they already had one on file under ToS v1? Two options:
-- **A (default in this plan):** Only force AoR if `aor_decision` is missing. Prior AoR decisions carry forward across ToS versions.
-- **B:** Treat a ToS bump as invalidating the prior AoR — clear `aor_decision` in metadata during ToS v2 acceptance so every user re-decides.
+### Native handoff (frontend side only)
 
-I'll go with **A** unless you say otherwise.
+Per your instruction, **no Swift changes**. However, so the existing Swift failsafe you already wrote can validate DOB on every health sync, `src/services/healthService.ts` / `useNativeHealth.ts` will read the DOB from `localPIIVault` and include `dob` (ISO date) in the payload sent to `window.webkit.messageHandlers.syncHealthData`. If DOB is absent locally (edge case: user cleared vault), sync will refuse to fire and route back to `/age-verification`.
+
+### Existing users
+
+Because `age_verification_version` is absent on their metadata, ConsentGate will redirect every existing user to `/age-verification` on their next authenticated request — same enforcement pattern already used for ToS v2 and AoR v1.
+
+### Out of scope
+
+- No Supabase migrations, no new tables, no DOB column anywhere.
+- No changes to Swift, Kotlin, or Capacitor plugin code.
+- No changes to AoR or ToS content — only ordering and the new pre-gate.
