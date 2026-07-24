@@ -353,7 +353,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   const fetchTransactions = async () => {
     if (!stableUserId) return;
     try {
-      const [txResult, synapseResult] = await Promise.all([
+      const [txResult, synapseResult, synapseTotalResult] = await Promise.all([
         supabase
           .from("transactions")
           .select("*")
@@ -366,7 +366,15 @@ const EnhancedWalletDashboard: React.FC = () => {
           .eq("user_id", stableUserId)
           .order("created_at", { ascending: false })
           .limit(30),
+        // Authoritative live balance — sum of ALL signed amounts across the
+        // full ledger. Matches Hub's calculation and avoids drift in the
+        // cached `balance_after` column.
+        supabase
+          .from("synapse_credit_ledger")
+          .select("amount")
+          .eq("user_id", stableUserId),
       ]);
+
 
       const mappedTx = (txResult.data || [])
         .map((tx: any) => {
@@ -412,19 +420,14 @@ const EnhancedWalletDashboard: React.FC = () => {
         })
         .filter(Boolean) as Transaction[];
 
-      // Latest ledger row carries running balance_after → off-chain Synapse Credits total.
-      const latestSynapse = (synapseResult.data || [])[0] as any | undefined;
-      if (latestSynapse) {
-        const running =
-          latestSynapse.balance_after ?? latestSynapse.balance_fiat_usd ?? latestSynapse.balance_usdc_stable ?? null;
-        if (running !== null && running !== undefined) {
-          setSynapseCredits(Number(running));
-        } else {
-          // Fallback: sum signed amounts across ledger.
-          const total = (synapseResult.data || []).reduce((acc: number, r: any) => acc + Number(r.amount ?? 0), 0);
-          setSynapseCredits(total);
-        }
-      }
+      // Authoritative Synapse Credits total = signed sum across the full ledger.
+      // Matches the Hub UI; ignores the potentially-stale `balance_after` cache.
+      const runningTotal = (synapseTotalResult.data || []).reduce(
+        (acc: number, r: any) => acc + Number(r.amount ?? 0),
+        0,
+      );
+      setSynapseCredits(runningTotal);
+
 
       setTransactions(
         [...mappedTx, ...mappedSynapse].sort(
@@ -649,7 +652,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                       <div className="min-w-0">
                         <p className="text-xs text-muted-foreground">Synapse Credits</p>
                         <p className="text-2xl font-bold mt-1">
-                          {synapseCredits.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                          {synapseCredits.toLocaleString(undefined, { maximumFractionDigits: 3 })}
                           <span className="text-sm text-muted-foreground font-normal ml-1">CR</span>
                         </p>
                       </div>
