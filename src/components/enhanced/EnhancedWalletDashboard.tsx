@@ -420,19 +420,14 @@ const EnhancedWalletDashboard: React.FC = () => {
         })
         .filter(Boolean) as Transaction[];
 
-      // Latest ledger row carries running balance_after → off-chain Synapse Credits total.
-      const latestSynapse = (synapseResult.data || [])[0] as any | undefined;
-      if (latestSynapse) {
-        const running =
-          latestSynapse.balance_after ?? latestSynapse.balance_fiat_usd ?? latestSynapse.balance_usdc_stable ?? null;
-        if (running !== null && running !== undefined) {
-          setSynapseCredits(Number(running));
-        } else {
-          // Fallback: sum signed amounts across ledger.
-          const total = (synapseResult.data || []).reduce((acc: number, r: any) => acc + Number(r.amount ?? 0), 0);
-          setSynapseCredits(total);
-        }
-      }
+      // Authoritative Synapse Credits total = signed sum across the full ledger.
+      // Matches the Hub UI; ignores the potentially-stale `balance_after` cache.
+      const runningTotal = (synapseTotalResult.data || []).reduce(
+        (acc: number, r: any) => acc + Number(r.amount ?? 0),
+        0,
+      );
+      setSynapseCredits(runningTotal);
+
 
       setTransactions(
         [...mappedTx, ...mappedSynapse].sort(
