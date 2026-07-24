@@ -652,7 +652,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                       <div className="min-w-0">
                         <p className="text-xs text-muted-foreground">Synapse Credits</p>
                         <p className="text-2xl font-bold mt-1">
-                          {synapseCredits.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                          {synapseCredits.toLocaleString(undefined, { maximumFractionDigits: 3 })}
                           <span className="text-sm text-muted-foreground font-normal ml-1">CR</span>
                         </p>
                       </div>
