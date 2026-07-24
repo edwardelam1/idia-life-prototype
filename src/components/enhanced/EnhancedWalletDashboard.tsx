@@ -353,7 +353,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   const fetchTransactions = async () => {
     if (!stableUserId) return;
     try {
-      const [txResult, synapseResult] = await Promise.all([
+      const [txResult, synapseResult, synapseTotalResult] = await Promise.all([
         supabase
           .from("transactions")
           .select("*")
@@ -366,7 +366,15 @@ const EnhancedWalletDashboard: React.FC = () => {
           .eq("user_id", stableUserId)
           .order("created_at", { ascending: false })
           .limit(30),
+        // Authoritative live balance — sum of ALL signed amounts across the
+        // full ledger. Matches Hub's calculation and avoids drift in the
+        // cached `balance_after` column.
+        supabase
+          .from("synapse_credit_ledger")
+          .select("amount")
+          .eq("user_id", stableUserId),
       ]);
+
 
       const mappedTx = (txResult.data || [])
         .map((tx: any) => {
