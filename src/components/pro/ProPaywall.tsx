@@ -15,7 +15,7 @@ import { toast } from "@/hooks/use-toast";
 const tiers = [
   {
     id: "pro" as SubscriptionTier,
-    name: "IDIA Life Pro",
+    name: "Life Pro",
     price: "FREE until July 11th then $9.99",
     period: "/mo",
     subtitle: "Workforce Optimization",
@@ -26,7 +26,7 @@ const tiers = [
   },
   {
     id: "pro_plus" as SubscriptionTier,
-    name: "IDIA Life Pro+",
+    name: "Life Pro+",
     price: "FREE until July 11th then $29.99",
     period: "/mo",
     subtitle: "Cognitive Performance",
