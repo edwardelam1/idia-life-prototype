@@ -134,7 +134,7 @@ export const useBusinessMembership = () => {
             .in("platform_role", Array.from(ORG_ADMIN_VALUES))
             .eq("status", "active")
             .neq("id", m.employeeId);
-            
+
           if (error) console.warn("[BUSINESS_MEMBERSHIP] admin count bypassed:", error.message);
           return { ...m, isLastOrgAdmin: (count || 0) === 0 };
         }),
@@ -152,15 +152,13 @@ export const useBusinessMembership = () => {
       }
 
       const latest = (reqRows || [])[0] as ConversionRequest | undefined;
-      const pendingRequest =
-        latest && PENDING_STATUSES.has((latest.status || "pending").toLowerCase()) ? latest : null;
+      const pendingRequest = latest && PENDING_STATUSES.has((latest.status || "pending").toLowerCase()) ? latest : null;
 
       setState({ loading: false, memberships, pendingRequest });
       console.log("[BUSINESS_MEMBERSHIP_LOAD_END]", {
         memberships: memberships.length,
         hasPending: !!pendingRequest,
       });
-      
     } catch (error) {
       console.error("[BUSINESS_MEMBERSHIP_LOAD_ERROR] Failed to execute load:", error);
       setState({ loading: false, memberships: [], pendingRequest: null });
@@ -205,15 +203,10 @@ export const useBusinessMembership = () => {
 
   const leaveBusiness = useCallback(
     async (employeeId: string) => {
-      const { error } = await supabase.rpc(
-        "revoke_employee" as any,
-        { _employee_id: employeeId } as any,
-      );
+      const { error } = await supabase.rpc("revoke_employee" as any, { _employee_id: employeeId } as any);
       if (error) {
         if ((error.message || "").includes("LAST_ORG_ADMIN_DELETE_ORG")) {
-          throw new Error(
-            "You are the last Org Admin. Closing the business is not allowed from IDIA Life.",
-          );
+          throw new Error("You are the last Org Admin. Closing the business is not allowed from Life.");
         }
         throw error;
       }
