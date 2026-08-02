@@ -154,7 +154,7 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
           </div>
           <div>
             <h2 className="font-semibold text-foreground text-sm uppercase">Occupational Performance</h2>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">IDIA Pro</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">Life Pro</p>
           </div>
         </div>
         <Badge
