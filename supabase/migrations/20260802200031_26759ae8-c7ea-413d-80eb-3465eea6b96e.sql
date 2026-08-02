@@ -1,0 +1,1 @@
+ALTER TABLE public.hri_scores ADD COLUMN IF NOT EXISTS is_fraud boolean NOT NULL DEFAULT false;
