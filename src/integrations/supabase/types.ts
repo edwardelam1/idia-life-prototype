@@ -6255,6 +6255,36 @@ export type Database = {
         }
         Relationships: []
       }
+      pico_dock_layouts: {
+        Row: {
+          business_id: string | null
+          created_at: string
+          id: string
+          nano_bite_id: string
+          tag_order: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string
+          id?: string
+          nano_bite_id: string
+          tag_order?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string
+          id?: string
+          nano_bite_id?: string
+          tag_order?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       platform_users: {
         Row: {
           created_at: string | null
