@@ -4052,6 +4052,7 @@ export type Database = {
           created_at: string | null
           hrv_score: number | null
           id: string
+          is_duress: boolean
           is_ghost_protocol: boolean | null
           rt_score: number | null
           sleep_score: number | null
@@ -4064,6 +4065,7 @@ export type Database = {
           created_at?: string | null
           hrv_score?: number | null
           id?: string
+          is_duress?: boolean
           is_ghost_protocol?: boolean | null
           rt_score?: number | null
           sleep_score?: number | null
@@ -4076,6 +4078,7 @@ export type Database = {
           created_at?: string | null
           hrv_score?: number | null
           id?: string
+          is_duress?: boolean
           is_ghost_protocol?: boolean | null
           rt_score?: number | null
           sleep_score?: number | null
