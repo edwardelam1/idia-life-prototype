@@ -233,11 +233,26 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
           <p className="text-[10px] font-black uppercase tracking-widest italic">System Integrity</p>
         </div>
         <p className="text-[11px] leading-snug font-medium opacity-90">
-          Biological markers indicate a <span className="font-bold">{metrics.hriScore}% reliability rating</span>.
-          Principal is currently operating at{" "}
-          <span className="text-[hsl(28,80%,55%)] font-bold uppercase">Sustainable</span> capacity. No occupational
-          drift detected.
+          {metrics.hriScore === null ? (
+            <>Reliability rating unavailable — the HRI service has not returned a score yet.</>
+          ) : (
+            <>
+              Server-computed reliability rating:{" "}
+              <span className="font-bold">{metrics.hriScore}%</span>
+              {metrics.alpha ? (
+                <>
+                  {" "}
+                  · Alpha class{" "}
+                  <span className="text-[hsl(28,80%,55%)] font-bold uppercase">
+                    {metrics.alpha}
+                  </span>
+                </>
+              ) : null}
+              .
+            </>
+          )}
         </p>
+
       </div>
 
       <InsightsSection tier="pro" isMasked={isMasked} />
