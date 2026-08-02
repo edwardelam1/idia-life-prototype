@@ -47,7 +47,7 @@ const MainApp = () => {
       ...(isPayReady ? [{ id: "life", label: "Life", icon: Users, component: LifeScreen }] : []),
       ...(isPayReady ? [{ id: "shop", label: "Shop", icon: ShoppingBag, component: ShopScreen }] : []),
       { id: "vote", label: "Gov", icon: Vote, component: GovernanceScreen },
-      ...(isPayReady ? [{ id: "pro", label: "Pro", icon: Crown, component: ProScreen }] : []),
+      { id: "pro", label: "Pro", icon: Crown, component: ProScreen },
     ],
     [isPayReady],
   );
