@@ -58,7 +58,7 @@ const Header = () => {
   return (
     <header className="fixed top-0 left-0 right-0 bg-background border-b border-border px-2 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] grid grid-cols-3 items-center z-40">
       <div className="flex items-center space-x-2 justify-self-start">
-        <img src={polishedLogo} alt="Life by IDIA" className="h-6 w-6" />
+        <img src={polishedLogo} alt="Life by IDIA" className="h-4 w-4" />
         <h1 className="text-lg font-bold text-foreground">Life by IDIA</h1>
       </div>
 
