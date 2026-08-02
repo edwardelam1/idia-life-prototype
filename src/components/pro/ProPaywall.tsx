@@ -16,7 +16,7 @@ const tiers = [
   {
     id: "pro" as SubscriptionTier,
     name: "Life Pro",
-    price: "FREE until July 11th then $9.99",
+    price: "FREE (for Now)",
     period: "/mo",
     subtitle: "Workforce Optimization",
     icon: Zap,
@@ -27,7 +27,7 @@ const tiers = [
   {
     id: "pro_plus" as SubscriptionTier,
     name: "Life Pro+",
-    price: "FREE until July 11th then $29.99",
+    price: "FREE (for Now)",
     period: "/mo",
     subtitle: "Cognitive Performance",
     icon: Brain,
@@ -39,7 +39,7 @@ const tiers = [
   {
     id: "pure_alpha" as SubscriptionTier,
     name: "Pure Alpha",
-    price: "FREE until July 11th then $99.99",
+    price: "FREE (for Now)",
     period: "/mo",
     subtitle: "Executive Sovereignty",
     icon: Crown,
