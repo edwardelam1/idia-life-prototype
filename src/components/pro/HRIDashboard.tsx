@@ -3,12 +3,7 @@ import { ShieldCheck, Activity, Volume2, Accessibility, Wind, Heart, Info } from
 import InsightsSection from "./insights/InsightsSection";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Tooltip, 
-  TooltipContent, 
-  TooltipProvider, 
-  TooltipTrigger 
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // --- TYPES ALIGNED TO SOVEREIGN SCHEMA ---
 interface StagedHealthData {
@@ -36,8 +31,13 @@ const InfoIcon = ({ text }: { text: string }) => (
 const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState({
-    hr: 0, hrv: 0, resp: 0, noise: 0, asymmetry: 0, hriScore: 0,
-    status: "CALIBRATING" as "CALIBRATING" | "ARMED" | "TRIGGERED"
+    hr: 0,
+    hrv: 0,
+    resp: 0,
+    noise: 0,
+    asymmetry: 0,
+    hriScore: 0,
+    status: "CALIBRATING" as "CALIBRATING" | "ARMED" | "TRIGGERED",
   });
 
   useEffect(() => {
@@ -48,7 +48,9 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
       // Fully Connected Ingress: Fetching latest record from Staged Tier
       const { data: healthRaw } = await supabase
         .from("staged_health_data" as any)
-        .select("heart_rate, heart_rate_variability_ms, respiratory_rate, environmental_audio_exposure_db, walking_asymmetry_percentage, data_quality_score")
+        .select(
+          "heart_rate, heart_rate_variability_ms, respiratory_rate, environmental_audio_exposure_db, walking_asymmetry_percentage, data_quality_score",
+        )
         .order("recorded_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -71,49 +73,80 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     fetchLatestMetrics();
 
     // Real-time Live Tether: Instant UI update on health sync completion
-    const channel = supabase.channel("hri_pro_stream")
-      .on("postgres_changes" as any, { 
-        event: "INSERT", 
-        schema: "public", 
-        table: "staged_health_data" 
-      }, (payload: any) => {
-        const next = payload.new as StagedHealthData;
-        if (next) {
-          setMetrics(prev => ({
-            ...prev,
-            hr: next.heart_rate || prev.hr,
-            hrv: next.heart_rate_variability_ms || prev.hrv,
-            resp: next.respiratory_rate || prev.resp,
-            noise: next.environmental_audio_exposure_db || prev.noise,
-            asymmetry: next.walking_asymmetry_percentage || prev.asymmetry,
-            hriScore: next.data_quality_score ? Math.round(next.data_quality_score * 100) : prev.hriScore,
-            status: "ARMED"
-          }));
-        }
-      }).subscribe();
+    const channel = supabase
+      .channel("hri_pro_stream")
+      .on(
+        "postgres_changes" as any,
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "staged_health_data",
+        },
+        (payload: any) => {
+          const next = payload.new as StagedHealthData;
+          if (next) {
+            setMetrics((prev) => ({
+              ...prev,
+              hr: next.heart_rate || prev.hr,
+              hrv: next.heart_rate_variability_ms || prev.hrv,
+              resp: next.respiratory_rate || prev.resp,
+              noise: next.environmental_audio_exposure_db || prev.noise,
+              asymmetry: next.walking_asymmetry_percentage || prev.asymmetry,
+              hriScore: next.data_quality_score ? Math.round(next.data_quality_score * 100) : prev.hriScore,
+              status: "ARMED",
+            }));
+          }
+        },
+      )
+      .subscribe();
 
-    return () => { 
-      isMounted = false; 
-      supabase.removeChannel(channel); 
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
     };
   }, [isMasked]);
 
   const bioGrid = [
     { label: "Heart Rate", value: `${metrics.hr} BPM`, icon: Heart, info: "Real-time cardiac frequency." },
-    { label: "HRV Index", value: `${metrics.hrv} ms`, icon: Activity, info: "Autonomic nervous system resilience baseline." },
-    { label: "Acoustic", value: `${metrics.noise} dB`, icon: Volume2, info: "Ambient environmental stress monitoring." },
+    {
+      label: "HRV Index",
+      value: `${metrics.hrv} ms`,
+      icon: Activity,
+      info: "Autonomic nervous system resilience baseline.",
+    },
+    {
+      label: "Acoustic",
+      value: `${metrics.noise} dB`,
+      icon: Volume2,
+      info: "Ambient environmental stress monitoring.",
+    },
     { label: "Respiratory", value: `${metrics.resp} br/m`, icon: Wind, info: "Breathing frequency pattern." },
-    { label: "Gait Balance", value: `${metrics.asymmetry}%`, icon: Accessibility, info: "Kinetic walking symmetry percentage." },
-    { label: "Reliability", value: `${metrics.hriScore}%`, icon: ShieldCheck, info: "Aggregated Human Reliability Index (HRI) score." },
+    {
+      label: "Gait Balance",
+      value: `${metrics.asymmetry}%`,
+      icon: Accessibility,
+      info: "Kinetic walking symmetry percentage.",
+    },
+    {
+      label: "HRI",
+      value: `${metrics.hriScore}%`,
+      icon: ShieldCheck,
+      info: "Aggregated Human Reliability Index (HRI) score.",
+    },
   ];
 
   if (loading && !isMasked) {
-    return <div className="p-8 text-center animate-pulse uppercase text-[10px] tracking-widest text-muted-foreground font-black">Hydrating IDIA Pro...</div>;
+    return (
+      <div className="p-8 text-center animate-pulse uppercase text-[10px] tracking-widest text-muted-foreground font-black">
+        Hydrating IDIA Pro...
+      </div>
+    );
   }
 
   return (
-    <div className={`p-4 pb-24 space-y-4 animate-fade-in bg-background min-h-screen ${isMasked ? "blur-md opacity-40" : ""}`}>
-      
+    <div
+      className={`p-4 pb-24 space-y-4 animate-fade-in bg-background min-h-screen ${isMasked ? "blur-md opacity-40" : ""}`}
+    >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[hsl(28,80%,55%)] to-[hsl(28,80%,45%)] flex items-center justify-center shadow-lg">
@@ -124,7 +157,10 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">IDIA Pro</p>
           </div>
         </div>
-        <Badge variant="outline" className={`text-[8px] font-black uppercase px-2 py-0.5 ${metrics.status === 'TRIGGERED' ? 'border-red-500 text-red-500 animate-pulse' : 'border-emerald-500 text-emerald-500'}`}>
+        <Badge
+          variant="outline"
+          className={`text-[8px] font-black uppercase px-2 py-0.5 ${metrics.status === "TRIGGERED" ? "border-red-500 text-red-500 animate-pulse" : "border-emerald-500 text-emerald-500"}`}
+        >
           {metrics.status}
         </Badge>
       </div>
@@ -154,9 +190,10 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
           <p className="text-[10px] font-black uppercase tracking-widest italic">System Integrity</p>
         </div>
         <p className="text-[11px] leading-snug font-medium opacity-90">
-          Biological markers indicate a <span className="font-bold">{metrics.hriScore}% reliability rating</span>. 
-          Principal is currently operating at <span className="text-[hsl(28,80%,55%)] font-bold uppercase">Sustainable</span> capacity. 
-          No occupational drift detected.
+          Biological markers indicate a <span className="font-bold">{metrics.hriScore}% reliability rating</span>.
+          Principal is currently operating at{" "}
+          <span className="text-[hsl(28,80%,55%)] font-bold uppercase">Sustainable</span> capacity. No occupational
+          drift detected.
         </p>
       </div>
 
