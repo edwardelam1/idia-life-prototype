@@ -63,7 +63,13 @@ function summarizeStaged(rows: any[]) {
     walking_asymmetry_pct_avg: avg("walking_asymmetry_percentage"),
     walking_asymmetry_pct_trend: trend("walking_asymmetry_percentage"),
     data_quality_avg: avg("data_quality_score"),
-    last_recorded_at: rows[0]?.recorded_at ?? rows[0]?.created_at ?? null,
+    steps_avg: avg("steps_count"),
+    steps_trend: trend("steps_count"),
+    walking_speed_kmh_avg: avg("walking_speed_kmh"),
+    walking_speed_kmh_trend: trend("walking_speed_kmh"),
+    step_length_cm_avg: avg("step_length_cm"),
+    double_support_pct_avg: avg("double_support_percentage"),
+    last_recorded_at: rows[0]?.created_at ?? null,
   };
 }
 
@@ -264,14 +270,19 @@ serve(async (req) => {
 
     // Pull last 30d of staged_health_data via pseudonym.
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: staged } = await admin
+    const { data: staged, error: stagedErr } = await admin
       .from("staged_health_data" as any)
       .select(
-        "heart_rate, heart_rate_variability_ms, respiratory_rate, environmental_audio_exposure_db, walking_asymmetry_percentage, data_quality_score, recorded_at, created_at",
+        "heart_rate, heart_rate_variability_ms, respiratory_rate, environmental_audio_exposure_db, walking_asymmetry_percentage, steps_count, walking_speed_kmh, step_length_cm, double_support_percentage, data_quality_score, created_at",
       )
+      .eq("user_id", user.id)
       .gte("created_at", since)
       .order("created_at", { ascending: false })
       .limit(500);
+    if (stagedErr) {
+      console.error("[INSIGHTS][STAGED][END:FAIL]", stagedErr.message);
+      return json({ error: `staged_query_failed: ${stagedErr.message}` }, 500);
+    }
 
     // Raw count as freshness signal
     const { count: rawCount } = await admin

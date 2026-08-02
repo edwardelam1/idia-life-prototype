@@ -30,110 +30,153 @@ const InfoIcon = ({ text }: { text: string }) => (
 
 const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
   const [loading, setLoading] = useState(true);
-  const [metrics, setMetrics] = useState({
-    hr: 0,
-    hrv: 0,
-    resp: 0,
-    noise: 0,
-    asymmetry: 0,
-    hriScore: 0,
-    status: "CALIBRATING" as "CALIBRATING" | "ARMED" | "TRIGGERED",
+  const [metrics, setMetrics] = useState<{
+    hr: number | null;
+    hrv: number | null;
+    resp: number | null;
+    noise: number | null;
+    asymmetry: number | null;
+    hriScore: number | null;
+    alpha: string | null;
+    status: "CALIBRATING" | "ARMED" | "TRIGGERED";
+  }>({
+    hr: null,
+    hrv: null,
+    resp: null,
+    noise: null,
+    asymmetry: null,
+    hriScore: null,
+    alpha: null,
+    status: "CALIBRATING",
   });
 
   useEffect(() => {
     if (isMasked) return;
     let isMounted = true;
 
+    // Latest non-null value per metric across the user's recent staged rows.
+    const pick = (rows: any[], key: string): number | null => {
+      for (const r of rows) {
+        const v = r?.[key];
+        if (typeof v === "number" && !Number.isNaN(v)) return v;
+      }
+      return null;
+    };
+
     const fetchLatestMetrics = async () => {
-      // Fully Connected Ingress: Fetching latest record from Staged Tier
-      const { data: healthRaw } = await supabase
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth?.user?.id;
+      if (!uid) {
+        if (isMounted) setLoading(false);
+        return;
+      }
+
+      const { data: rowsRaw, error } = await supabase
         .from("staged_health_data" as any)
         .select(
-          "heart_rate, heart_rate_variability_ms, respiratory_rate, environmental_audio_exposure_db, walking_asymmetry_percentage, data_quality_score",
+          "heart_rate, heart_rate_variability_ms, respiratory_rate, environmental_audio_exposure_db, walking_asymmetry_percentage, created_at",
         )
-        .order("recorded_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const health = healthRaw as any;
+        .eq("user_id", uid)
+        .order("created_at", { ascending: false })
+        .limit(300);
 
-      if (isMounted && health) {
-        setMetrics({
-          hr: health.heart_rate || 0,
-          hrv: health.heart_rate_variability_ms || 0,
-          resp: health.respiratory_rate || 0,
-          noise: health.environmental_audio_exposure_db || 0,
-          asymmetry: health.walking_asymmetry_percentage || 0,
-          hriScore: health.data_quality_score ? Math.round(health.data_quality_score * 100) : 0,
-          status: health.heart_rate > 0 ? "ARMED" : "CALIBRATING",
-        });
+      if (error) console.error("[HRI][BIOMETRICS][FAIL]", error.message);
+      const rows = (rowsRaw as any[]) || [];
+
+      // Authoritative HRI score — edge function only. Never derived locally.
+      let hriScore: number | null = null;
+      let alpha: string | null = null;
+      try {
+        const { data: hri, error: hriErr } = await supabase.functions.invoke(
+          "calculate-hri",
+          { body: { user_id: uid } },
+        );
+        if (hriErr) throw hriErr;
+        const raw = (hri as any)?.hri_raw;
+        hriScore = typeof raw === "number" ? Math.round(raw) : null;
+        alpha = (hri as any)?.hri_alpha ?? null;
+      } catch (e: any) {
+        console.error("[HRI][EDGE][FAIL]", e?.message ?? e);
       }
+
+      if (!isMounted) return;
+      const hr = pick(rows, "heart_rate");
+      setMetrics({
+        hr,
+        hrv: pick(rows, "heart_rate_variability_ms"),
+        resp: pick(rows, "respiratory_rate"),
+        noise: pick(rows, "environmental_audio_exposure_db"),
+        asymmetry: pick(rows, "walking_asymmetry_percentage"),
+        hriScore,
+        alpha,
+        status: rows.length > 0 ? "ARMED" : "CALIBRATING",
+      });
       setLoading(false);
     };
 
     fetchLatestMetrics();
 
-    // Real-time Live Tether: Instant UI update on health sync completion
-    const channel = supabase
-      .channel("hri_pro_stream")
-      .on(
-        "postgres_changes" as any,
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "staged_health_data",
-        },
-        (payload: any) => {
-          const next = payload.new as StagedHealthData;
-          if (next) {
-            setMetrics((prev) => ({
-              ...prev,
-              hr: next.heart_rate || prev.hr,
-              hrv: next.heart_rate_variability_ms || prev.hrv,
-              resp: next.respiratory_rate || prev.resp,
-              noise: next.environmental_audio_exposure_db || prev.noise,
-              asymmetry: next.walking_asymmetry_percentage || prev.asymmetry,
-              hriScore: next.data_quality_score ? Math.round(next.data_quality_score * 100) : prev.hriScore,
-              status: "ARMED",
-            }));
-          }
-        },
-      )
-      .subscribe();
+    // Real-time Live Tether: refresh on new staged rows for this user.
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth?.user?.id;
+      if (!uid || !isMounted) return;
+      channel = supabase
+        .channel("hri_pro_stream")
+        .on(
+          "postgres_changes" as any,
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "staged_health_data",
+            filter: `user_id=eq.${uid}`,
+          },
+          () => {
+            fetchLatestMetrics();
+          },
+        )
+        .subscribe();
+    })();
 
     return () => {
       isMounted = false;
-      supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
     };
   }, [isMasked]);
 
+  const fmt = (v: number | null, unit: string) =>
+    v === null ? "—" : `${v}${unit}`;
+
   const bioGrid = [
-    { label: "Heart Rate", value: `${metrics.hr} BPM`, icon: Heart, info: "Real-time cardiac frequency." },
+    { label: "Heart Rate", value: fmt(metrics.hr, " BPM"), icon: Heart, info: "Real-time cardiac frequency." },
     {
       label: "HRV Index",
-      value: `${metrics.hrv} ms`,
+      value: fmt(metrics.hrv, " ms"),
       icon: Activity,
       info: "Autonomic nervous system resilience baseline.",
     },
     {
       label: "Acoustic",
-      value: `${metrics.noise} dB`,
+      value: fmt(metrics.noise, " dB"),
       icon: Volume2,
       info: "Ambient environmental stress monitoring.",
     },
-    { label: "Respiratory", value: `${metrics.resp} br/m`, icon: Wind, info: "Breathing frequency pattern." },
+    { label: "Respiratory", value: fmt(metrics.resp, " br/m"), icon: Wind, info: "Breathing frequency pattern." },
     {
       label: "Gait Balance",
-      value: `${metrics.asymmetry}%`,
+      value: fmt(metrics.asymmetry, "%"),
       icon: Accessibility,
       info: "Kinetic walking symmetry percentage.",
     },
     {
       label: "HRI",
-      value: `${metrics.hriScore}%`,
+      value: metrics.hriScore === null ? "—" : `${metrics.hriScore}%`,
       icon: ShieldCheck,
-      info: "Aggregated Human Reliability Index (HRI) score.",
+      info: "Aggregated Human Reliability Index (HRI) score, computed server-side.",
     },
   ];
+
 
   if (loading && !isMasked) {
     return (
@@ -190,11 +233,26 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
           <p className="text-[10px] font-black uppercase tracking-widest italic">System Integrity</p>
         </div>
         <p className="text-[11px] leading-snug font-medium opacity-90">
-          Biological markers indicate a <span className="font-bold">{metrics.hriScore}% reliability rating</span>.
-          Principal is currently operating at{" "}
-          <span className="text-[hsl(28,80%,55%)] font-bold uppercase">Sustainable</span> capacity. No occupational
-          drift detected.
+          {metrics.hriScore === null ? (
+            <>Reliability rating unavailable — the HRI service has not returned a score yet.</>
+          ) : (
+            <>
+              Server-computed reliability rating:{" "}
+              <span className="font-bold">{metrics.hriScore}%</span>
+              {metrics.alpha ? (
+                <>
+                  {" "}
+                  · Alpha class{" "}
+                  <span className="text-[hsl(28,80%,55%)] font-bold uppercase">
+                    {metrics.alpha}
+                  </span>
+                </>
+              ) : null}
+              .
+            </>
+          )}
         </p>
+
       </div>
 
       <InsightsSection tier="pro" isMasked={isMasked} />
