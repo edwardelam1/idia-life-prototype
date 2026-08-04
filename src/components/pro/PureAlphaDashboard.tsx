@@ -424,23 +424,29 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
         document.body
       )}
 
-      <div className={`p-4 pb-24 space-y-4 animate-fade-in bg-background min-h-screen font-sans ${isMasked ? "blur-md pointer-events-none" : ""}`}>
-        
-        {/* Sovereign Header */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[hsl(178,42%,42%)] flex items-center justify-center shadow-sm">
-              <Zap className="w-5 h-5 text-white" />
+      <div className={`flex flex-col space-y-5 bg-background min-h-screen p-4 pb-24 overflow-x-hidden animate-in fade-in duration-700 ${isMasked ? "blur-md pointer-events-none" : ""}`}>
+
+        {/* Sovereign Header — Gov style hero */}
+        <div className="bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] text-white border-none shadow-xl rounded-[2.5rem] overflow-hidden shrink-0 p-7">
+          <div className="flex justify-between items-start">
+            <div className="space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60">
+                Executive Sovereignty
+              </p>
+              <h1 className="text-4xl font-black truncate">
+                Pure Alpha <span className="text-sm font-medium text-teal-100/40">Access</span>
+              </h1>
             </div>
-            <div>
-              <h2 className="font-bold text-foreground text-sm uppercase tracking-tighter">Executive Sovereignty</h2>
-              <p className="text-[10px] text-[hsl(178,42%,32%)] uppercase font-black tracking-widest">Pure Alpha Access</p>
-            </div>
+            <Zap className="w-10 h-10 text-orange-400 drop-shadow-lg shrink-0" />
           </div>
-          <Badge variant="outline" className="text-[8px] border-[hsl(178,42%,32%)]/30 text-[hsl(178,42%,32%)] font-bold px-2 py-0 uppercase">
-            Auth Active
-          </Badge>
+          <div className="mt-6 flex items-center gap-2 border-t border-white/10 pt-4">
+            <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-emerald-400 animate-pulse" />
+            <span className="text-[9px] font-black uppercase tracking-widest text-teal-50 truncate">
+              Auth Active · Sovereign Session
+            </span>
+          </div>
         </div>
+
 
         {/* TOP LEVEL NAVIGATION */}
         <Tabs defaultValue="pure-alpha" className="w-full">
