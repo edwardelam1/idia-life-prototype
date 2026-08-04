@@ -283,31 +283,37 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
         )}
 
       <div
-        className={`p-4 pb-24 space-y-6 animate-fade-in relative bg-background min-h-screen font-sans transition-transform duration-75 ease-out ${isMasked ? "blur-md pointer-events-none" : ""}`}
+        className={`flex flex-col space-y-5 bg-background min-h-screen p-4 pb-24 overflow-x-hidden animate-in fade-in duration-700 relative transition-transform ease-out ${isMasked ? "blur-md pointer-events-none" : ""}`}
         style={{
           perspective: "1200px",
           transform: `rotateX(calc(var(--pitch, 0) * ${gammaActive ? "35deg" : "12deg"})) rotateY(calc(var(--roll, 0) * ${gammaActive ? "-35deg" : "-12deg"}))`,
           transformStyle: "preserve-3d",
         }}
       >
-        {/* HEADER */}
-        <div className="flex items-center justify-between" style={{ transform: "translateZ(40px)" }}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[hsl(178,42%,42%)] flex items-center justify-center shadow-sm">
-              <Brain className="w-5 h-5 text-white" />
+        {/* HEADER — Gov style hero */}
+        <div
+          className="bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] text-white border-none shadow-xl rounded-[2.5rem] overflow-hidden shrink-0 p-7"
+          style={{ transform: "translateZ(40px)" }}
+        >
+          <div className="flex justify-between items-start">
+            <div className="space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60">
+                Cognitive Performance
+              </p>
+              <h1 className="text-4xl font-black truncate">
+                Life Pro<span className="text-sm font-medium text-teal-100/40">+</span>
+              </h1>
             </div>
-            <div>
-              <h2 className="font-bold text-foreground text-sm uppercase tracking-tighter">Cognitive Performance</h2>
-              <p className="text-[10px] text-[hsl(178,42%,32%)] uppercase font-black tracking-widest">Life Pro+</p>
-            </div>
+            <Brain className="w-10 h-10 text-orange-400 drop-shadow-lg shrink-0" />
           </div>
-          <Badge
-            variant="outline"
-            className="border-[hsl(178,42%,32%)]/30 text-[hsl(178,42%,32%)] font-black uppercase text-[8px] px-2 py-0 font-sans"
-          >
-            Live Synapse
-          </Badge>
+          <div className="mt-6 flex items-center gap-2 border-t border-white/10 pt-4">
+            <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-emerald-400 animate-pulse" />
+            <span className="text-[9px] font-black uppercase tracking-widest text-teal-50 truncate">
+              Live Synapse
+            </span>
+          </div>
         </div>
+
 
         <Tabs defaultValue="biometrics" className="w-full" style={{ transform: "translateZ(20px)" }}>
           <TabsList className="flex w-full bg-transparent border-b border-border p-0 rounded-none h-10 mb-8 gap-8">
