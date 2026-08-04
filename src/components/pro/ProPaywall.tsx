@@ -70,12 +70,26 @@ const ProPaywall = ({ currentTier, onSubscribe }: ProPaywallProps) => {
   };
 
   return (
-    <div className="px-4 pt-3 pb-24 space-y-4 animate-fade-in">
-      <div className="text-center space-y-1">
-        <Shield className="w-5 h-5 text-[hsl(178,42%,32%)] mx-auto" />
-        <h1 className="text-lg font-semibold tracking-tight">Unlock Your Edge</h1>
-        <p className="text-[11px] text-muted-foreground">PREVIEW: Advanced Cognitive & Financial Tools.</p>
+    <div className="flex flex-col space-y-5 bg-background min-h-screen p-4 pb-24 overflow-x-hidden animate-in fade-in duration-700">
+      <div className="bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] text-white border-none shadow-xl rounded-[2.5rem] overflow-hidden shrink-0 p-7">
+        <div className="flex justify-between items-start">
+          <div className="space-y-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60">IDIA Pro Access</p>
+            <h1 className="text-4xl font-black truncate">Unlock Your Edge</h1>
+          </div>
+          <Shield className="w-10 h-10 text-orange-400 drop-shadow-lg shrink-0" />
+        </div>
+        <div className="mt-6 flex items-center gap-2 border-t border-white/10 pt-4">
+          <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-orange-400 animate-pulse" />
+          <span className="text-[9px] font-black uppercase tracking-widest text-teal-50 truncate">
+            Preview · Advanced Cognitive &amp; Financial Tools
+          </span>
+        </div>
       </div>
+
+      <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
+        <Crown size={14} className="text-orange-500" /> Access Tiers
+      </h2>
 
       <div className="space-y-2.5">
         {tiers.map((t) => {
@@ -87,13 +101,19 @@ const ProPaywall = ({ currentTier, onSubscribe }: ProPaywallProps) => {
           return (
             <div
               key={t.id}
-              className={`relative rounded-xl border p-3 bg-card/60 backdrop-blur-xl transition-colors ${isActive ? "border-[hsl(178,42%,32%)]" : "border-border/40"}`}
+              className={`relative rounded-2xl border p-4 bg-card shadow-sm transition-colors ${isActive ? "border-[hsl(178,42%,32%)]" : "border-border"}`}
             >
               {isActive && (
-                <div className="absolute top-2 right-2 text-[9px] font-medium text-[hsl(178,42%,42%)] tracking-wide">
-                  CURRENT
+                <div className="absolute top-2 right-2 text-[9px] font-black uppercase tracking-widest text-emerald-500">
+                  Current
                 </div>
               )}
+              {!isActive && (t as any).popular && (
+                <div className="absolute top-2 right-2 text-[9px] font-black uppercase tracking-widest text-orange-500">
+                  Popular
+                </div>
+              )}
+
               <div className="flex items-center justify-between mb-2.5">
                 <div className="flex items-center gap-2">
                   <div className={`w-7 h-7 rounded-md bg-gradient-to-br ${t.color} flex items-center justify-center`}>
