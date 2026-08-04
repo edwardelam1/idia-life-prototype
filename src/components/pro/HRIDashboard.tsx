@@ -3,6 +3,8 @@ import { ShieldCheck, Activity, Volume2, Accessibility, Wind, Heart, Info } from
 import InsightsSection from "./insights/InsightsSection";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // --- TYPES ALIGNED TO SOVEREIGN SCHEMA ---
