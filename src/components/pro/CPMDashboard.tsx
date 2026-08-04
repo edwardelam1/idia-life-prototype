@@ -257,7 +257,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
 
   if (loading && !isMasked)
     return (
-      <div className="p-8 text-center animate-pulse uppercase text-[10px] tracking-widest text-teal-600 font-sans font-black">
+      <div className="p-8 text-center animate-pulse uppercase text-[10px] tracking-widest text-[hsl(178,42%,32%)] font-sans font-black">
         Hydrating IDIA Pro+...
       </div>
     );
@@ -297,35 +297,35 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
               <Brain className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="font-bold text-slate-900 text-sm uppercase tracking-tighter">Cognitive Performance</h2>
-              <p className="text-[10px] text-teal-600 uppercase font-black tracking-widest">Life Pro+</p>
+              <h2 className="font-bold text-foreground text-sm uppercase tracking-tighter">Cognitive Performance</h2>
+              <p className="text-[10px] text-[hsl(178,42%,32%)] uppercase font-black tracking-widest">Life Pro+</p>
             </div>
           </div>
           <Badge
             variant="outline"
-            className="border-teal-100 text-teal-600 font-black uppercase text-[8px] px-2 py-0 font-sans"
+            className="border-[hsl(178,42%,32%)]/30 text-[hsl(178,42%,32%)] font-black uppercase text-[8px] px-2 py-0 font-sans"
           >
             Live Synapse
           </Badge>
         </div>
 
         <Tabs defaultValue="biometrics" className="w-full" style={{ transform: "translateZ(20px)" }}>
-          <TabsList className="flex w-full bg-transparent border-b border-slate-100 p-0 rounded-none h-10 mb-8 gap-8">
+          <TabsList className="flex w-full bg-transparent border-b border-border p-0 rounded-none h-10 mb-8 gap-8">
             <TabsTrigger
               value="biometrics"
-              className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all font-sans"
+              className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-[hsl(178,42%,32%)] data-[state=active]:text-[hsl(178,42%,32%)] rounded-none px-0 bg-transparent shadow-none transition-all font-sans"
             >
               Biometrics
             </TabsTrigger>
             <TabsTrigger
               value="gamma"
-              className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all font-sans"
+              className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-[hsl(178,42%,32%)] data-[state=active]:text-[hsl(178,42%,32%)] rounded-none px-0 bg-transparent shadow-none transition-all font-sans"
             >
               Gamma
             </TabsTrigger>
             <TabsTrigger
               value="memory"
-              className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all font-sans"
+              className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-[hsl(178,42%,32%)] data-[state=active]:text-[hsl(178,42%,32%)] rounded-none px-0 bg-transparent shadow-none transition-all font-sans"
             >
               Anchor
             </TabsTrigger>
@@ -342,25 +342,25 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                 { label: "HRI Score", value: `${metrics.hriScore}%`, icon: Shield },
               ].map((b) => (
                 <div key={b.label} className="p-0 border-none group" style={{ transform: "translateZ(30px)" }}>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5 font-sans group-hover:text-teal-500 transition-colors">
+                  <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1.5 font-sans group-hover:text-[hsl(178,42%,42%)] transition-colors">
                     <b.icon className="w-2.5 h-2.5" /> {b.label}
                   </p>
-                  <p className="text-2xl font-bold text-slate-900 italic tracking-tighter font-sans">{b.value}</p>
+                  <p className="text-2xl font-bold text-foreground italic tracking-tighter font-sans">{b.value}</p>
                 </div>
               ))}
             </div>
             <div
-              className="rounded-2xl border border-teal-50 bg-teal-50/20 p-5 shadow-inner"
+              className="rounded-2xl border border-[hsl(178,42%,32%)]/20 bg-[hsl(178,42%,32%)]/5 p-5 shadow-inner"
               style={{ transform: "translateZ(10px)" }}
             >
-              <div className="flex items-center gap-2 mb-1 text-teal-800">
+              <div className="flex items-center gap-2 mb-1 text-[hsl(178,42%,32%)]">
                 <Pulse className="w-4 h-4" />
                 <span className="text-[10px] font-black uppercase tracking-widest italic font-sans">
                   Operational Status
                 </span>
               </div>
-              <p className="text-xs font-medium leading-relaxed text-slate-600 font-sans text-center">
-                Cognitive load is currently <span className="font-bold text-teal-600 uppercase">Optimal</span>. Reaction
+              <p className="text-xs font-medium leading-relaxed text-muted-foreground font-sans text-center">
+                Cognitive load is currently <span className="font-bold text-[hsl(178,42%,32%)] uppercase">Optimal</span>. Reaction
                 velocity is baseline stable.
               </p>
             </div>
@@ -368,15 +368,15 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
 
           <TabsContent value="gamma" className="space-y-6 focus-visible:outline-none">
             <div
-              className="rounded-3xl border border-slate-50 bg-slate-50/30 p-10 text-center shadow-sm"
+              className="rounded-3xl border border-border bg-muted/20 p-10 text-center shadow-sm"
               style={{ transform: "translateZ(40px)" }}
             >
               <div
                 className={`w-24 h-24 rounded-full mx-auto mb-8 flex items-center justify-center border-4 transition-all duration-700 ${gammaActive ? "border-orange-500 bg-orange-50 scale-110 shadow-[0_0_40px_rgba(249,115,22,0.3)]" : "border-white bg-white"}`}
               >
-                <Zap className={`w-12 h-12 ${gammaActive ? "text-orange-500 animate-pulse" : "text-slate-200"}`} />
+                <Zap className={`w-12 h-12 ${gammaActive ? "text-orange-500 animate-pulse" : "text-muted-foreground/40"}`} />
               </div>
-              <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em] mb-4 font-sans text-center">
+              <h3 className="text-[11px] font-black text-foreground uppercase tracking-[0.2em] mb-4 font-sans text-center">
                 40Hz Entrainment Trigger
               </h3>
               <div
@@ -384,8 +384,8 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                 style={{ transform: "translateZ(20px)" }}
               >
                 <div className="text-left font-sans">
-                  <p className="text-[10px] font-black text-slate-900 uppercase">Hardware Pulse</p>
-                  <p className="text-[9px] text-teal-600 font-bold uppercase tracking-tighter">
+                  <p className="text-[10px] font-black text-foreground uppercase">Hardware Pulse</p>
+                  <p className="text-[9px] text-[hsl(178,42%,32%)] font-bold uppercase tracking-tighter">
                     {gammaActive ? "Transmitting" : "Standby"}
                   </p>
                 </div>
@@ -403,10 +403,10 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
               className="rounded-3xl border-border bg-card shadow-sm overflow-hidden min-h-[480px] flex flex-col font-sans"
               style={{ transform: "translateZ(35px)" }}
             >
-              <div className="p-5 border-b border-slate-50 flex items-center justify-between">
+              <div className="p-5 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Target className="w-4 h-4 text-orange-500" />
-                  <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">
+                  <span className="text-[10px] font-black text-foreground uppercase tracking-widest">
                     Memory Anchor: {rsvpPhase !== "IDLE" ? `${testRound}/5` : "Validation"}
                   </span>
                 </div>
@@ -421,11 +421,11 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                 {rsvpPhase === "IDLE" && (
                   <div className="text-center space-y-10">
                     <div className="space-y-2">
-                      <p className="text-[10px] text-slate-400 uppercase font-black tracking-[0.25em]">
+                      <p className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.25em]">
                         Operational Calibration
                       </p>
-                      <Smartphone className="w-8 h-8 text-slate-300 mx-auto animate-bounce mt-4" />
-                      <p className="text-[11px] text-slate-600 font-medium max-w-[190px]">
+                      <Smartphone className="w-8 h-8 text-muted-foreground/60 mx-auto animate-bounce mt-4" />
+                      <p className="text-[11px] text-muted-foreground font-medium max-w-[190px]">
                         Turn device horizontally to lock orientation for validation battery.
                       </p>
                     </div>
@@ -440,7 +440,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                         <button
                           key={s}
                           onClick={() => setRsvpSpeed(s)}
-                          className={`text-[9px] font-black px-4 py-2 rounded-full border-2 transition-all ${rsvpSpeed === s ? "border-teal-600 text-teal-600" : "border-slate-50 text-slate-300"}`}
+                          className={`text-[9px] font-black px-4 py-2 rounded-full border-2 transition-all ${rsvpSpeed === s ? "border-teal-600 text-[hsl(178,42%,32%)]" : "border-border text-muted-foreground/60"}`}
                         >
                           {s === 500 ? "LVL 1" : s === 300 ? "NORM" : "ALPHA"}
                         </button>
@@ -452,14 +452,14 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                 {rsvpPhase === "CALIBRATING" && (
                   <div className="text-center space-y-4">
                     <div className="w-12 h-12 rounded-full border-4 border-teal-500 border-t-transparent animate-spin mx-auto" />
-                    <p className="text-[11px] font-black uppercase tracking-[0.5em] text-teal-600">Locking Focus</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.5em] text-[hsl(178,42%,32%)]">Locking Focus</p>
                   </div>
                 )}
 
                 {rsvpPhase === "PRESENTING" && (
                   <div className="w-full text-center px-4 h-32 flex items-center justify-center overflow-hidden">
                     <p
-                      className={`${getDynamicFontSize(activeSequence[rsvpWordIndex])} font-black tracking-[0.2em] text-slate-900 uppercase animate-in zoom-in duration-75 whitespace-nowrap drop-shadow-sm leading-none`}
+                      className={`${getDynamicFontSize(activeSequence[rsvpWordIndex])} font-black tracking-[0.2em] text-foreground uppercase animate-in zoom-in duration-75 whitespace-nowrap drop-shadow-sm leading-none`}
                     >
                       {activeSequence[rsvpWordIndex]}
                     </p>
@@ -470,7 +470,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
 
                 {rsvpPhase === "RECALL" && (
                   <div className="w-full space-y-6" style={{ transform: "translateZ(50px)" }}>
-                    <p className="text-[10px] font-black text-slate-400 text-center uppercase tracking-[0.3em]">
+                    <p className="text-[10px] font-black text-muted-foreground text-center uppercase tracking-[0.3em]">
                       Sequence Verification
                     </p>
                     <div className="grid grid-cols-2 gap-3">
@@ -479,7 +479,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                           key={word}
                           onClick={() => handleRecallSelection(word)}
                           variant="outline"
-                          className={`h-14 border-2 text-[11px] font-black uppercase transition-all ${userRecall.includes(word) ? "bg-slate-50 text-slate-300 border-slate-50 scale-95 opacity-40" : "border-slate-50 text-slate-700 hover:border-teal-500 hover:text-teal-600 shadow-sm"}`}
+                          className={`h-14 border-2 text-[11px] font-black uppercase transition-all ${userRecall.includes(word) ? "bg-muted/30 text-muted-foreground/60 border-border scale-95 opacity-40" : "border-border text-slate-700 hover:border-teal-500 hover:text-[hsl(178,42%,32%)] shadow-sm"}`}
                         >
                           {word}
                         </Button>
@@ -489,7 +489,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                 )}
 
                 {rsvpPhase === "ROUND_COMPLETE" && (
-                  <p className="text-3xl font-black text-teal-600 italic tracking-tighter uppercase animate-pulse">
+                  <p className="text-3xl font-black text-[hsl(178,42%,32%)] italic tracking-tighter uppercase animate-pulse">
                     ROUND {testRound} LOGGED
                   </p>
                 )}
@@ -501,17 +501,17 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                   >
                     <Trophy className="w-20 h-20 text-orange-500 mx-auto" />
                     <div>
-                      <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 text-center">
+                      <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest mb-2 text-center">
                         Cumulative Clutch Score
                       </p>
-                      <p className="text-9xl font-black italic tracking-tighter text-slate-900 leading-none text-center">
+                      <p className="text-9xl font-black italic tracking-tighter text-foreground leading-none text-center">
                         {cumulativeScore}
                       </p>
                     </div>
                     <Button
                       variant="ghost"
                       onClick={endTest}
-                      className="text-slate-300 font-black uppercase text-[11px] hover:text-teal-600 tracking-[0.2em] text-center"
+                      className="text-muted-foreground/60 font-black uppercase text-[11px] hover:text-[hsl(178,42%,32%)] tracking-[0.2em] text-center"
                     >
                       <RotateCcw className="w-4 h-4 mr-2" /> Exit to Portrait
                     </Button>

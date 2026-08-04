@@ -44,7 +44,7 @@ const SovereignAuth = ({ onVerified }: SovereignAuthProps) => {
           <div
             className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-500 ${
               stage === "scanning"
-                ? "bg-[hsl(28,80%,55%)]/20 animate-pulse"
+                ? "bg-[hsl(178,42%,32%)]/20 animate-pulse"
                 : stage === "verified"
                   ? "bg-[hsl(142,71%,45%)]/20 shadow-[0_0_30px_rgba(34,197,94,0.2)]"
                   : "bg-muted"
@@ -55,7 +55,7 @@ const SovereignAuth = ({ onVerified }: SovereignAuthProps) => {
             ) : (
               <Lock
                 className={`w-10 h-10 transition-colors ${
-                  stage === "scanning" ? "text-[hsl(28,80%,55%)] animate-pulse" : "text-muted-foreground"
+                  stage === "scanning" ? "text-[hsl(178,42%,32%)] animate-pulse" : "text-muted-foreground"
                 }`}
               />
             )}
@@ -79,7 +79,7 @@ const SovereignAuth = ({ onVerified }: SovereignAuthProps) => {
         >
           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
             <ShieldCheck
-              className={`w-3 h-3 ${stage === "verified" ? "text-[hsl(142,71%,45%)]" : "text-[hsl(28,80%,55%)]"}`}
+              className={`w-3 h-3 ${stage === "verified" ? "text-[hsl(142,71%,45%)]" : "text-[hsl(178,42%,32%)]"}`}
             />
             Secure Handshake
           </div>
@@ -91,7 +91,7 @@ const SovereignAuth = ({ onVerified }: SovereignAuthProps) => {
           </div>
           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
             <Lock
-              className={`w-3 h-3 ${stage === "verified" ? "text-[hsl(142,71%,45%)]" : "text-[hsl(270,60%,50%)]"}`}
+              className={`w-3 h-3 ${stage === "verified" ? "text-[hsl(142,71%,45%)]" : "text-[hsl(178,42%,32%)]"}`}
             />
             Accessing Pro Tiers
           </div>

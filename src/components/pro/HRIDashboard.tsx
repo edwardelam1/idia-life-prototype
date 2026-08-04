@@ -192,7 +192,7 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[hsl(28,80%,55%)] to-[hsl(28,80%,45%)] flex items-center justify-center shadow-lg">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] flex items-center justify-center shadow-lg">
             <ShieldCheck className="w-4 h-4 text-white" />
           </div>
           <div>
@@ -210,14 +210,14 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
 
       <div className={`rounded-2xl border border-border bg-card shadow-sm p-4 transition-all`}>
         <h3 className="text-xs font-bold text-foreground mb-3 uppercase tracking-wider flex items-center gap-1.5">
-          <Activity className="w-3.5 h-3.5 text-[hsl(28,80%,55%)]" />
+          <Activity className="w-3.5 h-3.5 text-[hsl(178,42%,32%)]" />
           Occupational Biometrics
         </h3>
         <div className="grid grid-cols-3 gap-2">
           {bioGrid.map((b) => (
             <div key={b.label} className="rounded-xl bg-muted/30 p-2.5 text-center border border-border/50">
               <div className="flex justify-center items-center mb-1">
-                <b.icon className="w-3 h-3 text-[hsl(28,80%,55%)] opacity-70" />
+                <b.icon className="w-3 h-3 text-[hsl(178,42%,32%)] opacity-70" />
                 <InfoIcon text={b.info} />
               </div>
               <p className="text-[9px] font-medium text-muted-foreground mb-1 uppercase tracking-tighter">{b.label}</p>
@@ -227,9 +227,9 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
         </div>
       </div>
 
-      <div className="rounded-2xl border-2 border-[hsl(28,80%,55%)] bg-[hsl(28,80%,55%)]/5 p-4 text-foreground shadow-sm">
+      <div className="rounded-2xl border-2 border-[hsl(178,42%,32%)] bg-[hsl(178,42%,32%)]/5 p-4 text-foreground shadow-sm">
         <div className="flex items-center gap-2 mb-1">
-          <ShieldCheck className="w-4 h-4 text-[hsl(28,80%,55%)]" />
+          <ShieldCheck className="w-4 h-4 text-[hsl(178,42%,32%)]" />
           <p className="text-[10px] font-black uppercase tracking-widest italic">System Integrity</p>
         </div>
         <p className="text-[11px] leading-snug font-medium opacity-90">
@@ -243,7 +243,7 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                 <>
                   {" "}
                   · Alpha class{" "}
-                  <span className="text-[hsl(28,80%,55%)] font-bold uppercase">
+                  <span className="text-[hsl(178,42%,32%)] font-bold uppercase">
                     {metrics.alpha}
                   </span>
                 </>

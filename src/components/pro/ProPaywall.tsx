@@ -31,8 +31,8 @@ const tiers = [
     period: "/mo",
     subtitle: "Cognitive Performance",
     icon: Brain,
-    color: "from-[hsl(28,80%,55%)] to-[hsl(28,80%,45%)]",
-    border: "border-[hsl(28,80%,55%)/0.3]",
+    color: "from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)]",
+    border: "border-[hsl(178,42%,32%)/0.3]",
     popular: true,
     features: ["Everything in Pro", "Pro+ Dashboard", "40Hz Gamma Trigger", "Memory Anchoring"],
   },
@@ -43,8 +43,8 @@ const tiers = [
     period: "/mo",
     subtitle: "Executive Sovereignty",
     icon: Crown,
-    color: "from-[hsl(270,60%,50%)] to-[hsl(270,60%,35%)]",
-    border: "border-[hsl(270,60%,50%)/0.3]",
+    color: "from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)]",
+    border: "border-[hsl(178,42%,32%)/0.3]",
     features: ["Everything in Pro+", "P&L Fusion", "Ghost Protocol"],
   },
 ];
@@ -72,7 +72,7 @@ const ProPaywall = ({ currentTier, onSubscribe }: ProPaywallProps) => {
   return (
     <div className="px-4 pt-3 pb-24 space-y-4 animate-fade-in">
       <div className="text-center space-y-1">
-        <Shield className="w-5 h-5 text-[hsl(28,80%,55%)] mx-auto" />
+        <Shield className="w-5 h-5 text-[hsl(178,42%,32%)] mx-auto" />
         <h1 className="text-lg font-semibold tracking-tight">Unlock Your Edge</h1>
         <p className="text-[11px] text-muted-foreground">PREVIEW: Advanced Cognitive & Financial Tools.</p>
       </div>

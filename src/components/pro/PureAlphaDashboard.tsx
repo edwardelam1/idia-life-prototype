@@ -433,22 +433,22 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
               <Zap className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="font-bold text-slate-900 text-sm uppercase tracking-tighter">Executive Sovereignty</h2>
-              <p className="text-[10px] text-teal-600 uppercase font-black tracking-widest">Pure Alpha Access</p>
+              <h2 className="font-bold text-foreground text-sm uppercase tracking-tighter">Executive Sovereignty</h2>
+              <p className="text-[10px] text-[hsl(178,42%,32%)] uppercase font-black tracking-widest">Pure Alpha Access</p>
             </div>
           </div>
-          <Badge variant="outline" className="text-[8px] border-teal-100 text-teal-600 font-bold px-2 py-0 uppercase">
+          <Badge variant="outline" className="text-[8px] border-[hsl(178,42%,32%)]/30 text-[hsl(178,42%,32%)] font-bold px-2 py-0 uppercase">
             Auth Active
           </Badge>
         </div>
 
         {/* TOP LEVEL NAVIGATION */}
         <Tabs defaultValue="pure-alpha" className="w-full">
-          <TabsList className="flex w-full bg-transparent border-b border-slate-100 p-0 rounded-none h-10 mb-6 gap-6 overflow-x-auto no-scrollbar justify-start">
-            <TabsTrigger value="pure-alpha" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Pure Alpha</TabsTrigger>
-            <TabsTrigger value="biometrics" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Biometrics</TabsTrigger>
-            <TabsTrigger value="gamma" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Gamma</TabsTrigger>
-            <TabsTrigger value="memory" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:text-teal-600 rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Anchor</TabsTrigger>
+          <TabsList className="flex w-full bg-transparent border-b border-border p-0 rounded-none h-10 mb-6 gap-6 overflow-x-auto no-scrollbar justify-start">
+            <TabsTrigger value="pure-alpha" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-[hsl(178,42%,32%)] data-[state=active]:text-[hsl(178,42%,32%)] rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Pure Alpha</TabsTrigger>
+            <TabsTrigger value="biometrics" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-[hsl(178,42%,32%)] data-[state=active]:text-[hsl(178,42%,32%)] rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Biometrics</TabsTrigger>
+            <TabsTrigger value="gamma" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-[hsl(178,42%,32%)] data-[state=active]:text-[hsl(178,42%,32%)] rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Gamma</TabsTrigger>
+            <TabsTrigger value="memory" className="text-[10px] font-black uppercase border-b-2 border-transparent data-[state=active]:border-[hsl(178,42%,32%)] data-[state=active]:text-[hsl(178,42%,32%)] rounded-none px-0 bg-transparent shadow-none transition-all whitespace-nowrap">Anchor</TabsTrigger>
           </TabsList>
 
           {/* 1. PURE ALPHA TAB */}
@@ -488,13 +488,13 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
             </div>
 
             {pureAlphaView === 'fusion' && (
-              <Card className="border-slate-100 shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <Card className="border-border shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 <CardHeader className="p-5 pb-2">
-                  <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center text-slate-900">
+                  <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center text-foreground">
                     P&L Fusion Ledger
                     <InfoIcon text="Real-time correlation between your Autonomic Resilience (HRV) and Capital Generation." />
                   </CardTitle>
-                  <p className="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">Bio-State vs Liquid Revenue</p>
+                  <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter">Bio-State vs Liquid Revenue</p>
                 </CardHeader>
                 <CardContent className="p-0 h-56">
                   {hasIdiaPayOrgAdmin ? (
@@ -511,7 +511,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                     </ResponsiveContainer>
                   ) : (
                     <div className="flex items-center justify-center h-full text-center p-4">
-                      <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">IDIA Pay Org Admin <br/> Sync Required</p>
+                      <p className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest">IDIA Pay Org Admin <br/> Sync Required</p>
                     </div>
                   )}
                 </CardContent>
@@ -519,28 +519,28 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
             )}
 
             {pureAlphaView === 'balance' && (
-              <Card className="border-slate-100 shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <Card className="border-border shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 <CardHeader className="p-5">
-                  <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center text-slate-900">
+                  <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center text-foreground">
                     Balance Sheet
                   </CardTitle>
-                  <p className="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">Asset & Liability Overview</p>
+                  <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter">Asset & Liability Overview</p>
                 </CardHeader>
-                <CardContent className="p-10 text-center text-slate-300 text-[10px] uppercase font-black">
+                <CardContent className="p-10 text-center text-muted-foreground/60 text-[10px] uppercase font-black">
                   {hasIdiaPayOrgAdmin ? "No active ledger entries." : "IDIA Pay Org Admin Sync Required."}
                 </CardContent>
               </Card>
             )}
 
             {pureAlphaView === 'cash' && (
-              <Card className="border-slate-100 shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <Card className="border-border shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 <CardHeader className="p-5">
-                  <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center text-slate-900">
+                  <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center text-foreground">
                     Cash Flow
                   </CardTitle>
-                  <p className="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">Liquidity Velocity</p>
+                  <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter">Liquidity Velocity</p>
                 </CardHeader>
-                <CardContent className="p-10 text-center text-slate-300 text-[10px] uppercase font-black">
+                <CardContent className="p-10 text-center text-muted-foreground/60 text-[10px] uppercase font-black">
                   {hasIdiaPayOrgAdmin ? "No active transaction flow." : "IDIA Pay Org Admin Sync Required."}
                 </CardContent>
               </Card>
@@ -550,40 +550,40 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
               <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
                 <Card className="border-orange-100 bg-orange-50/30 shadow-sm overflow-hidden">
                   <CardHeader className="p-5 pb-2 border-b border-orange-100/50">
-                    <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-slate-900">
+                    <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-foreground">
                       <Lock className="w-4 h-4 text-orange-500" />
                       Ghost Protocol Configuration
                     </CardTitle>
-                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                    <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">
                       Configure autonomous duress defense and enclave routing.
                     </p>
                   </CardHeader>
                   <CardContent className="p-0">
                     <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
                       <div>
-                        <p className="text-[10px] font-black text-slate-900 uppercase">Honey-Pot State</p>
-                        <p className="text-[9px] text-slate-500 mt-0.5">Simulate success & lock true ledger during HRV crash.</p>
+                        <p className="text-[10px] font-black text-foreground uppercase">Honey-Pot State</p>
+                        <p className="text-[9px] text-muted-foreground mt-0.5">Simulate success & lock true ledger during HRV crash.</p>
                       </div>
                       <Switch checked={settings.honey_pot} onCheckedChange={() => toggleSetting('honey_pot')} className="data-[state=checked]:bg-orange-500" />
                     </div>
                     <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
                       <div>
-                        <p className="text-[10px] font-black text-slate-900 uppercase">Digital Ward (Minors)</p>
-                        <p className="text-[9px] text-slate-500 mt-0.5">Segregate data & trigger route deviation alerts.</p>
+                        <p className="text-[10px] font-black text-foreground uppercase">Digital Ward (Minors)</p>
+                        <p className="text-[9px] text-muted-foreground mt-0.5">Segregate data & trigger route deviation alerts.</p>
                       </div>
                       <Switch checked={settings.digital_ward} onCheckedChange={() => toggleSetting('digital_ward')} />
                     </div>
                     <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
                       <div>
-                        <p className="text-[10px] font-black text-slate-900 uppercase">Silver Sentinel (Elders)</p>
-                        <p className="text-[9px] text-slate-500 mt-0.5">Cardio-ID verification & beneficiary wall blocks.</p>
+                        <p className="text-[10px] font-black text-foreground uppercase">Silver Sentinel (Elders)</p>
+                        <p className="text-[9px] text-muted-foreground mt-0.5">Cardio-ID verification & beneficiary wall blocks.</p>
                       </div>
                       <Switch checked={settings.silver_sentinel} onCheckedChange={() => toggleSetting('silver_sentinel')} />
                     </div>
                     <div className="flex items-center justify-between p-4">
                       <div>
-                        <p className="text-[10px] font-black text-slate-900 uppercase">Aegis Protocol</p>
-                        <p className="text-[9px] text-slate-500 mt-0.5">Truman sandbox & foreign IoT tracker sniffing.</p>
+                        <p className="text-[10px] font-black text-foreground uppercase">Aegis Protocol</p>
+                        <p className="text-[9px] text-muted-foreground mt-0.5">Truman sandbox & foreign IoT tracker sniffing.</p>
                       </div>
                       <Switch checked={settings.aegis_protocol} onCheckedChange={() => toggleSetting('aegis_protocol')} />
                     </div>
@@ -591,10 +591,10 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                 </Card>
 
                 {/* GHOST PROTOCOL LOGS */}
-                <Card className="border-slate-100 shadow-sm overflow-hidden">
-                  <CardHeader className="p-4 border-b border-slate-50 bg-slate-50/50">
-                    <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-900 flex items-center gap-2">
-                      <Activity className="w-3.5 h-3.5 text-slate-400" /> Activity Logs
+                <Card className="border-border shadow-sm overflow-hidden">
+                  <CardHeader className="p-4 border-b border-border bg-muted/30/50">
+                    <CardTitle className="text-[10px] font-black uppercase tracking-widest text-foreground flex items-center gap-2">
+                      <Activity className="w-3.5 h-3.5 text-muted-foreground" /> Activity Logs
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-0">
@@ -603,18 +603,18 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                         {ghostLogs.map(log => (
                           <li key={log.id} className="p-4 flex justify-between items-center bg-card">
                             <div>
-                              <p className={`text-[10px] font-bold uppercase ${log.severity === 'critical' ? 'text-rose-600' : 'text-slate-900'}`}>{log.event_type}</p>
-                              <p className="text-[9px] text-slate-500 mt-0.5">{log.description}</p>
+                              <p className={`text-[10px] font-bold uppercase ${log.severity === 'critical' ? 'text-rose-600' : 'text-foreground'}`}>{log.event_type}</p>
+                              <p className="text-[9px] text-muted-foreground mt-0.5">{log.description}</p>
                             </div>
-                            <span className="text-[9px] font-mono font-bold text-slate-400">{new Date(log.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                            <span className="text-[9px] font-mono font-bold text-muted-foreground">{new Date(log.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                           </li>
                         ))}
                       </ul>
                     ) : (
                       <div className="p-8 text-center bg-card">
-                        <ShieldCheck className="w-6 h-6 text-slate-200 mx-auto mb-2" />
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Zero Intrusions</p>
-                        <p className="text-[9px] text-slate-400 font-medium mt-1">No ghost protocol events detected.</p>
+                        <ShieldCheck className="w-6 h-6 text-muted-foreground/40 mx-auto mb-2" />
+                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Zero Intrusions</p>
+                        <p className="text-[9px] text-muted-foreground font-medium mt-1">No ghost protocol events detected.</p>
                       </div>
                     )}
                   </CardContent>
@@ -624,35 +624,35 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
 
             {pureAlphaView === 'acoustics' && (
               <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
-                <Card className="border-slate-100 shadow-sm overflow-hidden">
-                  <CardHeader className="p-5 pb-2 border-b border-slate-50 bg-indigo-50/10">
-                    <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-slate-900">
-                      <Volume2 className="w-4 h-4 text-indigo-500" />
+                <Card className="border-border shadow-sm overflow-hidden">
+                  <CardHeader className="p-5 pb-2 border-b border-border bg-[hsl(178,42%,32%)]/10/10">
+                    <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-foreground">
+                      <Volume2 className="w-4 h-4 text-[hsl(178,42%,32%)]" />
                       Acoustic Configuration
                     </CardTitle>
-                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                    <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">
                       Manage environmental coercion and ambient threat engines.
                     </p>
                   </CardHeader>
                   <CardContent className="p-0">
-                    <div className="flex items-center justify-between p-4 border-b border-slate-50">
+                    <div className="flex items-center justify-between p-4 border-b border-border">
                       <div>
-                        <p className="text-[10px] font-black text-slate-900 uppercase">Ambient Isolation</p>
-                        <p className="text-[9px] text-slate-500 mt-0.5">Soft-block if unexpected voices are detected.</p>
+                        <p className="text-[10px] font-black text-foreground uppercase">Ambient Isolation</p>
+                        <p className="text-[9px] text-muted-foreground mt-0.5">Soft-block if unexpected voices are detected.</p>
                       </div>
                       <Switch checked={settings.ambient_isolation} onCheckedChange={() => toggleSetting('ambient_isolation')} />
                     </div>
-                    <div className="flex items-center justify-between p-4 border-b border-slate-50">
+                    <div className="flex items-center justify-between p-4 border-b border-border">
                       <div>
-                        <p className="text-[10px] font-black text-slate-900 uppercase">Coercion Detector</p>
-                        <p className="text-[9px] text-slate-500 mt-0.5">Analyze voice tremor & acute stress markers.</p>
+                        <p className="text-[10px] font-black text-foreground uppercase">Coercion Detector</p>
+                        <p className="text-[9px] text-muted-foreground mt-0.5">Analyze voice tremor & acute stress markers.</p>
                       </div>
                       <Switch checked={settings.coercion_detector} onCheckedChange={() => toggleSetting('coercion_detector')} />
                     </div>
                     <div className="flex items-center justify-between p-4">
                       <div>
                         <p className="text-[10px] font-black text-rose-600 uppercase">Impact Trauma Sync</p>
-                        <p className="text-[9px] text-slate-500 mt-0.5">Log high-decibel audio + physical impact to vault.</p>
+                        <p className="text-[9px] text-muted-foreground mt-0.5">Log high-decibel audio + physical impact to vault.</p>
                       </div>
                       <Switch checked={settings.impact_trauma_sync} onCheckedChange={() => toggleSetting('impact_trauma_sync')} className="data-[state=checked]:bg-rose-500" />
                     </div>
@@ -660,10 +660,10 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                 </Card>
 
                 {/* ACOUSTICS LOGS */}
-                <Card className="border-slate-100 shadow-sm overflow-hidden">
-                  <CardHeader className="p-4 border-b border-slate-50 bg-slate-50/50">
-                    <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-900 flex items-center gap-2">
-                      <Volume2 className="w-3.5 h-3.5 text-slate-400" /> Acoustic Logs
+                <Card className="border-border shadow-sm overflow-hidden">
+                  <CardHeader className="p-4 border-b border-border bg-muted/30/50">
+                    <CardTitle className="text-[10px] font-black uppercase tracking-widest text-foreground flex items-center gap-2">
+                      <Volume2 className="w-3.5 h-3.5 text-muted-foreground" /> Acoustic Logs
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-0">
@@ -672,18 +672,18 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                         {acousticLogs.map(log => (
                           <li key={log.id} className="p-4 flex justify-between items-center bg-card">
                             <div>
-                              <p className={`text-[10px] font-bold uppercase ${log.severity === 'critical' ? 'text-rose-600' : 'text-slate-900'}`}>{log.event_type}</p>
-                              <p className="text-[9px] text-slate-500 mt-0.5">{log.description}</p>
+                              <p className={`text-[10px] font-bold uppercase ${log.severity === 'critical' ? 'text-rose-600' : 'text-foreground'}`}>{log.event_type}</p>
+                              <p className="text-[9px] text-muted-foreground mt-0.5">{log.description}</p>
                             </div>
-                            <span className="text-[9px] font-mono font-bold text-slate-400">{new Date(log.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                            <span className="text-[9px] font-mono font-bold text-muted-foreground">{new Date(log.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                           </li>
                         ))}
                       </ul>
                     ) : (
                       <div className="p-8 text-center bg-card">
-                        <ShieldCheck className="w-6 h-6 text-slate-200 mx-auto mb-2" />
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Environment Secure</p>
-                        <p className="text-[9px] text-slate-400 font-medium mt-1">No acoustic coercion events logged.</p>
+                        <ShieldCheck className="w-6 h-6 text-muted-foreground/40 mx-auto mb-2" />
+                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Environment Secure</p>
+                        <p className="text-[9px] text-muted-foreground font-medium mt-1">No acoustic coercion events logged.</p>
                       </div>
                     )}
                   </CardContent>
@@ -707,30 +707,30 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                 { label: "HRI Score", value: metrics.hriScore !== null ? `${metrics.hriScore}%` : "--", icon: Shield },
               ].map((b) => (
                 <div key={b.label} className="p-0 border-none">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5 font-sans">
+                  <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1.5 font-sans">
                     <b.icon className="w-2.5 h-2.5" /> {b.label}
                   </p>
-                  <p className="text-2xl font-bold text-slate-900 italic tracking-tighter font-sans">{b.value}</p>
+                  <p className="text-2xl font-bold text-foreground italic tracking-tighter font-sans">{b.value}</p>
                 </div>
               ))}
             </div>
 
-            <div className="rounded-2xl border border-teal-50 bg-teal-50/20 p-5">
-               <div className="flex items-center gap-2 mb-1 text-teal-800">
+            <div className="rounded-2xl border border-[hsl(178,42%,32%)]/20 bg-[hsl(178,42%,32%)]/5 p-5">
+               <div className="flex items-center gap-2 mb-1 text-[hsl(178,42%,32%)]">
                   <Activity className="w-4 h-4" />
                   <span className="text-[10px] font-black uppercase tracking-widest italic font-sans">Operational Status</span>
                </div>
-               <p className="text-xs font-medium leading-relaxed text-slate-600 font-sans">
-                 Cognitive load is currently <span className="font-bold text-teal-600 uppercase">Optimal</span>. 
+               <p className="text-xs font-medium leading-relaxed text-muted-foreground font-sans">
+                 Cognitive load is currently <span className="font-bold text-[hsl(178,42%,32%)] uppercase">Optimal</span>. 
                  Reaction velocity remains within established personal alpha baseline.
                </p>
             </div>
 
             {/* Comprehensive HealthKit Telemetry */}
-            <div className="pt-6 border-t border-slate-100">
+            <div className="pt-6 border-t border-border">
               <div className="flex items-center gap-2 mb-4">
-                <Activity className="w-4 h-4 text-slate-400" />
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Full HealthKit Telemetry</h3>
+                <Activity className="w-4 h-4 text-muted-foreground" />
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Full HealthKit Telemetry</h3>
               </div>
               
               <div className="grid grid-cols-2 gap-3">
@@ -748,9 +748,9 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                   { label: "Step Length", value: telemetry.stepLength !== null ? telemetry.stepLength : "--", unit: "cm" },
                   { label: "UV Index", value: telemetry.uv !== null ? telemetry.uv : "--", unit: "" },
                 ].map(m => (
-                  <div key={m.label} className="p-3 border border-slate-100 rounded-xl bg-slate-50/50 flex flex-col justify-between">
-                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">{m.label}</p>
-                    <p className="text-sm font-bold text-slate-900 italic tracking-tighter">{m.value} <span className="text-[9px] text-slate-400 not-italic">{m.unit}</span></p>
+                  <div key={m.label} className="p-3 border border-border rounded-xl bg-muted/30/50 flex flex-col justify-between">
+                    <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">{m.label}</p>
+                    <p className="text-sm font-bold text-foreground italic tracking-tighter">{m.value} <span className="text-[9px] text-muted-foreground not-italic">{m.unit}</span></p>
                   </div>
                 ))}
               </div>
@@ -762,15 +762,15 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
           <TabsContent value="gamma" className="space-y-6 focus-visible:outline-none">
             <div className="rounded-3xl border-border bg-muted/30 p-10 text-center shadow-sm">
                <div className={`w-24 h-24 rounded-full mx-auto mb-8 flex items-center justify-center border-4 transition-all duration-700 ${gammaActive ? 'border-orange-500 bg-orange-50 scale-110 shadow-[0_0_40px_rgba(249,115,22,0.15)]' : 'border-white bg-white'}`}>
-                  <Zap className={`w-10 h-10 ${gammaActive ? 'text-orange-500 animate-pulse' : 'text-slate-200'}`} />
+                  <Zap className={`w-10 h-10 ${gammaActive ? 'text-orange-500 animate-pulse' : 'text-muted-foreground/40'}`} />
                </div>
-               <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em] mb-4 font-sans">40Hz Entrainment Trigger</h3>
-               <p className="text-[11px] text-slate-400 max-w-[200px] mx-auto mb-10 font-medium leading-relaxed font-sans">Active stimulation for pupillary response testing and neural drive peaking.</p>
+               <h3 className="text-[11px] font-black text-foreground uppercase tracking-[0.2em] mb-4 font-sans">40Hz Entrainment Trigger</h3>
+               <p className="text-[11px] text-muted-foreground max-w-[200px] mx-auto mb-10 font-medium leading-relaxed font-sans">Active stimulation for pupillary response testing and neural drive peaking.</p>
                
                <div className="flex items-center justify-between bg-card border-border p-5 rounded-2xl shadow-sm">
                   <div className="text-left font-sans">
-                     <p className="text-[10px] font-black text-slate-900 uppercase">Hardware Pulse</p>
-                     <p className="text-[9px] text-teal-600 font-bold uppercase tracking-tighter">{gammaActive ? "Transmitting" : "Standby"}</p>
+                     <p className="text-[10px] font-black text-foreground uppercase">Hardware Pulse</p>
+                     <p className="text-[9px] text-[hsl(178,42%,32%)] font-bold uppercase tracking-tighter">{gammaActive ? "Transmitting" : "Standby"}</p>
                   </div>
                   <Switch checked={gammaActive} onCheckedChange={handleGammaToggle} className="data-[state=checked]:bg-orange-500" />
                </div>
@@ -780,10 +780,10 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
           {/* 4. MEMORY ANCHORING TAB */}
           <TabsContent value="memory" className="space-y-6 focus-visible:outline-none">
              <div className="rounded-3xl border-border bg-card shadow-sm overflow-hidden min-h-[460px] flex flex-col font-sans">
-                <div className="p-5 border-b border-slate-50 flex items-center justify-between">
+                <div className="p-5 border-b border-border flex items-center justify-between">
                    <div className="flex items-center gap-2">
                       <Target className="w-4 h-4 text-orange-500" />
-                      <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Memory Anchor: {rsvpPhase !== 'IDLE' ? `${testRound}/5` : 'Validation'}</span>
+                      <span className="text-[10px] font-black text-foreground uppercase tracking-widest">Memory Anchor: {rsvpPhase !== 'IDLE' ? `${testRound}/5` : 'Validation'}</span>
                    </div>
                    {rsvpPhase !== 'IDLE' && <Badge className="bg-orange-500 text-white font-black text-[9px] px-2.5 shadow-sm">{cumulativeScore}</Badge>}
                 </div>
@@ -792,14 +792,14 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                    {rsvpPhase === 'IDLE' && (
                       <div className="text-center space-y-10">
                          <div className="space-y-2">
-                            <p className="text-[10px] text-slate-400 uppercase font-black tracking-[0.25em]">Operational Calibration</p>
-                            <Smartphone className="w-8 h-8 text-slate-300 mx-auto animate-bounce mt-4" />
-                            <p className="text-[11px] text-slate-600 font-medium max-w-[190px] mx-auto">Turn device horizontally to lock orientation for validation battery.</p>
+                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.25em]">Operational Calibration</p>
+                            <Smartphone className="w-8 h-8 text-muted-foreground/60 mx-auto animate-bounce mt-4" />
+                            <p className="text-[11px] text-muted-foreground font-medium max-w-[190px] mx-auto">Turn device horizontally to lock orientation for validation battery.</p>
                          </div>
                          <Button onClick={resetFullTest} className="bg-slate-900 text-white hover:bg-orange-500 font-black px-12 py-7 rounded-full uppercase italic transition-all shadow-md">Initialize Battery</Button>
                          <div className="flex justify-center gap-4">
                             {[500, 300, 150].map(s => (
-                               <button key={s} onClick={() => setRsvpSpeed(s)} className={`text-[9px] font-black px-4 py-2 rounded-full border-2 transition-all ${rsvpSpeed === s ? 'border-teal-600 text-teal-600' : 'border-slate-50 text-slate-300'}`}>{s === 500 ? 'LVL 1' : s === 300 ? 'NORM' : 'ALPHA'}</button>
+                               <button key={s} onClick={() => setRsvpSpeed(s)} className={`text-[9px] font-black px-4 py-2 rounded-full border-2 transition-all ${rsvpSpeed === s ? 'border-teal-600 text-[hsl(178,42%,32%)]' : 'border-border text-muted-foreground/60'}`}>{s === 500 ? 'LVL 1' : s === 300 ? 'NORM' : 'ALPHA'}</button>
                             ))}
                          </div>
                       </div>
@@ -808,13 +808,13 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                    {rsvpPhase === 'CALIBRATING' && (
                       <div className="text-center space-y-4">
                          <div className="w-12 h-12 rounded-full border-4 border-teal-500 border-t-transparent animate-spin mx-auto" />
-                         <p className="text-[11px] font-black uppercase tracking-[0.5em] text-teal-600">Locking Focus</p>
+                         <p className="text-[11px] font-black uppercase tracking-[0.5em] text-[hsl(178,42%,32%)]">Locking Focus</p>
                       </div>
                    )}
 
                    {rsvpPhase === 'PRESENTING' && (
                       <div className="w-full text-center px-4 h-32 flex items-center justify-center overflow-hidden">
-                         <p className={`${getDynamicFontSize(activeSequence[rsvpWordIndex])} font-black tracking-[0.2em] text-slate-900 uppercase animate-in zoom-in duration-75 whitespace-nowrap drop-shadow-sm leading-none`}>
+                         <p className={`${getDynamicFontSize(activeSequence[rsvpWordIndex])} font-black tracking-[0.2em] text-foreground uppercase animate-in zoom-in duration-75 whitespace-nowrap drop-shadow-sm leading-none`}>
                             {activeSequence[rsvpWordIndex]}
                          </p>
                       </div>
@@ -824,25 +824,25 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
 
                    {rsvpPhase === 'RECALL' && (
                       <div className="w-full space-y-6">
-                         <p className="text-[10px] font-black text-slate-400 text-center uppercase tracking-[0.3em]">Sequence Verification</p>
+                         <p className="text-[10px] font-black text-muted-foreground text-center uppercase tracking-[0.3em]">Sequence Verification</p>
                          <div className="grid grid-cols-2 gap-3">
                             {[...activeSequence].sort().map(word => (
-                               <Button key={word} onClick={() => handleRecallSelection(word)} variant="outline" className={`h-14 border-2 text-[11px] font-black uppercase transition-all ${userRecall.includes(word) ? 'bg-slate-50 text-slate-300 border-slate-50 scale-95 opacity-40' : 'border-slate-50 text-slate-700 hover:border-teal-500 hover:text-teal-600 shadow-sm'}`}>{word}</Button>
+                               <Button key={word} onClick={() => handleRecallSelection(word)} variant="outline" className={`h-14 border-2 text-[11px] font-black uppercase transition-all ${userRecall.includes(word) ? 'bg-muted/30 text-muted-foreground/60 border-border scale-95 opacity-40' : 'border-border text-slate-700 hover:border-teal-500 hover:text-[hsl(178,42%,32%)] shadow-sm'}`}>{word}</Button>
                             ))}
                          </div>
                       </div>
                    )}
 
-                   {rsvpPhase === 'ROUND_COMPLETE' && <p className="text-3xl font-black text-teal-600 italic tracking-tighter uppercase animate-pulse">ROUND {testRound} LOGGED</p>}
+                   {rsvpPhase === 'ROUND_COMPLETE' && <p className="text-3xl font-black text-[hsl(178,42%,32%)] italic tracking-tighter uppercase animate-pulse">ROUND {testRound} LOGGED</p>}
 
                    {rsvpPhase === 'RESULT' && (
                       <div className="text-center space-y-10 animate-in zoom-in duration-500">
                          <Trophy className="w-20 h-20 text-orange-500 mx-auto" />
                          <div>
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 text-center">Cumulative Clutch Score</p>
-                            <p className="text-9xl font-black italic tracking-tighter text-slate-900 leading-none text-center">{cumulativeScore}</p>
+                            <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest mb-2 text-center">Cumulative Clutch Score</p>
+                            <p className="text-9xl font-black italic tracking-tighter text-foreground leading-none text-center">{cumulativeScore}</p>
                          </div>
-                         <Button variant="ghost" onClick={endTest} className="text-slate-300 font-black uppercase text-[11px] hover:text-teal-600 tracking-[0.2em] text-center"><RotateCcw className="w-4 h-4 mr-2" /> Exit to Portrait</Button>
+                         <Button variant="ghost" onClick={endTest} className="text-muted-foreground/60 font-black uppercase text-[11px] hover:text-[hsl(178,42%,32%)] tracking-[0.2em] text-center"><RotateCcw className="w-4 h-4 mr-2" /> Exit to Portrait</Button>
                       </div>
                    )}
                 </div>

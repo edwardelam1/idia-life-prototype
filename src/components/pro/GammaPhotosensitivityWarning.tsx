@@ -83,7 +83,7 @@ export const GammaPhotosensitivityWarning = ({
           <div className="mx-auto w-12 h-12 rounded-full bg-amber-50 border-2 border-amber-400 flex items-center justify-center mb-2">
             <AlertTriangle className="w-6 h-6 text-amber-600" />
           </div>
-          <AlertDialogTitle className="text-center text-slate-900 font-black uppercase tracking-wider text-sm">
+          <AlertDialogTitle className="text-center text-foreground font-black uppercase tracking-wider text-sm">
             Photosensitivity Warning
           </AlertDialogTitle>
           <AlertDialogDescription className="text-slate-700 text-xs leading-relaxed space-y-2 pt-2">
