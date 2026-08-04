@@ -116,22 +116,29 @@ const ProPaywall = ({ currentTier, onSubscribe }: ProPaywallProps) => {
 
               <div className="flex items-center justify-between mb-2.5">
                 <div className="flex items-center gap-2">
-                  <div className={`w-7 h-7 rounded-md bg-gradient-to-br ${t.color} flex items-center justify-center`}>
-                    <t.icon className="w-3.5 h-3.5 text-white" />
+                  <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${t.color} flex items-center justify-center shadow-sm`}>
+                    <t.icon className="w-4 h-4 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-medium text-[13px] leading-tight">{t.name}</h3>
-                    <p className="text-[10px] text-muted-foreground leading-tight">{t.subtitle}</p>
+                    <h3 className="font-black text-[13px] leading-tight uppercase tracking-tight text-foreground">
+                      {t.name}
+                    </h3>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground leading-tight">
+                      {t.subtitle}
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="text-base font-semibold">{t.price}</span>
-                  <span className="text-[10px] text-muted-foreground">/mo</span>
+                  <span className="text-base font-black text-foreground">{t.price}</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">/mo</span>
                 </div>
               </div>
               <ul className="grid grid-cols-2 gap-x-2 gap-y-1 mb-3">
                 {t.features.map((f) => (
-                  <li key={f} className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <li
+                    key={f}
+                    className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-muted-foreground"
+                  >
                     <Check className="w-2.5 h-2.5 text-[hsl(178,42%,42%)] shrink-0" />
                     <span className="truncate">{f}</span>
                   </li>
@@ -140,12 +147,13 @@ const ProPaywall = ({ currentTier, onSubscribe }: ProPaywallProps) => {
               <Button
                 size="sm"
                 variant={isActive ? "outline" : "default"}
-                className={`w-full h-8 text-xs ${isActive ? "" : `bg-gradient-to-r ${t.color} border-0 text-white hover:opacity-90`}`}
+                className={`w-full h-9 text-[10px] font-black uppercase tracking-widest rounded-full ${isActive ? "" : `bg-gradient-to-r ${t.color} border-0 text-white hover:opacity-90`}`}
                 onClick={() => setConfirmTier(t)}
                 disabled={isActive || subscribing}
               >
                 {isActive ? "Active" : isUpgrade ? "Upgrade" : "Downgrade"}
               </Button>
+
             </div>
           );
         })}
