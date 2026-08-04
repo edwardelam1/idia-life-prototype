@@ -38,8 +38,8 @@ const SovereignAuth = ({ onVerified }: SovereignAuthProps) => {
   }, [onVerified]);
 
   return (
-    <div className="p-4 pb-24 flex flex-col items-center justify-center min-h-[60vh] animate-fade-in">
-      <div className="rounded-3xl border border-white/20 bg-card/60 backdrop-blur-xl p-8 max-w-sm w-full text-center space-y-6">
+    <div className="p-4 pb-24 flex flex-col items-center justify-center min-h-[60vh] bg-background animate-in fade-in duration-700">
+      <div className="rounded-[2.5rem] border border-border bg-card shadow-xl p-8 max-w-sm w-full text-center space-y-6">
         <div className="flex justify-center">
           <div
             className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-500 ${
@@ -63,10 +63,10 @@ const SovereignAuth = ({ onVerified }: SovereignAuthProps) => {
         </div>
 
         <div>
-          <h2 className="text-lg font-bold text-foreground mb-1">
+          <h2 className="text-lg font-black uppercase tracking-tight text-foreground mb-1">
             {stage === "verified" ? "Vault Opened" : "Sovereign Vault"}
           </h2>
-          <p className="text-xs text-muted-foreground transition-all duration-300">
+          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground transition-all duration-300">
             {stage === "idle" && "Initializing secure connection..."}
             {stage === "scanning" && "Decrypting Status..."}
             {stage === "verified" && "Identity Confirmed. Welcome."}
@@ -77,19 +77,19 @@ const SovereignAuth = ({ onVerified }: SovereignAuthProps) => {
         <div
           className={`rounded-lg bg-muted/50 p-3 text-left space-y-1.5 transition-opacity duration-500 ${stage === "verified" ? "opacity-50" : "opacity-100"}`}
         >
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+          <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
             <ShieldCheck
               className={`w-3 h-3 ${stage === "verified" ? "text-[hsl(142,71%,45%)]" : "text-[hsl(178,42%,32%)]"}`}
             />
             Secure Handshake
           </div>
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+          <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
             <Fingerprint
               className={`w-3 h-3 ${stage === "verified" ? "text-[hsl(142,71%,45%)]" : "text-[hsl(178,42%,32%)]"}`}
             />
             Automated Biometric Pass
           </div>
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+          <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
             <Lock
               className={`w-3 h-3 ${stage === "verified" ? "text-[hsl(142,71%,45%)]" : "text-[hsl(178,42%,32%)]"}`}
             />
