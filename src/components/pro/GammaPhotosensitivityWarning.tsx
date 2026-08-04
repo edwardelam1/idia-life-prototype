@@ -86,7 +86,7 @@ export const GammaPhotosensitivityWarning = ({
           <AlertDialogTitle className="text-center text-foreground font-black uppercase tracking-wider text-sm">
             Photosensitivity Warning
           </AlertDialogTitle>
-          <AlertDialogDescription className="text-slate-700 text-xs leading-relaxed space-y-2 pt-2">
+          <AlertDialogDescription className="text-foreground text-xs leading-relaxed space-y-2 pt-2">
             <p>
               The 40Hz Gamma Entrainment uses high-frequency flashing light and audio.
               This <strong className="text-amber-700">may trigger seizures</strong> in

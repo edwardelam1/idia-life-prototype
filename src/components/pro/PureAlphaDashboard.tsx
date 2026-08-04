@@ -796,10 +796,10 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                             <Smartphone className="w-8 h-8 text-muted-foreground/60 mx-auto animate-bounce mt-4" />
                             <p className="text-[11px] text-muted-foreground font-medium max-w-[190px] mx-auto">Turn device horizontally to lock orientation for validation battery.</p>
                          </div>
-                         <Button onClick={resetFullTest} className="bg-slate-900 text-white hover:bg-orange-500 font-black px-12 py-7 rounded-full uppercase italic transition-all shadow-md">Initialize Battery</Button>
+                         <Button onClick={resetFullTest} className="bg-[hsl(178,42%,32%)] text-white hover:bg-[hsl(178,42%,42%)] font-black px-12 py-7 rounded-full uppercase italic transition-all shadow-md">Initialize Battery</Button>
                          <div className="flex justify-center gap-4">
                             {[500, 300, 150].map(s => (
-                               <button key={s} onClick={() => setRsvpSpeed(s)} className={`text-[9px] font-black px-4 py-2 rounded-full border-2 transition-all ${rsvpSpeed === s ? 'border-teal-600 text-[hsl(178,42%,32%)]' : 'border-border text-muted-foreground/60'}`}>{s === 500 ? 'LVL 1' : s === 300 ? 'NORM' : 'ALPHA'}</button>
+                               <button key={s} onClick={() => setRsvpSpeed(s)} className={`text-[9px] font-black px-4 py-2 rounded-full border-2 transition-all ${rsvpSpeed === s ? 'border-[hsl(178,42%,32%)] text-[hsl(178,42%,32%)]' : 'border-border text-muted-foreground/60'}`}>{s === 500 ? 'LVL 1' : s === 300 ? 'NORM' : 'ALPHA'}</button>
                             ))}
                          </div>
                       </div>
@@ -807,7 +807,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
 
                    {rsvpPhase === 'CALIBRATING' && (
                       <div className="text-center space-y-4">
-                         <div className="w-12 h-12 rounded-full border-4 border-teal-500 border-t-transparent animate-spin mx-auto" />
+                         <div className="w-12 h-12 rounded-full border-4 border-[hsl(178,42%,42%)] border-t-transparent animate-spin mx-auto" />
                          <p className="text-[11px] font-black uppercase tracking-[0.5em] text-[hsl(178,42%,32%)]">Locking Focus</p>
                       </div>
                    )}
@@ -820,14 +820,14 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                       </div>
                    )}
 
-                   {rsvpPhase === 'MASK' && <p className="text-6xl font-black text-slate-50 select-none">#######</p>}
+                   {rsvpPhase === 'MASK' && <p className="text-6xl font-black text-muted-foreground/40 select-none">#######</p>}
 
                    {rsvpPhase === 'RECALL' && (
                       <div className="w-full space-y-6">
                          <p className="text-[10px] font-black text-muted-foreground text-center uppercase tracking-[0.3em]">Sequence Verification</p>
                          <div className="grid grid-cols-2 gap-3">
                             {[...activeSequence].sort().map(word => (
-                               <Button key={word} onClick={() => handleRecallSelection(word)} variant="outline" className={`h-14 border-2 text-[11px] font-black uppercase transition-all ${userRecall.includes(word) ? 'bg-muted/30 text-muted-foreground/60 border-border scale-95 opacity-40' : 'border-border text-slate-700 hover:border-teal-500 hover:text-[hsl(178,42%,32%)] shadow-sm'}`}>{word}</Button>
+                               <Button key={word} onClick={() => handleRecallSelection(word)} variant="outline" className={`h-14 border-2 text-[11px] font-black uppercase transition-all ${userRecall.includes(word) ? 'bg-muted/30 text-muted-foreground/60 border-border scale-95 opacity-40' : 'border-border text-foreground hover:border-[hsl(178,42%,42%)] hover:text-[hsl(178,42%,32%)] shadow-sm'}`}>{word}</Button>
                             ))}
                          </div>
                       </div>

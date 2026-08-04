@@ -431,7 +431,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                     </div>
                     <Button
                       onClick={resetFullTest}
-                      className="bg-slate-900 text-white hover:bg-orange-500 font-black px-12 py-7 rounded-full uppercase italic transition-all shadow-xl"
+                      className="bg-[hsl(178,42%,32%)] text-white hover:bg-[hsl(178,42%,42%)] font-black px-12 py-7 rounded-full uppercase italic transition-all shadow-xl"
                     >
                       Initialize Battery
                     </Button>
@@ -440,7 +440,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                         <button
                           key={s}
                           onClick={() => setRsvpSpeed(s)}
-                          className={`text-[9px] font-black px-4 py-2 rounded-full border-2 transition-all ${rsvpSpeed === s ? "border-teal-600 text-[hsl(178,42%,32%)]" : "border-border text-muted-foreground/60"}`}
+                          className={`text-[9px] font-black px-4 py-2 rounded-full border-2 transition-all ${rsvpSpeed === s ? "border-[hsl(178,42%,32%)] text-[hsl(178,42%,32%)]" : "border-border text-muted-foreground/60"}`}
                         >
                           {s === 500 ? "LVL 1" : s === 300 ? "NORM" : "ALPHA"}
                         </button>
@@ -451,7 +451,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
 
                 {rsvpPhase === "CALIBRATING" && (
                   <div className="text-center space-y-4">
-                    <div className="w-12 h-12 rounded-full border-4 border-teal-500 border-t-transparent animate-spin mx-auto" />
+                    <div className="w-12 h-12 rounded-full border-4 border-[hsl(178,42%,42%)] border-t-transparent animate-spin mx-auto" />
                     <p className="text-[11px] font-black uppercase tracking-[0.5em] text-[hsl(178,42%,32%)]">Locking Focus</p>
                   </div>
                 )}
@@ -466,7 +466,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                   </div>
                 )}
 
-                {rsvpPhase === "MASK" && <p className="text-6xl font-black text-slate-50 select-none">#######</p>}
+                {rsvpPhase === "MASK" && <p className="text-6xl font-black text-muted-foreground/40 select-none">#######</p>}
 
                 {rsvpPhase === "RECALL" && (
                   <div className="w-full space-y-6" style={{ transform: "translateZ(50px)" }}>
@@ -479,7 +479,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                           key={word}
                           onClick={() => handleRecallSelection(word)}
                           variant="outline"
-                          className={`h-14 border-2 text-[11px] font-black uppercase transition-all ${userRecall.includes(word) ? "bg-muted/30 text-muted-foreground/60 border-border scale-95 opacity-40" : "border-border text-slate-700 hover:border-teal-500 hover:text-[hsl(178,42%,32%)] shadow-sm"}`}
+                          className={`h-14 border-2 text-[11px] font-black uppercase transition-all ${userRecall.includes(word) ? "bg-muted/30 text-muted-foreground/60 border-border scale-95 opacity-40" : "border-border text-foreground hover:border-[hsl(178,42%,42%)] hover:text-[hsl(178,42%,32%)] shadow-sm"}`}
                         >
                           {word}
                         </Button>
