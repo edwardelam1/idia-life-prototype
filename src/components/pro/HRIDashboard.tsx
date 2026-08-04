@@ -3,6 +3,8 @@ import { ShieldCheck, Activity, Volume2, Accessibility, Wind, Heart, Info } from
 import InsightsSection from "./insights/InsightsSection";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // --- TYPES ALIGNED TO SOVEREIGN SCHEMA ---
@@ -188,72 +190,87 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
 
   return (
     <div
-      className={`p-4 pb-24 space-y-4 animate-fade-in bg-background min-h-screen ${isMasked ? "blur-md opacity-40" : ""}`}
+      className={`flex flex-col space-y-5 bg-background min-h-screen p-4 pb-24 overflow-x-hidden animate-in fade-in duration-700 ${isMasked ? "blur-md opacity-40" : ""}`}
     >
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[hsl(28,80%,55%)] to-[hsl(28,80%,45%)] flex items-center justify-center shadow-lg">
-            <ShieldCheck className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground text-sm uppercase">Occupational Performance</h2>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">Life Pro</p>
-          </div>
-        </div>
-        <Badge
-          variant="outline"
-          className={`text-[8px] font-black uppercase px-2 py-0.5 ${metrics.status === "TRIGGERED" ? "border-red-500 text-red-500 animate-pulse" : "border-emerald-500 text-emerald-500"}`}
-        >
-          {metrics.status}
-        </Badge>
-      </div>
-
-      <div className={`rounded-2xl border border-border bg-card shadow-sm p-4 transition-all`}>
-        <h3 className="text-xs font-bold text-foreground mb-3 uppercase tracking-wider flex items-center gap-1.5">
-          <Activity className="w-3.5 h-3.5 text-[hsl(28,80%,55%)]" />
-          Occupational Biometrics
-        </h3>
-        <div className="grid grid-cols-3 gap-2">
-          {bioGrid.map((b) => (
-            <div key={b.label} className="rounded-xl bg-muted/30 p-2.5 text-center border border-border/50">
-              <div className="flex justify-center items-center mb-1">
-                <b.icon className="w-3 h-3 text-[hsl(28,80%,55%)] opacity-70" />
-                <InfoIcon text={b.info} />
-              </div>
-              <p className="text-[9px] font-medium text-muted-foreground mb-1 uppercase tracking-tighter">{b.label}</p>
-              <p className="text-xs font-black text-foreground">{isMasked ? "—" : b.value}</p>
+      {/* HERO — Gov style */}
+      <Card className="bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] text-white border-none shadow-xl rounded-[2.5rem] overflow-hidden shrink-0">
+        <CardContent className="p-7">
+          <div className="flex justify-between items-start">
+            <div className="space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60">
+                Occupational Performance
+              </p>
+              <h1 className="text-4xl font-black truncate">
+                {metrics.hriScore === null || isMasked ? "—" : metrics.hriScore}
+                <span className="text-sm font-medium text-teal-100/40"> HRI</span>
+              </h1>
             </div>
-          ))}
-        </div>
-      </div>
+            <ShieldCheck className="w-10 h-10 text-orange-400 drop-shadow-lg shrink-0" />
+          </div>
+          <div className="mt-6 flex items-center gap-2 border-t border-white/10 pt-4">
+            <span
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${metrics.status === "TRIGGERED" ? "bg-red-400 animate-pulse" : metrics.status === "ARMED" ? "bg-emerald-400 animate-pulse" : "bg-orange-400"}`}
+            />
+            <span className="text-[9px] font-black uppercase tracking-widest text-teal-50 truncate">
+              Life Pro · {metrics.status}
+              {metrics.alpha ? ` · Alpha ${metrics.alpha}` : ""}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="rounded-2xl border-2 border-[hsl(28,80%,55%)] bg-[hsl(28,80%,55%)]/5 p-4 text-foreground shadow-sm">
-        <div className="flex items-center gap-2 mb-1">
-          <ShieldCheck className="w-4 h-4 text-[hsl(28,80%,55%)]" />
-          <p className="text-[10px] font-black uppercase tracking-widest italic">System Integrity</p>
-        </div>
-        <p className="text-[11px] leading-snug font-medium opacity-90">
-          {metrics.hriScore === null ? (
-            <>Reliability rating unavailable — the HRI service has not returned a score yet.</>
-          ) : (
-            <>
-              Server-computed reliability rating:{" "}
-              <span className="font-bold">{metrics.hriScore}%</span>
-              {metrics.alpha ? (
+      <section className="space-y-3">
+        <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
+          <Activity size={14} className="text-orange-500" /> Occupational Biometrics
+        </h2>
+        <Card className="rounded-2xl border border-border bg-card shadow-sm">
+          <CardContent className="p-4">
+            <div className="grid grid-cols-3 gap-2">
+              {bioGrid.map((b) => (
+                <div key={b.label} className="rounded-xl bg-muted/30 p-2.5 text-center border border-border/50">
+                  <div className="flex justify-center items-center mb-1">
+                    <b.icon className="w-3 h-3 text-[hsl(178,42%,32%)] opacity-70" />
+                    <InfoIcon text={b.info} />
+                  </div>
+                  <p className="text-[9px] font-black text-muted-foreground mb-1 uppercase tracking-widest">
+                    {b.label}
+                  </p>
+                  <p className="text-xs font-black text-foreground">{isMasked ? "—" : b.value}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
+          <ShieldCheck size={14} className="text-orange-500" /> System Integrity
+        </h2>
+        <Card className="rounded-2xl border border-border bg-card shadow-sm">
+          <CardContent className="p-4">
+            <p className="text-[11px] leading-snug font-medium text-muted-foreground">
+              {metrics.hriScore === null ? (
+                <>Reliability rating unavailable — the HRI service has not returned a score yet.</>
+              ) : (
                 <>
-                  {" "}
-                  · Alpha class{" "}
-                  <span className="text-[hsl(28,80%,55%)] font-bold uppercase">
-                    {metrics.alpha}
-                  </span>
+                  Server-computed reliability rating:{" "}
+                  <span className="font-black text-foreground">{metrics.hriScore}%</span>
+                  {metrics.alpha ? (
+                    <>
+                      {" "}
+                      · Alpha class{" "}
+                      <span className="text-[hsl(178,42%,32%)] font-black uppercase">{metrics.alpha}</span>
+                    </>
+                  ) : null}
+                  .
                 </>
-              ) : null}
-              .
-            </>
-          )}
-        </p>
+              )}
+            </p>
+          </CardContent>
+        </Card>
+      </section>
 
-      </div>
 
       <InsightsSection tier="pro" isMasked={isMasked} />
     </div>

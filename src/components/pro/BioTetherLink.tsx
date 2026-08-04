@@ -71,7 +71,7 @@ const BioTetherLink = ({ isMasked = false }: { isMasked?: boolean }) => {
   const streams = [
     { icon: Heart, label: "Heart Rate", value: vitals.hr, color: "text-destructive" },
     { icon: Activity, label: "HRV", value: vitals.hrv, color: "text-[hsl(178,42%,32%)]" },
-    { icon: Moon, label: "Sleep", value: vitals.sleep, color: "text-[hsl(270,60%,50%)]" },
+    { icon: Moon, label: "Sleep", value: vitals.sleep, color: "text-[hsl(178,42%,32%)]" },
   ];
 
   return (

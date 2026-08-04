@@ -32,7 +32,7 @@ const Card: React.FC<{
 }> = ({ title, icon: Icon, children, accent = "primary" }) => {
   const accentClass =
     accent === "amber"
-      ? "text-[hsl(28,80%,55%)]"
+      ? "text-[hsl(178,42%,32%)]"
       : accent === "rose"
       ? "text-rose-500"
       : "text-primary";
@@ -256,7 +256,7 @@ const InsightsSection: React.FC<Props> = ({ tier, isMasked = false }) => {
         <div className="flex items-start gap-2">
           <Badge
             variant="outline"
-            className="text-[9px] font-black uppercase border-[hsl(28,80%,55%)] text-[hsl(28,80%,55%)]"
+            className="text-[9px] font-black uppercase border-[hsl(178,42%,32%)] text-[hsl(178,42%,32%)]"
           >
             {payload.intervention.urgency}
           </Badge>

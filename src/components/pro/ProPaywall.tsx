@@ -31,8 +31,8 @@ const tiers = [
     period: "/mo",
     subtitle: "Cognitive Performance",
     icon: Brain,
-    color: "from-[hsl(28,80%,55%)] to-[hsl(28,80%,45%)]",
-    border: "border-[hsl(28,80%,55%)/0.3]",
+    color: "from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)]",
+    border: "border-[hsl(178,42%,32%)/0.3]",
     popular: true,
     features: ["Everything in Pro", "Pro+ Dashboard", "40Hz Gamma Trigger", "Memory Anchoring"],
   },
@@ -43,8 +43,8 @@ const tiers = [
     period: "/mo",
     subtitle: "Executive Sovereignty",
     icon: Crown,
-    color: "from-[hsl(270,60%,50%)] to-[hsl(270,60%,35%)]",
-    border: "border-[hsl(270,60%,50%)/0.3]",
+    color: "from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)]",
+    border: "border-[hsl(178,42%,32%)/0.3]",
     features: ["Everything in Pro+", "P&L Fusion", "Ghost Protocol"],
   },
 ];
@@ -70,12 +70,26 @@ const ProPaywall = ({ currentTier, onSubscribe }: ProPaywallProps) => {
   };
 
   return (
-    <div className="px-4 pt-3 pb-24 space-y-4 animate-fade-in">
-      <div className="text-center space-y-1">
-        <Shield className="w-5 h-5 text-[hsl(28,80%,55%)] mx-auto" />
-        <h1 className="text-lg font-semibold tracking-tight">Unlock Your Edge</h1>
-        <p className="text-[11px] text-muted-foreground">PREVIEW: Advanced Cognitive & Financial Tools.</p>
+    <div className="flex flex-col space-y-5 bg-background min-h-screen p-4 pb-24 overflow-x-hidden animate-in fade-in duration-700">
+      <div className="bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] text-white border-none shadow-xl rounded-[2.5rem] overflow-hidden shrink-0 p-7">
+        <div className="flex justify-between items-start">
+          <div className="space-y-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60">IDIA Pro Access</p>
+            <h1 className="text-4xl font-black truncate">Unlock Your Edge</h1>
+          </div>
+          <Shield className="w-10 h-10 text-orange-400 drop-shadow-lg shrink-0" />
+        </div>
+        <div className="mt-6 flex items-center gap-2 border-t border-white/10 pt-4">
+          <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-orange-400 animate-pulse" />
+          <span className="text-[9px] font-black uppercase tracking-widest text-teal-50 truncate">
+            Preview · Advanced Cognitive &amp; Financial Tools
+          </span>
+        </div>
       </div>
+
+      <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
+        <Crown size={14} className="text-orange-500" /> Access Tiers
+      </h2>
 
       <div className="space-y-2.5">
         {tiers.map((t) => {
@@ -87,31 +101,44 @@ const ProPaywall = ({ currentTier, onSubscribe }: ProPaywallProps) => {
           return (
             <div
               key={t.id}
-              className={`relative rounded-xl border p-3 bg-card/60 backdrop-blur-xl transition-colors ${isActive ? "border-[hsl(178,42%,32%)]" : "border-border/40"}`}
+              className={`relative rounded-2xl border p-4 bg-card shadow-sm transition-colors ${isActive ? "border-[hsl(178,42%,32%)]" : "border-border"}`}
             >
               {isActive && (
-                <div className="absolute top-2 right-2 text-[9px] font-medium text-[hsl(178,42%,42%)] tracking-wide">
-                  CURRENT
+                <div className="absolute top-2 right-2 text-[9px] font-black uppercase tracking-widest text-emerald-500">
+                  Current
                 </div>
               )}
+              {!isActive && (t as any).popular && (
+                <div className="absolute top-2 right-2 text-[9px] font-black uppercase tracking-widest text-orange-500">
+                  Popular
+                </div>
+              )}
+
               <div className="flex items-center justify-between mb-2.5">
                 <div className="flex items-center gap-2">
-                  <div className={`w-7 h-7 rounded-md bg-gradient-to-br ${t.color} flex items-center justify-center`}>
-                    <t.icon className="w-3.5 h-3.5 text-white" />
+                  <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${t.color} flex items-center justify-center shadow-sm`}>
+                    <t.icon className="w-4 h-4 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-medium text-[13px] leading-tight">{t.name}</h3>
-                    <p className="text-[10px] text-muted-foreground leading-tight">{t.subtitle}</p>
+                    <h3 className="font-black text-[13px] leading-tight uppercase tracking-tight text-foreground">
+                      {t.name}
+                    </h3>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground leading-tight">
+                      {t.subtitle}
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="text-base font-semibold">{t.price}</span>
-                  <span className="text-[10px] text-muted-foreground">/mo</span>
+                  <span className="text-base font-black text-foreground">{t.price}</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">/mo</span>
                 </div>
               </div>
               <ul className="grid grid-cols-2 gap-x-2 gap-y-1 mb-3">
                 {t.features.map((f) => (
-                  <li key={f} className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <li
+                    key={f}
+                    className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-muted-foreground"
+                  >
                     <Check className="w-2.5 h-2.5 text-[hsl(178,42%,42%)] shrink-0" />
                     <span className="truncate">{f}</span>
                   </li>
@@ -120,12 +147,13 @@ const ProPaywall = ({ currentTier, onSubscribe }: ProPaywallProps) => {
               <Button
                 size="sm"
                 variant={isActive ? "outline" : "default"}
-                className={`w-full h-8 text-xs ${isActive ? "" : `bg-gradient-to-r ${t.color} border-0 text-white hover:opacity-90`}`}
+                className={`w-full h-9 text-[10px] font-black uppercase tracking-widest rounded-full ${isActive ? "" : `bg-gradient-to-r ${t.color} border-0 text-white hover:opacity-90`}`}
                 onClick={() => setConfirmTier(t)}
                 disabled={isActive || subscribing}
               >
                 {isActive ? "Active" : isUpgrade ? "Upgrade" : "Downgrade"}
               </Button>
+
             </div>
           );
         })}

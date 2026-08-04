@@ -111,43 +111,43 @@ const GhostProtocol = ({ children }: GhostProtocolProps) => {
   // REQ-AUTH-7.3.2 & 7.3.3: Tactical Honey-Pot UI
   if (duressDetected) {
     return (
-      <div className="p-4 pb-24 space-y-4 animate-fade-in bg-slate-50 min-h-screen">
+      <div className="p-4 pb-24 space-y-4 animate-fade-in bg-muted/30 min-h-screen">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center shadow-sm">
               <Activity className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h2 className="font-bold text-slate-800 text-sm italic">HealthStream</h2>
-              <p className="text-[10px] text-slate-500 uppercase tracking-tighter font-black">Standard Account</p>
+              <h2 className="font-bold text-foreground text-sm italic">HealthStream</h2>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-tighter font-black">Standard Account</p>
             </div>
           </div>
-          <div className="px-2 py-0.5 rounded border border-slate-200">
-            <span className="text-[8px] font-bold text-slate-400 uppercase">Status: Online</span>
+          <div className="px-2 py-0.5 rounded border border-border">
+            <span className="text-[8px] font-bold text-muted-foreground uppercase">Status: Online</span>
           </div>
         </div>
 
         <div className="rounded-2xl border bg-white p-6 shadow-sm text-center">
-          <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Available Credits</p>
-          <h3 className="text-3xl font-black text-slate-900 tracking-tighter italic">$42.15</h3>
+          <p className="text-[10px] text-muted-foreground font-bold uppercase mb-1">Available Credits</p>
+          <h3 className="text-3xl font-black text-foreground tracking-tighter italic">$42.15</h3>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-xl border bg-white p-4 space-y-1">
             <TrendingUp className="w-4 h-4 text-emerald-500" />
-            <p className="text-[10px] text-slate-400 font-bold uppercase">Activity Level</p>
-            <p className="text-lg font-black text-slate-800 italic">Optimal</p>
+            <p className="text-[10px] text-muted-foreground font-bold uppercase">Activity Level</p>
+            <p className="text-lg font-black text-foreground italic">Optimal</p>
           </div>
           <div className="rounded-xl border bg-white p-4 space-y-1">
             <Shield className="w-4 h-4 text-blue-400" />
-            <p className="text-[10px] text-slate-400 font-bold uppercase">Device Sync</p>
-            <p className="text-lg font-black text-slate-800 italic">Secure</p>
+            <p className="text-[10px] text-muted-foreground font-bold uppercase">Device Sync</p>
+            <p className="text-lg font-black text-foreground italic">Secure</p>
           </div>
         </div>
 
-        <div className="rounded-xl border bg-slate-100 p-8 border-dashed flex flex-col items-center justify-center opacity-50">
-            <Activity className="w-6 h-6 text-slate-300 mb-2" />
-            <p className="text-[10px] text-slate-400 font-bold uppercase">Awaiting biological sync...</p>
+        <div className="rounded-xl border bg-muted p-8 border-dashed flex flex-col items-center justify-center opacity-50">
+            <Activity className="w-6 h-6 text-muted-foreground/60 mb-2" />
+            <p className="text-[10px] text-muted-foreground font-bold uppercase">Awaiting biological sync...</p>
         </div>
       </div>
     );
