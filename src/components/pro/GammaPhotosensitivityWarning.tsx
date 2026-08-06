@@ -89,7 +89,7 @@ export const GammaPhotosensitivityWarning = ({
           <AlertDialogDescription className="text-muted-foreground text-xs leading-relaxed space-y-2 pt-2">
             <p>
               The 40Hz Gamma Entrainment uses high-frequency flashing light and audio.
-              This <strong className="text-amber-700">may trigger seizures</strong> in
+              This <strong className="text-orange-500">may trigger seizures</strong> in
               individuals with photosensitive epilepsy.
             </p>
             <p>
@@ -112,7 +112,7 @@ export const GammaPhotosensitivityWarning = ({
           <Button
             onClick={handleConfirm}
             disabled={isProcessing}
-            className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white font-black uppercase tracking-wider"
+            className="w-full sm:w-auto bg-[hsl(178,42%,32%)] hover:bg-[hsl(178,42%,42%)] text-white font-black uppercase tracking-widest rounded-full"
           >
             {isProcessing ? (
               <>
