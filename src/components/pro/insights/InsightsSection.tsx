@@ -32,15 +32,15 @@ const Card: React.FC<{
 }> = ({ title, icon: Icon, children, accent = "primary" }) => {
   const accentClass =
     accent === "amber"
-      ? "text-[hsl(178,42%,32%)]"
+      ? "text-orange-500"
       : accent === "rose"
       ? "text-rose-500"
-      : "text-primary";
+      : "text-[hsl(178,42%,32%)]";
   return (
-    <div className="rounded-2xl border border-border bg-white/80 backdrop-blur-sm shadow-sm p-4">
-      <div className="flex items-center gap-2 mb-2">
+    <div className="rounded-2xl border border-border bg-card shadow-sm p-4">
+      <div className="flex items-center gap-2 mb-2.5">
         <Icon className={`w-3.5 h-3.5 ${accentClass}`} />
-        <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">
+        <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
           {title}
         </h3>
       </div>
@@ -51,8 +51,8 @@ const Card: React.FC<{
 
 const EmptyState: React.FC = () => (
   <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-6 text-center">
-    <Brain className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
-    <p className="text-xs font-semibold text-foreground mb-1">
+    <Brain className="w-5 h-5 mx-auto mb-2 text-[hsl(178,42%,32%)]" />
+    <p className="text-[10px] font-black uppercase tracking-widest text-foreground mb-1.5">
       AI Insights — Awaiting First Sync
     </p>
     <p className="text-[11px] text-muted-foreground leading-snug max-w-xs mx-auto">
@@ -140,9 +140,9 @@ const InsightsSection: React.FC<Props> = ({ tier, isMasked = false }) => {
 
   if (loading && !payload) {
     return (
-      <div className="rounded-2xl border border-border bg-muted/20 p-6 text-center">
-        <Loader2 className="w-4 h-4 mx-auto animate-spin text-muted-foreground" />
-        <p className="text-[10px] uppercase tracking-widest text-muted-foreground mt-2">
+      <div className="rounded-2xl border border-border bg-card shadow-sm p-6 text-center">
+        <Loader2 className="w-4 h-4 mx-auto animate-spin text-[hsl(178,42%,32%)]" />
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mt-2">
           Synthesizing Predictive Insights…
         </p>
       </div>
@@ -151,13 +151,13 @@ const InsightsSection: React.FC<Props> = ({ tier, isMasked = false }) => {
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-4 text-center">
-        <AlertTriangle className="w-4 h-4 mx-auto text-rose-500 mb-1" />
-        <p className="text-[11px] font-semibold text-rose-700">{error}</p>
+      <div className="rounded-2xl border border-border bg-card shadow-sm p-4 text-center">
+        <AlertTriangle className="w-4 h-4 mx-auto text-orange-500 mb-1.5" />
+        <p className="text-[11px] font-semibold text-foreground">{error}</p>
         <Button
           size="sm"
           variant="outline"
-          className="mt-2 h-7 text-[10px]"
+          className="mt-2 h-7 text-[10px] font-black uppercase tracking-widest rounded-full"
           onClick={refresh}
         >
           Retry
@@ -170,14 +170,15 @@ const InsightsSection: React.FC<Props> = ({ tier, isMasked = false }) => {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5 text-primary" />
-          <h2 className="text-xs font-bold text-foreground uppercase tracking-widest">
-            AI Predictive Insights
-          </h2>
-        </div>
-        <Badge variant="outline" className="text-[9px] font-black uppercase">
+      <div className="flex items-center justify-between px-2">
+        <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+          <Sparkles className="w-3.5 h-3.5 text-orange-500" />
+          AI Predictive Insights
+        </h2>
+        <Badge
+          variant="outline"
+          className="text-[9px] font-black uppercase tracking-widest border-orange-500 text-orange-500"
+        >
           {tier === "pure_alpha"
             ? "Pure Alpha"
             : tier === "pro_plus"
@@ -188,16 +189,16 @@ const InsightsSection: React.FC<Props> = ({ tier, isMasked = false }) => {
 
       <Card title="24h Forecast" icon={Gauge}>
         <div className="grid grid-cols-2 gap-2 mb-2">
-          <div className="rounded-lg bg-muted/30 p-2 text-center">
-            <p className="text-[9px] uppercase tracking-widest text-muted-foreground">
+          <div className="rounded-xl bg-muted/30 border border-border/50 p-2.5 text-center">
+            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
               Stress
             </p>
             <p className="text-lg font-black text-foreground">
               {payload.forecast.stress_24h}
             </p>
           </div>
-          <div className="rounded-lg bg-muted/30 p-2 text-center">
-            <p className="text-[9px] uppercase tracking-widest text-muted-foreground">
+          <div className="rounded-xl bg-muted/30 border border-border/50 p-2.5 text-center">
+            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
               Fatigue
             </p>
             <p className="text-lg font-black text-foreground">
@@ -213,12 +214,14 @@ const InsightsSection: React.FC<Props> = ({ tier, isMasked = false }) => {
         </p>
       </Card>
 
+
+
       <Card title="Longitudinal Trends" icon={TrendingUp}>
         <ul className="space-y-1.5">
           {payload.trends.map((t, i) => (
             <li
               key={i}
-              className="text-[11px] flex items-start gap-2 border-l-2 border-primary/30 pl-2"
+              className="text-[11px] flex items-start gap-2 border-l-2 border-[hsl(178,42%,32%)]/30 pl-2"
             >
               <span className="font-semibold text-foreground uppercase tracking-wide text-[10px]">
                 {t.metric}
@@ -256,7 +259,7 @@ const InsightsSection: React.FC<Props> = ({ tier, isMasked = false }) => {
         <div className="flex items-start gap-2">
           <Badge
             variant="outline"
-            className="text-[9px] font-black uppercase border-[hsl(178,42%,32%)] text-[hsl(178,42%,32%)]"
+            className="text-[9px] font-black uppercase border-orange-500 text-orange-500"
           >
             {payload.intervention.urgency}
           </Badge>
@@ -283,7 +286,7 @@ const InsightsSection: React.FC<Props> = ({ tier, isMasked = false }) => {
             {payload.coaching.actions.map((a, i) => (
               <li
                 key={i}
-                className="text-[11px] text-foreground/85 leading-snug pl-3 relative before:absolute before:left-0 before:top-1.5 before:w-1 before:h-1 before:rounded-full before:bg-primary"
+                className="text-[11px] text-foreground/85 leading-snug pl-3 relative before:absolute before:left-0 before:top-1.5 before:w-1 before:h-1 before:rounded-full before:bg-[hsl(178,42%,32%)]"
               >
                 {a}
               </li>

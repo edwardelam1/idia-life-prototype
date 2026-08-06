@@ -301,7 +301,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                 Cognitive Performance
               </p>
               <h1 className="text-4xl font-black truncate">
-                Life Pro<span className="text-sm font-medium text-teal-100/40">+</span>
+                Life Pro<span className="text-teal-100/70">+</span>
               </h1>
             </div>
             <Brain className="w-10 h-10 text-orange-400 drop-shadow-lg shrink-0" />
@@ -378,7 +378,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
               style={{ transform: "translateZ(40px)" }}
             >
               <div
-                className={`w-24 h-24 rounded-full mx-auto mb-8 flex items-center justify-center border-4 transition-all duration-700 ${gammaActive ? "border-orange-500 bg-orange-50 scale-110 shadow-[0_0_40px_rgba(249,115,22,0.3)]" : "border-white bg-white"}`}
+                className={`w-24 h-24 rounded-full mx-auto mb-8 flex items-center justify-center border-4 transition-all duration-700 ${gammaActive ? "border-orange-500 bg-orange-50 scale-110 shadow-[0_0_40px_rgba(249,115,22,0.3)]" : "border-border bg-card"}`}
               >
                 <Zap className={`w-12 h-12 ${gammaActive ? "text-orange-500 animate-pulse" : "text-muted-foreground/40"}`} />
               </div>

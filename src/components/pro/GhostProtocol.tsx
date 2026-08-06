@@ -111,43 +111,47 @@ const GhostProtocol = ({ children }: GhostProtocolProps) => {
   // REQ-AUTH-7.3.2 & 7.3.3: Tactical Honey-Pot UI
   if (duressDetected) {
     return (
-      <div className="p-4 pb-24 space-y-4 animate-fade-in bg-muted/30 min-h-screen">
-        <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col space-y-5 bg-background min-h-screen p-4 pb-24 animate-in fade-in duration-700">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] flex items-center justify-center shadow-sm">
               <Activity className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h2 className="font-bold text-foreground text-sm italic">HealthStream</h2>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-tighter font-black">Standard Account</p>
+              <h2 className="font-black text-foreground text-sm uppercase tracking-tight">HealthStream</h2>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-widest font-black">Standard Account</p>
             </div>
           </div>
-          <div className="px-2 py-0.5 rounded border border-border">
-            <span className="text-[8px] font-bold text-muted-foreground uppercase">Status: Online</span>
+          <div className="px-2 py-0.5 rounded-full border border-border">
+            <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Status: Online</span>
           </div>
         </div>
 
-        <div className="rounded-2xl border bg-white p-6 shadow-sm text-center">
-          <p className="text-[10px] text-muted-foreground font-bold uppercase mb-1">Available Credits</p>
-          <h3 className="text-3xl font-black text-foreground tracking-tighter italic">$42.15</h3>
+        <div className="bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] text-white border-none shadow-xl rounded-[2.5rem] overflow-hidden p-7">
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60 mb-1">Available Credits</p>
+          <h3 className="text-4xl font-black">$42.15</h3>
+          <div className="mt-6 flex items-center gap-2 border-t border-white/10 pt-4">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[9px] font-black uppercase tracking-widest text-teal-50">Standard · Synced</span>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl border bg-white p-4 space-y-1">
+          <div className="rounded-2xl border border-border bg-card p-4 space-y-1 shadow-sm">
             <TrendingUp className="w-4 h-4 text-emerald-500" />
-            <p className="text-[10px] text-muted-foreground font-bold uppercase">Activity Level</p>
-            <p className="text-lg font-black text-foreground italic">Optimal</p>
+            <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">Activity Level</p>
+            <p className="text-lg font-black text-foreground">Optimal</p>
           </div>
-          <div className="rounded-xl border bg-white p-4 space-y-1">
-            <Shield className="w-4 h-4 text-blue-400" />
-            <p className="text-[10px] text-muted-foreground font-bold uppercase">Device Sync</p>
-            <p className="text-lg font-black text-foreground italic">Secure</p>
+          <div className="rounded-2xl border border-border bg-card p-4 space-y-1 shadow-sm">
+            <Shield className="w-4 h-4 text-[hsl(178,42%,32%)]" />
+            <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">Device Sync</p>
+            <p className="text-lg font-black text-foreground">Secure</p>
           </div>
         </div>
 
-        <div className="rounded-xl border bg-muted p-8 border-dashed flex flex-col items-center justify-center opacity-50">
+        <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-8 flex flex-col items-center justify-center">
             <Activity className="w-6 h-6 text-muted-foreground/60 mb-2" />
-            <p className="text-[10px] text-muted-foreground font-bold uppercase">Awaiting biological sync...</p>
+            <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">Awaiting biological sync...</p>
         </div>
       </div>
     );
