@@ -78,15 +78,15 @@ export const GammaPhotosensitivityWarning = ({
 
   return (
     <AlertDialog open={open} onOpenChange={(o) => { if (!o && !isProcessing) onCancel(); }}>
-      <AlertDialogContent className="bg-white/95 backdrop-blur-xl border border-amber-200 shadow-2xl max-w-md">
+      <AlertDialogContent className="bg-card border border-border shadow-2xl max-w-md rounded-3xl">
         <AlertDialogHeader>
-          <div className="mx-auto w-12 h-12 rounded-full bg-amber-50 border-2 border-amber-400 flex items-center justify-center mb-2">
-            <AlertTriangle className="w-6 h-6 text-amber-600" />
+          <div className="mx-auto w-12 h-12 rounded-full bg-[hsl(178,42%,32%)]/10 border-2 border-[hsl(178,42%,32%)] flex items-center justify-center mb-2">
+            <AlertTriangle className="w-6 h-6 text-orange-500" />
           </div>
-          <AlertDialogTitle className="text-center text-foreground font-black uppercase tracking-wider text-sm">
+          <AlertDialogTitle className="text-center text-foreground font-black uppercase tracking-widest text-sm">
             Photosensitivity Warning
           </AlertDialogTitle>
-          <AlertDialogDescription className="text-foreground text-xs leading-relaxed space-y-2 pt-2">
+          <AlertDialogDescription className="text-muted-foreground text-xs leading-relaxed space-y-2 pt-2">
             <p>
               The 40Hz Gamma Entrainment uses high-frequency flashing light and audio.
               This <strong className="text-amber-700">may trigger seizures</strong> in
