@@ -177,7 +177,7 @@ const InsightsSection: React.FC<Props> = ({ tier, isMasked = false }) => {
         </h2>
         <Badge
           variant="outline"
-          className="text-[9px] font-black uppercase tracking-widest border-[hsl(178,42%,32%)] text-[hsl(178,42%,32%)]"
+          className="text-[9px] font-black uppercase tracking-widest border-orange-500 text-orange-500"
         >
           {tier === "pure_alpha"
             ? "Pure Alpha"
@@ -221,7 +221,7 @@ const InsightsSection: React.FC<Props> = ({ tier, isMasked = false }) => {
           {payload.trends.map((t, i) => (
             <li
               key={i}
-              className="text-[11px] flex items-start gap-2 border-l-2 border-primary/30 pl-2"
+              className="text-[11px] flex items-start gap-2 border-l-2 border-[hsl(178,42%,32%)]/30 pl-2"
             >
               <span className="font-semibold text-foreground uppercase tracking-wide text-[10px]">
                 {t.metric}
@@ -259,7 +259,7 @@ const InsightsSection: React.FC<Props> = ({ tier, isMasked = false }) => {
         <div className="flex items-start gap-2">
           <Badge
             variant="outline"
-            className="text-[9px] font-black uppercase border-[hsl(178,42%,32%)] text-[hsl(178,42%,32%)]"
+            className="text-[9px] font-black uppercase border-orange-500 text-orange-500"
           >
             {payload.intervention.urgency}
           </Badge>
@@ -286,7 +286,7 @@ const InsightsSection: React.FC<Props> = ({ tier, isMasked = false }) => {
             {payload.coaching.actions.map((a, i) => (
               <li
                 key={i}
-                className="text-[11px] text-foreground/85 leading-snug pl-3 relative before:absolute before:left-0 before:top-1.5 before:w-1 before:h-1 before:rounded-full before:bg-primary"
+                className="text-[11px] text-foreground/85 leading-snug pl-3 relative before:absolute before:left-0 before:top-1.5 before:w-1 before:h-1 before:rounded-full before:bg-[hsl(178,42%,32%)]"
               >
                 {a}
               </li>
