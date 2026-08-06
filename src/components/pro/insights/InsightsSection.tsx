@@ -214,13 +214,7 @@ const InsightsSection: React.FC<Props> = ({ tier, isMasked = false }) => {
         </p>
       </Card>
 
-        <p className="text-[11px] leading-snug text-foreground/90">
-          {payload.forecast.summary}
-        </p>
-        <p className="text-[9px] text-muted-foreground uppercase tracking-widest mt-1">
-          Confidence {(payload.forecast.confidence * 100).toFixed(0)}%
-        </p>
-      </Card>
+
 
       <Card title="Longitudinal Trends" icon={TrendingUp}>
         <ul className="space-y-1.5">
