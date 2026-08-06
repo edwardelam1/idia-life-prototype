@@ -140,9 +140,9 @@ const InsightsSection: React.FC<Props> = ({ tier, isMasked = false }) => {
 
   if (loading && !payload) {
     return (
-      <div className="rounded-2xl border border-border bg-muted/20 p-6 text-center">
-        <Loader2 className="w-4 h-4 mx-auto animate-spin text-muted-foreground" />
-        <p className="text-[10px] uppercase tracking-widest text-muted-foreground mt-2">
+      <div className="rounded-2xl border border-border bg-card shadow-sm p-6 text-center">
+        <Loader2 className="w-4 h-4 mx-auto animate-spin text-[hsl(178,42%,32%)]" />
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mt-2">
           Synthesizing Predictive Insights…
         </p>
       </div>
@@ -151,13 +151,13 @@ const InsightsSection: React.FC<Props> = ({ tier, isMasked = false }) => {
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-4 text-center">
-        <AlertTriangle className="w-4 h-4 mx-auto text-rose-500 mb-1" />
-        <p className="text-[11px] font-semibold text-rose-700">{error}</p>
+      <div className="rounded-2xl border border-border bg-card shadow-sm p-4 text-center">
+        <AlertTriangle className="w-4 h-4 mx-auto text-orange-500 mb-1.5" />
+        <p className="text-[11px] font-semibold text-foreground">{error}</p>
         <Button
           size="sm"
           variant="outline"
-          className="mt-2 h-7 text-[10px]"
+          className="mt-2 h-7 text-[10px] font-black uppercase tracking-widest rounded-full"
           onClick={refresh}
         >
           Retry
@@ -170,14 +170,15 @@ const InsightsSection: React.FC<Props> = ({ tier, isMasked = false }) => {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5 text-primary" />
-          <h2 className="text-xs font-bold text-foreground uppercase tracking-widest">
-            AI Predictive Insights
-          </h2>
-        </div>
-        <Badge variant="outline" className="text-[9px] font-black uppercase">
+      <div className="flex items-center justify-between px-2">
+        <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+          <Sparkles className="w-3.5 h-3.5 text-orange-500" />
+          AI Predictive Insights
+        </h2>
+        <Badge
+          variant="outline"
+          className="text-[9px] font-black uppercase tracking-widest border-[hsl(178,42%,32%)] text-[hsl(178,42%,32%)]"
+        >
           {tier === "pure_alpha"
             ? "Pure Alpha"
             : tier === "pro_plus"
@@ -188,16 +189,16 @@ const InsightsSection: React.FC<Props> = ({ tier, isMasked = false }) => {
 
       <Card title="24h Forecast" icon={Gauge}>
         <div className="grid grid-cols-2 gap-2 mb-2">
-          <div className="rounded-lg bg-muted/30 p-2 text-center">
-            <p className="text-[9px] uppercase tracking-widest text-muted-foreground">
+          <div className="rounded-xl bg-muted/30 border border-border/50 p-2.5 text-center">
+            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
               Stress
             </p>
             <p className="text-lg font-black text-foreground">
               {payload.forecast.stress_24h}
             </p>
           </div>
-          <div className="rounded-lg bg-muted/30 p-2 text-center">
-            <p className="text-[9px] uppercase tracking-widest text-muted-foreground">
+          <div className="rounded-xl bg-muted/30 border border-border/50 p-2.5 text-center">
+            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
               Fatigue
             </p>
             <p className="text-lg font-black text-foreground">
@@ -205,6 +206,14 @@ const InsightsSection: React.FC<Props> = ({ tier, isMasked = false }) => {
             </p>
           </div>
         </div>
+        <p className="text-[11px] leading-snug text-foreground/90">
+          {payload.forecast.summary}
+        </p>
+        <p className="text-[9px] text-muted-foreground uppercase tracking-widest mt-1">
+          Confidence {(payload.forecast.confidence * 100).toFixed(0)}%
+        </p>
+      </Card>
+
         <p className="text-[11px] leading-snug text-foreground/90">
           {payload.forecast.summary}
         </p>
