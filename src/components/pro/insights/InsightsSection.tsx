@@ -32,15 +32,15 @@ const Card: React.FC<{
 }> = ({ title, icon: Icon, children, accent = "primary" }) => {
   const accentClass =
     accent === "amber"
-      ? "text-[hsl(178,42%,32%)]"
+      ? "text-orange-500"
       : accent === "rose"
       ? "text-rose-500"
-      : "text-primary";
+      : "text-[hsl(178,42%,32%)]";
   return (
-    <div className="rounded-2xl border border-border bg-white/80 backdrop-blur-sm shadow-sm p-4">
-      <div className="flex items-center gap-2 mb-2">
+    <div className="rounded-2xl border border-border bg-card shadow-sm p-4">
+      <div className="flex items-center gap-2 mb-2.5">
         <Icon className={`w-3.5 h-3.5 ${accentClass}`} />
-        <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">
+        <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
           {title}
         </h3>
       </div>
@@ -51,8 +51,8 @@ const Card: React.FC<{
 
 const EmptyState: React.FC = () => (
   <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-6 text-center">
-    <Brain className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
-    <p className="text-xs font-semibold text-foreground mb-1">
+    <Brain className="w-5 h-5 mx-auto mb-2 text-[hsl(178,42%,32%)]" />
+    <p className="text-[10px] font-black uppercase tracking-widest text-foreground mb-1.5">
       AI Insights — Awaiting First Sync
     </p>
     <p className="text-[11px] text-muted-foreground leading-snug max-w-xs mx-auto">
