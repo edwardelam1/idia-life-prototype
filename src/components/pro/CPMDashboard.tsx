@@ -301,7 +301,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                 Cognitive Performance
               </p>
               <h1 className="text-4xl font-black truncate">
-                Life Pro<span className="text-sm font-medium text-teal-100/40">+</span>
+                Life Pro<span className="text-teal-100/70">+</span>
               </h1>
             </div>
             <Brain className="w-10 h-10 text-orange-400 drop-shadow-lg shrink-0" />
