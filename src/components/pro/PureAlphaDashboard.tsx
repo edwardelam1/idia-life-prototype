@@ -555,7 +555,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
             {pureAlphaView === 'ghost' && (
               <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
                 <Card className="border-orange-100 bg-orange-50/30 shadow-sm overflow-hidden">
-                  <CardHeader className="p-5 pb-2 border-b border-orange-100/50">
+                  <CardHeader className="p-5 pb-2 border-b border-border">
                     <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-foreground">
                       <Lock className="w-4 h-4 text-orange-500" />
                       Ghost Protocol Configuration
@@ -565,21 +565,21 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                     </p>
                   </CardHeader>
                   <CardContent className="p-0">
-                    <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
+                    <div className="flex items-center justify-between p-4 border-b border-border">
                       <div>
                         <p className="text-[10px] font-black text-foreground uppercase">Honey-Pot State</p>
                         <p className="text-[9px] text-muted-foreground mt-0.5">Simulate success & lock true ledger during HRV crash.</p>
                       </div>
                       <Switch checked={settings.honey_pot} onCheckedChange={() => toggleSetting('honey_pot')} className="data-[state=checked]:bg-orange-500" />
                     </div>
-                    <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
+                    <div className="flex items-center justify-between p-4 border-b border-border">
                       <div>
                         <p className="text-[10px] font-black text-foreground uppercase">Digital Ward (Minors)</p>
                         <p className="text-[9px] text-muted-foreground mt-0.5">Segregate data & trigger route deviation alerts.</p>
                       </div>
                       <Switch checked={settings.digital_ward} onCheckedChange={() => toggleSetting('digital_ward')} />
                     </div>
-                    <div className="flex items-center justify-between p-4 border-b border-orange-100/50">
+                    <div className="flex items-center justify-between p-4 border-b border-border">
                       <div>
                         <p className="text-[10px] font-black text-foreground uppercase">Silver Sentinel (Elders)</p>
                         <p className="text-[9px] text-muted-foreground mt-0.5">Cardio-ID verification & beneficiary wall blocks.</p>
@@ -598,14 +598,14 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
 
                 {/* GHOST PROTOCOL LOGS */}
                 <Card className="border-border shadow-sm overflow-hidden">
-                  <CardHeader className="p-4 border-b border-border bg-muted/30/50">
+                  <CardHeader className="p-4 border-b border-border bg-muted/30">
                     <CardTitle className="text-[10px] font-black uppercase tracking-widest text-foreground flex items-center gap-2">
                       <Activity className="w-3.5 h-3.5 text-muted-foreground" /> Activity Logs
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-0">
                     {ghostLogs.length > 0 ? (
-                      <ul className="divide-y divide-slate-50">
+                      <ul className="divide-y divide-border">
                         {ghostLogs.map(log => (
                           <li key={log.id} className="p-4 flex justify-between items-center bg-card">
                             <div>
@@ -631,7 +631,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
             {pureAlphaView === 'acoustics' && (
               <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
                 <Card className="border-border shadow-sm overflow-hidden">
-                  <CardHeader className="p-5 pb-2 border-b border-border bg-[hsl(178,42%,32%)]/10/10">
+                  <CardHeader className="p-5 pb-2 border-b border-border bg-[hsl(178,42%,32%)]/10">
                     <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-foreground">
                       <Volume2 className="w-4 h-4 text-[hsl(178,42%,32%)]" />
                       Acoustic Configuration
@@ -667,14 +667,14 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
 
                 {/* ACOUSTICS LOGS */}
                 <Card className="border-border shadow-sm overflow-hidden">
-                  <CardHeader className="p-4 border-b border-border bg-muted/30/50">
+                  <CardHeader className="p-4 border-b border-border bg-muted/30">
                     <CardTitle className="text-[10px] font-black uppercase tracking-widest text-foreground flex items-center gap-2">
                       <Volume2 className="w-3.5 h-3.5 text-muted-foreground" /> Acoustic Logs
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-0">
                     {acousticLogs.length > 0 ? (
-                      <ul className="divide-y divide-slate-50">
+                      <ul className="divide-y divide-border">
                         {acousticLogs.map(log => (
                           <li key={log.id} className="p-4 flex justify-between items-center bg-card">
                             <div>
@@ -754,7 +754,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                   { label: "Step Length", value: telemetry.stepLength !== null ? telemetry.stepLength : "--", unit: "cm" },
                   { label: "UV Index", value: telemetry.uv !== null ? telemetry.uv : "--", unit: "" },
                 ].map(m => (
-                  <div key={m.label} className="p-3 border border-border rounded-xl bg-muted/30/50 flex flex-col justify-between">
+                  <div key={m.label} className="p-3 border border-border rounded-xl bg-muted/30 flex flex-col justify-between">
                     <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">{m.label}</p>
                     <p className="text-sm font-bold text-foreground italic tracking-tighter">{m.value} <span className="text-[9px] text-muted-foreground not-italic">{m.unit}</span></p>
                   </div>
@@ -767,7 +767,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
           {/* 3. GAMMA TRIGGER TAB */}
           <TabsContent value="gamma" className="space-y-6 focus-visible:outline-none">
             <div className="rounded-3xl border-border bg-muted/30 p-10 text-center shadow-sm">
-               <div className={`w-24 h-24 rounded-full mx-auto mb-8 flex items-center justify-center border-4 transition-all duration-700 ${gammaActive ? 'border-orange-500 bg-orange-50 scale-110 shadow-[0_0_40px_rgba(249,115,22,0.15)]' : 'border-white bg-white'}`}>
+               <div className={`w-24 h-24 rounded-full mx-auto mb-8 flex items-center justify-center border-4 transition-all duration-700 ${gammaActive ? 'border-orange-500 bg-orange-50 scale-110 shadow-[0_0_40px_rgba(249,115,22,0.15)]' : 'border-border bg-card'}`}>
                   <Zap className={`w-10 h-10 ${gammaActive ? 'text-orange-500 animate-pulse' : 'text-muted-foreground/40'}`} />
                </div>
                <h3 className="text-[11px] font-black text-foreground uppercase tracking-[0.2em] mb-4 font-sans">40Hz Entrainment Trigger</h3>
