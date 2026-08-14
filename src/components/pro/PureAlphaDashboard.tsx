@@ -97,6 +97,17 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
   const [userId, setUserId] = useState<string | null>(null);
   const [fusionData, setFusionData] = useState<any[]>([]);
   const [hasIdiaPayOrgAdmin, setHasIdiaPayOrgAdmin] = useState(false);
+
+  // --- LEDGER (double-entry) ---
+  const fin = useBusinessFinancials(!isMasked);
+  const ledgerAuthorized = hasIdiaPayOrgAdmin || fin.isOrgAdmin;
+  const latestPnl = fin.pnl[fin.pnl.length - 1];
+  const fusionLedger = fin.pnl.map((p, i) => ({
+    day: p.period,
+    revenue: Number(p.revenue.toFixed(2)),
+    expense: Number(p.expense.toFixed(2)),
+    hrv: fusionData[i]?.hrv ?? 0,
+  }));
   
   const [pureAlphaView, setPureAlphaView] = useState<'fusion' | 'balance' | 'cash' | 'ghost' | 'acoustics'>('fusion');
 
