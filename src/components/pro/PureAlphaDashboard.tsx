@@ -4,7 +4,7 @@ import {
   Zap, Info, Lock, Volume2, Target, RotateCcw, Smartphone,
   Heart, Activity, Wind, Accessibility, Shield, Trophy, ShieldCheck, ShieldAlert
 } from "lucide-react";
-import { ComposedChart, Line, Bar, XAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
+import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -25,6 +25,10 @@ import { toast } from "@/hooks/use-toast";
 import GhostProtocolWrapper from "./GhostProtocol";
 import { GammaPhotosensitivityWarning } from "./GammaPhotosensitivityWarning";
 import InsightsSection from "./insights/InsightsSection";
+import { useBusinessFinancials } from "@/hooks/useBusinessFinancials";
+
+const fmtUsd = (n: number) =>
+  `${n < 0 ? "-" : ""}$${Math.abs(n).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 
 // --- EXPANDED SOVEREIGN SCHEMA ---
 interface StagedHealthData {
@@ -93,6 +97,17 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
   const [userId, setUserId] = useState<string | null>(null);
   const [fusionData, setFusionData] = useState<any[]>([]);
   const [hasIdiaPayOrgAdmin, setHasIdiaPayOrgAdmin] = useState(false);
+
+  // --- LEDGER (double-entry) ---
+  const fin = useBusinessFinancials(!isMasked);
+  const ledgerAuthorized = hasIdiaPayOrgAdmin || fin.isOrgAdmin;
+  const latestPnl = fin.pnl[fin.pnl.length - 1];
+  const fusionLedger = fin.pnl.map((p, i) => ({
+    day: p.period,
+    revenue: Number(p.revenue.toFixed(2)),
+    expense: Number(p.expense.toFixed(2)),
+    hrv: fusionData[i]?.hrv ?? 0,
+  }));
   
   const [pureAlphaView, setPureAlphaView] = useState<'fusion' | 'balance' | 'cash' | 'ghost' | 'acoustics'>('fusion');
 
@@ -509,27 +524,54 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                 <CardHeader className="p-5 pb-2">
                   <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center text-foreground">
                     P&L Fusion Ledger
-                    <InfoIcon text="Real-time correlation between your Autonomic Resilience (HRV) and Capital Generation." />
+                    <InfoIcon text="Real-time correlation between your Autonomic Resilience (HRV) and posted double-entry revenue." />
                   </CardTitle>
-                  <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter">Bio-State vs Liquid Revenue</p>
+                  <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter">Bio-State vs Posted Revenue</p>
                 </CardHeader>
+                {ledgerAuthorized && latestPnl && (
+                  <div className="grid grid-cols-3 gap-px bg-border border-y border-border">
+                    <div className="bg-card p-3">
+                      <p className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">Revenue</p>
+                      <p className="text-sm font-black text-[hsl(178,42%,32%)]">{fmtUsd(latestPnl.revenue)}</p>
+                    </div>
+                    <div className="bg-card p-3">
+                      <p className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">Expense</p>
+                      <p className="text-sm font-black text-orange-500">{fmtUsd(latestPnl.expense)}</p>
+                    </div>
+                    <div className="bg-card p-3">
+                      <p className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">Net</p>
+                      <p className="text-sm font-black text-foreground">{fmtUsd(latestPnl.netIncome)}</p>
+                    </div>
+                  </div>
+                )}
                 <CardContent className="p-0 h-56">
-                  {hasIdiaPayOrgAdmin ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={fusionData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="day" tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: "900" }} axisLine={false} tickLine={false} />
-                        <RechartsTooltip
-                          contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", fontSize: "10px", fontWeight: "bold" }}
-                        />
-                        <Bar yAxisId="r" dataKey="revenue" fill="hsl(178, 42%, 42%)" radius={[4, 4, 0, 0]} opacity={0.8} />
-                        <Line yAxisId="l" type="monotone" dataKey="hrv" stroke="#f97316" strokeWidth={3} dot={{ r: 4, fill: "#f97316", strokeWidth: 2, stroke: "#fff" }} />
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  ) : (
+                  {!ledgerAuthorized ? (
                     <div className="flex items-center justify-center h-full text-center p-4">
                       <p className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest">IDIA Pay Org Admin <br/> Sync Required</p>
                     </div>
+                  ) : fin.loading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="w-5 h-5 border-2 border-[hsl(178,42%,32%)] border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : fusionLedger.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-center p-4">
+                      <p className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest">Ledger Connected <br/> Awaiting First Posted Entry</p>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={fusionLedger} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="day" tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: "900" }} axisLine={false} tickLine={false} />
+                        <YAxis yAxisId="r" hide />
+                        <YAxis yAxisId="l" orientation="right" hide />
+                        <RechartsTooltip
+                          contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", fontSize: "10px", fontWeight: "bold" }}
+                        />
+                        <Bar yAxisId="r" dataKey="revenue" fill="hsl(178, 42%, 42%)" radius={[4, 4, 0, 0]} opacity={0.85} />
+                        <Bar yAxisId="r" dataKey="expense" fill="#f59e0b" radius={[4, 4, 0, 0]} opacity={0.5} />
+                        <Line yAxisId="l" type="monotone" dataKey="hrv" stroke="#f97316" strokeWidth={3} dot={{ r: 4, fill: "#f97316", strokeWidth: 2, stroke: "#fff" }} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
                   )}
                 </CardContent>
               </Card>
@@ -543,9 +585,49 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                   </CardTitle>
                   <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter">Asset & Liability Overview</p>
                 </CardHeader>
-                <CardContent className="p-10 text-center text-muted-foreground/60 text-[10px] uppercase font-black">
-                  {hasIdiaPayOrgAdmin ? "No active ledger entries." : "IDIA Pay Org Admin Sync Required."}
-                </CardContent>
+                {!ledgerAuthorized ? (
+                  <CardContent className="p-10 text-center text-muted-foreground/60 text-[10px] uppercase font-black">
+                    IDIA Pay Org Admin Sync Required.
+                  </CardContent>
+                ) : fin.loading ? (
+                  <CardContent className="p-10 flex justify-center">
+                    <div className="w-5 h-5 border-2 border-[hsl(178,42%,32%)] border-t-transparent rounded-full animate-spin" />
+                  </CardContent>
+                ) : fin.balanceSheet.assets.length + fin.balanceSheet.liabilities.length + fin.balanceSheet.equity.length === 0 ? (
+                  <CardContent className="p-10 text-center text-muted-foreground/60 text-[10px] uppercase font-black">
+                    Ledger Connected · Awaiting First Posted Entry
+                  </CardContent>
+                ) : (
+                  <CardContent className="p-5 pt-0 space-y-4">
+                    {([
+                      { label: "Assets", rows: fin.balanceSheet.assets, total: fin.balanceSheet.totalAssets },
+                      { label: "Liabilities", rows: fin.balanceSheet.liabilities, total: fin.balanceSheet.totalLiabilities },
+                      { label: "Equity", rows: fin.balanceSheet.equity, total: fin.balanceSheet.totalEquity },
+                    ]).map((section) => (
+                      <div key={section.label}>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-[hsl(178,42%,32%)] mb-1">{section.label}</p>
+                        <div className="space-y-1">
+                          {section.rows.map((r) => (
+                            <div key={r.code} className="flex justify-between text-[10px] font-bold text-muted-foreground">
+                              <span className="truncate pr-2">{r.code} · {r.name}</span>
+                              <span className="text-foreground tabular-nums">{fmtUsd(r.balance)}</span>
+                            </div>
+                          ))}
+                          {section.rows.length === 0 && (
+                            <p className="text-[10px] font-bold text-muted-foreground/50">None posted.</p>
+                          )}
+                        </div>
+                        <div className="flex justify-between text-[10px] font-black uppercase mt-1 pt-1 border-t border-border">
+                          <span>Total {section.label}</span>
+                          <span className="tabular-nums">{fmtUsd(section.total)}</span>
+                        </div>
+                      </div>
+                    ))}
+                    <div className={`text-[9px] font-black uppercase tracking-widest ${fin.balanceSheet.balanced ? "text-[hsl(178,42%,32%)]" : "text-orange-500"}`}>
+                      {fin.balanceSheet.balanced ? "Balanced · Assets = Liabilities + Equity" : "Out of Balance · Review Journal"}
+                    </div>
+                  </CardContent>
+                )}
               </Card>
             )}
 
@@ -557,9 +639,46 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                   </CardTitle>
                   <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter">Liquidity Velocity</p>
                 </CardHeader>
-                <CardContent className="p-10 text-center text-muted-foreground/60 text-[10px] uppercase font-black">
-                  {hasIdiaPayOrgAdmin ? "No active transaction flow." : "IDIA Pay Org Admin Sync Required."}
-                </CardContent>
+                {!ledgerAuthorized ? (
+                  <CardContent className="p-10 text-center text-muted-foreground/60 text-[10px] uppercase font-black">
+                    IDIA Pay Org Admin Sync Required.
+                  </CardContent>
+                ) : fin.loading ? (
+                  <CardContent className="p-10 flex justify-center">
+                    <div className="w-5 h-5 border-2 border-[hsl(178,42%,32%)] border-t-transparent rounded-full animate-spin" />
+                  </CardContent>
+                ) : fin.cashFlow.recent.length === 0 ? (
+                  <CardContent className="p-10 text-center text-muted-foreground/60 text-[10px] uppercase font-black">
+                    Ledger Connected · Awaiting First Bank Movement
+                  </CardContent>
+                ) : (
+                  <CardContent className="p-5 pt-0 space-y-4">
+                    <div className="grid grid-cols-3 gap-px bg-border border border-border rounded-xl overflow-hidden">
+                      {([
+                        { label: "Operating", value: fin.cashFlow.operating },
+                        { label: "Investing", value: fin.cashFlow.investing },
+                        { label: "Financing", value: fin.cashFlow.financing },
+                      ]).map((b) => (
+                        <div key={b.label} className="bg-card p-3">
+                          <p className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">{b.label}</p>
+                          <p className={`text-sm font-black tabular-nums ${b.value < 0 ? "text-orange-500" : "text-[hsl(178,42%,32%)]"}`}>{fmtUsd(b.value)}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-between text-[10px] font-black uppercase">
+                      <span>Net Change in Cash</span>
+                      <span className="tabular-nums">{fmtUsd(fin.cashFlow.netChange)}</span>
+                    </div>
+                    <div className="space-y-1">
+                      {fin.cashFlow.recent.map((t) => (
+                        <div key={t.id} className="flex justify-between text-[10px] font-bold text-muted-foreground">
+                          <span className="truncate pr-2">{t.date} · {t.description || t.bucket}</span>
+                          <span className={`tabular-nums ${t.amount < 0 ? "text-orange-500" : "text-foreground"}`}>{fmtUsd(t.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                )}
               </Card>
             )}
 
