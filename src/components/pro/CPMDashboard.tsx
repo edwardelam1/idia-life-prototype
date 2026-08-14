@@ -360,7 +360,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                 { label: "Acoustic", value: `${metrics.noise} dB`, icon: Volume2 },
                 { label: "Respiratory", value: `${metrics.resp} br/m`, icon: Wind },
                 { label: "Gait Balance", value: `${metrics.asymmetry}%`, icon: Accessibility },
-                { label: "HRI Score", value: `${metrics.hriScore}%`, icon: Shield },
+                { label: "HRI Score", value: hri.score !== null ? `${hri.score}%` : "--", icon: Shield },
               ].map((b) => (
                 <div key={b.label} className="p-0 border-none group" style={{ transform: "translateZ(30px)" }}>
                   <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1.5 font-sans group-hover:text-[hsl(178,42%,42%)] transition-colors">
@@ -370,6 +370,19 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                 </div>
               ))}
             </div>
+
+            {!hri.loading && hri.score === null && (
+              <p className="text-[9px] font-black uppercase tracking-widest text-orange-500 font-sans">
+                HRI · Insufficient biometrics
+              </p>
+            )}
+            {hri.score !== null && hri.coverage && (
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground font-sans">
+                HRI coverage · {hri.coverage.count} signal{hri.coverage.count === 1 ? "" : "s"}
+                {hri.alpha ? ` · Alpha ${hri.alpha}` : ""}
+              </p>
+            )}
+
             <div
               className="rounded-2xl border border-[hsl(178,42%,32%)]/20 bg-[hsl(178,42%,32%)]/5 p-5 shadow-inner"
               style={{ transform: "translateZ(10px)" }}
