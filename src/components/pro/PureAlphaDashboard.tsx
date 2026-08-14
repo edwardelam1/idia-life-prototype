@@ -845,7 +845,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                 { label: "Acoustic", value: metrics.noise !== null ? `${metrics.noise} dB` : "--", icon: Volume2 },
                 { label: "Respiratory", value: metrics.resp !== null ? `${metrics.resp} br/m` : "--", icon: Wind },
                 { label: "Gait Balance", value: metrics.asymmetry !== null ? `${metrics.asymmetry}%` : "--", icon: Accessibility },
-                { label: "HRI Score", value: metrics.hriScore !== null ? `${metrics.hriScore}%` : "--", icon: Shield },
+                { label: "HRI Score", value: hri.score !== null ? `${hri.score}%` : "--", icon: Shield },
               ].map((b) => (
                 <div key={b.label} className="p-0 border-none">
                   <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1.5 font-sans">
