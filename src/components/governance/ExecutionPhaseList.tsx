@@ -61,6 +61,7 @@ const ExecutionPhaseList: React.FC<Props> = ({ balance, votingPower, refreshTrig
   const [loading, setLoading] = useState(true);
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [chainStates, setChainStates] = useState<Map<string, ChainState>>(new Map());
+  const [taskStatuses, setTaskStatuses] = useState<Map<string, string>>(new Map());
   const [userId, setUserId] = useState<string | null>(null);
   const [ascensionLevel, setAscensionLevel] = useState<AscensionLevel>(0);
   const [glow, setGlow] = useState(false);
