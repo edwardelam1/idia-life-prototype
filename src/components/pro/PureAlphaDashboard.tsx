@@ -856,6 +856,20 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
               ))}
             </div>
 
+            {!hri.loading && hri.score === null && (
+              <p className="text-[9px] font-black uppercase tracking-widest text-orange-500">
+                HRI · Insufficient biometrics
+              </p>
+            )}
+            {hri.score !== null && hri.coverage && (
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                HRI coverage · {hri.coverage.count} signal{hri.coverage.count === 1 ? "" : "s"}
+                {hri.alpha ? ` · Alpha ${hri.alpha}` : ""}
+              </p>
+            )}
+
+
+
             <div className="rounded-2xl border border-[hsl(178,42%,32%)]/20 bg-[hsl(178,42%,32%)]/5 p-5">
                <div className="flex items-center gap-2 mb-1 text-[hsl(178,42%,32%)]">
                   <Activity className="w-4 h-4" />
