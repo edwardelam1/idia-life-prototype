@@ -93,6 +93,17 @@ const ExecutionPhaseList: React.FC<Props> = ({ balance, votingPower, refreshTrig
           .order("created_at", { ascending: false });
         if (dbProposals.error) throw dbProposals.error;
 
+        // Execution tracker rows are the durable archive of everything that
+        // entered execution — keyed by both DB proposal id and on-chain id.
+        const { data: taskRows } = await (supabase as any)
+          .from("dao_execution_tasks")
+          .select("proposal_id, onchain_proposal_id, status");
+        const taskStatusByRef = new Map<string, string>();
+        for (const t of taskRows || []) {
+          if (t.proposal_id) taskStatusByRef.set(String(t.proposal_id), t.status);
+          if (t.onchain_proposal_id) taskStatusByRef.set(String(t.onchain_proposal_id), t.status);
+        }
+
         await delay(400);
         const onChainProposals = await governanceService
           .getRecentProposals(user?.id || "")
