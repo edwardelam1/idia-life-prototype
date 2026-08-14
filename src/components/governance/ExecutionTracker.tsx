@@ -236,12 +236,24 @@ const ExecutionTracker: React.FC = () => {
                     </div>
 
                     <div className="flex items-center justify-between text-[10px]">
-                      <span className={cn(
-                        "font-black uppercase tracking-widest",
-                        countdown.expired ? "text-orange-700 dark:text-orange-300" : "text-amber-800 dark:text-amber-200",
-                      )}>
-                        {countdown.text}
-                      </span>
+                      {terminal ? (
+                        <span className={cn(
+                          "font-black uppercase tracking-widest",
+                          task.status === "executed"
+                            ? "text-emerald-700 dark:text-emerald-300"
+                            : "text-red-700 dark:text-red-300",
+                        )}>
+                          {task.status === "executed" ? "Executed" : "Closed"}
+                          {completedAt ? ` · ${completedAt}` : ""}
+                        </span>
+                      ) : (
+                        <span className={cn(
+                          "font-black uppercase tracking-widest",
+                          countdown.expired ? "text-orange-700 dark:text-orange-300" : "text-amber-800 dark:text-amber-200",
+                        )}>
+                          {countdown.text}
+                        </span>
+                      )}
                       {task.granted_extension_seconds > 0 && (
                         <span className="text-[9px] text-amber-700/70 dark:text-amber-300/60">
                           +{Math.round(task.granted_extension_seconds / 3600)}h granted
