@@ -172,12 +172,20 @@ const ExecutionPhaseList: React.FC<Props> = ({ balance, votingPower, refreshTrig
         const map = new Map<string, ChainState>();
         for (const [ref, cs] of entries) if (cs) map.set(ref, cs);
 
+        const trackerStatusFor = (p: Proposal) =>
+          taskStatusByRef.get(p.id) ??
+          (p.on_chain_id ? taskStatusByRef.get(p.on_chain_id) : undefined);
+
         const inExecution = combined.filter((p) => {
+          // Anything with an execution-tracker row belongs in this archive.
+          if (trackerStatusFor(p)) return true;
           const cs = map.get(p.proposal_ref);
           if (cs?.state != null) return EXECUTION_STATES.has(cs.state);
           return EXECUTION_PHASES.has(normalize(p.lifecycle_phase))
             || EXECUTION_PHASES.has(normalize(p.status));
         }).sort((a, b) => sortByGovernanceOrder(a, b, map));
+
+        if (alive) setTaskStatuses(taskStatusByRef);
 
         // Diff against seen set for glow + notifications.
         const currentIds = new Set(inExecution.map((p) => p.proposal_ref));
