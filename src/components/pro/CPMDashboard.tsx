@@ -93,9 +93,12 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     focusScore: 0,
     stressIndex: 0,
     recovery: 0,
-    hriScore: 0,
     status: "CALIBRATING" as "CALIBRATING" | "ARMED" | "TRIGGERED",
   });
+
+  // Authoritative HRI — server-computed, identical across Pro / Pro+ / Pure Alpha.
+  const hri = useHRI(!isMasked);
+
 
   // TRUE DYNAMIC FONT ENGINE: Scales based on word length vs container width
   const getDynamicFontSize = (word: string) => {
