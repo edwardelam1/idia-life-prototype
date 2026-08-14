@@ -71,6 +71,19 @@ function formatCountdown(deadlineISO: string | null, now: number): { text: strin
   return { text: expired ? `Overdue by ${parts}` : `${parts} remaining`, expired };
 }
 
+function formatCompletedAt(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 const ExecutionTracker: React.FC = () => {
   const [tasks, setTasks] = useState<ExecutionTask[]>([]);
   const [loading, setLoading] = useState(true);
