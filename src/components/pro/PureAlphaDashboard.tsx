@@ -119,9 +119,13 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
   // --- CORE BIOMETRICS STATE ---
   const [metrics, setMetrics] = useState({
     hr: null as number | null, hrv: null as number | null, resp: null as number | null, noise: null as number | null, asymmetry: null as number | null,
-    focusScore: null as number | null, stressIndex: null as number | null, recovery: null as number | null, hriScore: null as number | null,
+    focusScore: null as number | null, stressIndex: null as number | null, recovery: null as number | null,
     status: "CALIBRATING" as "CALIBRATING" | "ARMED" | "TRIGGERED"
   });
+
+  // Authoritative HRI — server-computed, identical across Pro / Pro+ / Pure Alpha.
+  const hri = useHRI(!isMasked);
+
 
   const [telemetry, setTelemetry] = useState({
     steps: null as number | null, restingHr: null as number | null, spo2: null as number | null, vo2Max: null as number | null,
