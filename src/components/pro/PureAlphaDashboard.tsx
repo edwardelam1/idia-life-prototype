@@ -313,7 +313,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
             resp: next.respiratory_rate !== null ? next.respiratory_rate : prev.resp, 
             noise: next.environmental_audio_exposure_db !== null ? next.environmental_audio_exposure_db : prev.noise,
             asymmetry: next.walking_asymmetry_percentage !== null ? next.walking_asymmetry_percentage : prev.asymmetry,
-            hriScore: next.data_quality_score ? Math.round(next.data_quality_score * 100) : prev.hriScore,
+            
           }));
         }
       })
