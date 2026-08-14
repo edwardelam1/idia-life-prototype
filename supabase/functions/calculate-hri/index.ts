@@ -1,6 +1,8 @@
 // supabase/functions/calculate-hri/index.ts
 // Canonical Human Reliability Index (HRI) scorer.
-// Single source of truth for Pro, Pro+ and Pure Alpha.
+// HRI_total = ( Σ W_i · φ_i(x_i) ) × Π (1 − P_j)
+//   i ∈ {sleep, hrv, rt}   W = {0.40, 0.30, 0.30}
+//   j ∈ {duress, fraud}    P_j ∈ {0, 1}
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { OpenAI } from "https://esm.sh/openai@4.0.0";
@@ -24,7 +26,6 @@ const json = (body: unknown, status = 200) =>
 const num = (v: unknown): number | null =>
   typeof v === "number" && Number.isFinite(v) ? v : null;
 
-// Latest non-null value for a key across rows ordered newest-first.
 function pick(rows: any[], key: string): number | null {
   for (const r of rows) {
     const v = num(r?.[key]);
@@ -34,6 +35,17 @@ function pick(rows: any[], key: string): number | null {
 }
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+const logistic = (x: number) => 1 / (1 + Math.exp(-x));
+
+// --- φ_sleep(SE): logistic decay anchored at the 0.60 critical threshold.
+const SLEEP_K = 12;
+const phiSleep = (se: number) => logistic(SLEEP_K * (clamp01(se) - 0.6));
+
+// --- φ_hrv(RMSSD): Z-score vs the user's own 30-day baseline, squashed.
+const phiHrv = (z: number) => clamp01(logistic(z));
+
+// --- φ_rt(RT): reciprocal-linear across the 100–500 ms window.
+const phiRt = (rt: number) => clamp01((500 - rt) / 400);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -67,11 +79,12 @@ Deno.serve(async (req) => {
     const { data: rows, error: readErr } = await supabaseAdmin
       .from("staged_health_data")
       .select(
-        "heart_rate, resting_heart_rate, heart_rate_variability_ms, respiratory_rate, sleep_analysis_value, environmental_audio_exposure_db, walking_asymmetry_percentage, walking_speed_kmh, effort_score, created_at",
+        "heart_rate, resting_heart_rate, heart_rate_variability_ms, respiratory_rate, sleep_analysis_value, environmental_audio_exposure_db, walking_asymmetry_percentage, walking_speed_kmh, walking_steadiness_percentage, effort_score, created_at",
       )
       .eq("user_id", userId)
+      .gte("created_at", new Date(Date.now() - 30 * 86_400_000).toISOString())
       .order("created_at", { ascending: false })
-      .limit(500);
+      .limit(2000);
 
     if (readErr) {
       console.error("[HRI][READ][FAIL]", readErr.message);
@@ -87,76 +100,84 @@ Deno.serve(async (req) => {
     const noise = pick(r, "environmental_audio_exposure_db");
     const asymmetry = pick(r, "walking_asymmetry_percentage");
     const gaitSpeed = pick(r, "walking_speed_kmh");
+    const steadiness = pick(r, "walking_steadiness_percentage");
 
     // Reaction time only arrives from an explicit probe (psychometric / duress gate).
     const reactionTime = num(body?.reaction_time_ms);
 
-    // --- Sub-scores. Each is skipped entirely when its input is absent.
-    // No NaN, no silent zeros.
-    const parts: { key: string; weight: number; value: number }[] = [];
-    const add = (key: string, weight: number, value: number) =>
-      parts.push({ key, weight, value: clamp01(value) });
+    // --- 30-day personal HRV baseline (μ, σ). Fall back only when under-sampled.
+    const hrvSamples = r
+      .map((row) => num(row?.heart_rate_variability_ms))
+      .filter((v): v is number => v !== null);
+    let baselineMu = 50;
+    let baselineSigma = 15;
+    let baselineSource: "personal" | "population" = "population";
+    if (hrvSamples.length >= 7) {
+      baselineMu = hrvSamples.reduce((a, b) => a + b, 0) / hrvSamples.length;
+      const variance =
+        hrvSamples.reduce((a, b) => a + (b - baselineMu) ** 2, 0) / hrvSamples.length;
+      baselineSigma = Math.sqrt(variance) || 15;
+      baselineSource = "personal";
+    }
+
+    // --- The three orthogonal axes. Missing axes are dropped and weights renormalised.
+    const W = { sleep: 0.4, hrv: 0.3, rt: 0.3 };
+    const axes: { key: string; weight: number; value: number }[] = [];
 
     if (sleepRaw !== null) {
       // sleep_analysis_value may arrive as 0-1 efficiency or as hours slept.
-      const efficiency = sleepRaw > 1 ? clamp01(sleepRaw / 8) : clamp01(sleepRaw);
-      add("sleep", 0.3, 1 / (1 + Math.exp(-15 * (efficiency - 0.6))));
+      const se = sleepRaw > 1 ? clamp01(sleepRaw / 8) : clamp01(sleepRaw);
+      axes.push({ key: "sleep", weight: W.sleep, value: phiSleep(se) });
     }
+    let hrvZ: number | null = null;
     if (hrv !== null) {
-      const baselineMu = num(body?.baseline_mu) ?? 50;
-      const baselineSigma = num(body?.baseline_sigma) ?? 15;
-      const z = (hrv - baselineMu) / (baselineSigma || 15);
-      add("hrv", 0.25, (z + 3) / 6);
+      hrvZ = (hrv - baselineMu) / (baselineSigma || 15);
+      axes.push({ key: "hrv", weight: W.hrv, value: phiHrv(hrvZ) });
     }
     if (reactionTime !== null) {
-      add("reaction_time", 0.15, 1 - (reactionTime - 200) / 300);
-    }
-    if (restingHr !== null) {
-      // 45 bpm -> 1.0, 90 bpm -> 0.0
-      add("resting_heart_rate", 0.1, (90 - restingHr) / 45);
-    } else if (hr !== null) {
-      add("heart_rate", 0.1, (110 - hr) / 60);
-    }
-    if (resp !== null) {
-      // Optimal band 12-16 br/m, degrading outward.
-      const deviation = Math.abs(resp - 14);
-      add("respiratory", 0.1, 1 - deviation / 10);
-    }
-    if (noise !== null) {
-      // 50 dB or below -> 1.0, 100 dB -> 0.0
-      add("acoustic", 0.05, (100 - noise) / 50);
-    }
-    if (asymmetry !== null) {
-      // 0% asymmetry -> 1.0, 10% -> 0.0
-      add("gait_symmetry", 0.05, (10 - asymmetry) / 10);
-    } else if (gaitSpeed !== null) {
-      // 5 km/h -> 1.0, 1 km/h -> 0.0
-      add("gait_speed", 0.05, (gaitSpeed - 1) / 4);
+      axes.push({ key: "rt", weight: W.rt, value: phiRt(reactionTime) });
     }
 
-    const contributed = parts.map((p) => p.key);
-    const weightSum = parts.reduce((a, p) => a + p.weight, 0);
+    const contributed = axes.map((a) => a.key);
+    const weightSum = axes.reduce((a, p) => a + p.weight, 0);
 
-    // No usable inputs => null. Never 0, never 100.
-    if (parts.length === 0 || weightSum === 0) {
-      console.log(`[HRI][END] user=${userId} insufficient inputs`);
+    // Auxiliary context — never blended into HRI_total.
+    const auxiliary = {
+      heart_rate: hr,
+      resting_heart_rate: restingHr,
+      respiratory_rate: resp,
+      audio_db: noise,
+      walking_asymmetry: asymmetry,
+      walking_speed_kmh: gaitSpeed,
+      walking_steadiness: steadiness,
+    };
+
+    // No usable axis => null. Never 0, never 100.
+    if (axes.length === 0 || weightSum === 0) {
+      console.log(`[HRI][END] user=${userId} insufficient axes (sleep/hrv/rt all absent)`);
       return json({
         hri_raw: null,
         hri_alpha: null,
         duress: false,
+        fraud: false,
+        veto_reason: null,
         coverage: { contributed: [], count: 0, weight: 0 },
+        auxiliary,
         computed_at: new Date().toISOString(),
       });
     }
 
-    const composite =
-      (parts.reduce((a, p) => a + p.weight * p.value, 0) / weightSum) * 100;
+    const base = (axes.reduce((a, p) => a + p.weight * p.value, 0) / weightSum) * 100;
 
-    // --- Fraud / duress vetoes.
-    const isFraud = reactionTime !== null && reactionTime < 100;
-    let isDuress = false;
+    // --- P_fraud: strictly reaction-time driven. Cannot fire without an RT probe.
+    const pFraud = reactionTime !== null && reactionTime < 100 ? 1 : 0;
+
+    // --- P_duress: only judged when real autonomic evidence exists.
+    let pDuress = 0;
+    let duressReason: string | null = null;
+    const hasAutonomicEvidence = hrv !== null || hr !== null || resp !== null;
     const openAiKey = Deno.env.get("OPENAI_API_KEY");
-    if (openAiKey) {
+    if (hasAutonomicEvidence && openAiKey) {
       try {
         const openai = new OpenAI({ apiKey: openAiKey });
         const analysis = await openai.chat.completions.create({
@@ -165,26 +186,39 @@ Deno.serve(async (req) => {
             {
               role: "system",
               content:
-                "You are the IDIA Bio-Oracle. Analyze vitals for Acute Sympathetic Dump or Fraud. Reply with DURESS_DETECTED if metrics imply coercion/attack.",
+                "You are the IDIA Bio-Oracle. You judge ONLY the vitals provided. " +
+                "Reply exactly 'NOMINAL' unless a specific named vital is clearly out of physiological range in a way that implies acute sympathetic dump or coercion. " +
+                "If a vital is null, missing, or ambiguous, it is NOT evidence — reply 'NOMINAL'. " +
+                "If and only if you have concrete evidence, reply 'DURESS_DETECTED: <named vital and value>'.",
             },
             {
               role: "user",
               content: JSON.stringify({
-                vitals_snapshot: { hr, resting_hr: restingHr, hrv, resp, noise, asymmetry },
-                reaction_time_ms: reactionTime,
+                heart_rate: hr,
+                resting_heart_rate: restingHr,
+                hrv_rmssd: hrv,
+                hrv_z: hrvZ,
+                respiratory_rate: resp,
               }),
             },
           ],
         });
-        isDuress =
-          analysis.choices[0].message?.content?.includes("DURESS_DETECTED") || false;
+        const reply = analysis.choices[0].message?.content ?? "";
+        if (reply.includes("DURESS_DETECTED")) {
+          pDuress = 1;
+          duressReason = reply.slice(0, 200);
+        }
       } catch (e) {
+        // Errors and timeouts are nominal, never a veto.
         console.error("[HRI][ORACLE][FAIL]", (e as Error)?.message);
       }
     }
 
-    const finalRaw = isFraud || isDuress ? 0 : composite;
+    // Π (1 − P_j)
+    const vetoProduct = (1 - pDuress) * (1 - pFraud);
+    const finalRaw = base * vetoProduct;
     const finalAlpha = getAlphanumericHRI(finalRaw);
+    const vetoReason = pFraud ? "fraud:reaction_time" : pDuress ? (duressReason ?? "duress") : null;
 
     // --- Ledger write, guarded: only finite numbers ever reach the numeric column.
     if (Number.isFinite(finalRaw)) {
@@ -193,37 +227,41 @@ Deno.serve(async (req) => {
         total_score: Number(finalRaw.toFixed(2)),
         hrv_score: hrv,
         alpha_score: finalAlpha,
-        is_duress: isDuress,
-        is_fraud: isFraud,
+        is_duress: pDuress === 1,
+        is_fraud: pFraud === 1,
         vitals_snapshot: {
-          hr,
-          resting_hr: restingHr,
-          hrv,
-          respiratory_rate: resp,
-          audio_db: noise,
-          walking_asymmetry: asymmetry,
-          walking_speed_kmh: gaitSpeed,
+          axes: contributed,
+          base_score: Number(base.toFixed(2)),
           sleep: sleepRaw,
-          contributed,
+          hrv,
+          hrv_z: hrvZ,
+          hrv_baseline: { mu: baselineMu, sigma: baselineSigma, source: baselineSource },
+          reaction_time_ms: reactionTime,
+          veto_reason: vetoReason,
+          auxiliary,
         },
       });
       if (insertError) console.error("[HRI][LEDGER][FAIL]", insertError.message);
     }
 
     console.log(
-      `[HRI][END] user=${userId} raw=${finalRaw.toFixed(2)} alpha=${finalAlpha} coverage=${contributed.join(",")}`,
+      `[HRI][END] user=${userId} base=${base.toFixed(2)} raw=${finalRaw.toFixed(2)} alpha=${finalAlpha} axes=${contributed.join(",")} veto=${vetoReason ?? "none"}`,
     );
 
     return json({
       hri_raw: finalRaw,
       hri_alpha: finalAlpha,
-      duress: isDuress,
-      fraud: isFraud,
+      base_score: Number(base.toFixed(2)),
+      duress: pDuress === 1,
+      fraud: pFraud === 1,
+      veto_reason: vetoReason,
       coverage: {
         contributed,
         count: contributed.length,
         weight: Number(weightSum.toFixed(2)),
       },
+      hrv_baseline: { mu: baselineMu, sigma: baselineSigma, source: baselineSource },
+      auxiliary,
       computed_at: new Date().toISOString(),
     });
   } catch (error) {
