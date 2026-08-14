@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { ShieldCheck, Activity, Volume2, Accessibility, Wind, Heart, Info } from "lucide-react";
 import InsightsSection from "./insights/InsightsSection";
 import { supabase } from "@/integrations/supabase/client";
+import { useHRI } from "@/hooks/useHRI";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -153,7 +154,7 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     },
     {
       label: "HRI",
-      value: metrics.hriScore === null ? "—" : `${metrics.hriScore}%`,
+      value: hri.score === null ? "—" : `${hri.score}%`,
       icon: ShieldCheck,
       info: "Aggregated Human Reliability Index (HRI) score, computed server-side.",
     },
@@ -181,7 +182,7 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                 Occupational Performance
               </p>
               <h1 className="text-4xl font-black truncate">
-                {metrics.hriScore === null || isMasked ? "—" : metrics.hriScore}
+                {hri.score === null || isMasked ? "—" : hri.score}
                 <span className="text-sm font-medium text-teal-100/40"> HRI</span>
               </h1>
             </div>
@@ -193,7 +194,7 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
             />
             <span className="text-[9px] font-black uppercase tracking-widest text-teal-50 truncate">
               Life Pro · {metrics.status}
-              {metrics.alpha ? ` · Alpha ${metrics.alpha}` : ""}
+              {hri.alpha ? ` · Alpha ${hri.alpha}` : ""}
             </span>
           </div>
         </CardContent>
@@ -230,17 +231,17 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
         <Card className="rounded-2xl border border-border bg-card shadow-sm">
           <CardContent className="p-4">
             <p className="text-[11px] leading-snug font-medium text-muted-foreground">
-              {metrics.hriScore === null ? (
+              {hri.score === null ? (
                 <>Reliability rating unavailable — the HRI service has not returned a score yet.</>
               ) : (
                 <>
                   Server-computed reliability rating:{" "}
-                  <span className="font-black text-foreground">{metrics.hriScore}%</span>
-                  {metrics.alpha ? (
+                  <span className="font-black text-foreground">{hri.score}%</span>
+                  {hri.alpha ? (
                     <>
                       {" "}
                       · Alpha class{" "}
-                      <span className="text-[hsl(178,42%,32%)] font-black uppercase">{metrics.alpha}</span>
+                      <span className="text-[hsl(178,42%,32%)] font-black uppercase">{hri.alpha}</span>
                     </>
                   ) : null}
                   .
