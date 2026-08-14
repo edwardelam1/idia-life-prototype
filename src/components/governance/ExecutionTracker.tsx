@@ -38,6 +38,7 @@ interface ExecutionTask {
   execution_tx_hash: string | null;
   failure_reason: string | null;
   created_at: string;
+  updated_at?: string | null;
 }
 
 const STATUS_META: Record<TaskStatus, { label: string; className: string; icon: React.ComponentType<any> }> = {
