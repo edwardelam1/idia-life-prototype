@@ -4,7 +4,7 @@ import {
   Zap, Info, Lock, Volume2, Target, RotateCcw, Smartphone,
   Heart, Activity, Wind, Accessibility, Shield, Trophy, ShieldCheck, ShieldAlert
 } from "lucide-react";
-import { ComposedChart, Line, Bar, XAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
+import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
