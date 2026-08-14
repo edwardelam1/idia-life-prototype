@@ -262,7 +262,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
             focusScore: latest.data_quality_score ? Math.round(latest.data_quality_score * 100) : null,
             stressIndex: latest.heart_rate_variability_ms ? Number((100 / latest.heart_rate_variability_ms).toFixed(2)) : null,
             recovery: latest.effort_score ? Math.round(latest.effort_score) : null,
-            hriScore: latest.data_quality_score ? Math.round(latest.data_quality_score * 100) : null,
+            
             status: latest.heart_rate ? "ARMED" : "CALIBRATING",
           });
 
