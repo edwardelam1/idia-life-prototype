@@ -13,6 +13,9 @@ export interface HRIResult {
   alpha: string | null;
   coverage: HRICoverage | null;
   duress: boolean;
+  fraud: boolean;
+  vetoReason: string | null;
+  auxiliary: Record<string, number | null> | null;
   loading: boolean;
   error: string | null;
   refresh: () => void;
