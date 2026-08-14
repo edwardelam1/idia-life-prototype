@@ -2,42 +2,44 @@
 
 ## What's actually wrong
 
-The three tabs are not showing the same number because they are not reading the same thing — and the one that is supposed to be authoritative does not exist.
+Three different numbers because only one tab talks to the edge function, and that call is broken.
 
-1. **Pro shows "—"**: `HRIDashboard` calls the edge function `calculate-hri`. There is no `calculate-hri` function in `supabase/functions/` (verified — the only insight-related function deployed is `predictive-insights`). Every invoke fails, so the score stays null and renders as a dash.
-2. **Pure Alpha shows 100%**: it does not call the edge function at all. It computes `Math.round(data_quality_score * 100)` from the newest `staged_health_data` row. Every one of the 27,949 staged rows has `data_quality_score = 1.0`, so it always renders 100%.
-3. **Pro+ shows 0%**: same `data_quality_score * 100` formula, but its query selects the newest row by `recorded_at` with no user filter, and that row's quality value comes back empty, so `|| 0` yields 0%.
+1. **Pro shows "—"**: `HRIDashboard` invokes `calculate-hri` with only `{ user_id }`. The deployed function destructures `sleep_efficiency`, `hrv_rmssd` and `reaction_time_ms` from the body — all `undefined`. Every formula then produces `NaN`: `phi_sleep`, `phi_hrv`, `phi_rt`, and therefore `total_raw_score`. The insert into `hri_scores.total_score` (numeric) rejects `NaN`, the function throws into its catch block and returns a 500 with `{ error }`, so the client's `hri_raw` is never a number and renders as a dash. This is consistent with `hri_scores` holding exactly one row (`total_score = 0`, written 2026-08-02) — nothing since.
+2. **Pure Alpha shows 100%**: it never calls the function. It renders `Math.round(data_quality_score * 100)` from the newest `staged_health_data` row, and every staged row has `data_quality_score = 1.0`.
+3. **Pro+ shows 0%**: same `data_quality_score * 100` formula, but its query takes the newest row globally by `recorded_at` with no user filter; the value comes back empty and `|| 0` yields 0%.
 
-Also relevant: `hri_scores` holds exactly 1 row, `total_score = 0`, last written 2026-08-02 — nothing is populating it. And `heart_rate_variability_ms` is null on every staged row, so any HRV-weighted score has to handle missing inputs honestly rather than defaulting them to zero.
+Data quality score is an ingestion-confidence flag, not a health score. Two of the three tabs are displaying a fabricated number.
 
-Data quality score is not the HRI. Using it as a stand-in is why two tabs display invented numbers.
+**Second finding, equally important:** the inputs the function is built on are not in the pipeline. Across the last 14 days of `staged_health_data` (3,602 rows) the counts are: HRV 0, resting heart rate 0, heart rate 0, respiratory rate 0, sleep 0, effort 0. What is populated is steps (2,219), walking speed (684) and gait asymmetry (179). So even after the call is repaired, sleep/HRV/reaction-time weighting has nothing to score. The honest output today is a partial score plus a stated coverage, not a full-confidence percentage.
 
 ## The fix
 
 **One server-side source of truth, one client hook, three consumers.**
 
-### 1. Create the `calculate-hri` edge function
-- Authenticates the caller from the JWT; scores only that user.
-- Reads that user's recent `staged_health_data` (rolling window, most recent rows first) and picks the latest non-null value per input metric — same "pick" strategy Pro already uses for its biometrics grid.
-- Computes sub-scores from real inputs only: cardiac (heart rate), autonomic (HRV), respiratory, acoustic exposure, gait symmetry. Each sub-score is skipped when its input is missing; the total is the weighted average over the inputs that actually exist, plus a coverage figure saying how many of the five contributed.
-- Returns `null` for the score — not 0, not 100 — when no scoring input is present. Insufficient data must read as "insufficient data".
-- Writes the result to `hri_scores` (`total_score`, `hrv_score`, `alpha_score`, `vitals_snapshot`) so there is an audit trail, then returns `{ hri_raw, hri_alpha, coverage, computed_at }`.
+### 1. Bring `calculate-hri` into the repo and repair it
+Add `supabase/functions/calculate-hri/index.ts` mirroring what's deployed, with these corrections:
+- **CORS**: import `corsHeaders` from `npm:@supabase/supabase-js@2/cors`, answer `OPTIONS`, and attach the headers to every response including errors.
+- **Auth**: resolve the user from the caller's JWT and score that user; keep an explicit `user_id` only for service-role callers.
+- **Server-side inputs**: the function reads the user's recent `staged_health_data` itself and picks the latest non-null value per metric, rather than trusting the client to send `sleep_efficiency` / `hrv_rmssd` / `reaction_time_ms`. The client stops passing biometrics entirely.
+- **Missing-input handling**: each sub-score is skipped when its input is absent instead of turning into `NaN` or a silent zero. The composite is the weighted average over the sub-scores that actually have data, re-normalised across the weights used, and the response carries `coverage` (which inputs contributed).
+- **No inputs at all → `hri_raw: null`**, not 0, not 100. Insufficient data must read as insufficient data.
+- **Guard the insert**: only write to `hri_scores` when the score is a finite number, so a bad computation can't 500 the whole request.
+- Keep the existing alphanumeric grading, duress detection and the `is_fraud` reaction-time veto intact — the veto simply won't fire while reaction time is absent.
 
 ### 2. Add a shared `useHRI` hook
-Wraps the single invoke, exposes `{ score, alpha, coverage, loading, error }`, and refreshes on new `staged_health_data` inserts for the signed-in user (debounced, cleaned up on unmount). This makes it impossible for a tab to drift onto its own formula again.
+`src/hooks/useHRI.ts` wraps the single invoke and exposes `{ score, alpha, coverage, duress, loading, error }`, refreshing on new `staged_health_data` inserts for the signed-in user (debounced, cleaned up on unmount). One call site means the tabs can't drift onto private formulas again.
 
 ### 3. Rewire all three dashboards
-- `HRIDashboard` (Pro): drop its inline invoke, use the hook.
-- `CPMDashboard` (Pro+): delete `hriScore: Math.round(data_quality_score * 100)`, use the hook. Also scope its `staged_health_data` query to the signed-in user rather than relying on the newest global row.
-- `PureAlphaDashboard`: delete its `data_quality_score` derivation (both initial fetch and realtime handler), use the hook.
+- `HRIDashboard` (Pro): drop the inline invoke, use the hook.
+- `CPMDashboard` (Pro+): delete `hriScore: Math.round(data_quality_score * 100)` from both the initial fetch and the realtime handler; use the hook. Also scope its `staged_health_data` query to the signed-in user instead of the newest global row.
+- `PureAlphaDashboard`: delete its `data_quality_score` derivation in both places; use the hook.
 
-All three render `—` with an "Insufficient biometrics" note when the score is null, and the same `NN%` plus alpha class when it is not. No tab keeps a local fallback formula.
+All three render `—` with a short "Insufficient biometrics" note when the score is null, and the identical `NN%` plus alpha class when it isn't. No tab keeps a fallback formula.
 
 ## Technical notes
 
-- New file: `supabase/functions/calculate-hri/index.ts` (plus config entry). Deploys automatically.
-- New file: `src/hooks/useHRI.ts`.
+- New: `supabase/functions/calculate-hri/index.ts` (deploys automatically, overwriting the current dashboard-only copy with the CORS/auth/null-safe version), `src/hooks/useHRI.ts`.
 - Edited: `src/components/pro/HRIDashboard.tsx`, `src/components/pro/CPMDashboard.tsx`, `src/components/pro/PureAlphaDashboard.tsx`.
-- No schema migration needed — `hri_scores` already has the columns used (`total_score`, `hrv_score`, `alpha_score`, `vitals_snapshot`, `is_ghost_protocol`).
-- `data_quality_score` stays where it belongs: an ingestion-confidence indicator, never a health score.
-- Since HRV is null across all current rows, expect the live score to be driven by heart rate, respiratory, acoustic and gait until HRV ingestion lands — the coverage figure will make that visible instead of hiding it.
+- No schema migration — `hri_scores` already has `total_score`, `hrv_score`, `alpha_score`, `vitals_snapshot`, `is_duress`, `is_fraud`.
+- The function keeps using `OPENAI_API_KEY` for duress analysis, unchanged.
+- Expect the repaired score to display as a partial reading with low coverage until HRV, sleep and resting heart rate actually reach `staged_health_data`. Making that visible is the point — the current 100% is hiding it.
