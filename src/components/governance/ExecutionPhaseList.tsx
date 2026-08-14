@@ -280,18 +280,39 @@ const ExecutionPhaseList: React.FC<Props> = ({ balance, votingPower, refreshTrig
             </p>
           </div>
         ) : (
-          proposals.map((prop) => (
-            <ProposalCard
-              key={prop.id}
-              proposal={prop}
-              balance={balance}
-              votingPower={votingPower}
-              currentUserId={userId}
-              ascensionLevel={ascensionLevel}
-              initialChainState={chainStates.get(prop.proposal_ref)}
-              onChanged={() => { /* terminal — awaiting timelock execution */ }}
-            />
-          ))
+          proposals.map((prop) => {
+            const taskStatus =
+              taskStatuses.get(prop.id) ??
+              (prop.on_chain_id ? taskStatuses.get(prop.on_chain_id) : undefined);
+            return (
+              <div key={prop.id} className="space-y-1.5">
+                {taskStatus && (
+                  <div className="flex justify-end">
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-widest ${
+                        taskStatus === "executed"
+                          ? "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-900/40"
+                          : taskStatus === "failed"
+                            ? "text-red-700 bg-red-50 border-red-200 dark:text-red-300 dark:bg-red-950/30 dark:border-red-900/40"
+                            : "text-amber-800 bg-amber-100 border-amber-200 dark:text-amber-200 dark:bg-amber-900/40 dark:border-amber-900/40"
+                      }`}
+                    >
+                      {taskStatus.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                )}
+                <ProposalCard
+                  proposal={prop}
+                  balance={balance}
+                  votingPower={votingPower}
+                  currentUserId={userId}
+                  ascensionLevel={ascensionLevel}
+                  initialChainState={chainStates.get(prop.proposal_ref)}
+                  onChanged={() => { /* terminal — awaiting timelock execution */ }}
+                />
+              </div>
+            );
+          })
         )}
       </CollapsibleContent>
 
