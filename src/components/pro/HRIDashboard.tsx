@@ -32,14 +32,16 @@ const InfoIcon = ({ text }: { text: string }) => (
 
 const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
   const [loading, setLoading] = useState(true);
+
+  // Authoritative HRI — server-computed, identical across Pro / Pro+ / Pure Alpha.
+  const hri = useHRI(!isMasked);
+
   const [metrics, setMetrics] = useState<{
     hr: number | null;
     hrv: number | null;
     resp: number | null;
     noise: number | null;
     asymmetry: number | null;
-    hriScore: number | null;
-    alpha: string | null;
     status: "CALIBRATING" | "ARMED" | "TRIGGERED";
   }>({
     hr: null,
@@ -47,8 +49,6 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     resp: null,
     noise: null,
     asymmetry: null,
-    hriScore: null,
-    alpha: null,
     status: "CALIBRATING",
   });
 
@@ -65,14 +65,9 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
       return null;
     };
 
-    const fetchLatestMetrics = async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth?.user?.id;
-      if (!uid) {
-        if (isMounted) setLoading(false);
-        return;
-      }
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
+    const fetchLatestMetrics = async (uid: string) => {
       const { data: rowsRaw, error } = await supabase
         .from("staged_health_data" as any)
         .select(
@@ -85,45 +80,29 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
       if (error) console.error("[HRI][BIOMETRICS][FAIL]", error.message);
       const rows = (rowsRaw as any[]) || [];
 
-      // Authoritative HRI score — edge function only. Never derived locally.
-      let hriScore: number | null = null;
-      let alpha: string | null = null;
-      try {
-        const { data: hri, error: hriErr } = await supabase.functions.invoke(
-          "calculate-hri",
-          { body: { user_id: uid } },
-        );
-        if (hriErr) throw hriErr;
-        const raw = (hri as any)?.hri_raw;
-        hriScore = typeof raw === "number" ? Math.round(raw) : null;
-        alpha = (hri as any)?.hri_alpha ?? null;
-      } catch (e: any) {
-        console.error("[HRI][EDGE][FAIL]", e?.message ?? e);
-      }
-
       if (!isMounted) return;
-      const hr = pick(rows, "heart_rate");
       setMetrics({
-        hr,
+        hr: pick(rows, "heart_rate"),
         hrv: pick(rows, "heart_rate_variability_ms"),
         resp: pick(rows, "respiratory_rate"),
         noise: pick(rows, "environmental_audio_exposure_db"),
         asymmetry: pick(rows, "walking_asymmetry_percentage"),
-        hriScore,
-        alpha,
         status: rows.length > 0 ? "ARMED" : "CALIBRATING",
       });
       setLoading(false);
     };
 
-    fetchLatestMetrics();
-
-    // Real-time Live Tether: refresh on new staged rows for this user.
-    let channel: ReturnType<typeof supabase.channel> | null = null;
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
       const uid = auth?.user?.id;
-      if (!uid || !isMounted) return;
+      if (!uid) {
+        if (isMounted) setLoading(false);
+        return;
+      }
+      await fetchLatestMetrics(uid);
+      if (!isMounted) return;
+
+      // Real-time Live Tether: refresh on new staged rows for this user.
       channel = supabase
         .channel("hri_pro_stream")
         .on(
@@ -135,7 +114,7 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
             filter: `user_id=eq.${uid}`,
           },
           () => {
-            fetchLatestMetrics();
+            fetchLatestMetrics(uid);
           },
         )
         .subscribe();
@@ -146,6 +125,7 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
       if (channel) supabase.removeChannel(channel);
     };
   }, [isMasked]);
+
 
   const fmt = (v: number | null, unit: string) =>
     v === null ? "—" : `${v}${unit}`;
