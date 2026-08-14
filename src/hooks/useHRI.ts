@@ -111,5 +111,5 @@ export function useHRI(enabled = true): HRIResult {
     };
   }, [enabled, fetchOnce]);
 
-  return { score, alpha, coverage, duress, loading, error, refresh: fetchOnce };
+  return { score, alpha, coverage, duress, fraud, vetoReason, auxiliary, loading, error, refresh: fetchOnce };
 }
