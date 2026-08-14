@@ -61,6 +61,7 @@ const ExecutionPhaseList: React.FC<Props> = ({ balance, votingPower, refreshTrig
   const [loading, setLoading] = useState(true);
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [chainStates, setChainStates] = useState<Map<string, ChainState>>(new Map());
+  const [taskStatuses, setTaskStatuses] = useState<Map<string, string>>(new Map());
   const [userId, setUserId] = useState<string | null>(null);
   const [ascensionLevel, setAscensionLevel] = useState<AscensionLevel>(0);
   const [glow, setGlow] = useState(false);
@@ -92,6 +93,17 @@ const ExecutionPhaseList: React.FC<Props> = ({ balance, votingPower, refreshTrig
           .select("id, title, description, status, proposer_id, on_chain_id, lifecycle_phase, created_at, end_date, committee_id")
           .order("created_at", { ascending: false });
         if (dbProposals.error) throw dbProposals.error;
+
+        // Execution tracker rows are the durable archive of everything that
+        // entered execution — keyed by both DB proposal id and on-chain id.
+        const { data: taskRows } = await (supabase as any)
+          .from("dao_execution_tasks")
+          .select("proposal_id, onchain_proposal_id, status");
+        const taskStatusByRef = new Map<string, string>();
+        for (const t of taskRows || []) {
+          if (t.proposal_id) taskStatusByRef.set(String(t.proposal_id), t.status);
+          if (t.onchain_proposal_id) taskStatusByRef.set(String(t.onchain_proposal_id), t.status);
+        }
 
         await delay(400);
         const onChainProposals = await governanceService
@@ -161,12 +173,20 @@ const ExecutionPhaseList: React.FC<Props> = ({ balance, votingPower, refreshTrig
         const map = new Map<string, ChainState>();
         for (const [ref, cs] of entries) if (cs) map.set(ref, cs);
 
+        const trackerStatusFor = (p: Proposal) =>
+          taskStatusByRef.get(p.id) ??
+          (p.on_chain_id ? taskStatusByRef.get(p.on_chain_id) : undefined);
+
         const inExecution = combined.filter((p) => {
+          // Anything with an execution-tracker row belongs in this archive.
+          if (trackerStatusFor(p)) return true;
           const cs = map.get(p.proposal_ref);
           if (cs?.state != null) return EXECUTION_STATES.has(cs.state);
           return EXECUTION_PHASES.has(normalize(p.lifecycle_phase))
             || EXECUTION_PHASES.has(normalize(p.status));
         }).sort((a, b) => sortByGovernanceOrder(a, b, map));
+
+        if (alive) setTaskStatuses(taskStatusByRef);
 
         // Diff against seen set for glow + notifications.
         const currentIds = new Set(inExecution.map((p) => p.proposal_ref));
@@ -260,18 +280,39 @@ const ExecutionPhaseList: React.FC<Props> = ({ balance, votingPower, refreshTrig
             </p>
           </div>
         ) : (
-          proposals.map((prop) => (
-            <ProposalCard
-              key={prop.id}
-              proposal={prop}
-              balance={balance}
-              votingPower={votingPower}
-              currentUserId={userId}
-              ascensionLevel={ascensionLevel}
-              initialChainState={chainStates.get(prop.proposal_ref)}
-              onChanged={() => { /* terminal — awaiting timelock execution */ }}
-            />
-          ))
+          proposals.map((prop) => {
+            const taskStatus =
+              taskStatuses.get(prop.id) ??
+              (prop.on_chain_id ? taskStatuses.get(prop.on_chain_id) : undefined);
+            return (
+              <div key={prop.id} className="space-y-1.5">
+                {taskStatus && (
+                  <div className="flex justify-end">
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-widest ${
+                        taskStatus === "executed"
+                          ? "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-900/40"
+                          : taskStatus === "failed"
+                            ? "text-red-700 bg-red-50 border-red-200 dark:text-red-300 dark:bg-red-950/30 dark:border-red-900/40"
+                            : "text-amber-800 bg-amber-100 border-amber-200 dark:text-amber-200 dark:bg-amber-900/40 dark:border-amber-900/40"
+                      }`}
+                    >
+                      {taskStatus.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                )}
+                <ProposalCard
+                  proposal={prop}
+                  balance={balance}
+                  votingPower={votingPower}
+                  currentUserId={userId}
+                  ascensionLevel={ascensionLevel}
+                  initialChainState={chainStates.get(prop.proposal_ref)}
+                  onChanged={() => { /* terminal — awaiting timelock execution */ }}
+                />
+              </div>
+            );
+          })
         )}
       </CollapsibleContent>
 

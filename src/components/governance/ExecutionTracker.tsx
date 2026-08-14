@@ -38,6 +38,7 @@ interface ExecutionTask {
   execution_tx_hash: string | null;
   failure_reason: string | null;
   created_at: string;
+  updated_at?: string | null;
 }
 
 const STATUS_META: Record<TaskStatus, { label: string; className: string; icon: React.ComponentType<any> }> = {
@@ -68,6 +69,19 @@ function formatCountdown(deadlineISO: string | null, now: number): { text: strin
   const minutes = Math.floor((abs % 3_600_000) / 60_000);
   const parts = days > 0 ? `${days}d ${hours}h` : hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
   return { text: expired ? `Overdue by ${parts}` : `${parts} remaining`, expired };
+}
+
+function formatCompletedAt(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 const ExecutionTracker: React.FC = () => {
@@ -199,6 +213,7 @@ const ExecutionTracker: React.FC = () => {
                 const Icon = meta.icon;
                 const countdown = formatCountdown(task.execution_deadline_at, now);
                 const terminal = task.status === "executed" || task.status === "failed";
+                const completedAt = terminal ? formatCompletedAt(task.updated_at) : "";
                 return (
                   <div
                     key={task.id}
@@ -222,12 +237,24 @@ const ExecutionTracker: React.FC = () => {
                     </div>
 
                     <div className="flex items-center justify-between text-[10px]">
-                      <span className={cn(
-                        "font-black uppercase tracking-widest",
-                        countdown.expired ? "text-orange-700 dark:text-orange-300" : "text-amber-800 dark:text-amber-200",
-                      )}>
-                        {countdown.text}
-                      </span>
+                      {terminal ? (
+                        <span className={cn(
+                          "font-black uppercase tracking-widest",
+                          task.status === "executed"
+                            ? "text-emerald-700 dark:text-emerald-300"
+                            : "text-red-700 dark:text-red-300",
+                        )}>
+                          {task.status === "executed" ? "Executed" : "Closed"}
+                          {completedAt ? ` · ${completedAt}` : ""}
+                        </span>
+                      ) : (
+                        <span className={cn(
+                          "font-black uppercase tracking-widest",
+                          countdown.expired ? "text-orange-700 dark:text-orange-300" : "text-amber-800 dark:text-amber-200",
+                        )}>
+                          {countdown.text}
+                        </span>
+                      )}
                       {task.granted_extension_seconds > 0 && (
                         <span className="text-[9px] text-amber-700/70 dark:text-amber-300/60">
                           +{Math.round(task.granted_extension_seconds / 3600)}h granted
