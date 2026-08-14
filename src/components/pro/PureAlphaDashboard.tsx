@@ -26,6 +26,7 @@ import GhostProtocolWrapper from "./GhostProtocol";
 import { GammaPhotosensitivityWarning } from "./GammaPhotosensitivityWarning";
 import InsightsSection from "./insights/InsightsSection";
 import { useBusinessFinancials } from "@/hooks/useBusinessFinancials";
+import { useHRI } from "@/hooks/useHRI";
 
 const fmtUsd = (n: number) =>
   `${n < 0 ? "-" : ""}$${Math.abs(n).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
