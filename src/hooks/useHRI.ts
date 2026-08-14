@@ -13,6 +13,9 @@ export interface HRIResult {
   alpha: string | null;
   coverage: HRICoverage | null;
   duress: boolean;
+  fraud: boolean;
+  vetoReason: string | null;
+  auxiliary: Record<string, number | null> | null;
   loading: boolean;
   error: string | null;
   refresh: () => void;
@@ -28,6 +31,9 @@ export function useHRI(enabled = true): HRIResult {
   const [alpha, setAlpha] = useState<string | null>(null);
   const [coverage, setCoverage] = useState<HRICoverage | null>(null);
   const [duress, setDuress] = useState(false);
+  const [fraud, setFraud] = useState(false);
+  const [vetoReason, setVetoReason] = useState<string | null>(null);
+  const [auxiliary, setAuxiliary] = useState<Record<string, number | null> | null>(null);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<number | null>(null);
@@ -48,6 +54,9 @@ export function useHRI(enabled = true): HRIResult {
       setAlpha((data as any)?.hri_alpha ?? null);
       setCoverage((data as any)?.coverage ?? null);
       setDuress(!!(data as any)?.duress);
+      setFraud(!!(data as any)?.fraud);
+      setVetoReason((data as any)?.veto_reason ?? null);
+      setAuxiliary((data as any)?.auxiliary ?? null);
     } catch (e: any) {
       console.error("[HRI][EDGE][FAIL]", e?.message ?? e);
       setError(e?.message ?? "Failed to compute HRI");
@@ -102,5 +111,5 @@ export function useHRI(enabled = true): HRIResult {
     };
   }, [enabled, fetchOnce]);
 
-  return { score, alpha, coverage, duress, loading, error, refresh: fetchOnce };
+  return { score, alpha, coverage, duress, fraud, vetoReason, auxiliary, loading, error, refresh: fetchOnce };
 }
