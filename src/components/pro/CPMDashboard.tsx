@@ -26,6 +26,7 @@ import { toast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GammaPhotosensitivityWarning } from "./GammaPhotosensitivityWarning";
 import InsightsSection from "./insights/InsightsSection";
+import { useHRI } from "@/hooks/useHRI";
 
 // --- TYPES ALIGNED TO SOVEREIGN SCHEMA ---
 interface StagedHealthData {
@@ -92,9 +93,12 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     focusScore: 0,
     stressIndex: 0,
     recovery: 0,
-    hriScore: 0,
     status: "CALIBRATING" as "CALIBRATING" | "ARMED" | "TRIGGERED",
   });
+
+  // Authoritative HRI — server-computed, identical across Pro / Pro+ / Pure Alpha.
+  const hri = useHRI(!isMasked);
+
 
   // TRUE DYNAMIC FONT ENGINE: Scales based on word length vs container width
   const getDynamicFontSize = (word: string) => {
@@ -209,9 +213,17 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     if (isMasked) return;
     let isMounted = true;
     const stream = async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth?.user?.id;
+      if (!uid) {
+        setLoading(false);
+        return null;
+      }
+
       const { data: health } = await supabase
         .from("staged_health_data" as any)
         .select("*")
+        .eq("user_id", uid)
         .order("recorded_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -226,24 +238,27 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
           focusScore: Math.round((hData.data_quality_score || 0) * 100),
           stressIndex: hData.heart_rate_variability_ms ? Number((100 / hData.heart_rate_variability_ms).toFixed(2)) : 0,
           recovery: Math.round(hData.effort_score || 0),
-          hriScore: Math.round((hData.data_quality_score || 0) * 100),
           status: hData.heart_rate > 0 ? "ARMED" : "CALIBRATING",
         });
       }
       setLoading(false);
       const ch = supabase
         .channel("cpm_feed")
-        .on("postgres_changes" as any, { event: "INSERT", schema: "public", table: "staged_health_data" }, (p: any) => {
-          const n = p.new as StagedHealthData;
-          if (n && isMounted)
-            setMetrics((prev) => ({
-              ...prev,
-              hr: n.heart_rate || prev.hr,
-              hrv: n.heart_rate_variability_ms || prev.hrv,
-              hriScore: n.data_quality_score ? Math.round(n.data_quality_score * 100) : prev.hriScore,
-            }));
-        })
+        .on(
+          "postgres_changes" as any,
+          { event: "INSERT", schema: "public", table: "staged_health_data", filter: `user_id=eq.${uid}` },
+          (p: any) => {
+            const n = p.new as StagedHealthData;
+            if (n && isMounted)
+              setMetrics((prev) => ({
+                ...prev,
+                hr: n.heart_rate || prev.hr,
+                hrv: n.heart_rate_variability_ms || prev.hrv,
+              }));
+          },
+        )
         .subscribe();
+
       return ch;
     };
     const promise = stream();
@@ -345,7 +360,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                 { label: "Acoustic", value: `${metrics.noise} dB`, icon: Volume2 },
                 { label: "Respiratory", value: `${metrics.resp} br/m`, icon: Wind },
                 { label: "Gait Balance", value: `${metrics.asymmetry}%`, icon: Accessibility },
-                { label: "HRI Score", value: `${metrics.hriScore}%`, icon: Shield },
+                { label: "HRI Score", value: hri.score !== null ? `${hri.score}%` : "--", icon: Shield },
               ].map((b) => (
                 <div key={b.label} className="p-0 border-none group" style={{ transform: "translateZ(30px)" }}>
                   <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1.5 font-sans group-hover:text-[hsl(178,42%,42%)] transition-colors">
@@ -355,6 +370,19 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
                 </div>
               ))}
             </div>
+
+            {!hri.loading && hri.score === null && (
+              <p className="text-[9px] font-black uppercase tracking-widest text-orange-500 font-sans">
+                HRI · Insufficient biometrics
+              </p>
+            )}
+            {hri.score !== null && hri.coverage && (
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground font-sans">
+                HRI coverage · {hri.coverage.count} signal{hri.coverage.count === 1 ? "" : "s"}
+                {hri.alpha ? ` · Alpha ${hri.alpha}` : ""}
+              </p>
+            )}
+
             <div
               className="rounded-2xl border border-[hsl(178,42%,32%)]/20 bg-[hsl(178,42%,32%)]/5 p-5 shadow-inner"
               style={{ transform: "translateZ(10px)" }}

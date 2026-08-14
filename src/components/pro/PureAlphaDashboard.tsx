@@ -26,6 +26,7 @@ import GhostProtocolWrapper from "./GhostProtocol";
 import { GammaPhotosensitivityWarning } from "./GammaPhotosensitivityWarning";
 import InsightsSection from "./insights/InsightsSection";
 import { useBusinessFinancials } from "@/hooks/useBusinessFinancials";
+import { useHRI } from "@/hooks/useHRI";
 
 const fmtUsd = (n: number) =>
   `${n < 0 ? "-" : ""}$${Math.abs(n).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
@@ -118,9 +119,13 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
   // --- CORE BIOMETRICS STATE ---
   const [metrics, setMetrics] = useState({
     hr: null as number | null, hrv: null as number | null, resp: null as number | null, noise: null as number | null, asymmetry: null as number | null,
-    focusScore: null as number | null, stressIndex: null as number | null, recovery: null as number | null, hriScore: null as number | null,
+    focusScore: null as number | null, stressIndex: null as number | null, recovery: null as number | null,
     status: "CALIBRATING" as "CALIBRATING" | "ARMED" | "TRIGGERED"
   });
+
+  // Authoritative HRI — server-computed, identical across Pro / Pro+ / Pure Alpha.
+  const hri = useHRI(!isMasked);
+
 
   const [telemetry, setTelemetry] = useState({
     steps: null as number | null, restingHr: null as number | null, spo2: null as number | null, vo2Max: null as number | null,
@@ -257,7 +262,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
             focusScore: latest.data_quality_score ? Math.round(latest.data_quality_score * 100) : null,
             stressIndex: latest.heart_rate_variability_ms ? Number((100 / latest.heart_rate_variability_ms).toFixed(2)) : null,
             recovery: latest.effort_score ? Math.round(latest.effort_score) : null,
-            hriScore: latest.data_quality_score ? Math.round(latest.data_quality_score * 100) : null,
+            
             status: latest.heart_rate ? "ARMED" : "CALIBRATING",
           });
 
@@ -308,7 +313,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
             resp: next.respiratory_rate !== null ? next.respiratory_rate : prev.resp, 
             noise: next.environmental_audio_exposure_db !== null ? next.environmental_audio_exposure_db : prev.noise,
             asymmetry: next.walking_asymmetry_percentage !== null ? next.walking_asymmetry_percentage : prev.asymmetry,
-            hriScore: next.data_quality_score ? Math.round(next.data_quality_score * 100) : prev.hriScore,
+            
           }));
         }
       })
@@ -840,7 +845,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                 { label: "Acoustic", value: metrics.noise !== null ? `${metrics.noise} dB` : "--", icon: Volume2 },
                 { label: "Respiratory", value: metrics.resp !== null ? `${metrics.resp} br/m` : "--", icon: Wind },
                 { label: "Gait Balance", value: metrics.asymmetry !== null ? `${metrics.asymmetry}%` : "--", icon: Accessibility },
-                { label: "HRI Score", value: metrics.hriScore !== null ? `${metrics.hriScore}%` : "--", icon: Shield },
+                { label: "HRI Score", value: hri.score !== null ? `${hri.score}%` : "--", icon: Shield },
               ].map((b) => (
                 <div key={b.label} className="p-0 border-none">
                   <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1.5 font-sans">
@@ -850,6 +855,20 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
                 </div>
               ))}
             </div>
+
+            {!hri.loading && hri.score === null && (
+              <p className="text-[9px] font-black uppercase tracking-widest text-orange-500">
+                HRI · Insufficient biometrics
+              </p>
+            )}
+            {hri.score !== null && hri.coverage && (
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                HRI coverage · {hri.coverage.count} signal{hri.coverage.count === 1 ? "" : "s"}
+                {hri.alpha ? ` · Alpha ${hri.alpha}` : ""}
+              </p>
+            )}
+
+
 
             <div className="rounded-2xl border border-[hsl(178,42%,32%)]/20 bg-[hsl(178,42%,32%)]/5 p-5">
                <div className="flex items-center gap-2 mb-1 text-[hsl(178,42%,32%)]">
