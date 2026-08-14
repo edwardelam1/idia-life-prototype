@@ -213,9 +213,17 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     if (isMasked) return;
     let isMounted = true;
     const stream = async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth?.user?.id;
+      if (!uid) {
+        setLoading(false);
+        return null;
+      }
+
       const { data: health } = await supabase
         .from("staged_health_data" as any)
         .select("*")
+        .eq("user_id", uid)
         .order("recorded_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -230,24 +238,27 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
           focusScore: Math.round((hData.data_quality_score || 0) * 100),
           stressIndex: hData.heart_rate_variability_ms ? Number((100 / hData.heart_rate_variability_ms).toFixed(2)) : 0,
           recovery: Math.round(hData.effort_score || 0),
-          hriScore: Math.round((hData.data_quality_score || 0) * 100),
           status: hData.heart_rate > 0 ? "ARMED" : "CALIBRATING",
         });
       }
       setLoading(false);
       const ch = supabase
         .channel("cpm_feed")
-        .on("postgres_changes" as any, { event: "INSERT", schema: "public", table: "staged_health_data" }, (p: any) => {
-          const n = p.new as StagedHealthData;
-          if (n && isMounted)
-            setMetrics((prev) => ({
-              ...prev,
-              hr: n.heart_rate || prev.hr,
-              hrv: n.heart_rate_variability_ms || prev.hrv,
-              hriScore: n.data_quality_score ? Math.round(n.data_quality_score * 100) : prev.hriScore,
-            }));
-        })
+        .on(
+          "postgres_changes" as any,
+          { event: "INSERT", schema: "public", table: "staged_health_data", filter: `user_id=eq.${uid}` },
+          (p: any) => {
+            const n = p.new as StagedHealthData;
+            if (n && isMounted)
+              setMetrics((prev) => ({
+                ...prev,
+                hr: n.heart_rate || prev.hr,
+                hrv: n.heart_rate_variability_ms || prev.hrv,
+              }));
+          },
+        )
         .subscribe();
+
       return ch;
     };
     const promise = stream();
