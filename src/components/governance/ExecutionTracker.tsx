@@ -213,6 +213,7 @@ const ExecutionTracker: React.FC = () => {
                 const Icon = meta.icon;
                 const countdown = formatCountdown(task.execution_deadline_at, now);
                 const terminal = task.status === "executed" || task.status === "failed";
+                const completedAt = terminal ? formatCompletedAt(task.updated_at) : "";
                 return (
                   <div
                     key={task.id}
