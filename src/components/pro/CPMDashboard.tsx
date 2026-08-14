@@ -26,6 +26,7 @@ import { toast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GammaPhotosensitivityWarning } from "./GammaPhotosensitivityWarning";
 import InsightsSection from "./insights/InsightsSection";
+import { useHRI } from "@/hooks/useHRI";
 
 // --- TYPES ALIGNED TO SOVEREIGN SCHEMA ---
 interface StagedHealthData {
