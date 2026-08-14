@@ -72,13 +72,14 @@ const ProPaywall = ({ currentTier, onSubscribe }: ProPaywallProps) => {
   return (
     <div className="flex flex-col space-y-5 bg-background min-h-screen p-4 pb-24 overflow-x-hidden animate-in fade-in duration-700">
       <div className="bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] text-white border-none shadow-xl rounded-[2.5rem] overflow-hidden shrink-0 p-7">
-        <div className="flex justify-between items-start">
-          <div className="space-y-1">
+        <div className="flex justify-between items-start gap-3">
+          <div className="space-y-1 min-w-0 flex-1">
             <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60">IDIA Pro Access</p>
-            <h1 className="text-4xl font-black truncate">Unlock Your Edge</h1>
+            <h1 className="text-2xl sm:text-3xl font-black leading-tight break-words">Unlock Your Edge</h1>
           </div>
-          <Shield className="w-10 h-10 text-orange-400 drop-shadow-lg shrink-0" />
+          <Shield className="w-8 h-8 text-orange-400 drop-shadow-lg shrink-0" />
         </div>
+
         <div className="mt-6 flex items-center gap-2 border-t border-white/10 pt-4">
           <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-orange-400 animate-pulse" />
           <span className="text-[9px] font-black uppercase tracking-widest text-teal-50 truncate">
