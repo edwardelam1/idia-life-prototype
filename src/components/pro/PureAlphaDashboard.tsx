@@ -178,8 +178,18 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
         if (userData?.user) {
           if (isMounted) setUserId(userData.user.id);
           if (userData.user.app_metadata?.role === 'org_admin') {
-            setHasIdiaPayOrgAdmin(true);
+            if (isMounted) setHasIdiaPayOrgAdmin(true);
+          } else {
+            // Real source of truth: active org-admin membership in the employees table
+            const { count } = await supabase
+              .from("employees" as any)
+              .select("id", { count: "exact", head: true })
+              .eq("user_id", userData.user.id)
+              .eq("status", "active")
+              .in("platform_role", ["org_admin", "Org Admin", "org admin", "admin"]);
+            if (isMounted && (count || 0) > 0) setHasIdiaPayOrgAdmin(true);
           }
+
 
           // Fetch Live Settings
           const { data: prefsRawData } = await supabase
