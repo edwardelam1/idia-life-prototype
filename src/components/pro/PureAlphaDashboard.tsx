@@ -178,8 +178,18 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
         if (userData?.user) {
           if (isMounted) setUserId(userData.user.id);
           if (userData.user.app_metadata?.role === 'org_admin') {
-            setHasIdiaPayOrgAdmin(true);
+            if (isMounted) setHasIdiaPayOrgAdmin(true);
+          } else {
+            // Real source of truth: active org-admin membership in the employees table
+            const { count } = await supabase
+              .from("employees" as any)
+              .select("id", { count: "exact", head: true })
+              .eq("user_id", userData.user.id)
+              .eq("status", "active")
+              .in("platform_role", ["org_admin", "Org Admin", "org admin", "admin"]);
+            if (isMounted && (count || 0) > 0) setHasIdiaPayOrgAdmin(true);
           }
+
 
           // Fetch Live Settings
           const { data: prefsRawData } = await supabase
@@ -428,14 +438,15 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
 
         {/* Sovereign Header — Gov style hero */}
         <div className="bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] text-white border-none shadow-xl rounded-[2.5rem] overflow-hidden shrink-0 p-7">
-          <div className="flex justify-between items-start">
-            <div className="space-y-1">
+          <div className="flex justify-between items-start gap-3">
+            <div className="space-y-1 min-w-0 flex-1">
               <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60">
                 Executive Sovereignty
               </p>
-              <h1 className="text-4xl font-black truncate">
+              <h1 className="text-2xl sm:text-3xl font-black leading-tight break-words">
                 Pure Alpha <span className="text-sm font-medium text-teal-100/40">Access</span>
               </h1>
+
             </div>
             <Zap className="w-10 h-10 text-orange-400 drop-shadow-lg shrink-0" />
           </div>
