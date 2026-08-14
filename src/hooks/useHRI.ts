@@ -54,6 +54,9 @@ export function useHRI(enabled = true): HRIResult {
       setAlpha((data as any)?.hri_alpha ?? null);
       setCoverage((data as any)?.coverage ?? null);
       setDuress(!!(data as any)?.duress);
+      setFraud(!!(data as any)?.fraud);
+      setVetoReason((data as any)?.veto_reason ?? null);
+      setAuxiliary((data as any)?.auxiliary ?? null);
     } catch (e: any) {
       console.error("[HRI][EDGE][FAIL]", e?.message ?? e);
       setError(e?.message ?? "Failed to compute HRI");
