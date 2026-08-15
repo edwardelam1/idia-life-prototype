@@ -24,6 +24,24 @@ import { usePaymentDeepLink } from "@/hooks/usePaymentDeepLink";
 import NfcPaymentModal from "@/components/NfcPaymentModal";
 import { startPushBootstrap } from "@/utils/pushBootstrap";
 import ConsentGate from "@/components/ConsentGate";
+import { useSessionSentinel } from "@/hooks/useSessionSentinel";
+import SessionLockShield from "@/components/SessionLockShield";
+
+/**
+ * Session Sentinel — mounted inside the router so it can navigate on logout.
+ * Armed only while a session exists.
+ */
+const SessionSentinel = ({ enabled }: { enabled: boolean }) => {
+  const navigate = useNavigate();
+  const { locked, unlock } = useSessionSentinel({
+    enabled,
+    onLogout: () => navigate("/auth", { replace: true }),
+  });
+
+  if (!locked) return null;
+  return <SessionLockShield onVerified={unlock} />;
+};
+
 // Architectural Note: Defined outside to prevent re-instantiation on re-renders
 const queryClient = new QueryClient({
   defaultOptions: {
