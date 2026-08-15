@@ -172,6 +172,7 @@ const App = () => {
         <TooltipProvider>
           <Sonner />
           <BrowserRouter>
+            <SessionSentinel enabled={!!session} />
             <Routes>
               <Route path="/auth" element={session ? <Navigate to="/" replace /> : <Auth />} />
               <Route path="/" element={<Index />} />
