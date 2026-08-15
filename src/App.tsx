@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -24,6 +24,24 @@ import { usePaymentDeepLink } from "@/hooks/usePaymentDeepLink";
 import NfcPaymentModal from "@/components/NfcPaymentModal";
 import { startPushBootstrap } from "@/utils/pushBootstrap";
 import ConsentGate from "@/components/ConsentGate";
+import { useSessionSentinel } from "@/hooks/useSessionSentinel";
+import SessionLockShield from "@/components/SessionLockShield";
+
+/**
+ * Session Sentinel — mounted inside the router so it can navigate on logout.
+ * Armed only while a session exists.
+ */
+const SessionSentinel = ({ enabled }: { enabled: boolean }) => {
+  const navigate = useNavigate();
+  const { locked, unlock } = useSessionSentinel({
+    enabled,
+    onLogout: () => navigate("/auth", { replace: true }),
+  });
+
+  if (!locked) return null;
+  return <SessionLockShield onVerified={unlock} />;
+};
+
 // Architectural Note: Defined outside to prevent re-instantiation on re-renders
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -154,6 +172,7 @@ const App = () => {
         <TooltipProvider>
           <Sonner />
           <BrowserRouter>
+            <SessionSentinel enabled={!!session} />
             <Routes>
               <Route path="/auth" element={session ? <Navigate to="/" replace /> : <Auth />} />
               <Route path="/" element={<Index />} />
