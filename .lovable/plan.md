@@ -27,7 +27,7 @@ Two protections for authenticated sessions:
   - Passive, non-interactive full-screen shield (blurred/opaque backdrop with the logo mark and a subtle scanning pulse) — purely a privacy cover while the OS Face ID / Touch ID sheet is presented. No buttons.
   - Fires `triggerBiologicalCapture` on mount and resolves through the existing biometric response listener pattern; auto-clears on web where no bridge exists.
 - `src/App.tsx`
-  - Mount a small `SessionSentinel` wrapper inside `BrowserRouter` that consumes the hook, renders `SessionLockOverlay` when `locked`, and navigates to `/auth` on logout.
+  - Mount a small `SessionSentinel` wrapper inside `BrowserRouter` that consumes the hook, renders `SessionLockShield` when `locked`, and navigates to `/auth` on logout.
   - Only active while `session` is non-null.
 
 No database or edge function changes are needed.
