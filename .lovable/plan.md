@@ -3,7 +3,7 @@
 Two protections for authenticated sessions:
 
 1. **Auto-logout after 30 minutes away or idle.** If the app is backgrounded, closed, or sees no user interaction for more than 30 continuous minutes, the session is signed out and the user lands on the login screen.
-2. **Biometric re-entry lock.** If the user switches to another app and comes back within the 30-minute window, the app stays signed in but is covered by a full-screen lock that requires a biological capture (Face ID / Touch ID via the native shell) before the UI is usable again.
+2. **Biometric re-entry lock.** If the user switches to another app and comes back within the 30-minute window, the session stays alive but the app immediately and automatically fires a biological capture challenge (Face ID / Touch ID via the native shell). Only a passive privacy shield is shown behind the OS prompt — no buttons, no interstitial screen.
 
 ## Behavior details
 
