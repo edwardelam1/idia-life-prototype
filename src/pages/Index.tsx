@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { nextConsentRoute } from '@/config/consent';
 import FlashingSplashScreen from '@/components/FlashingSplashScreen';
 import LandingScreen from '@/components/LandingScreen';
+import { SplashAudioProvider } from '@/components/SplashAudioProvider';
 import MainApp from '@/components/MainApp';
 
 const Index = () => {
@@ -57,10 +58,15 @@ const Index = () => {
   }
 
   if (!isAuthenticated) {
-    if (showFlashingSplash) {
-      return <FlashingSplashScreen onComplete={handleFlashingSplashComplete} />;
-    }
-    return <LandingScreen onSignUp={handleSignUp} />;
+    return (
+      <SplashAudioProvider>
+        {showFlashingSplash ? (
+          <FlashingSplashScreen onComplete={handleFlashingSplashComplete} />
+        ) : (
+          <LandingScreen onSignUp={handleSignUp} />
+        )}
+      </SplashAudioProvider>
+    );
   }
 
   return <MainApp />;
