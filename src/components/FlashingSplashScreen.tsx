@@ -1,6 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png";
 import splashVideo from "@/assets/splash-rush.mp4.asset.json";
+import splashAudio from "@/assets/zebulon-timeless-432hz.mp3.asset.json";
+
 
 interface FlashingSplashScreenProps {
   onComplete: () => void;
