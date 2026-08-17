@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { supabase } from "@/integrations/supabase/client";
+import { initAuthUserCache, revalidateUser } from "@/lib/authUser";
+
 
 // PAGE IMPORTS
 import Auth from "./pages/Auth";
