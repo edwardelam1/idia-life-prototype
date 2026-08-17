@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { Card, CardContent } from "@/components/ui/card";
 import { ShieldCheck, Zap, Gavel, Activity, ExternalLink, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -226,7 +227,7 @@ const GovernanceScreen: React.FC = () => {
     const initializeGovernanceState = async () => {
       console.log("[GOVERNANCE_SCREEN][INIT][START] Authenticating session and evaluating ascension limits.");
       try {
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        const { data: { user }, error: authError } = await getCachedUser();
         if (authError) throw authError;
         
         if (!user) {

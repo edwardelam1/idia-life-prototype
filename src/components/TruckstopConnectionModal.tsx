@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getCachedUser } from "@/lib/authUser";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, Truck, Map, FileText, ShieldAlert, Zap, DollarSign, Loader2 } from 'lucide-react';
@@ -21,7 +22,7 @@ const TruckstopConnectionModal = ({ isOpen, onClose, onComplete, existingConnect
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (user) setCurrentUserId(user.id);
     };
     getUser();

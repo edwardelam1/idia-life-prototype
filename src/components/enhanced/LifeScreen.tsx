@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -189,7 +190,7 @@ const LifeScreen: React.FC = () => {
     setIsSubmittingDeed(true);
     console.log("[GOOD_DEED_SUBMISSION_START]");
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) {
         toast("Please sign in to submit a Good Deed.");
         return;

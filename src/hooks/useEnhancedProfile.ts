@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -75,7 +76,7 @@ export const useEnhancedProfile = () => {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       if (!user) {
         setLoading(false);
         return;
@@ -152,7 +153,7 @@ export const useEnhancedProfile = () => {
   };
 
   const loadUserInterests = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await getCachedUser();
     if (!user) return;
     const { data, error } = await (supabase.from("user_interests") as any)
       .select("interest_id, interests(id, name, category)")
@@ -171,7 +172,7 @@ export const useEnhancedProfile = () => {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       if (!user) throw new Error("No user found");
 
       const { trust_score, available_credit_line, ...rest } = updates;
@@ -228,7 +229,7 @@ export const useEnhancedProfile = () => {
   const updateInterests = async (selectedInterestIds: string[]) => {
     setUpdating(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) throw new Error("No user");
 
       // Replace user's interests
@@ -258,7 +259,7 @@ export const useEnhancedProfile = () => {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       if (!user) throw new Error("No user found");
 
       const fileExt = (file.name.split(".").pop() || "png").toLowerCase();

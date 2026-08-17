@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface FocusMode {
@@ -19,7 +20,7 @@ export function useFocusModes() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await getCachedUser();
     if (!user) { setLoading(false); return; }
     setUserId(user.id);
     const { data, error } = await (supabase.from("focus_modes" as any) as any)

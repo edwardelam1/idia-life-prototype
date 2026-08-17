@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { CheckCircle2, ChevronDown, Loader2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
@@ -58,7 +59,7 @@ const SuccessfulProposalsList: React.FC<Props> = ({ balance, votingPower, refres
       try {
         const {
           data: { user },
-        } = await supabase.auth.getUser();
+        } = await getCachedUser();
         if (alive) setUserId(user?.id ?? null);
 
         if (user && alive) {

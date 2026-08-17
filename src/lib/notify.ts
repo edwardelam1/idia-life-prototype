@@ -11,6 +11,7 @@
  */
 
 import { toast as sonnerToast } from "sonner";
+import { getCachedUser } from "@/lib/authUser";
 import { notificationStore, type NotificationLevel } from "@/stores/notificationStore";
 import { playChime } from "@/lib/chime";
 import { supabase } from "@/integrations/supabase/client";
@@ -63,7 +64,7 @@ export function isInQuietHours(now: Date = new Date()): boolean {
 
 async function hydratePrefs() {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await getCachedUser();
     if (!user) return;
     const { data } = await (supabase.from("user_preferences") as any)
       .select("in_app_alerts,in_app_sounds,quiet_hours_enabled,quiet_hours_start,quiet_hours_end")

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
@@ -22,7 +23,7 @@ const AuthorityOfRecord = () => {
       const {
         data: { user },
         error: userError,
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       if (userError || !user) throw new Error("Identity verification failed.");
       console.log(`[AOR_FLOW] Identity Confirmed: ${user.id}`);
 

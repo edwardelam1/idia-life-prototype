@@ -1,4 +1,5 @@
 import { useState, useEffect, ReactNode } from 'react';
+import { getCachedUser } from "@/lib/authUser";
 import { Shield, TrendingUp, Activity, Lock } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -70,7 +71,7 @@ const GhostProtocol = ({ children }: GhostProtocolProps) => {
       console.log("🛰️ [SOC_ALARM] START: Dispatching DURESS_CODE_7500.");
       
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await getCachedUser();
         if (!user) {
             console.log("🚨 [SOC_ALARM] ABORT: No authenticated principal found.");
             return;

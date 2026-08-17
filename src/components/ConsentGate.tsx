@@ -1,4 +1,5 @@
 import { useEffect, useState, ReactNode } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { Navigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { nextConsentRoute } from "@/config/consent";
@@ -17,7 +18,7 @@ const ConsentGate = ({ children }: Props) => {
 
   useEffect(() => {
     let mounted = true;
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    getCachedUser().then(({ data: { user } }) => {
       if (!mounted) return;
       if (!user) {
         setTarget(null);

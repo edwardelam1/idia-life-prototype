@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -36,7 +37,7 @@ const RecallPetitionDialog: React.FC<RecallPetitionDialogProps> = ({
     }
     setBusy(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) throw new Error("Not authenticated");
       const { hash, payload } = await generateACAHash(user.id, `recall_open_${targetHatId}`, [
         "HAT_RECALL_OPEN", "PEER_ACCOUNTABILITY",

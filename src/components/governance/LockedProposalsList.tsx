@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { Lock, ChevronDown, Loader2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,7 +37,7 @@ const LockedProposalsList: React.FC<Props> = ({ balance, votingPower, refreshTri
       const s = stage("LOCKED_PROPOSALS", "FETCH_HYBRID");
       s.start();
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await getCachedUser();
         if (alive) setUserId(user?.id ?? null);
 
         if (user && alive) {

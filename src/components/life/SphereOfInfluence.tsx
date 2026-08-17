@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,7 +61,7 @@ const SphereOfInfluence: React.FC<SphereOfInfluenceProps> = ({ friends, currentS
       console.log("[SPHERE_TREND_FETCH_START]");
       setHistoryLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await getCachedUser();
         if (!user) {
           if (!cancelled) setHistory([]);
           return;

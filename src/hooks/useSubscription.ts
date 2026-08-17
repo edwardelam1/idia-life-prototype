@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { supabase } from "@/integrations/supabase/client";
 
 export type SubscriptionTier = "pro" | "pro_plus" | "pure_alpha" | null;
@@ -22,7 +23,7 @@ export const useSubscription = () => {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       if (user) {
         const { data } = await (supabase
           .from("user_subscriptions" as any)
@@ -52,7 +53,7 @@ export const useSubscription = () => {
 
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getCachedUser();
     if (user) {
       await supabase.from("user_subscriptions" as any).insert({
         user_id: user.id,

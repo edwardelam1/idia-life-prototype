@@ -10,6 +10,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,7 +106,7 @@ const ExecutionTracker: React.FC = () => {
     (async () => {
       setLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await getCachedUser();
         if (user) {
           const { data: hats } = await (supabase as any)
             .from("dao_hats")

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { ArrowUpRight, ArrowDownLeft, CreditCard, TrendingUp, Coins, Sparkles, Zap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,7 @@ const WalletDashboard = () => {
     let channels: any[] = [];
 
     const setupRealtime = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) return;
 
       const tables = ["transactions", "fiat_ledger", "synapse_credit_ledger"];
@@ -64,7 +65,7 @@ const WalletDashboard = () => {
 
   const fetchActivity = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) {
         setActivity([]);
         setLoading(false);

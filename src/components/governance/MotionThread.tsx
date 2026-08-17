@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -62,7 +63,7 @@ const MotionThread: React.FC<MotionThreadProps> = ({ proposal, open, onClose, on
     if (!proposal) return;
     
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) {
         console.log("[MOTION_THREAD][HYDRATE][SKIP] No authenticated user found.");
         return;

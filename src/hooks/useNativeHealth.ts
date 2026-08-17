@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { getCachedUser } from "@/lib/authUser";
 import { healthService } from '@/services/healthService';
 import type { HealthSyncResult, HealthServiceStatus } from '@/services/healthService';
 import { isNative } from '@/services/platform';
@@ -66,7 +67,7 @@ export function useNativeHealth() {
     if (!healthAllowed || !isNative()) return;
     if (autoSyncInFlight.current || isSyncing) return;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) return;
       const { data: conn } = await supabase
         .from('data_connections')

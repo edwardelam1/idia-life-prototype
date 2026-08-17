@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface HRICoverage {
@@ -83,7 +84,7 @@ export function useHRI(enabled = true): HRIResult {
     let channel: ReturnType<typeof supabase.channel> | null = null;
 
     (async () => {
-      const { data: auth } = await supabase.auth.getUser();
+      const { data: auth } = await getCachedUser();
       const uid = auth?.user?.id;
       if (!uid || cancelled) return;
       channel = supabase

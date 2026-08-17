@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getCachedUser } from "@/lib/authUser";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -71,7 +72,7 @@ export const useProfile = () => {
   const loadProfile = async () => {
     console.log("[useProfile] loadProfile START: Fetching user profile and preferences");
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      const { data: { user }, error: authError } = await getCachedUser();
       
       if (authError) {
         console.error("[useProfile] loadProfile ERROR: Auth fetch failed", authError);
@@ -129,7 +130,7 @@ export const useProfile = () => {
     console.log("[useProfile] updateProfile START: Processing profile update command", updates);
     setUpdating(true);
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      const { data: { user }, error: authError } = await getCachedUser();
       if (authError) {
         console.error("[useProfile] updateProfile ERROR: Auth validation failed", authError);
         throw authError;
@@ -191,7 +192,7 @@ export const useProfile = () => {
     console.log("[useProfile] updatePreferences START: Processing preferences update command", updates);
     setUpdating(true);
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      const { data: { user }, error: authError } = await getCachedUser();
       if (authError) {
         console.error("[useProfile] updatePreferences ERROR: Auth validation failed", authError);
         throw authError;

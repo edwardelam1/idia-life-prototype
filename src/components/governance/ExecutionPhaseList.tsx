@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { Timer, ChevronDown, Loader2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
@@ -74,7 +75,7 @@ const ExecutionPhaseList: React.FC<Props> = ({ balance, votingPower, refreshTrig
       const s = stage("EXECUTION_PHASE", "FETCH_HYBRID");
       s.start();
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await getCachedUser();
         if (alive) setUserId(user?.id ?? null);
 
         if (user && alive) {

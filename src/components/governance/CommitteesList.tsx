@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -99,7 +100,7 @@ const CommitteesList: React.FC = () => {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       if (!user) {
         setIsLoadingLedger(false);
         return;
@@ -213,7 +214,7 @@ const CommitteesList: React.FC = () => {
       const {
         data: { user },
         error: authError,
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       if (authError || !user) throw new Error("Authentication failure prior to ACA generation.");
 
       // NATIVELY READ TOPHAT ROLE
@@ -294,7 +295,7 @@ const CommitteesList: React.FC = () => {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       if (!user) throw new Error("Authentication failure.");
 
       const { hash, payload } = await generateACAHash(user.id, `committee_revoke_request_${committee.id}`, [
@@ -330,7 +331,7 @@ const CommitteesList: React.FC = () => {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       if (!user) throw new Error("Authentication failure.");
 
       const { hash, payload } = await generateACAHash(user.id, `committee_resign_${committee.id}`, [

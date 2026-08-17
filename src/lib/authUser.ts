@@ -1,7 +1,7 @@
 /**
  * Cached auth-user source.
  *
- * `supabase.auth.getUser()` is a NETWORK round-trip to the Auth server on every
+ * `getCachedUser()` is a NETWORK round-trip to the Auth server on every
  * call. This app called it ~90 times across ~60 files, mostly on component
  * mount, which saturated the Auth endpoint and made `/token` sign-in requests
  * time out (504) while every screen waited on its own round-trip.
@@ -15,6 +15,7 @@
  * still enforced server-side by RLS (`user_id = auth.uid()`).
  */
 import { supabase } from "@/integrations/supabase/client";
+import { getCachedUser } from "@/lib/authUser";
 import type { User } from "@supabase/supabase-js";
 
 type UserResult = { data: { user: User | null }; error: null };
@@ -59,7 +60,7 @@ const warm = async (): Promise<void> => {
 };
 
 /**
- * Drop-in replacement for `supabase.auth.getUser()`.
+ * Drop-in replacement for `getCachedUser()`.
  * Same return shape, but served from cache instead of the network.
  */
 export const getCachedUser = async (): Promise<UserResult> => {
@@ -84,7 +85,7 @@ export const revalidateUser = async (): Promise<User | null> => {
   }
   revalidated = true;
   try {
-    const { data, error } = await supabase.auth.getUser();
+    const { data, error } = await getCachedUser();
     if (error) {
       setUser(null);
       return null;

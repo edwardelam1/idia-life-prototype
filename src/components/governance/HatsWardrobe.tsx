@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { Crown, ShieldAlert, Code2, Scale, HeartHandshake, FileDown, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -76,7 +77,7 @@ const HatsWardrobe: React.FC = () => {
         const {
           data: { user },
           error: authError,
-        } = await supabase.auth.getUser();
+        } = await getCachedUser();
 
         if (authError || !user) {
           throw new Error("Sovereign authentication failed. Cannot resolve wardrobe.");

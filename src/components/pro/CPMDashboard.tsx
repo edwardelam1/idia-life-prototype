@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { createPortal } from "react-dom";
 import {
   Brain,
@@ -213,7 +214,7 @@ const CPMDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     if (isMasked) return;
     let isMounted = true;
     const stream = async () => {
-      const { data: auth } = await supabase.auth.getUser();
+      const { data: auth } = await getCachedUser();
       const uid = auth?.user?.id;
       if (!uid) {
         setLoading(false);

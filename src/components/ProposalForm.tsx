@@ -1,5 +1,6 @@
 
 import { useState } from 'react';
+import { getCachedUser } from "@/lib/authUser";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -49,7 +50,7 @@ const ProposalForm = ({ onClose, onSuccess }: ProposalFormProps) => {
 
     try {
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       
       if (!user) throw new Error('User not authenticated');
 

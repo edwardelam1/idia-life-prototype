@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +33,7 @@ const ApplicationReviewQueue: React.FC = () => {
     const s = stage("APP_REVIEW", "FETCH");
     s.start();
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) { setLoading(false); return; }
 
       const { data: hats } = await (supabase as any)
@@ -77,7 +78,7 @@ const ApplicationReviewQueue: React.FC = () => {
   const handleApprove = async (app: PendingApplication) => {
     setBusyId(app.id);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) throw new Error("Not authenticated");
       const { hash, payload } = await generateACAHash(user.id, `application_approve_${app.id}`, [
         "APPLICATION_APPROVE",
@@ -112,7 +113,7 @@ const ApplicationReviewQueue: React.FC = () => {
     }
     setBusyId(app.id);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) throw new Error("Not authenticated");
       const { hash, payload } = await generateACAHash(user.id, `application_reject_${app.id}`, [
         "APPLICATION_REJECT",
@@ -136,7 +137,7 @@ const ApplicationReviewQueue: React.FC = () => {
   const handleEndorse = async (app: PendingApplication) => {
     setBusyId(app.id);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) throw new Error("Not authenticated");
       const { hash, payload } = await generateACAHash(user.id, `sponsor_${app.id}`, [
         "APPLICATION_ENDORSE", "SPONSORSHIP",

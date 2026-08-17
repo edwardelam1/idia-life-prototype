@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import {
   Activity,
   AlertTriangle,
@@ -77,7 +78,7 @@ const AgenticChat: React.FC = () => {
     setErr(null);
     setReply(null);
     try {
-      const { data: u } = await supabase.auth.getUser();
+      const { data: u } = await getCachedUser();
       if (!u?.user) throw new Error("Not authenticated");
       const { data, error } = await supabase.functions.invoke("ai-chat", {
         body: {

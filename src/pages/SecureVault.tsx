@@ -2,6 +2,7 @@
  * Logic: Self-Custodial Vault Verification, Database Sync & Hub Entry
  */
 import React, { useEffect, useRef, useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { Activity, ShieldCheck } from "lucide-react";
@@ -30,7 +31,7 @@ const SecureVault = () => {
       try {
         const {
           data: { user },
-        } = await supabase.auth.getUser();
+        } = await getCachedUser();
         if (user) {
           setUserId(user.id);
           console.log(`[SUCCESS] fetchSession: User identified as ${user.id}`);

@@ -13,13 +13,14 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { getCachedUser } from "@/lib/authUser";
 import { notify } from "@/lib/notify";
 
 let started = false;
 
 async function persistToken(token: string, platform: "ios" | "android") {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await getCachedUser();
     if (!user || !token) return;
     await (supabase.from("push_tokens" as any) as any).upsert(
       { user_id: user.id, token, platform },
