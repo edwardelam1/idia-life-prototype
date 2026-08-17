@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { supabase } from "@/integrations/supabase/client";
 import { stage } from "@/lib/stageLogger";
 
@@ -111,7 +112,7 @@ export function useInsights(tier: InsightsTier): InsightsResult {
     let cancelled = false;
     let channel: ReturnType<typeof supabase.channel> | null = null;
     (async () => {
-      const { data: u } = await supabase.auth.getUser();
+      const { data: u } = await getCachedUser();
       if (cancelled || !u?.user) return;
       channel = supabase
         .channel(`insights_pulse_${u.user.id}`)

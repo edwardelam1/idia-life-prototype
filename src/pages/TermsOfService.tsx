@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
@@ -17,7 +18,7 @@ const TermsOfService = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    getCachedUser().then(({ data: { user } }) => {
       const meta = (user?.user_metadata as any) || {};
       // Belt-and-braces: block direct /terms access before age verification.
       if (meta.age_verified !== true) {
@@ -47,7 +48,7 @@ const TermsOfService = () => {
       const {
         data: { user },
         error: userError,
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       if (userError || !user) throw new Error("Identity verification failed.");
       console.log(`[TOS_FLOW] Identity Confirmed: ${user.id}`);
 

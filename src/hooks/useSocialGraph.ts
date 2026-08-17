@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getCachedUser } from "@/lib/authUser";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -72,7 +73,7 @@ export const useSocialGraph = () => {
 
   const loadSocialData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) {
         setLoading(false);
         return;

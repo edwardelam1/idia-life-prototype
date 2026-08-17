@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getCachedUser } from "@/lib/authUser";
 import { User, LogOut, ChevronDown, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,7 +21,7 @@ const ProfileMenu = () => {
   useEffect(() => {
     // Get current user
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       setUser(user);
     };
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { createPortal } from "react-dom";
 import { 
   Zap, Info, Lock, Volume2, Target, RotateCcw, Smartphone,
@@ -194,7 +195,7 @@ const PureAlphaDashboard = ({ isMasked = false }: PureAlphaDashboardProps) => {
 
     const fetchExecutiveData = async () => {
       try {
-        const { data: userData } = await supabase.auth.getUser();
+        const { data: userData } = await getCachedUser();
         if (userData?.user) {
           if (isMounted) setUserId(userData.user.id);
           if (userData.user.app_metadata?.role === 'org_admin') {

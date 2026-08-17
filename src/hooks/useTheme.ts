@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getCachedUser } from "@/lib/authUser";
 import { useTheme as useNextTheme } from 'next-themes';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -30,7 +31,7 @@ export const useTheme = () => {
   // Load preferences from database for authenticated users
   useEffect(() => {
     const loadUserPreferences = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) return;
 
       const { data: preferences } = await supabase
@@ -91,7 +92,7 @@ export const useTheme = () => {
     
     // Save to database in background without blocking UI
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (user) {
         supabase
           .from('user_preferences')
@@ -112,7 +113,7 @@ export const useTheme = () => {
     
     // Save to database if user is authenticated
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (user) {
         await supabase
           .from('user_preferences')
@@ -142,7 +143,7 @@ export const useTheme = () => {
     
     // Save to database if user is authenticated
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (user) {
         await supabase
           .from('user_preferences')
@@ -164,7 +165,7 @@ export const useTheme = () => {
     
     // Save to database if user is authenticated
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (user) {
         await supabase
           .from('user_preferences')

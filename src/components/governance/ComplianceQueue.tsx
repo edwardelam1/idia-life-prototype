@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,7 +40,7 @@ const ComplianceQueue: React.FC = () => {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
 
       // Hydrate viewer's ascension level from active hats
       if (user) {
@@ -88,7 +89,7 @@ const ComplianceQueue: React.FC = () => {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       const { hash, payload } = await generateACAHash(user!.id, `veto_${vetoTarget.id}`, [
         "VETO_ACTION",
         "LEDGER_WRITE",
@@ -128,7 +129,7 @@ const ComplianceQueue: React.FC = () => {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       const { hash, payload } = await generateACAHash(user!.id, `extend_${target.id}`, ["VETO_EXTENSION"]);
 
       const newEnd = new Date(new Date(target.veto_window_end).getTime() + 24 * 60 * 60 * 1000).toISOString();
@@ -169,7 +170,7 @@ const ComplianceQueue: React.FC = () => {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       const { hash, payload } = await generateACAHash(user!.id, `promote_${hat.id}`, ["TOPHAT_PROMOTE"]);
 
       const { error } = await supabase.functions.invoke("ascension-promote", {

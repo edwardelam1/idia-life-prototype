@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { supabase } from "@/integrations/supabase/client";
 
 export type PlatformRole = "Org Admin" | "Team Lead" | "Team Member" | string;
@@ -81,7 +82,7 @@ export const useBusinessMembership = () => {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       if (!user) {
         setState({ loading: false, memberships: [], pendingRequest: null });
         return;
@@ -173,7 +174,7 @@ export const useBusinessMembership = () => {
     async (payload: IntakePayload) => {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       if (!user) throw new Error("You must be signed in to apply.");
 
       const { error } = await supabase.from("account_conversion_requests").insert({

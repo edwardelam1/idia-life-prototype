@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -151,7 +152,7 @@ export const CreateDaoProposalModal: React.FC<Props> = ({
       console.log("[PROPOSAL_SUBMIT] AUTH_START: Resolving sovereign identity...");
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       if (!user) throw new Error("Authentication required.");
       console.log("[PROPOSAL_SUBMIT] AUTH_SUCCESS: User resolved.");
 

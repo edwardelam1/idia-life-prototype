@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { supabase } from "@/integrations/supabase/client";
 import { notify } from "@/lib/notify";
 
@@ -18,7 +19,7 @@ export type PushEnableResult = {
 // hook is the user-initiated path (Settings toggle).
 export function usePushNotifications() {
   const enable = useCallback(async (): Promise<PushEnableResult> => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await getCachedUser();
     if (!user) return { ok: false, platform: "unknown", reason: "Not signed in" };
 
     // 1. iOS raw-WKWebView shell
@@ -162,7 +163,7 @@ export function usePushNotifications() {
   }, []);
 
   const disable = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await getCachedUser();
     if (!user) return;
     await (supabase.from("push_tokens" as any) as any).delete().eq("user_id", user.id);
     // Fire and forget: notify user via unified notify to keep behavior consistent

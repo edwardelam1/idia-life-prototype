@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from 'react';
+import { getCachedUser } from "@/lib/authUser";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { 
@@ -29,7 +30,7 @@ const StravaConnectionModal = ({ isOpen, onClose, onComplete, existingConnection
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (user) {
         setCurrentUserId(user.id);
       }

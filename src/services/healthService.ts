@@ -1,4 +1,5 @@
 import { IDIAHealth } from '@/plugins/health';
+import { getCachedUser } from "@/lib/authUser";
 import type { HealthDataResult } from '@/plugins/health';
 import { supabase } from '@/integrations/supabase/client';
 import { isNative, getPlatform } from './platform';
@@ -38,7 +39,7 @@ class HealthService {
 
   async getRecentRecords(limit = 10): Promise<any[]> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) return [];
       const { data, error } = await supabase.from('raw_health_data').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(limit);
       return error ? [] : data || [];
@@ -47,7 +48,7 @@ class HealthService {
 
   private async syncToSupabase(healthData: HealthDataResult): Promise<boolean> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) return false;
       const { error } = await supabase.functions.invoke('health-data-bridge', {
         body: {

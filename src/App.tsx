@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { supabase } from "@/integrations/supabase/client";
+import { initAuthUserCache, revalidateUser } from "@/lib/authUser";
+
 
 // PAGE IMPORTS
 import Auth from "./pages/Auth";
@@ -86,11 +88,17 @@ const App = () => {
       console.log("[AUTH_SESSION_GUARD][CHECK][END:OK] Session keys authenticated successfully under current perimeter.");
     });
 
+    // Prime the shared auth-user cache once (local read, no network).
+    initAuthUserCache();
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       console.log(`[INFO] Session Sync: ${session ? "Active Session Detected" : "No Session Found"}`);
       setSession(session);
       setIsFetched(true);
+      // Exactly ONE server-side user verification per session.
+      if (session) void revalidateUser();
     });
+
 
 
     const {

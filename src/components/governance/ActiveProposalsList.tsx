@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 // Card primitives no longer used — cards are rendered as compact lifecycle-style rows.
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -636,7 +637,7 @@ export const ProposalCard: React.FC<{
       const {
         data: { user },
         error: authError,
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       if (authError || !user) throw new Error("Sovereign authentication failed.");
 
       const { hash, payload } = await generateACAHash(user.id, `proposal_vote_${proposal.id}`, [
@@ -1018,7 +1019,7 @@ export const ProposalCard: React.FC<{
       const {
         data: { user },
         error: authError,
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       if (authError || !user) throw new Error("Sovereign authentication failed.");
 
       const { hash, payload } = await generateACAHash(
@@ -1669,7 +1670,7 @@ const ActiveProposalsList: React.FC<{
       try {
         const {
           data: { user },
-        } = await supabase.auth.getUser();
+        } = await getCachedUser();
         if (isMounted) setUserId(user?.id ?? null);
         if (user) {
           const { data: profile } = await (supabase as any)

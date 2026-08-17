@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -96,7 +97,7 @@ export const useBusinessFinancials = (enabled = true) => {
     setState((s) => ({ ...s, loading: true }));
 
     try {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData } = await getCachedUser();
       const user = userData?.user;
       if (!user) {
         setState({ ...INITIAL, loading: false });

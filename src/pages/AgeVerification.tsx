@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,7 @@ const AgeVerification = () => {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    getCachedUser().then(({ data: { user } }) => {
       if (!user) navigate("/auth", { replace: true });
     });
   }, [navigate]);
@@ -46,7 +47,7 @@ const AgeVerification = () => {
 
     setLoading(true);
     try {
-      const { data: { user }, error: uerr } = await supabase.auth.getUser();
+      const { data: { user }, error: uerr } = await getCachedUser();
       if (uerr || !user) throw new Error("Session lost");
 
       localDOBVault.save(dob);

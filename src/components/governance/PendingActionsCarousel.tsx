@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -127,7 +128,7 @@ const PendingActionsCarousel: React.FC<PendingActionsCarouselProps> = ({ escrowT
       const {
         data: { user },
         error: authError,
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
       if (authError || !user) {
         throw new Error("Sovereign authentication failed or identity not found.");
       }

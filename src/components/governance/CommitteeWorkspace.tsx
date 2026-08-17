@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -42,7 +43,7 @@ const CommitteeWorkspace: React.FC = () => {
   const fetchWorkspaceData = async () => {
     console.log("[COMMITTEE_WORKSPACE] BEGIN: Hydrating officer workspace telemetry.");
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) throw new Error("Unauthenticated workspace access attempt.");
 
       // 1. Fetch user's active hats
@@ -170,7 +171,7 @@ const CommitteeWorkspace: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) throw new Error("Authentication lost.");
 
       const actionIdentifier = `propose_${selectedCommittee}_${Date.now()}`;

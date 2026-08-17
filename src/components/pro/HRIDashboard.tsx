@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { ShieldCheck, Activity, Volume2, Accessibility, Wind, Heart, Info } from "lucide-react";
 import InsightsSection from "./insights/InsightsSection";
 import { supabase } from "@/integrations/supabase/client";
@@ -94,7 +95,7 @@ const HRIDashboard = ({ isMasked = false }: { isMasked?: boolean }) => {
     };
 
     (async () => {
-      const { data: auth } = await supabase.auth.getUser();
+      const { data: auth } = await getCachedUser();
       const uid = auth?.user?.id;
       if (!uid) {
         if (isMounted) setLoading(false);

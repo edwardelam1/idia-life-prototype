@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -33,7 +34,7 @@ export const GammaPhotosensitivityWarning = ({
     setIsProcessing(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) throw new Error("No authenticated user — cannot anchor consent.");
 
       console.log("[GammaConsent:ACA] Generating cryptographic hash...");

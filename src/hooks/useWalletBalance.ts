@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { supabase } from "@/integrations/supabase/client";
 import { ethers } from "ethers"; // <-- Swapped viem for ethers (Native Infrastructure)
 import { PROTOCOL } from "@/config/contracts";
@@ -112,7 +113,7 @@ export const useWalletBalance = () => {
       const {
         data: { user },
         error: authError,
-      } = await supabase.auth.getUser();
+      } = await getCachedUser();
 
       if (authError) {
         console.error("🚨 [FETCH_BALANCE_LOG] ERROR_START: Supabase auth fetch failed.");
@@ -247,7 +248,7 @@ export const useWalletBalance = () => {
       try {
         const {
           data: { user },
-        } = await supabase.auth.getUser();
+        } = await getCachedUser();
 
         if (!user || cancelled) {
           console.log("🔄 [REALTIME_SYNC_LOG] ABORT: User missing or hook cancelled. Bypassing setup.");

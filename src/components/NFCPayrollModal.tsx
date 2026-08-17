@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getCachedUser } from "@/lib/authUser";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -107,7 +108,7 @@ export const NFCPayrollModal: React.FC<NFCPayrollModalProps> = ({ isOpen, onClos
     setIsProcessing(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) throw new Error("Auth void: User not securely identified.");
       if (!peerToken) throw new Error("Hardware void: Peer address missing from handshake.");
       

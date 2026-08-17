@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getCachedUser } from "@/lib/authUser";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Download, Loader2, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,7 @@ export default function IdentityLedger() {
   useEffect(() => {
     (async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await getCachedUser();
         if (!user) {
           navigate("/auth");
           return;

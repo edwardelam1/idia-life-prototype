@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { getCachedUser } from "@/lib/authUser";
 
 interface EventData {
   event_type: string;
@@ -37,7 +38,7 @@ class EventTracker {
     
     try {
       // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getCachedUser();
       if (!user) {
         console.log('No authenticated user, skipping event flush');
         return;
