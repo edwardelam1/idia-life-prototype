@@ -57,10 +57,15 @@ const Index = () => {
   }
 
   if (!isAuthenticated) {
-    if (showFlashingSplash) {
-      return <FlashingSplashScreen onComplete={handleFlashingSplashComplete} />;
-    }
-    return <LandingScreen onSignUp={handleSignUp} />;
+    return (
+      <SplashAudioProvider>
+        {showFlashingSplash ? (
+          <FlashingSplashScreen onComplete={handleFlashingSplashComplete} />
+        ) : (
+          <LandingScreen onSignUp={handleSignUp} />
+        )}
+      </SplashAudioProvider>
+    );
   }
 
   return <MainApp />;
