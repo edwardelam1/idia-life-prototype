@@ -17,7 +17,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
-type UserResult = { data: { user: User | null }; error: null };
+type UserResult = { data: { user: User | null }; error: { message: string } | null };
 
 let cachedUser: User | null = null;
 let warmed = false;
