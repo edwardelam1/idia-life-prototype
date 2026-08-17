@@ -1,6 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png";
 import splashVideo from "@/assets/splash-rush.mp4.asset.json";
+import splashAudio from "@/assets/zebulon-timeless-432hz.mp3.asset.json";
+
 
 interface FlashingSplashScreenProps {
   onComplete: () => void;
@@ -10,6 +12,31 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   const [phase, setPhase] = useState<"video" | "logo" | "logoFadeOut" | "white">("video");
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const fadeIntervalRef = useRef<number | null>(null);
+  const gestureCleanupRef = useRef<(() => void) | null>(null);
+
+  // Ramp the soundtrack down and stop it. Safe to call repeatedly.
+  const fadeOutAudio = useCallback((durationMs: number) => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (fadeIntervalRef.current !== null) return;
+    const steps = Math.max(1, Math.round(durationMs / 50));
+    let step = 0;
+    const startVolume = a.volume;
+    fadeIntervalRef.current = window.setInterval(() => {
+      step += 1;
+      const next = startVolume * (1 - step / steps);
+      a.volume = next > 0 ? next : 0;
+      if (step >= steps) {
+        if (fadeIntervalRef.current !== null) {
+          clearInterval(fadeIntervalRef.current);
+          fadeIntervalRef.current = null;
+        }
+        a.pause();
+      }
+    }, 50);
+  }, []);
 
   // Attempt imperative play on mount — older iOS (iPhone 11-era WebKit)
   // often defers autoplay until an explicit .play() call, even when muted.
@@ -27,6 +54,58 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
       });
     }
   }, []);
+
+  // Soundtrack — starts with the video, fades out with the logo.
+  // Audible autoplay is blocked without a gesture on iOS/Android, so we arm a
+  // one-shot listener that resumes the track mid-timeline on the first touch.
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    a.volume = 1;
+
+    const attempt = () => {
+      const p = a.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    };
+
+    const p = a.play();
+    if (p && typeof p.catch === "function") {
+      p.catch(() => {
+        const resume = () => {
+          attempt();
+          cleanup();
+        };
+        const cleanup = () => {
+          window.removeEventListener("touchstart", resume, true);
+          window.removeEventListener("click", resume, true);
+          gestureCleanupRef.current = null;
+        };
+        window.addEventListener("touchstart", resume, true);
+        window.addEventListener("click", resume, true);
+        gestureCleanupRef.current = cleanup;
+      });
+    }
+
+    return () => {
+      gestureCleanupRef.current?.();
+      if (fadeIntervalRef.current !== null) {
+        clearInterval(fadeIntervalRef.current);
+        fadeIntervalRef.current = null;
+      }
+      a.pause();
+    };
+  }, []);
+
+  // Fade the music out alongside the white dissolve.
+  useEffect(() => {
+    if (phase === "white") fadeOutAudio(800);
+  }, [phase, fadeOutAudio]);
+
+  const handleSkip = useCallback(() => {
+    fadeOutAudio(250);
+    onComplete();
+  }, [fadeOutAudio, onComplete]);
+
 
   useEffect(() => {
     if (autoplayBlocked) {
@@ -67,11 +146,14 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   return (
     <div
       className="fixed inset-0 z-50 overflow-hidden touch-none cursor-pointer bg-white"
-      onClick={onComplete}
-      onTouchStart={onComplete}
+      onClick={handleSkip}
+      onTouchStart={handleSkip}
       role="button"
       aria-label="Skip splash"
     >
+      {/* Splash soundtrack — fades out with the logo release */}
+      <audio ref={audioRef} src={splashAudio.url} preload="auto" playsInline />
+
       {/* Milky fluid background (fallback while video buffers) */}
       <div
         className="absolute inset-0"
