@@ -85,6 +85,7 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
   const handleSignUpClick = () => {
     console.log("[ACTION_SIGNUP_START] User initiated 'Get Started' action.");
     try {
+      fadeOutAndStop(800);
       onSignUp();
       console.log("[ACTION_SIGNUP_END] Sign-up callback executed to parent successfully.");
     } catch (err) {
