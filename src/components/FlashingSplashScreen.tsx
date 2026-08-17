@@ -79,8 +79,29 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
       role="button"
       aria-label="Skip splash"
     >
-      {/* Splash soundtrack — fades out with the logo release */}
-      <audio ref={audioRef} src={splashAudio.url} preload="auto" playsInline />
+      {/* Music credit — music-video style, only during the video */}
+      <div
+        className="absolute left-6 z-20 pointer-events-none transition-opacity duration-700"
+        style={{
+          bottom: "max(1.5rem, env(safe-area-inset-bottom))",
+          opacity: phase === "video" && !autoplayBlocked ? 1 : 0,
+        }}
+      >
+        <p
+          className="text-white/85 text-sm font-medium tracking-wide leading-snug"
+          style={{ textShadow: "0 1px 6px rgba(0,0,0,0.55)" }}
+        >
+          Timeless by Zebulon
+        </p>
+        <p
+          className="text-white/60 text-xs tracking-[0.18em] uppercase"
+          style={{ textShadow: "0 1px 6px rgba(0,0,0,0.55)" }}
+        >
+          RM Records
+        </p>
+      </div>
+
+
 
       {/* Milky fluid background (fallback while video buffers) */}
       <div
