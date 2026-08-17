@@ -146,11 +146,14 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   return (
     <div
       className="fixed inset-0 z-50 overflow-hidden touch-none cursor-pointer bg-white"
-      onClick={onComplete}
-      onTouchStart={onComplete}
+      onClick={handleSkip}
+      onTouchStart={handleSkip}
       role="button"
       aria-label="Skip splash"
     >
+      {/* Splash soundtrack — fades out with the logo release */}
+      <audio ref={audioRef} src={splashAudio.url} preload="auto" playsInline />
+
       {/* Milky fluid background (fallback while video buffers) */}
       <div
         className="absolute inset-0"
