@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png";
+import { useSplashAudio } from "@/components/SplashAudioProvider";
 
 interface LandingScreenProps {
   onSignUp: () => void;
@@ -9,6 +10,8 @@ interface LandingScreenProps {
 
 const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const { fadeOutAndStop } = useSplashAudio();
+
 
   // Lifecycle Observability
   useEffect(() => {
