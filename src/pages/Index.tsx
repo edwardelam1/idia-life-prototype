@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { nextConsentRoute } from '@/config/consent';
 import FlashingSplashScreen from '@/components/FlashingSplashScreen';
 import LandingScreen from '@/components/LandingScreen';
+import { SplashAudioProvider } from '@/components/SplashAudioProvider';
 import MainApp from '@/components/MainApp';
 
 const Index = () => {
