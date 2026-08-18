@@ -2,7 +2,8 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = "https://zxyngqciipcvveigrzqt.supabase.co";
+// Vanity auth domain — masks the raw Supabase URL in Apple/Google sign-in sheets.
+const SUPABASE_URL = "https://auth.thebigidia.com";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_L_foF7A1ds9WBnsVnvcNVA_JYrRwm8B";
 
 // Import the supabase client like this:
