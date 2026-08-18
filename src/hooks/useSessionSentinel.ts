@@ -101,16 +101,30 @@ export function useSessionSentinel({ enabled, onLogout }: Options) {
   useEffect(() => {
     if (!enabled) return;
 
+    // Cold boot: the very first evaluation must never raise the biometric shield.
+    let coldBootHandled = false;
+    let lastForegroundAt = 0;
+
     const handleBackground = () => {
       writeLastActive(now());
       console.log("[SESSION_SENTINEL][BACKGROUND] Timestamp anchored.");
     };
 
     const handleForeground = () => {
+      // visibilitychange + focus + Capacitor appStateChange all fire together.
+      if (now() - lastForegroundAt < 2000) return;
+      lastForegroundAt = now();
+
       const elapsed = now() - readLastActive();
       console.log(`[SESSION_SENTINEL][FOREGROUND] Away for ${Math.round(elapsed / 1000)}s.`);
       if (elapsed > IDLE_TIMEOUT_MS) {
         forceLogout(`Away for ${Math.round(elapsed / 60000)}m`);
+        return;
+      }
+      if (!coldBootHandled) {
+        coldBootHandled = true;
+        writeLastActive(now());
+        console.log("[SESSION_SENTINEL][COLD_BOOT] Fresh launch within idle window — no biometric challenge.");
         return;
       }
       if (elapsed > 1500) {
@@ -146,6 +160,7 @@ export function useSessionSentinel({ enabled, onLogout }: Options) {
 
     // Cold-boot evaluation: a returning user whose stamp is stale gets purged.
     handleForeground();
+
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
