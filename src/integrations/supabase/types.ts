@@ -12273,6 +12273,7 @@ export type Database = {
         Args: { _hat_type: string; _provisioner: string; _target_user: string }
         Returns: string
       }
+      prune_infra_logs: { Args: never; Returns: undefined }
       refresh_application_sponsor_count: {
         Args: { _application_id: string }
         Returns: number
