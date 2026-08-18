@@ -21,9 +21,11 @@
 
 - No change to `supabase/functions/idia-circular-settlement/index.ts` itself is needed — its handler has no auth gate; the 401 is issued by the gateway before the function runs.
 - The function is not listed in `supabase/config.toml`, so `verify_jwt` defaults to true. It stays that way; the caller just needs a valid key.
-- Vault access pattern: `select decrypted_secret from vault.decrypted_secrets where name = 'edge_call_key'`, wrapped in a `security definer` function owned by postgres so cron/triggers can call it without exposing the value to app roles.
+- Edge-function secrets (`IDIA_*`) are only visible to Deno at runtime via `Deno.env.get`; they are not readable from SQL. Hence the Vault copy for database-initiated calls.
+- Vault access pattern: `select decrypted_secret from vault.decrypted_secrets where name = 'idia_edge_call_key'`, wrapped in a `security definer` function owned by postgres so cron/triggers can call it without exposing the value to app roles.
 - Backlog replay is a one-off script over `settlement_queue where status = 'pending'`, reusing each row's stored `payload` so amounts and contributor lists are unchanged.
 
 ## What I need from you
 
-The new Supabase **secret key** (`sb_secret_...`), or confirmation that you re-enabled legacy JWT keys instead.
+The raw value of the new secret key (the `IDIA_SECRET_KEY` / `IDIA_SERVICE_ROLE_KEY` value) so it can be written into Vault — or, if you prefer not to paste it, run one `vault.create_secret('<key>', 'idia_edge_call_key')` in the SQL editor yourself and tell me it is done.
+
