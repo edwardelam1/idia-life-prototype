@@ -1,52 +1,28 @@
-# Mask the Supabase OAuth URL during Apple/Google sign-in
+# Fix the 401s hitting circular settlement
 
-## Goal
-Replace the raw Supabase project URL (`https://zxyngqciipcvveigrzqt.supabase.co`) that users see during Apple/Google sign-in with a branded domain such as `https://auth.thebigidia.com`.
+## What the logs actually show
 
-## Background
-The current OAuth flow uses `supabase.auth.signInWithOAuth(...)`, which redirects the system browser/ASWebAuthenticationSession to the Supabase Auth endpoint. That endpoint lives on the default `*.supabase.co` project URL, so iOS/Android shows that URL in the consent sheet. The native Apple/Google intercept paths in `src/pages/Auth.tsx` call `signInWithIdToken` and should not show a browser URL at all; if users still see the Supabase URL on native, the native plugin is likely falling back to the web OAuth path. A Supabase Custom Domain fixes the visible URL in every case.
+- The database trigger `trigger_circular_settlement` on `settlement_queue` calls the `idia-circular-settlement` function with a hardcoded **legacy JWT service_role key** in its `Authorization` header.
+- Edge logs for the last 72h show a steady stream of `401` responses on cron/trigger-driven functions (`crazy-8-security` every minute, `idia-event-indexer` every 2 minutes). `crazy-8-security` has `verify_jwt = false`, so the rejection is happening at the API gateway on the key itself — the legacy JWT keys are no longer accepted for this project (the app has already moved to the new `sb_publishable_...` key).
+- `settlement_queue` currently holds **28 rows in `pending`**, the newest at 2026-08-18 20:32 UTC — settlements are firing, getting 401'd, and never executing.
+- 8 of 13 cron jobs and 2 triggers still carry the same legacy JWT string.
 
-## Proposed subdomain
-`auth.thebigidia.com` (alternative: `api.thebigidia.com`). This will be used for Supabase Auth, REST, Edge Functions, and Realtime traffic.
+## Fix
 
-## Plan
+1. **Unblock now (dashboard, no code):** either re-enable legacy JWT API keys in Supabase → Settings → API Keys, or generate a new **secret key** (`sb_secret_...`). Everything below assumes the new secret key.
+2. **Store the key once, not in 10 places:** put the secret key in Supabase Vault and add a small helper so cron jobs and triggers read it at call time instead of embedding a literal token.
+3. **Rewrite the two triggers** (`trigger_circular_settlement` on `settlement_queue`, `trigger_ascension_scan` on `committee_applications`) to use a `net.http_post` wrapper function that pulls the key from Vault, replacing `supabase_functions.http_request` with the literal header.
+4. **Rewrite the 8 legacy cron jobs** the same way (includes `idia-event-indexer`, `dao-*`, `mint-liability-receipt`, and the `apikey`-style jobs such as `usdc-reconcile` and `seed-marketplace-catalog`).
+5. **Drain the backlog:** replay the 28 `pending` settlement_queue rows through `idia-circular-settlement` once auth works, in small batches, and confirm each moves to `completed`/`partial` with ledger rows and tx hashes.
+6. **Verify:** re-query the edge logs for 401s over the following 15 minutes and confirm zero, plus a fresh successful settlement run end to end.
 
-### 1. Configure Supabase Custom Domain
-- Open the Supabase dashboard for project `zxyngqciipcvveigrzqt`.
-- Navigate to **Project Settings → Custom Domains**.
-- Add `auth.thebigidia.com` as the custom domain.
-- Run the verification step and add the requested DNS records.
-- Wait for SSL provisioning, then activate the domain.
+## Technical notes
 
-### 2. Update DNS
-- In the DNS provider for `thebigidia.com`, add the CNAME record(s) that Supabase requests for `auth.thebigidia.com`.
-- Confirm propagation before activating.
+- No change to `supabase/functions/idia-circular-settlement/index.ts` itself is needed — its handler has no auth gate; the 401 is issued by the gateway before the function runs.
+- The function is not listed in `supabase/config.toml`, so `verify_jwt` defaults to true. It stays that way; the caller just needs a valid key.
+- Vault access pattern: `select decrypted_secret from vault.decrypted_secrets where name = 'edge_call_key'`, wrapped in a `security definer` function owned by postgres so cron/triggers can call it without exposing the value to app roles.
+- Backlog replay is a one-off script over `settlement_queue where status = 'pending'`, reusing each row's stored `payload` so amounts and contributor lists are unchanged.
 
-### 3. Update the app client configuration
-- Replace the Supabase URL in `src/integrations/supabase/client.ts` and `.env` from `https://zxyngqciipcvveigrzqt.supabase.co` to `https://auth.thebigidia.com`.
-- Keep `VITE_SUPABASE_PUBLISHABLE_KEY` unchanged.
+## What I need from you
 
-### 4. Update OAuth provider consoles
-- **Apple Developer**: Update the **Services ID / Return URLs** for `com.thebigidia.app` (or the configured Apple client ID) to include `https://auth.thebigidia.com/auth/v1/callback`.
-- **Google Cloud Console**: Under the OAuth 2.0 client used by the app, add `https://auth.thebigidia.com/auth/v1/callback` to the **Authorized redirect URIs**.
-- Also update any existing `*.supabase.co` redirect URIs to the new custom domain.
-
-### 5. Update native deep links and Capacitor config
-- The native OAuth fallback uses `idialife://auth-callback` as the deep-link return path in `src/pages/Auth.tsx`; this stays unchanged.
-- Add `auth.thebigidia.com` to `capacitor.config.ts` `server.allowNavigation` so the in-app WebView can complete the OAuth handshake on the branded domain.
-- Verify the iOS `AndroidManifest.xml` / iOS `Info.plist` custom URL schemes still route `idialife://` to the app.
-
-### 6. Test all sign-in paths
-- Web browser Google sign-in.
-- Web browser Apple sign-in.
-- Native iOS Apple sign-in (should use native UI; if it falls back to web, confirm branded URL).
-- Native Android Google sign-in.
-- Verify the deep link returns the session and the app routes to the wallet/dashboard.
-
-## Out of scope
-- Changing the `life.thebigidia.com` app custom domain (already active and unrelated).
-- Moving the Supabase project to a different region or ref.
-
-## Success criteria
-- During Apple/Google sign-in, users see `auth.thebigidia.com` (or the chosen branded domain) instead of `zxyngqciipcvveigrzqt.supabase.co`.
-- All existing sign-in methods continue to work after the change.
+The new Supabase **secret key** (`sb_secret_...`), or confirmation that you re-enabled legacy JWT keys instead.
