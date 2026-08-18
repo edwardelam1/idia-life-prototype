@@ -33,7 +33,7 @@ if (!ALCHEMY_BASE_RPC_URL) {
 // Protocol contracts — Base Mainnet (mirrors src/config/contracts.ts)
 const REGISTRY_ADDRESS = "0x137D913d89d0D6a5b2d1Db76173770C94d25387B";
 const POOL_FACTORY_ADDRESS = "0x0188FCB027D834E03DD0288D360937ceC4d267bb";
-const ESCROW_ECOSYSTEM = "0xDc93eca954fD2625001b2fb9E9A098914365ADe9";
+const ESCROW_ECOSYSTEM = Deno.env.get("ESCROW_ECOSYSTEM") ?? "0xd052C6F3846b4Fe56E579880Ec9ea2764ABDe708";
 // Wallet-as-Source-of-Truth: when location is null/blank, route to the DAO Safe
 // (Global War Chest). Funds remain in cryptographically-verifiable governance custody
 // even if the database goes dark.
@@ -42,10 +42,22 @@ const GLOBAL_WAR_CHEST = "0x0910EF34C9F59A90d90FF505B1036DEed4a25d59";
 // USDC on Base Mainnet
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
-// IDIA token on Base Mainnet — direct ERC-20 transferFrom target
-// (bypasses phantom Escrow.automatedDistribute; relayer holds allowance
-// from ESCROW_ECOSYSTEM already).
+// IDIA token on Base Mainnet.
+// NOTE (verified on-chain 2026-08-18): the escrows expose NO approve() and the
+// relayer holds ZERO ERC-20 allowance from any escrow — none can ever be granted.
+// IDIA awards MUST go through EcosystemEscrow.automatedDistribute(); the relayer
+// EOA is the escrow's automatedDistributor. Raw IDIA.transferFrom(escrow, …)
+// always reverts ERC20InsufficientAllowance. DO NOT change the award back to
+// transferFrom.
 const IDIA_TOKEN_ADDRESS = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
+
+// Safe module that deploys pools on the Safe's behalf. PoolFactory.deployPool is
+// owner-gated (owner = Safe) and takes (string,address), so the relayer can NEVER
+// call the factory directly. The module forces poolOwner = Safe (closes the
+// pool-theft path). ACTIVATION REQUIRED: one-time Safe tx
+// PoolDeployerModule.authorizeOperator(relayer) — until executed, module calls
+// revert NotAuthorized() and regional funds fall back to GLOBAL_WAR_CHEST.
+const POOL_DEPLOYER_MODULE = "0x8AF7C97B56282DF3Af8f9472a9938b0D6b33Bf09";
 
 // System wallets
 const SYSTEM_CASH_REGISTER = "0x649436db4d9352240d1132d9372293e5cc6af0e3";
@@ -88,20 +100,16 @@ const REGISTRY_ABI = [
   },
 ] as const;
 
-const POOL_FACTORY_ABI = [
+// PoolDeployerModule — the ONLY relayer-callable pool-creation path.
+// deployPoolForLocation returns void; the freshly minted pool is re-resolved
+// from the Registry afterward (the factory auto-registers it there).
+const POOL_DEPLOYER_MODULE_ABI = [
   {
-    name: "getPool",
-    type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "location", type: "string" }],
-    outputs: [{ name: "", type: "address" }],
-  },
-  {
-    name: "deployPool",
+    name: "deployPoolForLocation",
     type: "function",
     stateMutability: "nonpayable",
     inputs: [{ name: "location", type: "string" }],
-    outputs: [{ name: "pool", type: "address" }],
+    outputs: [],
   },
 ] as const;
 
@@ -425,37 +433,46 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
           routingMode = "existing_pool";
           console.info(`[ROUTING] existing pool for ${executionLocation} → ${finalRegionalAddress}`);
         } else {
-          // Orphaned but valid location → mint a new pool via PoolFactory
-          console.info(`[BEGIN: PoolFactory.deployPool] location=${executionLocation} — orphan detected, minting pool`);
+          // Orphaned but valid location → mint a new pool via the PoolDeployerModule.
+          // The relayer cannot call PoolFactory.deployPool (owner-gated to the Safe,
+          // and its real signature is (string,address)); the Safe module deploys on
+          // the Safe's behalf and forces poolOwner = Safe. Requires the one-time
+          // Safe tx authorizeOperator(relayer) — see constant note above.
+          console.info(
+            `[BEGIN: PoolModule.deployPoolForLocation] location=${executionLocation} — orphan detected, minting pool via Safe module`,
+          );
           try {
             const deployHash = await client.writeContract({
-              address: POOL_FACTORY_ADDRESS,
-              abi: POOL_FACTORY_ABI,
-              functionName: "deployPool",
+              address: POOL_DEPLOYER_MODULE,
+              abi: POOL_DEPLOYER_MODULE_ABI,
+              functionName: "deployPoolForLocation",
               args: [executionLocation as string],
               account,
             });
-            console.info(`[STATUS: PoolFactory.deployPool] TX Broadcasted. Hash: ${deployHash}.`);
+            console.info(`[STATUS: PoolModule.deployPoolForLocation] TX Broadcasted. Hash: ${deployHash}.`);
             const deployReceipt = await client.waitForTransactionReceipt({ hash: deployHash, confirmations: 1 });
             if (deployReceipt.status !== "success") {
-              throw new Error(`deployPool reverted (${deployHash})`);
+              throw new Error(`deployPoolForLocation reverted (${deployHash})`);
             }
-            // Re-resolve from factory to capture the freshly minted address
+            // deployPoolForLocation returns void — re-resolve the freshly minted
+            // pool from the Registry (the factory auto-registers it there).
             const minted = await client.readContract({
-              address: POOL_FACTORY_ADDRESS,
-              abi: POOL_FACTORY_ABI,
-              functionName: "getPool",
+              address: REGISTRY_ADDRESS,
+              abi: REGISTRY_ABI,
+              functionName: "getPoolByLocation",
               args: [executionLocation as string],
             });
             if (!minted || minted === ZERO_ADDRESS) {
-              throw new Error(`getPool returned zero post-deploy for ${executionLocation}`);
+              throw new Error(`Registry returned zero post-deploy for ${executionLocation}`);
             }
             finalRegionalAddress = minted as string;
             routingMode = "deployed_pool";
-            console.info(`[END: PoolFactory.deployPool] minted ${finalRegionalAddress} for ${executionLocation}`);
+            console.info(
+              `[END: PoolModule.deployPoolForLocation] minted ${finalRegionalAddress} for ${executionLocation}`,
+            );
           } catch (deployError: any) {
             console.error(
-              `[WARNING: PoolFactory.deployPool] failed for ${executionLocation}: ${deployError.message} — falling back to GLOBAL_WAR_CHEST`,
+              `[WARNING: PoolModule.deployPoolForLocation] failed for ${executionLocation}: ${deployError.message} — falling back to GLOBAL_WAR_CHEST`,
             );
             finalRegionalAddress = GLOBAL_WAR_CHEST;
             routingMode = "war_chest_fallback";
@@ -554,21 +571,44 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
               return { hash, receipt };
             } catch (err: any) {
               const msg = String(err?.message ?? err ?? "").toLowerCase();
-              const isNonceCollision =
-                msg.includes("nonce") ||
+              // Deterministic reverts are PERMANENT — never retry them. This check
+              // MUST run before any nonce matching: viem's revert dump embeds the
+              // request args (including the literal text "nonce: N"), which is
+              // exactly how reverts were previously misclassified as nonce
+              // collisions and retried through the full backoff ladder.
+              const isRevert =
+                msg.includes("execution reverted") ||
+                msg.includes("reverted") ||
+                err?.name === "ContractFunctionExecutionError" ||
+                err?.name === "ContractFunctionRevertedError";
+              if (isRevert) {
+                console.error(
+                  `[PERMANENT: Batch.Item.Revert] ${label} reverted deterministically — failing fast, no retry. ${err?.shortMessage ?? err?.message ?? err}`,
+                );
+                throw err;
+              }
+              // Transient signatures only — specific phrases, never bare "nonce".
+              const isTransient =
+                msg.includes("nonce too low") ||
+                msg.includes("nonce too high") ||
                 msg.includes("underpriced") ||
                 msg.includes("in-flight transaction limit") ||
-                msg.includes("already known");
-              if (!isNonceCollision) throw err;
+                msg.includes("already known") ||
+                msg.includes("timeout") ||
+                msg.includes("timed out") ||
+                msg.includes("econnreset") ||
+                msg.includes("fetch failed") ||
+                msg.includes("network");
+              if (!isTransient) throw err;
               attempt++;
               const backoffMs = Math.pow(2, attempt) * 500;
               console.warn(
-                `[WARN: Batch.Item.Collision] ${label} attempt ${attempt} nonce collision (${err?.message ?? err}) — yielding ${backoffMs}ms`,
+                `[WARN: Batch.Item.Transient] ${label} attempt ${attempt} transient error (${err?.shortMessage ?? err?.message ?? err}) — yielding ${backoffMs}ms`,
               );
               await new Promise((resolve) => setTimeout(resolve, backoffMs));
             }
           }
-          throw new Error(`Max retries exhausted for ${label} due to sequencer congestion.`);
+          throw new Error(`Max transient-error retries exhausted for ${label}.`);
         };
 
         for (let i = 0; i < contributing_users.length; i++) {
@@ -582,9 +622,44 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
           const lifeWallet = profile?.wallet_address;
           if (!lifeWallet) {
             console.warn(
-              `[SKIP: Batch.Item] contributor ${contributor.user_id} has no wallet_address — skipping payout to avoid misroute.`,
+              `[SKIP: Batch.Item] contributor ${contributor.user_id} has no wallet_address — recording pending_wallet rows for recovery.`,
             );
             skippedContributors.push({ user_id: contributor.user_id, reason: "missing_wallet" });
+            // Record recoverable pending payouts so pending-wallet-recovery
+            // (5-min cron, job 73) can settle them once profiles.wallet_address
+            // appears. Without these rows the contributor would never be paid.
+            await insertLedgerWithRepair(supabase, {
+              reference_id: ingestionReference,
+              user_id: contributor.user_id,
+              phase: "contributor_yield_pending_wallet",
+              blockchain_tx_hash: null,
+              row: {
+                user_id: contributor.user_id,
+                amount: perContributorYield,
+                entry_type: "deposit",
+                transaction_type: "data_sale_payout",
+                status: "pending_wallet",
+                blockchain_tx_hash: null,
+                is_settled: false,
+                description: `Pending pro-rata USDC yield (no wallet) for Ref: ${ingestionReference}`,
+              },
+            });
+            await insertLedgerWithRepair(supabase, {
+              reference_id: ingestionReference,
+              user_id: contributor.user_id,
+              phase: "idia_royalty_yield_pending_wallet",
+              blockchain_tx_hash: null,
+              row: {
+                user_id: contributor.user_id,
+                amount: perContributorYield,
+                entry_type: "deposit",
+                transaction_type: "idia_royalty_yield",
+                status: "pending_wallet",
+                blockchain_tx_hash: null,
+                is_settled: false,
+                description: `Pending 1:1 IDIA royalty (no wallet) for Ref: ${ingestionReference}`,
+              },
+            });
             continue;
           }
           console.info(
@@ -641,27 +716,29 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
             });
             yieldSettled = true;
 
-            // 2. IDIA royalty award — direct ERC-20 transferFrom on IDIA token.
-            //    Bypasses Escrow.automatedDistribute (phantom state-update that
-            //    did not move tokens). Relayer already holds allowance from
-            //    ESCROW_ECOSYSTEM, so pull tokens: FROM escrow → TO contributor.
+            // 2. IDIA royalty award — MUST go through EcosystemEscrow.automatedDistribute().
+            //    The escrow holds the tokens and exposes NO approve(): the relayer has ZERO
+            //    ERC-20 allowance and none can ever be granted. Raw IDIA.transferFrom(escrow, …)
+            //    always reverts ERC20InsufficientAllowance (verified on-chain 2026-08-18).
+            //    The relayer EOA is the escrow's automatedDistributor, so this call is
+            //    authorized. DO NOT change this back to transferFrom.
             const { hash: idiaHash, receipt: idiaReceipt } = await sendWithNonceRetry(
               (nonce) =>
                 client.writeContract({
-                  address: IDIA_TOKEN_ADDRESS,
-                  abi: ERC20_ABI,
-                  functionName: "transferFrom",
-                  args: [ESCROW_ECOSYSTEM as `0x${string}`, lifeWallet as `0x${string}`, idiaAwardAmount],
+                  address: ESCROW_ECOSYSTEM as `0x${string}`,
+                  abi: ESCROW_ABI,
+                  functionName: "automatedDistribute",
+                  args: [lifeWallet as `0x${string}`, idiaAwardAmount, `idia_award:${ingestionReference}`],
                   account,
                   nonce,
                 }),
               "idia_award",
             );
-            console.info(`[STATUS: Batch.Item] IDIA transferFrom Broadcasted. Hash: ${idiaHash}.`);
+            console.info(`[STATUS: Batch.Item] IDIA automatedDistribute Broadcasted. Hash: ${idiaHash}.`);
             if (idiaReceipt.status === "success") {
-              console.info(`[END: Batch.Item] IDIA transferFrom successful. Block: ${idiaReceipt.blockNumber}`);
+              console.info(`[END: Batch.Item] IDIA automatedDistribute successful. Block: ${idiaReceipt.blockNumber}`);
             } else {
-              console.error(`[ERROR: Batch.Item] IDIA transferFrom reverted. Hash: ${idiaHash}`);
+              console.error(`[ERROR: Batch.Item] IDIA automatedDistribute reverted. Hash: ${idiaHash}`);
             }
 
             // 3. Ledger insert — IDIA royalty yield row (enum: idia_royalty_yield).
