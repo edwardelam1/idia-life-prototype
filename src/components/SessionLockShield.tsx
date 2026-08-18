@@ -20,6 +20,7 @@ const SessionLockShield = ({ onVerified }: Props) => {
 
   useEffect(() => {
     let mounted = true;
+    let failOpenTimer: number | undefined;
 
     const challenge = () => {
       if (inFlight.current) return;
@@ -38,6 +39,7 @@ const SessionLockShield = ({ onVerified }: Props) => {
       const cleanup = () => {
         window.removeEventListener("biological:capture-success", handleSuccess);
         window.removeEventListener("biological:capture-error", handleError);
+        window.clearTimeout(failOpenTimer);
         inFlight.current = false;
       };
 
@@ -56,6 +58,14 @@ const SessionLockShield = ({ onVerified }: Props) => {
       window.addEventListener("biological:capture-success", handleSuccess);
       window.addEventListener("biological:capture-error", handleError);
 
+      // Fail-open: a silent bridge must never strand the user on a spinner.
+      // The session is still valid and the 30-minute idle rule still applies.
+      failOpenTimer = window.setTimeout(() => {
+        cleanup();
+        console.warn("[SESSION_SENTINEL][SHIELD][TIMEOUT] Bridge silent for 12s — failing open.");
+        if (mounted) onVerified();
+      }, 12000);
+
       try {
         (window as any).webkit.messageHandlers.triggerBiologicalCapture.postMessage({});
       } catch (err) {
@@ -67,17 +77,18 @@ const SessionLockShield = ({ onVerified }: Props) => {
 
     challenge();
 
-    // Retry silently on interaction or refocus — still zero explicit buttons.
+    // Retry silently on interaction only — the Face ID sheet itself churns
+    // window focus, so a focus listener would re-fire the challenge in a loop.
     const retry = () => challenge();
     window.addEventListener("pointerdown", retry);
-    window.addEventListener("focus", retry);
 
     return () => {
       mounted = false;
+      window.clearTimeout(failOpenTimer);
       window.removeEventListener("pointerdown", retry);
-      window.removeEventListener("focus", retry);
     };
   }, [onVerified]);
+
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background/95 backdrop-blur-2xl">
