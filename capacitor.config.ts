@@ -25,6 +25,7 @@ const config: CapacitorConfig = {
     allowNavigation: [
       "*.coinbase.com",
       "*.base.org",
+      "auth.thebigidia.com",
       "106c540d-44fd-41bf-9be1-771a4d91effc.lovableproject.com",
     ],
     ...(USE_LOVABLE
