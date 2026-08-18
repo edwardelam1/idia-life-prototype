@@ -86,14 +86,22 @@ serve(async (req) => {
   }
 
 
-  // Auth guard - require valid JWT
+  // Auth guard - allow service-role (cron/trigger) callers or a valid user JWT
   const authHeader = req.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
-  {
+  const bearer = authHeader.replace('Bearer ', '').trim();
+  const serviceKeys = [
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+    Deno.env.get('IDIA_SERVICE_ROLE_KEY'),
+    Deno.env.get('IDIA_SECRET_KEY'),
+  ].filter(Boolean) as string[];
+  const isServiceCall = serviceKeys.includes(bearer);
+
+  if (!isServiceCall) {
     const userClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
@@ -106,6 +114,7 @@ serve(async (req) => {
       });
     }
   }
+
 
   try {
     const { agent, action, data, context } = await req.json();
