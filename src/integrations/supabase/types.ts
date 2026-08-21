@@ -7101,6 +7101,9 @@ export type Database = {
           quiet_time_enabled: boolean | null
           quiet_time_end: string | null
           quiet_time_start: string | null
+          terms_accepted: boolean
+          terms_accepted_at: string | null
+          terms_version: string | null
           trust_score: number | null
           updated_at: string | null
           user_id: string
@@ -7142,6 +7145,9 @@ export type Database = {
           quiet_time_enabled?: boolean | null
           quiet_time_end?: string | null
           quiet_time_start?: string | null
+          terms_accepted?: boolean
+          terms_accepted_at?: string | null
+          terms_version?: string | null
           trust_score?: number | null
           updated_at?: string | null
           user_id: string
@@ -7183,6 +7189,9 @@ export type Database = {
           quiet_time_enabled?: boolean | null
           quiet_time_end?: string | null
           quiet_time_start?: string | null
+          terms_accepted?: boolean
+          terms_accepted_at?: string | null
+          terms_version?: string | null
           trust_score?: number | null
           updated_at?: string | null
           user_id?: string
