@@ -111,7 +111,7 @@ class HealthService {
       const { data, error } = await supabase.functions.invoke('apple-health-sync', {
         body: {
           user_id: user.id,
-          aca_hash_key: acaHash,
+          aca_hash_key: hash,
           source: healthData.source,
           device_type: healthData.device_type,
           recorded_at: healthData.recorded_at,
