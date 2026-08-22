@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Activity, Heart, Footprints, Moon, Zap, ExternalLink } from "lucide-react";
 import { useNativeHealth } from "@/hooks/useNativeHealth";
+import { generateACAHash } from "@/utils/acaGenerator";
 import { supabase as typedSupabase } from "@/integrations/supabase/client";
 const supabase: any = typedSupabase;
+
 
 interface AndroidHealthModalProps {
   isOpen: boolean;
