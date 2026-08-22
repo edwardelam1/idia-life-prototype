@@ -160,7 +160,7 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
         controls={false}
         disablePictureInPicture
         disableRemotePlayback
-        poster=""
+        
         className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in"
         style={{
           opacity: phase === "video" && !autoplayBlocked ? 1 : 0,
