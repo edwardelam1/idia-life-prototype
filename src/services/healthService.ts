@@ -51,6 +51,31 @@ class HealthService {
   }
 
   /**
+   * Reuse the most recent stored consent artifact for this device source so that
+   * background/auto syncs do not need a fresh biometric handshake every cycle.
+   */
+  async resolveStoredAcaHash(userId: string, sourceId: string): Promise<string | null> {
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('platform_guid')
+        .eq('user_id', userId)
+        .maybeSingle();
+      const platformGuid = (profile as any)?.platform_guid;
+      if (!platformGuid) return null;
+      const { data } = await supabase
+        .from('user_aca_records')
+        .select('aca_hash_key')
+        .eq('platform_guid', platformGuid)
+        .eq('source_id', sourceId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return (data as any)?.aca_hash_key ?? null;
+    } catch { return null; }
+  }
+
+  /**
    * Canonical ingestion path for BOTH platforms: apple-health-sync.
    * The function's direct-bridge key mapping accepts these flat metric keys
    * regardless of whether the source was HealthKit or Health Connect.
@@ -59,7 +84,10 @@ class HealthService {
     try {
       const { data: { user } } = await getCachedUser();
       if (!user) return { ok: false, error: 'Not signed in' };
-      if (!acaHash) return { ok: false, error: 'Missing consent artifact (ACA). Re-run the privacy handshake.' };
+      const sourceId = healthData.source === 'apple_health' ? 'apple_health' : 'health_connect';
+      const hash = acaHash || (await this.resolveStoredAcaHash(user.id, sourceId));
+      if (!hash) return { ok: false, error: 'Missing consent artifact (ACA). Re-run the privacy handshake.' };
+
 
       const metrics: Record<string, number> = {};
       const put = (k: string, v: any) => { if (typeof v === 'number' && !Number.isNaN(v)) metrics[k] = v; };
