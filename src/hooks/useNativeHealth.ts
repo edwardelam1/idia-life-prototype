@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getCachedUser } from "@/lib/authUser";
 import { healthService } from '@/services/healthService';
 import type { HealthSyncResult, HealthServiceStatus } from '@/services/healthService';
-import { isNative } from '@/services/platform';
+import { isNative, getPlatform } from '@/services/platform';
 import { useProfile } from '@/hooks/useProfile';
 import { supabase } from '@/integrations/supabase/client';
 
