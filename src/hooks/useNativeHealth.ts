@@ -70,15 +70,19 @@ export function useNativeHealth() {
     try {
       const { data: { user } } = await getCachedUser();
       if (!user) return;
+      // Platform-aware: Android stores the Health Connect row, iOS the Apple Health row.
+      const connectionType = getPlatform() === 'android' ? 'health_connect' : 'apple_health';
       const { data: conn } = await supabase
         .from('data_connections')
-        .select('last_sync_at')
+        .select('last_sync_at, is_active')
         .eq('user_id', user.id)
-        .eq('connection_type', 'apple_health')
+        .eq('connection_type', connectionType)
         .maybeSingle();
+      if (!conn || conn.is_active === false) return; // never connected → nothing to auto-sync
       const last = conn?.last_sync_at ? new Date(conn.last_sync_at).getTime() : 0;
       const stale = !last || (Date.now() - last) >= STALE_THRESHOLD_MS;
       if (!stale) return;
+
       autoSyncInFlight.current = true;
       const r = await healthService.quickSync();
       setLastSync(r);
