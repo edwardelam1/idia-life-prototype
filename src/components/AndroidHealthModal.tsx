@@ -46,18 +46,50 @@ const AndroidHealthModal = ({
   }, [status, onComplete]);
 
   const handleRequest = useCallback(async () => {
-    if (!userId || !isAvailable) {
-      setErrorMsg(!isAvailable ? "Health Connect not available. Install from Play Store." : "Please log in.");
+    if (!userId) {
+      setErrorMsg("Please log in.");
       return;
     }
+    if (!isAvailable) {
+      setErrorMsg("Health Connect isn't available on this device. Install or update Health Connect from the Play Store, then reopen Life.");
+      return;
+    }
+    setErrorMsg(null);
     await requestPermissions();
     setStatus("permissions-sent");
   }, [userId, isAvailable, requestPermissions]);
 
   const handleSync = useCallback(async () => {
+    if (!userId) return;
     setErrorMsg(null);
     setStatus("syncing");
     try {
+      // DELT Protocol: mint a consent artifact before any egress (parity with Apple Health).
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("platform_guid")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      const platformGuid = profile?.platform_guid;
+      if (!platformGuid) throw new Error("Profile anchor missing. Complete onboarding first.");
+
+      const { hash, payload } = await generateACAHash(platformGuid, "health_connect", [
+        "KYC_VAULT",
+        "HEALTH_DATA_READ",
+      ]);
+
+      const { error: acaError } = await supabase.from("user_aca_records").upsert(
+        {
+          platform_guid: platformGuid,
+          aca_hash_key: hash,
+          source_id: "health_connect",
+          consent_scope: payload?.consent_scope || ["HEALTH_DATA_READ"],
+        },
+        { onConflict: "aca_hash_key" },
+      );
+      if (acaError) throw new Error(`Database rejected ACA record: ${acaError.message}`);
+
       await supabase
         .from("data_connections")
         .upsert(
@@ -70,10 +102,11 @@ const AndroidHealthModal = ({
           },
           { onConflict: "user_id,connection_type" },
         );
-      const r = await quickSync();
+
+      const r = await quickSync(hash);
       if (r.success) setStatus("connected");
       else {
-        setErrorMsg(r.error || "Could not read health data.");
+        setErrorMsg(r.error || "Could not read health data. Check that Life has read access in Health Connect.");
         setStatus("error");
       }
     } catch (e: any) {
@@ -81,6 +114,7 @@ const AndroidHealthModal = ({
       setStatus("error");
     }
   }, [userId, quickSync]);
+
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
