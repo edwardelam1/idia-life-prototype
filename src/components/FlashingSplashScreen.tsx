@@ -11,7 +11,6 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   const [phase, setPhase] = useState<"video" | "logo" | "logoFadeOut" | "white">("video");
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const mountedAtRef = useRef<number>(Date.now());
 
   // Attempt imperative play on mount — older iOS (iPhone 11-era WebKit)
   // often defers autoplay until an explicit .play() call, even when muted.
@@ -22,47 +21,17 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     v.setAttribute("muted", "");
     v.setAttribute("webkit-playsinline", "true");
     v.setAttribute("playsinline", "true");
-
-    let settled = false;
-    const tryPlay = () => {
-      const p = v.play();
-      if (p && typeof p.catch === "function") {
-        p.then(() => {
-          settled = true;
-          setAutoplayBlocked(false);
-        }).catch((err: any) => {
-          // Only a genuine policy rejection collapses the video phase.
-          if (err && err.name === "NotAllowedError") {
-            settled = true;
-            setAutoplayBlocked(true);
-          }
-        });
-      }
-    };
-
-    tryPlay();
-    v.addEventListener("loadeddata", tryPlay);
-    v.addEventListener("canplay", tryPlay);
-
-    // If the media never becomes playable at all, fall back after a grace period.
-    const guard = window.setTimeout(() => {
-      if (!settled && v.readyState < 2 && v.currentTime === 0) setAutoplayBlocked(true);
-    }, 3500);
-
-    return () => {
-      window.clearTimeout(guard);
-      v.removeEventListener("loadeddata", tryPlay);
-      v.removeEventListener("canplay", tryPlay);
-    };
+    const p = v.play();
+    if (p && typeof p.catch === "function") {
+      p.catch(() => {
+        setAutoplayBlocked(true);
+      });
+    }
   }, []);
 
   const handleSkip = useCallback(() => {
-    // Ignore the very first taps — the audio-unlock gesture (and stray touches
-    // while the video starts) were dismissing the splash immediately.
-    if (Date.now() - mountedAtRef.current < 2000) return;
     onComplete();
   }, [onComplete]);
-
 
 
 
@@ -160,7 +129,7 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
         controls={false}
         disablePictureInPicture
         disableRemotePlayback
-        
+        poster=""
         className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in"
         style={{
           opacity: phase === "video" && !autoplayBlocked ? 1 : 0,
