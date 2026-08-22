@@ -34,11 +34,11 @@ export function useNativeHealth() {
     return granted;
   }, []);
 
-  const quickSync = useCallback(async () => {
+  const quickSync = useCallback(async (acaHash?: string) => {
     if (!healthAllowed) { const r = blockedResult(); setLastSync(r); setError(r.error!); return r; }
     setIsSyncing(true); setError(null);
     try {
-      const r = await healthService.quickSync(); setLastSync(r);
+      const r = await healthService.quickSync(acaHash); setLastSync(r);
       if (!r.success) setError(r.error || 'Sync failed');
       return r;
     } catch (e: any) {
@@ -47,11 +47,11 @@ export function useNativeHealth() {
     } finally { setIsSyncing(false); }
   }, [healthAllowed]);
 
-  const fetchRange = useCallback(async (start: Date, end: Date) => {
+  const fetchRange = useCallback(async (start: Date, end: Date, acaHash?: string) => {
     if (!healthAllowed) { const r = blockedResult(); setLastSync(r); setError(r.error!); return r; }
     setIsSyncing(true); setError(null);
     try {
-      const r = await healthService.fetchAndSync(start, end, true); setLastSync(r);
+      const r = await healthService.fetchAndSync(start, end, true, acaHash); setLastSync(r);
       if (!r.success) setError(r.error || 'Fetch failed');
       return r;
     } catch (e: any) {
@@ -59,6 +59,7 @@ export function useNativeHealth() {
       setLastSync(r); setError(e.message); return r;
     } finally { setIsSyncing(false); }
   }, [healthAllowed]);
+
 
   // Periodic auto-sync: ensures Apple Health data does not go stale beyond the 6h window.
   // HealthKit only exists on-device, so the "trigger" must run in the client while the app is alive
