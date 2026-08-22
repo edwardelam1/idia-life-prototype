@@ -359,17 +359,21 @@ serve(async (req) => {
       );
     }
 
-    // Update synchronization status in data_connections
+    // Update synchronization status in data_connections.
+    // Source-aware: Android (Health Connect) must not stamp the Apple row.
+    const payloadSource = String(rawBody.source || rawBody.config?.source || "apple_health").toLowerCase();
+    const isHealthConnect = payloadSource.includes("health_connect") || payloadSource.includes("android");
     await supabase.from("data_connections").upsert(
       {
         user_id: userId,
-        connection_type: "apple_health",
-        connection_name: "Apple Health",
+        connection_type: isHealthConnect ? "health_connect" : "apple_health",
+        connection_name: isHealthConnect ? "Health Connect" : "Apple Health",
         is_active: true,
         last_sync_at: new Date().toISOString(),
       },
       { onConflict: "user_id,connection_type" },
     );
+
 
     // CHUNKED BATCH INSERT: Maintaining your procedural select("id") and metadata reconstruction
     const processedData: any[] = [];

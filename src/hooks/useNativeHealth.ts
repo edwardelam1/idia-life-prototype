@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getCachedUser } from "@/lib/authUser";
 import { healthService } from '@/services/healthService';
 import type { HealthSyncResult, HealthServiceStatus } from '@/services/healthService';
-import { isNative } from '@/services/platform';
+import { isNative, getPlatform } from '@/services/platform';
 import { useProfile } from '@/hooks/useProfile';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -34,11 +34,11 @@ export function useNativeHealth() {
     return granted;
   }, []);
 
-  const quickSync = useCallback(async () => {
+  const quickSync = useCallback(async (acaHash?: string) => {
     if (!healthAllowed) { const r = blockedResult(); setLastSync(r); setError(r.error!); return r; }
     setIsSyncing(true); setError(null);
     try {
-      const r = await healthService.quickSync(); setLastSync(r);
+      const r = await healthService.quickSync(acaHash); setLastSync(r);
       if (!r.success) setError(r.error || 'Sync failed');
       return r;
     } catch (e: any) {
@@ -47,11 +47,11 @@ export function useNativeHealth() {
     } finally { setIsSyncing(false); }
   }, [healthAllowed]);
 
-  const fetchRange = useCallback(async (start: Date, end: Date) => {
+  const fetchRange = useCallback(async (start: Date, end: Date, acaHash?: string) => {
     if (!healthAllowed) { const r = blockedResult(); setLastSync(r); setError(r.error!); return r; }
     setIsSyncing(true); setError(null);
     try {
-      const r = await healthService.fetchAndSync(start, end, true); setLastSync(r);
+      const r = await healthService.fetchAndSync(start, end, true, acaHash); setLastSync(r);
       if (!r.success) setError(r.error || 'Fetch failed');
       return r;
     } catch (e: any) {
@@ -59,6 +59,7 @@ export function useNativeHealth() {
       setLastSync(r); setError(e.message); return r;
     } finally { setIsSyncing(false); }
   }, [healthAllowed]);
+
 
   // Periodic auto-sync: ensures Apple Health data does not go stale beyond the 6h window.
   // HealthKit only exists on-device, so the "trigger" must run in the client while the app is alive
@@ -69,15 +70,19 @@ export function useNativeHealth() {
     try {
       const { data: { user } } = await getCachedUser();
       if (!user) return;
+      // Platform-aware: Android stores the Health Connect row, iOS the Apple Health row.
+      const connectionType = getPlatform() === 'android' ? 'health_connect' : 'apple_health';
       const { data: conn } = await supabase
         .from('data_connections')
-        .select('last_sync_at')
+        .select('last_sync_at, is_active')
         .eq('user_id', user.id)
-        .eq('connection_type', 'apple_health')
+        .eq('connection_type', connectionType)
         .maybeSingle();
+      if (!conn || conn.is_active === false) return; // never connected → nothing to auto-sync
       const last = conn?.last_sync_at ? new Date(conn.last_sync_at).getTime() : 0;
       const stale = !last || (Date.now() - last) >= STALE_THRESHOLD_MS;
       if (!stale) return;
+
       autoSyncInFlight.current = true;
       const r = await healthService.quickSync();
       setLastSync(r);
