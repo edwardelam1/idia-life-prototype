@@ -316,7 +316,7 @@ class IDIAHealthPlugin : Plugin() {
         scope.launch {
             try {
                 val granted = client.permissionController.getGrantedPermissions()
-                call.resolve(JSObject().put("granted", granted.containsAll(PERMISSIONS)))
+                call.resolve(JSObject().put("granted", granted.containsAll(CORE_PERMISSIONS)))
             } catch (e: Exception) { call.resolve(JSObject().put("granted", false)) }
         }
     }
