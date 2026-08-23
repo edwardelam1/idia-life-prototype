@@ -52,18 +52,33 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     };
     const onError = () => setAutoplayBlocked(true);
 
+    // If anything external interrupts playback (audio session takeover, OS
+    // interruption), resume instead of surrendering the video phase.
+    const onPause = () => {
+      if (!v.ended) tryPlay();
+    };
+    const onStalled = () => tryPlay();
+
     tryPlay();
     v.addEventListener("loadedmetadata", onProgress);
     v.addEventListener("loadeddata", tryPlay);
     v.addEventListener("canplay", tryPlay);
     v.addEventListener("progress", onProgress);
     v.addEventListener("playing", onPlaying);
+    v.addEventListener("pause", onPause);
+    v.addEventListener("stalled", onStalled);
     v.addEventListener("error", onError);
+
+    // Nudge playback periodically in case a silent interruption froze it.
+    const keepAlive = window.setInterval(() => {
+      if (!v.ended && v.paused) tryPlay();
+    }, 700);
 
     // Long safety net: only bail when NO data at all has arrived.
     const guard = window.setTimeout(() => {
       if (!sawData && v.readyState < 1) setAutoplayBlocked(true);
     }, 12000);
+
 
     return () => {
       window.clearTimeout(guard);
