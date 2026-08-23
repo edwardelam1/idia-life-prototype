@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png";
-import splashVideo from "@/assets/splash-rush.mp4.asset.json";
+
+// Web-optimised cut: faststart (moov up front), no audio track, 3.1 MB.
+// The original 11 MB master had its moov atom at the tail and carried an AAC
+// track — iOS pulled it into the shared audio session and paused it the moment
+// the splash music started, which read as "video starts then cancels".
+const SPLASH_VIDEO_URL = "/splash-rush-web.mp4";
+
+
 
 
 interface FlashingSplashScreenProps {
