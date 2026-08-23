@@ -40,8 +40,14 @@ export const SplashAudioProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     // Create and start the track as early as possible — before the splash paints.
     const a = new Audio(splashAudio.url);
-    a.preload = "auto";
+    // Metadata-only until playback begins — lets the splash video win the
+    // bandwidth race on mobile networks instead of buffering in parallel.
+    a.preload = "metadata";
+    a.addEventListener("playing", () => {
+      a.preload = "auto";
+    });
     a.volume = 1;
+
     (a as any).playsInline = true;
     a.setAttribute("playsinline", "true");
     audioRef.current = a;
