@@ -38,24 +38,14 @@ class IDIAHealthPlugin : Plugin() {
     private var audioTrack: AudioTrack? = null
     private var originalBrightness: Float = -1.0f
 
-    // Core set — used for the "granted?" decision so an opt-out on an
-    // advanced metric does not report the whole connection as ungranted.
-    private val CORE_PERMISSIONS = setOf(
+    private val PERMISSIONS = setOf(
         HealthPermission.getReadPermission(StepsRecord::class),
         HealthPermission.getReadPermission(HeartRateRecord::class),
-    )
-
-    private val PERMISSIONS = CORE_PERMISSIONS + setOf(
         HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
         HealthPermission.getReadPermission(SleepSessionRecord::class),
         HealthPermission.getReadPermission(DistanceRecord::class),
         HealthPermission.getReadPermission(WeightRecord::class),
         HealthPermission.getReadPermission(HeightRecord::class),
-        HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class),
-        HealthPermission.getReadPermission(OxygenSaturationRecord::class),
-        HealthPermission.getReadPermission(RespiratoryRateRecord::class),
-        HealthPermission.getReadPermission(BloodPressureRecord::class),
-        HealthPermission.getReadPermission(BodyTemperatureRecord::class),
     )
 
     override fun load() {
@@ -65,124 +55,9 @@ class IDIAHealthPlugin : Plugin() {
             if (status == HealthConnectClient.SDK_AVAILABLE) {
                 healthClient = HealthConnectClient.getOrCreate(context)
                 Log.d(TAG, "Health Connect client initialized")
-            } else {
-                Log.w(TAG, "Health Connect SDK unavailable, status=$status")
             }
         } catch (e: Exception) { Log.e(TAG, "Failed to init: ${e.message}") }
     }
-
-    // ─── AVAILABILITY (required by the JS bridge) ──────────────────────────
-    @PluginMethod
-    fun checkAvailability(call: PluginCall) {
-        val result = JSObject()
-        try {
-            val status = HealthConnectClient.getSdkStatus(context, "com.google.android.apps.healthdata")
-            val available = status == HealthConnectClient.SDK_AVAILABLE
-            if (available && healthClient == null) {
-                healthClient = HealthConnectClient.getOrCreate(context)
-            }
-            result.put("available", available)
-            result.put("platform", "android")
-            result.put("apiName", if (available) "health_connect" else "health_connect_unavailable")
-        } catch (e: Exception) {
-            Log.e(TAG, "checkAvailability failed: ${e.message}")
-            result.put("available", false)
-            result.put("platform", "android")
-            result.put("apiName", "health_connect_error")
-        }
-        call.resolve(result)
-    }
-
-    // ─── FLAT READ (matches the JS HealthDataResult contract) ──────────────
-    @PluginMethod
-    fun getHealthData(call: PluginCall) {
-        val client = healthClient ?: return call.reject("Health Connect not available on this device")
-
-        val startTime = try { Instant.parse(call.getString("startDate")) } catch (e: Exception) { Instant.now().minus(1, ChronoUnit.DAYS) }
-        val endTime = try { Instant.parse(call.getString("endDate")) } catch (e: Exception) { Instant.now() }
-        val timeRange = TimeRangeFilter.between(startTime, endTime)
-
-        scope.launch {
-            try {
-                val out = JSObject()
-                out.put("recorded_at", Instant.now().toString())
-                out.put("source", "health_connect")
-                out.put("device_type", Build.MODEL ?: "android_device")
-                out.put("type", "health_metrics")
-
-                try {
-                    val r = client.readRecords(ReadRecordsRequest(StepsRecord::class, timeRangeFilter = timeRange))
-                    out.put("steps", r.records.sumOf { it.count })
-                } catch (e: Exception) { Log.w(TAG, "steps read failed: ${e.message}") }
-
-                try {
-                    val r = client.readRecords(ReadRecordsRequest(HeartRateRecord::class, timeRangeFilter = timeRange))
-                    r.records.flatMap { it.samples }.maxByOrNull { it.time }?.let { out.put("heartRate", it.beatsPerMinute) }
-                } catch (e: Exception) { Log.w(TAG, "hr read failed: ${e.message}") }
-
-                try {
-                    val r = client.readRecords(ReadRecordsRequest(ActiveCaloriesBurnedRecord::class, timeRangeFilter = timeRange))
-                    out.put("calories", r.records.sumOf { it.energy.inKilocalories }.toInt())
-                } catch (e: Exception) { Log.w(TAG, "calories read failed: ${e.message}") }
-
-                try {
-                    val r = client.readRecords(ReadRecordsRequest(SleepSessionRecord::class, timeRangeFilter = timeRange))
-                    val hours = r.records.sumOf { it.endTime.toEpochMilli() - it.startTime.toEpochMilli() } / 3600000.0
-                    out.put("sleepHours", Math.round(hours * 10) / 10.0)
-                } catch (e: Exception) { Log.w(TAG, "sleep read failed: ${e.message}") }
-
-                try {
-                    val r = client.readRecords(ReadRecordsRequest(DistanceRecord::class, timeRangeFilter = timeRange))
-                    out.put("distance", r.records.sumOf { it.distance.inMeters })
-                } catch (e: Exception) { Log.w(TAG, "distance read failed: ${e.message}") }
-
-                try {
-                    val r = client.readRecords(ReadRecordsRequest(WeightRecord::class, timeRangeFilter = timeRange))
-                    r.records.maxByOrNull { it.time }?.let { out.put("weight", it.weight.inKilograms) }
-                } catch (e: Exception) { Log.w(TAG, "weight read failed: ${e.message}") }
-
-                try {
-                    val r = client.readRecords(ReadRecordsRequest(HeightRecord::class, timeRangeFilter = timeRange))
-                    r.records.maxByOrNull { it.time }?.let { out.put("height", it.height.inMeters) }
-                } catch (e: Exception) { Log.w(TAG, "height read failed: ${e.message}") }
-
-                try {
-                    val r = client.readRecords(ReadRecordsRequest(HeartRateVariabilityRmssdRecord::class, timeRangeFilter = timeRange))
-                    r.records.maxByOrNull { it.time }?.let { out.put("hrv", it.heartRateVariabilityMillis) }
-                } catch (e: Exception) { Log.w(TAG, "hrv read failed: ${e.message}") }
-
-                try {
-                    val r = client.readRecords(ReadRecordsRequest(OxygenSaturationRecord::class, timeRangeFilter = timeRange))
-                    r.records.maxByOrNull { it.time }?.let { out.put("oxygenSaturation", it.percentage.value) }
-                } catch (e: Exception) { Log.w(TAG, "spo2 read failed: ${e.message}") }
-
-                try {
-                    val r = client.readRecords(ReadRecordsRequest(RespiratoryRateRecord::class, timeRangeFilter = timeRange))
-                    r.records.maxByOrNull { it.time }?.let { out.put("respiratoryRate", it.rate) }
-                } catch (e: Exception) { Log.w(TAG, "resp read failed: ${e.message}") }
-
-                try {
-                    val r = client.readRecords(ReadRecordsRequest(BloodPressureRecord::class, timeRangeFilter = timeRange))
-                    r.records.maxByOrNull { it.time }?.let {
-                        out.put("bloodPressureSystolic", it.systolic.inMillimetersOfMercury)
-                        out.put("bloodPressureDiastolic", it.diastolic.inMillimetersOfMercury)
-                    }
-                } catch (e: Exception) { Log.w(TAG, "bp read failed: ${e.message}") }
-
-                try {
-                    val r = client.readRecords(ReadRecordsRequest(BodyTemperatureRecord::class, timeRangeFilter = timeRange))
-                    r.records.maxByOrNull { it.time }?.let { out.put("bodyTemperature", it.temperature.inCelsius) }
-                } catch (e: Exception) { Log.w(TAG, "temp read failed: ${e.message}") }
-
-                Log.d(TAG, "🤖 [HC_READ] Flat telemetry resolved: ${out.keys().asSequence().toList()}")
-                call.resolve(out)
-            } catch (e: Exception) {
-                Log.e(TAG, "🚨 [HC_READ_ERROR] ${e.message}")
-                call.reject("Health Connect read failed: ${e.message}")
-            }
-        }
-    }
-
 
     // ─── HARDWARE OVERRIDES (GAMMA & LIVENESS) ─────────────────────────────
     @PluginMethod
@@ -316,7 +191,7 @@ class IDIAHealthPlugin : Plugin() {
         scope.launch {
             try {
                 val granted = client.permissionController.getGrantedPermissions()
-                call.resolve(JSObject().put("granted", granted.containsAll(CORE_PERMISSIONS)))
+                call.resolve(JSObject().put("granted", granted.containsAll(PERMISSIONS)))
             } catch (e: Exception) { call.resolve(JSObject().put("granted", false)) }
         }
     }

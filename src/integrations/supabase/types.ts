@@ -12045,16 +12045,6 @@ export type Database = {
         }[]
       }
       get_service_role_key: { Args: never; Returns: string }
-      get_staging_aggregates: {
-        Args: never
-        Returns: {
-          avg_quality: number
-          category: string
-          distinct_contributors: number
-          source: string
-          total_records: number
-        }[]
-      }
       get_synapse_balance: { Args: { uid: string }; Returns: number }
       get_user_business_access: {
         Args: { p_user_id: string }

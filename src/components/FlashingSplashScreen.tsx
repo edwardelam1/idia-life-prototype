@@ -1,13 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png";
-
-// Web-optimised cut: faststart (moov up front), no audio track, 3.1 MB.
-// The original 11 MB master had its moov atom at the tail and carried an AAC
-// track — iOS pulled it into the shared audio session and paused it the moment
-// the splash music started, which read as "video starts then cancels".
-const SPLASH_VIDEO_URL = "/splash-rush-web.mp4";
-
-
+import splashVideo from "@/assets/splash-rush.mp4.asset.json";
 
 
 interface FlashingSplashScreenProps {
@@ -17,9 +10,7 @@ interface FlashingSplashScreenProps {
 const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   const [phase, setPhase] = useState<"video" | "logo" | "logoFadeOut" | "white">("video");
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
-  const [playbackStartedAt, setPlaybackStartedAt] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const mountedAtRef = useRef<number>(Date.now());
 
   // Attempt imperative play on mount — older iOS (iPhone 11-era WebKit)
   // often defers autoplay until an explicit .play() call, even when muted.
@@ -30,82 +21,19 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     v.setAttribute("muted", "");
     v.setAttribute("webkit-playsinline", "true");
     v.setAttribute("playsinline", "true");
-
-    let sawData = false;
-
-    const tryPlay = () => {
-      const p = v.play();
-      if (p && typeof p.catch === "function") {
-        p.then(() => setAutoplayBlocked(false)).catch((err: any) => {
-          // ONLY a genuine policy rejection collapses the video phase.
-          if (err && err.name === "NotAllowedError") setAutoplayBlocked(true);
-        });
-      }
-    };
-
-    const onProgress = () => {
-      sawData = true;
-    };
-    const onPlaying = () => {
-      setAutoplayBlocked(false);
-      setPlaybackStartedAt((prev) => prev ?? Date.now());
-    };
-    const onError = () => setAutoplayBlocked(true);
-
-    // If anything external interrupts playback (audio session takeover, OS
-    // interruption), resume instead of surrendering the video phase.
-    const onPause = () => {
-      if (!v.ended) tryPlay();
-    };
-    const onStalled = () => tryPlay();
-
-    tryPlay();
-    v.addEventListener("loadedmetadata", onProgress);
-    v.addEventListener("loadeddata", tryPlay);
-    v.addEventListener("canplay", tryPlay);
-    v.addEventListener("progress", onProgress);
-    v.addEventListener("playing", onPlaying);
-    v.addEventListener("pause", onPause);
-    v.addEventListener("stalled", onStalled);
-    v.addEventListener("error", onError);
-
-    // Nudge playback periodically in case a silent interruption froze it.
-    const keepAlive = window.setInterval(() => {
-      if (!v.ended && v.paused) tryPlay();
-    }, 700);
-
-    // Long safety net: only bail when NO data at all has arrived.
-    const guard = window.setTimeout(() => {
-      if (!sawData && v.readyState < 1) setAutoplayBlocked(true);
-    }, 12000);
-
-
-    return () => {
-      window.clearTimeout(guard);
-      v.removeEventListener("loadedmetadata", onProgress);
-      v.removeEventListener("loadeddata", tryPlay);
-      v.removeEventListener("canplay", tryPlay);
-      v.removeEventListener("progress", onProgress);
-      v.removeEventListener("playing", onPlaying);
-      v.removeEventListener("error", onError);
-    };
+    const p = v.play();
+    if (p && typeof p.catch === "function") {
+      p.catch(() => {
+        setAutoplayBlocked(true);
+      });
+    }
   }, []);
 
   const handleSkip = useCallback(() => {
-    // Ignore the very first taps — the audio-unlock gesture (and stray touches
-    // while the video starts) were dismissing the splash immediately.
-    if (Date.now() - mountedAtRef.current < 2000) return;
     onComplete();
   }, [onComplete]);
 
-  // Hand off to the logo when the video ends naturally.
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    const onEnded = () => setPhase((p) => (p === "video" ? "logo" : p));
-    v.addEventListener("ended", onEnded);
-    return () => v.removeEventListener("ended", onEnded);
-  }, []);
+
 
   useEffect(() => {
     if (autoplayBlocked) {
@@ -121,12 +49,13 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
         clearTimeout(t4);
       };
     }
-
-    // Timeline starts from ACTUAL playback, not from mount — a slow start
-    // delays the logo instead of cancelling the video.
-    if (playbackStartedAt === null) return;
-
-    // 0–8000ms video · logo fade-in 1.2s · hold 1.5s · fade-out 1.5s · white 0.8s
+    // Cinematic timeline:
+    //  0–8000ms   video
+    //  8000ms     logo fade-IN begins (1.2s)
+    //  9200ms     logo fully visible, holds with glow (1.5s)
+    // 10700ms     logo fade-OUT begins (1.5s)
+    // 12200ms     white dissolves (0.8s)
+    // 13000ms     complete
     const t1 = setTimeout(() => setPhase("logo"), 8000);
     const t2 = setTimeout(() => setPhase("logoFadeOut"), 10700);
     const t3 = setTimeout(() => setPhase("white"), 12200);
@@ -137,8 +66,7 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
       clearTimeout(t3);
       clearTimeout(t4);
     };
-  }, [onComplete, autoplayBlocked, playbackStartedAt]);
-
+  }, [onComplete, autoplayBlocked]);
 
   const logoVisible = phase === "logo";
   const logoReleasing = phase === "logoFadeOut" || phase === "white";
@@ -201,7 +129,7 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
         controls={false}
         disablePictureInPicture
         disableRemotePlayback
-        
+        poster=""
         className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in"
         style={{
           opacity: phase === "video" && !autoplayBlocked ? 1 : 0,
