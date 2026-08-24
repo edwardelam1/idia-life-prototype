@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png";
-import splashVideo from "@/assets/splash-rush.mp4.asset.json";
+import splashVideo from "@/assets/splash-rush-web.mp4.asset.json";
 
 
 interface FlashingSplashScreenProps {
@@ -25,15 +25,39 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     v.setAttribute("playsinline", "true");
 
     let sawData = false;
+    let active = true;
+    let playInFlight = false;
+    let retryTimer: number | null = null;
 
     const tryPlay = () => {
+      if (!active || v.ended || playInFlight || !v.paused) return;
+      playInFlight = true;
       const p = v.play();
       if (p && typeof p.catch === "function") {
-        p.then(() => setAutoplayBlocked(false)).catch((err: any) => {
-          // ONLY a genuine policy rejection collapses the video phase.
-          if (err && err.name === "NotAllowedError") setAutoplayBlocked(true);
-        });
+        p.then(() => {
+          if (active) setAutoplayBlocked(false);
+        })
+          .catch((err: unknown) => {
+            // AbortError is produced when WebKit supersedes one play request
+            // with another media operation; it is recoverable, not a failure.
+            if (active && err instanceof DOMException && err.name === "NotAllowedError") {
+              setAutoplayBlocked(true);
+            }
+          })
+          .finally(() => {
+            playInFlight = false;
+          });
+      } else {
+        playInFlight = false;
       }
+    };
+
+    const schedulePlay = () => {
+      if (!active || v.ended || retryTimer !== null) return;
+      retryTimer = window.setTimeout(() => {
+        retryTimer = null;
+        tryPlay();
+      }, 120);
     };
 
     const onProgress = () => {
@@ -43,15 +67,24 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
       setAutoplayBlocked(false);
       setPlaybackStartedAt((prev) => prev ?? Date.now());
     };
+    // iOS WKWebView may pause a media element when its audio session changes.
+    // The splash asset is video-only now, but recover any external pause rather
+    // than allowing a transient interruption to terminate the sequence.
+    const onPause = () => {
+      if (!v.ended) schedulePlay();
+    };
+    const onStalled = () => schedulePlay();
     const onError = () => setAutoplayBlocked(true);
 
-    tryPlay();
     v.addEventListener("loadedmetadata", onProgress);
-    v.addEventListener("loadeddata", tryPlay);
-    v.addEventListener("canplay", tryPlay);
+    v.addEventListener("loadeddata", schedulePlay);
+    v.addEventListener("canplay", schedulePlay);
     v.addEventListener("progress", onProgress);
     v.addEventListener("playing", onPlaying);
+    v.addEventListener("pause", onPause);
+    v.addEventListener("stalled", onStalled);
     v.addEventListener("error", onError);
+    tryPlay();
 
     // Long safety net: only bail when NO data at all has arrived.
     const guard = window.setTimeout(() => {
@@ -59,12 +92,16 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     }, 12000);
 
     return () => {
+      active = false;
       window.clearTimeout(guard);
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
       v.removeEventListener("loadedmetadata", onProgress);
-      v.removeEventListener("loadeddata", tryPlay);
-      v.removeEventListener("canplay", tryPlay);
+      v.removeEventListener("loadeddata", schedulePlay);
+      v.removeEventListener("canplay", schedulePlay);
       v.removeEventListener("progress", onProgress);
       v.removeEventListener("playing", onPlaying);
+      v.removeEventListener("pause", onPause);
+      v.removeEventListener("stalled", onStalled);
       v.removeEventListener("error", onError);
     };
   }, []);
@@ -172,7 +209,6 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
         ref={videoRef}
         src={splashVideo.url}
         autoPlay
-        {...({ defaultMuted: true } as any)}
         muted
         playsInline
         preload="auto"
