@@ -225,16 +225,31 @@ const Auth = () => {
         console.log("[END:OK][GOOGLE_AUTH] Supabase session established");
         console.log("[END] Native Google Auth Complete.");
       } else {
-        console.log(`[INFO][OAUTH] Falling back to web signInWithOAuth · provider=${provider}`);
+        // The iOS shell is a plain WKWebView (not Capacitor), so isNative is false here.
+        // It intercepts navigations to accounts.google.com and hands them to
+        // ASWebAuthenticationSession, which only closes on the `idialife` callback scheme.
+        // Without that scheme the auth sheet finishes inside itself and the host app
+        // stays signed out — so force the deep-link redirect for Google inside the shell.
+        const inIdiaShell =
+          typeof navigator !== "undefined" &&
+          (/IDIA-Native-Shell/i.test(navigator.userAgent) ||
+            !!(window as any)?.webkit?.messageHandlers?.appleSignIn);
+
+        const useDeepLink = isNative || (inIdiaShell && provider === "google");
+        console.log(
+          `[INFO][OAUTH] Falling back to web signInWithOAuth · provider=${provider} shell=${inIdiaShell} deepLink=${useDeepLink}`,
+        );
+
         const { error } = await supabase.auth.signInWithOAuth({
           provider,
           options: {
-            redirectTo: isNative ? "idialife://auth-callback" : `${window.location.origin}/`,
+            redirectTo: useDeepLink ? "idialife://auth-callback" : `${window.location.origin}/`,
           },
         });
         if (error) throw error;
         console.log("[END][OAUTH] Web OAuth redirect dispatched");
       }
+
       console.log(`[END] OAuth Sign-In Dispatch · provider=${provider}`);
     } catch (error: any) {
       console.error(`[END:FAIL] OAuth Sign-In · provider=${provider}`, error?.message || error);
