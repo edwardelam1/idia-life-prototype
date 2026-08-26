@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-route
 import { ThemeProvider } from "next-themes";
 import { supabase } from "@/integrations/supabase/client";
 import { initAuthUserCache, revalidateUser } from "@/lib/authUser";
+import AnalyticsTracker from "@/components/AnalyticsTracker";
 
 
 // PAGE IMPORTS
