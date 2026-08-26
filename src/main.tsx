@@ -7,6 +7,9 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import { initAnalytics } from "./lib/analytics";
+
+initAnalytics();
 // TRACKING SCRIPT DISABLED to prevent 403 network deadlocks:
 // import "./utils/AuthEventTracker";
 
