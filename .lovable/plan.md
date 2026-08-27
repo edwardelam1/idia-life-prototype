@@ -1,40 +1,28 @@
-# Fix "Sign in with Google" on iOS leaving the user stuck in the popup
+# Encrypted Passphrase Backup (Wallet → Security)
 
-## What's happening
+Give users a real way to back up their recovery phrase, encrypted with a password they choose, and record completion in the profile flag `is_seed_backed_up` that already exists but is never set.
 
-On iOS, the Apple button uses the native sign-in sheet and hands the token straight back to the app, so it works. The Google button is supposed to do the same through the native Google plugin, but that native path is not usable in the iOS build (no iOS Google client is configured for it), so the code silently falls into a web fallback: it hands the sign-in off to a browser window. That window completes the login inside itself and shows the dashboard there, while the real app window never receives the session and stays signed out.
+## What the user gets
 
-## The fix
+In the wallet page's **Security** tab, under Wallet Management, a new **Back Up Recovery Phrase** action opens a guided sheet:
 
-Two layers, so Google behaves exactly like Apple and can never strand the user again.
+1. Biometric/enclave gate (same gate already used to reveal the phrase).
+2. Choose a backup password (min 10 chars, typed twice, strength meter, explicit warning that IDIA cannot recover it).
+3. The phrase is encrypted in-browser and saved as `idia-vault-backup-<date>.idiabk` — via the native download bridge on iOS/Android, browser download on web.
+4. Confirmation step: user re-enters the password once against the produced file to prove it opens, then the profile is marked backed up.
 
-### 1. Make Google use the native sheet on iOS (primary path)
+The card shows a status line: "Backed up" (with date) or "Not backed up" with an amber prompt. A **Restore from Backup File** action is added next to Import Different Wallet: pick the `.idiabk` file, enter the password, decrypt, and hand the mnemonic to the existing import flow.
 
-- Add the iOS Google OAuth client to the Capacitor config and pass it explicitly when initializing the plugin on iOS, keeping the existing web/server client for Android and token verification.
-- On success the flow is unchanged from today: seal name/email in the Secure Enclave, exchange only the ID token with Supabase, no PII in the database.
-- Native shell requirement (outside the web code): the iOS project needs the Google client ID and its reversed-client-ID URL scheme registered. I will list the exact values to add once you provide the iOS OAuth client ID from Google Cloud (the Apple flow needs no equivalent, which is why only Google is affected).
+## Technical details
 
-### 2. Make the fallback return to the app instead of stranding it
-
-If the native sheet is unavailable for any reason, the fallback must not navigate a window into a logged-in dashboard:
-
-- Request the provider URL without auto-redirecting the current window, then open it in the system auth browser sheet with a return target of `idialife://auth-callback`.
-- Extend the existing deep-link handler so it accepts both response shapes — token fragment and authorization code — establishing the session in the main app window and then closing the browser sheet.
-- Show a clear failure toast and reset the button if the sheet is dismissed without a session, rather than leaving a spinner.
-
-### 3. Verification
-
-- Confirm the built app logs the native Google path (not the fallback) on iOS.
-- Confirm the browser sheet closes and the main window lands on the post-auth route with an active session.
-- Confirm Apple sign-in, email/password sign-in, and the consent/age gates are unchanged.
-
-## Technical notes
-
-- `src/pages/Auth.tsx`: add `iosClientId` handling in `GoogleAuth.initialize`, and rewrite the `else` fallback branch to use `signInWithOAuth({ skipBrowserRedirect: true })` plus `@capacitor/browser` on native.
-- `capacitor.config.ts`: add `iosClientId` under the `GoogleAuth` plugin block.
-- `src/App.tsx`: in the `appUrlOpen` handler, also parse `?code=` and call `exchangeCodeForSession`, and call `Browser.close()` after the session is set.
-- No database, edge function, or Supabase auth-provider configuration changes are required.
-
-## Open item
-
-I need the iOS Google OAuth client ID (from Google Cloud, type "iOS", bundle `com.idiadata.LovableHealthWrapper`). Without it, only step 2 can ship — Google would work but through the browser sheet rather than the native sheet.
+- New `src/lib/seedBackup.ts`: WebCrypto only, no new deps.
+  - Key derivation: PBKDF2-SHA256, 310,000 iterations, 16-byte random salt.
+  - Encryption: AES-GCM 256, 12-byte random IV.
+  - File format: JSON envelope `{ v: 1, kdf: "PBKDF2-SHA256", iter, salt, iv, ct, address, createdAt }`, all binary base64. No plaintext phrase, no password, nothing recoverable without the password.
+  - `encryptSeed(mnemonic, password, address)` / `decryptBackup(fileText, password)` (wrong password surfaces as a clean "Incorrect password" error, not a crypto exception).
+- New `src/components/wallet/SeedBackupModal.tsx`: the multi-step sheet above, styled with existing Card/Button/Input tokens (no hardcoded colors).
+- `src/components/enhanced/EnhancedWalletDashboard.tsx`: add the two buttons plus status line in the Wallet Management card of the `security` tab.
+- Download path reuses `src/utils/nativeDownload.ts` (native handler first, Blob fallback).
+- Phrase access reuses `useWallet().getSeedPhrase()`; the plaintext mnemonic stays in memory only for the duration of the encrypt call and is cleared from state on close.
+- Profile flag: on successful verify step, update `profiles.is_seed_backed_up = true` for `auth.uid()` (existing column, existing RLS — no migration). `useEnhancedProfile` already exposes the field, so the "Seed Backup: Completed" line in profile settings starts reflecting reality.
+- Nothing about the backup is uploaded: only the boolean flag touches the database, never the phrase or the ciphertext.
