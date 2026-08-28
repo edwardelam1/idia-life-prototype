@@ -4,7 +4,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Shield, Download, Eye, EyeOff, AlertTriangle, Copy } from "lucide-react";
+import { Shield, Download, Eye, EyeOff, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const RecoveryPhrase = () => {
@@ -135,23 +135,10 @@ const RecoveryPhrase = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" onClick={handleDownload} disabled={loading}>
-              <Download className="w-4 h-4 mr-2" />
-              Download
-            </Button>
-            <Button
-              variant="outline"
-              disabled={loading || !revealed || !phrase}
-              onClick={() => {
-                navigator.clipboard.writeText(phrase);
-                toast({ title: "Recovery phrase copied", description: "Paste it somewhere safe, then clear your clipboard." });
-              }}
-            >
-              <Copy className="w-4 h-4 mr-2" />
-              Copy Phrase
-            </Button>
-          </div>
+          <Button variant="outline" className="w-full" onClick={handleDownload} disabled={loading}>
+            <Download className="w-4 h-4 mr-2" />
+            Download Recovery Key
+          </Button>
 
           {!viewMode && (
             <label className="flex items-start gap-2 cursor-pointer">

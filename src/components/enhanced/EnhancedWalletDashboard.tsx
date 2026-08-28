@@ -337,17 +337,11 @@ const EnhancedWalletDashboard: React.FC = () => {
   // ── Cross-component: open Security sub-tab + setup modal on request ──
   useEffect(() => {
     const handler = (event: any) => {
-      const detailMode = event?.detail?.mode;
+      const mode = event?.detail?.mode === "import" ? "import" : "create";
       setActiveTab("security");
-      if (detailMode === "backup") {
-        setBackupModalMode("backup");
-        setIsBackupModalOpen(true);
-        return;
-      }
-      setSetupMode(detailMode === "import" ? "import" : "create");
+      setSetupMode(mode);
       setIsSetupModalOpen(true);
     };
-
     window.addEventListener("wallet:open-security", handler as EventListener);
     return () => window.removeEventListener("wallet:open-security", handler as EventListener);
   }, []);
