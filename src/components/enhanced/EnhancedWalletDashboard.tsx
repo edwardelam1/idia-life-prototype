@@ -289,6 +289,23 @@ const EnhancedWalletDashboard: React.FC = () => {
   const displayAddress = globalWalletAddress || localAddress;
   const isProvisioned = !!displayAddress;
 
+  // ── Recovery-phrase backup status ──
+  useEffect(() => {
+    if (!stableUserId) return;
+    let active = true;
+    (async () => {
+      const { data } = await (supabase.from("profiles") as any)
+        .select("is_seed_backed_up")
+        .eq("user_id", stableUserId)
+        .maybeSingle();
+      if (active) setSeedBackedUp(!!data?.is_seed_backed_up);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [stableUserId]);
+
+
   // ── Auto-link wallet to Supabase ──
   const linkedPairsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
