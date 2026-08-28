@@ -226,19 +226,32 @@ const WalletSetupModal: React.FC<Props> = ({
                 ))}
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={() => setShowSeed(!showSeed)} className="w-full">
-              {showSeed ? (
-                <>
-                  <EyeOff className="w-4 h-4 mr-2" />
-                  Hide
-                </>
-              ) : (
-                <>
-                  <Eye className="w-4 h-4 mr-2" />
-                  Show
-                </>
-              )}
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowSeed(!showSeed)} className="w-full">
+                {showSeed ? (
+                  <>
+                    <EyeOff className="w-4 h-4 mr-2" />
+                    Hide
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-4 h-4 mr-2" />
+                    Show
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!showSeed}
+                onClick={() => copy(seed)}
+                className="w-full"
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Copy Phrase
+              </Button>
+            </div>
+
             {mode === "create" ? (
               <Button onClick={() => setStep("confirm-seed")} className="w-full bg-teal-500 hover:bg-teal-600">
                 I've Written It Down
