@@ -38,7 +38,8 @@ export const SplashAudioProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    // Create and start the track as early as possible — before the splash paints.
+    // Prepare the track immediately, but let the video establish playback first.
+    // Starting two media elements together can make WebKit reject video autoplay.
     const a = new Audio(splashAudio.url);
     // Metadata-only until playback begins — lets the splash video win the
     // bandwidth race on mobile networks instead of buffering in parallel.
@@ -52,30 +53,37 @@ export const SplashAudioProvider = ({ children }: { children: ReactNode }) => {
     a.setAttribute("playsinline", "true");
     audioRef.current = a;
 
+    let active = true;
+    let started = false;
+
     const attempt = () => {
+      if (!active || started) return;
       const p = a.play();
-      if (p && typeof p.catch === "function") p.catch(() => {});
+      if (p && typeof p.then === "function") {
+        p.then(() => {
+          started = true;
+          gestureCleanupRef.current?.();
+        }).catch(() => {
+          const resume = () => attempt();
+          const cleanup = () => {
+            window.removeEventListener("touchstart", resume, true);
+            window.removeEventListener("click", resume, true);
+            gestureCleanupRef.current = null;
+          };
+          cleanup();
+          window.addEventListener("touchstart", resume, true);
+          window.addEventListener("click", resume, true);
+          gestureCleanupRef.current = cleanup;
+        });
+      }
     };
 
-    const p = a.play();
-    if (p && typeof p.catch === "function") {
-      p.catch(() => {
-        const resume = () => {
-          attempt();
-          cleanup();
-        };
-        const cleanup = () => {
-          window.removeEventListener("touchstart", resume, true);
-          window.removeEventListener("click", resume, true);
-          gestureCleanupRef.current = null;
-        };
-        window.addEventListener("touchstart", resume, true);
-        window.addEventListener("click", resume, true);
-        gestureCleanupRef.current = cleanup;
-      });
-    }
+    const onVideoPlaying = () => attempt();
+    window.addEventListener("splash:video-playing", onVideoPlaying);
 
     return () => {
+      active = false;
+      window.removeEventListener("splash:video-playing", onVideoPlaying);
       gestureCleanupRef.current?.();
       if (fadeIntervalRef.current !== null) {
         clearInterval(fadeIntervalRef.current);
