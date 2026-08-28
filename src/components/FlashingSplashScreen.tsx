@@ -315,7 +315,7 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
         ref={videoRef}
         src={splashVideo.url}
         autoPlay
-        {...({ defaultMuted: true } as React.VideoHTMLAttributes<HTMLVideoElement>)}
+        {...({ defaultMuted: true } as { defaultMuted: boolean })}
         muted
         playsInline
         preload="auto"
