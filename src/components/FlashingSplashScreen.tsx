@@ -170,37 +170,60 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     return () => v.removeEventListener("ended", onEnded);
   }, []);
 
+  // Video → logo hand-off. Driven by real playback progress, never by a
+  // wall-clock timer that can cut the video off while it is still painting.
   useEffect(() => {
     if (autoplayBlocked) {
-      // Collapse the video phase but still give the logo its cinematic reveal.
-      const t1 = setTimeout(() => setPhase("logo"), 0);
-      const t2 = setTimeout(() => setPhase("logoFadeOut"), 2700); // hold 1.5s after 1.2s fade-in
-      const t3 = setTimeout(() => setPhase("white"), 4200); // 1.5s fade-out
-      const t4 = setTimeout(() => onComplete(), 5000); // 0.8s white dissolve
-      return () => {
-        clearTimeout(t1);
-        clearTimeout(t2);
-        clearTimeout(t3);
-        clearTimeout(t4);
-      };
+      setPhase((p) => (p === "video" ? "logo" : p));
+      return;
     }
-
-    // Timeline starts from ACTUAL playback, not from mount — a slow start
-    // delays the logo instead of cancelling the video.
     if (playbackStartedAt === null) return;
 
-    // 0–8000ms video · logo fade-in 1.2s · hold 1.5s · fade-out 1.5s · white 0.8s
-    const t1 = setTimeout(() => setPhase("logo"), 8000);
-    const t2 = setTimeout(() => setPhase("logoFadeOut"), 10700);
-    const t3 = setTimeout(() => setPhase("white"), 12200);
-    const t4 = setTimeout(() => onComplete(), 13000);
+    const v = videoRef.current;
+    if (!v) return;
+
+    let lastTime = -1;
+    let lastProgressAt = Date.now();
+
+    const poll = window.setInterval(() => {
+      const t = v.currentTime;
+      const duration = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 8;
+
+      if (t > lastTime + 0.05) {
+        lastTime = t;
+        lastProgressAt = Date.now();
+      }
+
+      if (v.ended || t >= duration - 0.15) {
+        splashLog("playback complete at t=", t.toFixed(2), "— logo");
+        window.clearInterval(poll);
+        setPhase((p) => (p === "video" ? "logo" : p));
+        return;
+      }
+
+      // Hard stall: no forward progress for 6s despite recovery attempts.
+      if (Date.now() - lastProgressAt > 6000) {
+        splashLog("stalled with no progress for 6s at t=", t.toFixed(2), "— logo");
+        window.clearInterval(poll);
+        setPhase((p) => (p === "video" ? "logo" : p));
+      }
+    }, 250);
+
+    return () => window.clearInterval(poll);
+  }, [autoplayBlocked, playbackStartedAt]);
+
+  // Logo tail: fade-in 1.2s · hold 1.5s · fade-out 1.5s · white 0.8s
+  useEffect(() => {
+    if (phase !== "logo") return;
+    const t1 = setTimeout(() => setPhase("logoFadeOut"), 2700);
+    const t2 = setTimeout(() => setPhase("white"), 4200);
+    const t3 = setTimeout(() => onComplete(), 5000);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
       clearTimeout(t3);
-      clearTimeout(t4);
     };
-  }, [onComplete, autoplayBlocked, playbackStartedAt]);
+  }, [phase, onComplete]);
 
 
   const logoVisible = phase === "logo";
