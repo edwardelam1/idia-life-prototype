@@ -27,6 +27,7 @@ export interface EnhancedProfile {
   wallet_address?: string; // ADD THIS LINE
   fbo_account_id?: string;
   full_legal_address?: Record<string, any> | null;
+  is_seed_backed_up: boolean;
 }
 
 export interface WalletData {
@@ -82,6 +83,7 @@ export const useEnhancedProfile = () => {
         return;
       }
 
+      let seedBackedUp = false;
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("*")
@@ -116,7 +118,9 @@ export const useEnhancedProfile = () => {
           kyc_status: p.kyc_status || "pending",
           ssn_last4: p.ssn_last4 || null,
           fbo_account_id: p.fbo_account_id || null,
+          is_seed_backed_up: p.is_seed_backed_up === true,
         });
+        seedBackedUp = p.is_seed_backed_up === true;
       }
 
       const { data: walletData } = await supabase
@@ -134,7 +138,7 @@ export const useEnhancedProfile = () => {
           cash_balance: Number(w.cash_balance) || 0,
           idia_usd_balance: Number(w.idia_usd_balance) || 0,
           idia_token_balance: Number(w.idia_token_balance) || 0,
-          is_seed_backed_up: false,
+          is_seed_backed_up: seedBackedUp,
         });
       }
     } catch (error) {

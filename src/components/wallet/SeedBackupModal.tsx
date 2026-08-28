@@ -157,6 +157,11 @@ const SeedBackupModal: React.FC<SeedBackupModalProps> = ({
       envelopeTextRef.current = null;
       setStep("done");
       onBackedUp?.();
+      // Keep in-memory profile consumers (nudge, profile settings) in sync.
+      window.dispatchEvent(new CustomEvent("wallet:seed-backed-up"));
+      window.dispatchEvent(
+        new CustomEvent("idia-profile-sync", { detail: { profile: { is_seed_backed_up: true } } }),
+      );
       toast({ title: "Backup verified", description: "Your encrypted recovery file is confirmed." });
     } catch (e: any) {
       setError(e?.message || "Incorrect password.");

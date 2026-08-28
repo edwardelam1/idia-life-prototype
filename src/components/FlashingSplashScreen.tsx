@@ -7,12 +7,19 @@ interface FlashingSplashScreenProps {
   onComplete: () => void;
 }
 
+const splashLog = (...args: unknown[]) => {
+  try {
+    console.log("[SPLASH]", ...args);
+  } catch {}
+};
+
 const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   const [phase, setPhase] = useState<"video" | "logo" | "logoFadeOut" | "white">("video");
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [playbackStartedAt, setPlaybackStartedAt] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mountedAtRef = useRef<number>(Date.now());
+  const recoveryAttemptsRef = useRef(0);
 
   // Attempt imperative play on mount — older iOS (iPhone 11-era WebKit)
   // often defers autoplay until an explicit .play() call, even when muted.
@@ -40,6 +47,8 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
           .catch((err: unknown) => {
             // AbortError is produced when WebKit supersedes one play request
             // with another media operation; it is recoverable, not a failure.
+            const name = err instanceof DOMException ? err.name : String(err);
+            splashLog("play() rejected:", name);
             if (active && err instanceof DOMException && err.name === "NotAllowedError") {
               setAutoplayBlocked(true);
             }
@@ -74,7 +83,34 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
       if (!v.ended) schedulePlay();
     };
     const onStalled = () => schedulePlay();
-    const onError = () => setAutoplayBlocked(true);
+    // A single media error must not collapse the whole sequence: reload the
+    // element and retry once before giving up on the video phase.
+    const onError = () => {
+      const code = v.error?.code;
+      splashLog("error event · code:", code, "message:", v.error?.message, "readyState:", v.readyState);
+      if (!active) return;
+      if (recoveryAttemptsRef.current < 1) {
+        recoveryAttemptsRef.current += 1;
+        splashLog("attempting one reload recovery");
+        try {
+          v.load();
+        } catch {}
+        schedulePlay();
+        return;
+      }
+      setAutoplayBlocked(true);
+    };
+
+    const trace = (name: string) => () =>
+      splashLog(name, "· t=", v.currentTime.toFixed(2), "readyState=", v.readyState);
+    const traced: Array<[string, EventListener]> = [
+      ["loadedmetadata", trace("loadedmetadata")],
+      ["canplay", trace("canplay")],
+      ["waiting", trace("waiting")],
+      ["suspend", trace("suspend")],
+      ["ended", trace("ended")],
+    ];
+    traced.forEach(([n, fn]) => v.addEventListener(n, fn));
 
     v.addEventListener("loadedmetadata", onProgress);
     v.addEventListener("loadeddata", schedulePlay);
@@ -86,15 +122,24 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     v.addEventListener("error", onError);
     tryPlay();
 
+    const ticker = window.setInterval(() => {
+      splashLog("tick · t=", v.currentTime.toFixed(2), "paused=", v.paused, "readyState=", v.readyState);
+    }, 1000);
+
     // Long safety net: only bail when NO data at all has arrived.
     const guard = window.setTimeout(() => {
-      if (!sawData && v.readyState < 1) setAutoplayBlocked(true);
+      if (!sawData && v.readyState < 1) {
+        splashLog("no-data guard fired — falling back to logo-only sequence");
+        setAutoplayBlocked(true);
+      }
     }, 12000);
 
     return () => {
       active = false;
       window.clearTimeout(guard);
+      window.clearInterval(ticker);
       if (retryTimer !== null) window.clearTimeout(retryTimer);
+      traced.forEach(([n, fn]) => v.removeEventListener(n, fn));
       v.removeEventListener("loadedmetadata", onProgress);
       v.removeEventListener("loadeddata", schedulePlay);
       v.removeEventListener("canplay", schedulePlay);
@@ -117,42 +162,72 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    const onEnded = () => setPhase((p) => (p === "video" ? "logo" : p));
+    const onEnded = () => {
+      splashLog("video ended — handing off to logo");
+      setPhase((p) => (p === "video" ? "logo" : p));
+    };
     v.addEventListener("ended", onEnded);
     return () => v.removeEventListener("ended", onEnded);
   }, []);
 
+  // Video → logo hand-off. Driven by real playback progress, never by a
+  // wall-clock timer that can cut the video off while it is still painting.
   useEffect(() => {
     if (autoplayBlocked) {
-      // Collapse the video phase but still give the logo its cinematic reveal.
-      const t1 = setTimeout(() => setPhase("logo"), 0);
-      const t2 = setTimeout(() => setPhase("logoFadeOut"), 2700); // hold 1.5s after 1.2s fade-in
-      const t3 = setTimeout(() => setPhase("white"), 4200); // 1.5s fade-out
-      const t4 = setTimeout(() => onComplete(), 5000); // 0.8s white dissolve
-      return () => {
-        clearTimeout(t1);
-        clearTimeout(t2);
-        clearTimeout(t3);
-        clearTimeout(t4);
-      };
+      setPhase((p) => (p === "video" ? "logo" : p));
+      return;
     }
-
-    // Timeline starts from ACTUAL playback, not from mount — a slow start
-    // delays the logo instead of cancelling the video.
     if (playbackStartedAt === null) return;
 
-    // 0–8000ms video · logo fade-in 1.2s · hold 1.5s · fade-out 1.5s · white 0.8s
-    const t1 = setTimeout(() => setPhase("logo"), 8000);
-    const t2 = setTimeout(() => setPhase("logoFadeOut"), 10700);
-    const t3 = setTimeout(() => setPhase("white"), 12200);
-    const t4 = setTimeout(() => onComplete(), 13000);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      clearTimeout(t4);
-    };
-  }, [onComplete, autoplayBlocked, playbackStartedAt]);
+    const v = videoRef.current;
+    if (!v) return;
+
+    let lastTime = -1;
+    let lastProgressAt = Date.now();
+
+    const poll = window.setInterval(() => {
+      const t = v.currentTime;
+      const duration = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 8;
+
+      if (t > lastTime + 0.05) {
+        lastTime = t;
+        lastProgressAt = Date.now();
+      }
+
+      if (v.ended || t >= duration - 0.15) {
+        splashLog("playback complete at t=", t.toFixed(2), "— logo");
+        window.clearInterval(poll);
+        setPhase((p) => (p === "video" ? "logo" : p));
+        return;
+      }
+
+      // Hard stall: no forward progress for 6s despite recovery attempts.
+      if (Date.now() - lastProgressAt > 6000) {
+        splashLog("stalled with no progress for 6s at t=", t.toFixed(2), "— logo");
+        window.clearInterval(poll);
+        setPhase((p) => (p === "video" ? "logo" : p));
+      }
+    }, 250);
+
+    return () => window.clearInterval(poll);
+  }, [autoplayBlocked, playbackStartedAt]);
+
+  // Logo tail: fade-in 1.2s · hold 1.5s · fade-out 1.5s · white 0.8s.
+  // Started once when the logo phase begins; the timers are held in a ref so a
+  // later phase change cannot cancel the chain. Cleared only on unmount.
+  const tailStartedRef = useRef(false);
+  const tailTimersRef = useRef<number[]>([]);
+  useEffect(() => {
+    if (phase !== "logo" || tailStartedRef.current) return;
+    tailStartedRef.current = true;
+    tailTimersRef.current = [
+      window.setTimeout(() => setPhase("logoFadeOut"), 2700),
+      window.setTimeout(() => setPhase("white"), 4200),
+      window.setTimeout(() => onComplete(), 5000),
+    ];
+  }, [phase, onComplete]);
+
+  useEffect(() => () => tailTimersRef.current.forEach((id) => window.clearTimeout(id)), []);
 
 
   const logoVisible = phase === "logo";

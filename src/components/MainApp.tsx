@@ -139,9 +139,31 @@ const MainApp = () => {
 
   // ── Back up your wallet: on creation (new users) and once per login (existing users) ──
   const [backupNudgeDismissed, setBackupNudgeDismissed] = useState(false);
+  const [seedBackedUpLive, setSeedBackedUpLive] = useState(false);
+
+  const backupDismissKey = (() => {
+    const uid = profile?.user_id || profile?.id || "anon";
+    const day = new Date().toISOString().slice(0, 10);
+    return `idia_backup_nudge_dismissed_v1:${uid}:${day}`;
+  })();
+
+  // Restore a same-day "Later" dismissal so the modal isn't re-thrown on every render pass.
+  useEffect(() => {
+    if (!profile) return;
+    try {
+      if (localStorage.getItem(backupDismissKey) === "1") setBackupNudgeDismissed(true);
+    } catch {}
+  }, [backupDismissKey, profile?.user_id, profile?.id]);
+
+  // A backup completed elsewhere in the session must silence the nudge immediately.
+  useEffect(() => {
+    const onBackedUp = () => setSeedBackedUpLive(true);
+    window.addEventListener("wallet:seed-backed-up", onBackedUp);
+    return () => window.removeEventListener("wallet:seed-backed-up", onBackedUp);
+  }, []);
 
   const hasVault = isProvisioned.wallet || localVaultExists === true;
-  const needsBackup = !!profile && (profile as any).is_seed_backed_up !== true;
+  const needsBackup = !!profile && profile.is_seed_backed_up !== true && !seedBackedUpLive;
 
   const showBackupNudge =
     !showWelcome &&
@@ -153,6 +175,9 @@ const MainApp = () => {
 
   const dismissBackupNudge = () => {
     setBackupNudgeDismissed(true);
+    try {
+      localStorage.setItem(backupDismissKey, "1");
+    } catch {}
   };
 
   const handleBackUpFromNudge = () => {
