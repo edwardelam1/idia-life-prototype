@@ -138,7 +138,7 @@ export const useEnhancedProfile = () => {
           cash_balance: Number(w.cash_balance) || 0,
           idia_usd_balance: Number(w.idia_usd_balance) || 0,
           idia_token_balance: Number(w.idia_token_balance) || 0,
-          is_seed_backed_up: false,
+          is_seed_backed_up: seedBackedUp,
         });
       }
     } catch (error) {
