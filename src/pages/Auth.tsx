@@ -8,10 +8,27 @@ import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Mail, Lock, User, KeyRound } from "lucide-react";
 import { runVaultGuard } from "@/lib/vaultGuard";
 import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
+import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png";
+
+const AUTH_HISTORY_KEY = "idia_has_auth_history_v1";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
-  const defaultIsLogin = searchParams.get("mode") !== "signup";
+  // Default to "Welcome Back" only on devices that have authenticated before;
+  // fresh browsers/devices land on "Create Account". Explicit ?mode= overrides.
+  const modeParam = searchParams.get("mode");
+  const defaultIsLogin =
+    modeParam === "signup"
+      ? false
+      : modeParam === "login"
+        ? true
+        : (() => {
+            try {
+              return localStorage.getItem(AUTH_HISTORY_KEY) === "1";
+            } catch {
+              return false;
+            }
+          })();
 
   // Standard Auth States
   const [isLogin, setIsLogin] = useState(defaultIsLogin);
@@ -41,6 +58,7 @@ const Auth = () => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session && !isResetMode) {
+        try { localStorage.setItem(AUTH_HISTORY_KEY, "1"); } catch {}
         console.log("[START] Auth: post-auth Vault Guard handoff");
         try {
           const { isNewUser } = await runVaultGuard(session.user.id);
