@@ -213,21 +213,21 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   }, [autoplayBlocked, playbackStartedAt]);
 
   // Logo tail: fade-in 1.2s · hold 1.5s · fade-out 1.5s · white 0.8s.
-  // Started once when the logo phase begins; later phase changes must not
-  // cancel the chain, so the timers live behind a one-shot guard.
+  // Started once when the logo phase begins; the timers are held in a ref so a
+  // later phase change cannot cancel the chain. Cleared only on unmount.
   const tailStartedRef = useRef(false);
+  const tailTimersRef = useRef<number[]>([]);
   useEffect(() => {
     if (phase !== "logo" || tailStartedRef.current) return;
     tailStartedRef.current = true;
-    const t1 = setTimeout(() => setPhase("logoFadeOut"), 2700);
-    const t2 = setTimeout(() => setPhase("white"), 4200);
-    const t3 = setTimeout(() => onComplete(), 5000);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
+    tailTimersRef.current = [
+      window.setTimeout(() => setPhase("logoFadeOut"), 2700),
+      window.setTimeout(() => setPhase("white"), 4200),
+      window.setTimeout(() => onComplete(), 5000),
+    ];
   }, [phase, onComplete]);
+
+  useEffect(() => () => tailTimersRef.current.forEach((id) => window.clearTimeout(id)), []);
 
 
   const logoVisible = phase === "logo";
