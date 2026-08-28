@@ -13,7 +13,9 @@ import { FriendAssistantProvider } from "./FriendAssistant";
 import { walletService } from "@/services/walletService";
 import WelcomeSequence from "./life/WelcomeSequence";
 import NoWalletNudge from "./wallet/NoWalletNudge";
+import BackupWalletNudge from "./wallet/BackupWalletNudge";
 import SelfDelegateEducationModal from "./wallet/SelfDelegateEducationModal";
+
 import { IDIA_PAY_RELEASE_DATE } from "@/config/release";
 
 const MainApp = () => {
