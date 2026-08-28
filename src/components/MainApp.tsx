@@ -139,13 +139,6 @@ const MainApp = () => {
 
   // ── Back up your wallet: on creation (new users) and once per login (existing users) ──
   const [backupNudgeDismissed, setBackupNudgeDismissed] = useState(false);
-  const [forceBackupNudge, setForceBackupNudge] = useState(false);
-
-  useEffect(() => {
-    const onVaultLinked = () => setForceBackupNudge(true);
-    window.addEventListener("vault-linked", onVaultLinked);
-    return () => window.removeEventListener("vault-linked", onVaultLinked);
-  }, []);
 
   const hasVault = isProvisioned.wallet || localVaultExists === true;
   const needsBackup = !!profile && (profile as any).is_seed_backed_up !== true;
@@ -156,12 +149,10 @@ const MainApp = () => {
     !profileLoading &&
     hasVault &&
     needsBackup &&
-    !backupNudgeDismissed &&
-    (forceBackupNudge || true);
+    !backupNudgeDismissed;
 
   const dismissBackupNudge = () => {
     setBackupNudgeDismissed(true);
-    setForceBackupNudge(false);
   };
 
   const handleBackUpFromNudge = () => {
@@ -240,6 +231,11 @@ const MainApp = () => {
           isVisible={showNudge}
           onDismiss={dismissNudge}
           onCreateWallet={handleCreateWalletFromNudge}
+        />
+        <BackupWalletNudge
+          isVisible={showBackupNudge}
+          onDismiss={dismissBackupNudge}
+          onBackUp={handleBackUpFromNudge}
         />
         <SelfDelegateEducationModal
           isVisible={showSelfDelegateEdu}
