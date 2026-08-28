@@ -27,6 +27,7 @@ export interface EnhancedProfile {
   wallet_address?: string; // ADD THIS LINE
   fbo_account_id?: string;
   full_legal_address?: Record<string, any> | null;
+  is_seed_backed_up: boolean;
 }
 
 export interface WalletData {
