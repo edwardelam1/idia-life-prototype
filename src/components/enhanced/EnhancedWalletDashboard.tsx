@@ -1158,7 +1158,7 @@ const EnhancedWalletDashboard: React.FC = () => {
         mode={backupModalMode}
         walletAddress={displayAddress}
         getSeedPhrase={handleGetSeedPhrase}
-        onRestore={handleImportWallet}
+        onRestore={async (m) => { await handleImportWallet(m); }}
         onBackedUp={() => setSeedBackedUp(true)}
       />
     </div>
