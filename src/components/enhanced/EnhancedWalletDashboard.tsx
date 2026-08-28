@@ -281,6 +281,9 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
   const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
+  const [backupModalMode, setBackupModalMode] = useState<"backup" | "restore">("backup");
+  const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+  const [seedBackedUp, setSeedBackedUp] = useState<boolean>(false);
   const [isCalculating, setIsCalculating] = useState(false);
 
   const displayAddress = globalWalletAddress || localAddress;
