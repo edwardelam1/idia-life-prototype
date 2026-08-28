@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AddFundsModal from "../AddFundsModal";
 import WalletSetupModal from "../WalletSetupModal";
+import SeedBackupModal from "../wallet/SeedBackupModal";
 import {
   Dialog,
   DialogContent,
@@ -50,6 +51,8 @@ import {
   Vote,
   Network,
   ExternalLink,
+  Lock,
+  Upload,
 } from "lucide-react";
 import idiaHubLogo from "@/assets/idia-hub-logo.png.asset.json";
 
@@ -1148,6 +1151,15 @@ const EnhancedWalletDashboard: React.FC = () => {
         getSeedPhrase={handleGetSeedPhrase}
         walletAddress={displayAddress}
         provisioningStage={provisioningStage}
+      />
+      <SeedBackupModal
+        isOpen={isBackupModalOpen}
+        onClose={() => setIsBackupModalOpen(false)}
+        mode={backupModalMode}
+        walletAddress={displayAddress}
+        getSeedPhrase={handleGetSeedPhrase}
+        onRestore={handleImportWallet}
+        onBackedUp={() => setSeedBackedUp(true)}
       />
     </div>
   );
