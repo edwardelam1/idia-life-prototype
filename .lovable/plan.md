@@ -6,51 +6,33 @@
 - Encode is the most iOS-friendly form possible: H.264 **Main / Level 3.1**, `yuv420p`, 960x540, 24 fps, exactly 8.0 s, **no audio track**, and the `moov` atom sits before `mdat` (fast-start), so playback can begin after the first few KB.
 - The splash component already sets `muted`, `playsinline`, `webkit-playsinline`, imperative `play()`, error-reload recovery, and a progress watchdog.
 
-Confirmed with you: it fails **only in the native iOS WKWebView shell**, and **the video dies at the exact moment the Zebulon track starts**.
+Confirmed with you: the same failure occurs in both the native iOS shell and the ordinary Lovable preview. That rules out the Swift shell as the root cause and means **no new Apple release should be required**.
 
 ## Diagnosis
 
-Two media elements are competing for one iOS audio session:
+The regression is in the shared React playback path. Comparing the current component with the last known working splash revealed a concrete playback-policy change: the working `<video>` explicitly set both `defaultMuted` and `muted`, but a recent cleanup removed `defaultMuted`.
 
 ```text
-mount
- ├─ SplashAudioProvider: new Audio(mp3).play()   <-- takes the audio session
- └─ FlashingSplashScreen: <video muted> .play()  <-- gets interrupted / refused
+last known working:  defaultMuted=true + muted=true before autoplay evaluation
+current version:     muted React prop + later imperative v.muted=true
 ```
 
-On iOS, starting an `<audio>` element makes WKWebView activate/reconfigure the `AVAudioSession`. A muted video that is mid-startup gets interrupted by that reconfiguration and WebKit refuses to resume it inline, which is exactly why you see the native **play-button glyph** instead of frames. The glyph is the "playback was refused" state, never a "file is broken" state.
+WebKit evaluates autoplay eligibility during media initialization. `defaultMuted` marks the element muted at creation; assigning `v.muted = true` later in an effect can be too late. The native play glyph, no `playing` event, and eventual no-progress timeout match an autoplay-policy rejection. The same React code runs in Lovable and the shell, explaining the identical behavior in both.
 
-This is also the honest answer to "why now": nothing you changed touched the video, and the file is provably fine, so the trigger is the shell's media policy plus the audio element racing the video at boot. The web side can be made resilient to it; one part of the fix belongs in the Swift shell.
+React Strict Mode amplifies the race in preview: it mounts, cleans up, and mounts effects again in development, causing overlapping `play()` calls from the video and audio providers. The current recovery logic handles `AbortError`, but it cannot cure a video that WebKit classified as autoplay-ineligible at element creation.
 
 ## The fix (web side)
 
-1. **Sequence the two elements instead of racing them.** The video starts alone. `SplashAudioProvider` waits for a `splash:video-playing` event (or a short fallback timeout if no video phase exists) before calling `audio.play()`. Nothing else about the audio behaviour changes: it still carries over into the carousel and still fades out on "Get Started".
-2. **Survive the session change anyway.** If the video is paused or interrupted within the first two seconds of playback, re-issue `play()` and, if the element reports it cannot resume, restart from `currentTime = 0` once. A single interruption must not end the video phase.
-3. **Never show the native glyph.** Add a `poster` frame and keep `controls={false}` plus `object-cover` so that even a refused element shows artwork rather than a play button.
-4. **On-device diagnostics you can actually read.** The `[SPLASH]` logs are invisible on a phone, so add a temporary debug overlay (enabled with `?splashdebug=1`) that prints the last media events on screen. You screenshot it once and we know exactly which event killed it. Removed after confirmation.
-
-## The fix (native shell — for Shawn)
-
-The web changes above make the sequence resilient, but the shell should also stop refusing inline playback. In the `WKWebViewConfiguration`:
-
-```swift
-config.allowsInlineMediaPlayback = true
-config.mediaTypesRequiringUserActionForPlayback = []
-```
-
-and at launch, before loading the URL:
-
-```swift
-try? AVAudioSession.sharedInstance().setCategory(.playback, options: [.mixWithOthers])
-try? AVAudioSession.sharedInstance().setActive(true)
-```
-
-`.mixWithOthers` is the key line: it stops the audio element's session activation from evicting the video. If the shell was rebuilt recently without these, that alone explains the regression.
+1. **Restore creation-time muting.** Put `defaultMuted: true` back on the video element while retaining `muted`, `playsInline`, and the imperative property assignments. This restores the exact autoplay eligibility setup from the last working implementation.
+2. **Remove competing auto-start calls.** Make one guarded video start routine responsible for the initial `play()`; media events may schedule recovery only when the element is actually paused. This prevents `loadeddata`, `canplay`, Strict Mode, and `pause` from superseding one another.
+3. **Sequence audio after the first painted video frame.** `SplashAudioProvider` creates/preloads the track immediately but waits for a `splash:video-playing` event before playing it. It still carries through the carousel and fades on "Get Started". This is web-only and works equally in Lovable and the shell.
+4. **Do not convert autoplay rejection into a timed white-screen exit.** On a genuine `NotAllowedError`, keep the video phase visible and attach a one-time tap recovery rather than immediately advancing to the logo. The existing two-second skip debounce will not misread that recovery tap as "skip".
+5. **Keep diagnostics query-gated.** Add an on-screen event trace only for `?splashdebug=1`, so an iPhone screenshot can identify any remaining `play()` rejection without affecting normal users.
 
 ## Technical notes
 
-Changes are limited to `src/components/FlashingSplashScreen.tsx` and `src/components/SplashAudioProvider.tsx`, plus one generated poster image in `src/assets`. No backend, routing, auth, or carousel changes. The phase machine stays `video -> logo -> logoFadeOut -> white`.
+Changes are limited to `src/components/FlashingSplashScreen.tsx` and `src/components/SplashAudioProvider.tsx`. No Swift/Xcode, backend, routing, auth, asset, or carousel changes. The phase machine stays `video -> logo -> logoFadeOut -> white`.
 
 ## Verification
 
-Run the native build with `?splashdebug=1`. Expected: video paints and runs its full 8 s with the "Timeless by Zebulon / RM Records" credit, music joins a beat after the first frame, logo reveals, and the carousel arrives with music still playing.
+First verify in the Lovable preview, where the issue is reproducible without a native release; then verify the same deployed web update in the existing iOS shell. Expected: video starts without a play glyph, runs its full 8 s with the music credit, music begins after the first video frame, logo reveals, and the carousel arrives with music still playing.
