@@ -965,6 +965,53 @@ const EnhancedWalletDashboard: React.FC = () => {
                       <Shield className="w-4 h-4 mr-2" />
                       Reveal Recovery Phrase
                     </Button>
+
+                    {/* ── Encrypted passphrase backup ── */}
+                    <div className="rounded-lg border bg-secondary/40 p-3 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium">Encrypted Backup</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {seedBackedUp
+                              ? "Recovery phrase backed up"
+                              : "Recovery phrase not backed up yet"}
+                          </p>
+                        </div>
+                        <Badge
+                          variant="secondary"
+                          className={
+                            seedBackedUp
+                              ? "bg-teal-100 text-teal-800 text-[10px]"
+                              : "bg-amber-100 text-amber-900 text-[10px]"
+                          }
+                        >
+                          {seedBackedUp ? "Backed up" : "Action needed"}
+                        </Badge>
+                      </div>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => {
+                          setBackupModalMode("backup");
+                          setIsBackupModalOpen(true);
+                        }}
+                      >
+                        <Lock className="w-4 h-4 mr-2" />
+                        Back Up Recovery Phrase
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="w-full"
+                        onClick={() => {
+                          setBackupModalMode("restore");
+                          setIsBackupModalOpen(true);
+                        }}
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        Restore from Backup File
+                      </Button>
+                    </div>
+
                     <Button
                       variant="outline"
                       className="w-full"
