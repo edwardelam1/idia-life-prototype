@@ -7,12 +7,19 @@ interface FlashingSplashScreenProps {
   onComplete: () => void;
 }
 
+const splashLog = (...args: unknown[]) => {
+  try {
+    console.log("[SPLASH]", ...args);
+  } catch {}
+};
+
 const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   const [phase, setPhase] = useState<"video" | "logo" | "logoFadeOut" | "white">("video");
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [playbackStartedAt, setPlaybackStartedAt] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mountedAtRef = useRef<number>(Date.now());
+  const recoveryAttemptsRef = useRef(0);
 
   // Attempt imperative play on mount — older iOS (iPhone 11-era WebKit)
   // often defers autoplay until an explicit .play() call, even when muted.
@@ -40,6 +47,8 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
           .catch((err: unknown) => {
             // AbortError is produced when WebKit supersedes one play request
             // with another media operation; it is recoverable, not a failure.
+            const name = err instanceof DOMException ? err.name : String(err);
+            splashLog("play() rejected:", name);
             if (active && err instanceof DOMException && err.name === "NotAllowedError") {
               setAutoplayBlocked(true);
             }
@@ -74,7 +83,34 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
       if (!v.ended) schedulePlay();
     };
     const onStalled = () => schedulePlay();
-    const onError = () => setAutoplayBlocked(true);
+    // A single media error must not collapse the whole sequence: reload the
+    // element and retry once before giving up on the video phase.
+    const onError = () => {
+      const code = v.error?.code;
+      splashLog("error event · code:", code, "message:", v.error?.message, "readyState:", v.readyState);
+      if (!active) return;
+      if (recoveryAttemptsRef.current < 1) {
+        recoveryAttemptsRef.current += 1;
+        splashLog("attempting one reload recovery");
+        try {
+          v.load();
+        } catch {}
+        schedulePlay();
+        return;
+      }
+      setAutoplayBlocked(true);
+    };
+
+    const trace = (name: string) => () =>
+      splashLog(name, "· t=", v.currentTime.toFixed(2), "readyState=", v.readyState);
+    const traced: Array<[string, EventListener]> = [
+      ["loadedmetadata", trace("loadedmetadata")],
+      ["canplay", trace("canplay")],
+      ["waiting", trace("waiting")],
+      ["suspend", trace("suspend")],
+      ["ended", trace("ended")],
+    ];
+    traced.forEach(([n, fn]) => v.addEventListener(n, fn));
 
     v.addEventListener("loadedmetadata", onProgress);
     v.addEventListener("loadeddata", schedulePlay);
@@ -86,15 +122,24 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     v.addEventListener("error", onError);
     tryPlay();
 
+    const ticker = window.setInterval(() => {
+      splashLog("tick · t=", v.currentTime.toFixed(2), "paused=", v.paused, "readyState=", v.readyState);
+    }, 1000);
+
     // Long safety net: only bail when NO data at all has arrived.
     const guard = window.setTimeout(() => {
-      if (!sawData && v.readyState < 1) setAutoplayBlocked(true);
+      if (!sawData && v.readyState < 1) {
+        splashLog("no-data guard fired — falling back to logo-only sequence");
+        setAutoplayBlocked(true);
+      }
     }, 12000);
 
     return () => {
       active = false;
       window.clearTimeout(guard);
+      window.clearInterval(ticker);
       if (retryTimer !== null) window.clearTimeout(retryTimer);
+      traced.forEach(([n, fn]) => v.removeEventListener(n, fn));
       v.removeEventListener("loadedmetadata", onProgress);
       v.removeEventListener("loadeddata", schedulePlay);
       v.removeEventListener("canplay", schedulePlay);
@@ -117,7 +162,10 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    const onEnded = () => setPhase((p) => (p === "video" ? "logo" : p));
+    const onEnded = () => {
+      splashLog("video ended — handing off to logo");
+      setPhase((p) => (p === "video" ? "logo" : p));
+    };
     v.addEventListener("ended", onEnded);
     return () => v.removeEventListener("ended", onEnded);
   }, []);
