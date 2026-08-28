@@ -137,6 +137,40 @@ const MainApp = () => {
     localVaultExists === false &&
     !nudgeDismissed;
 
+  // ── Back up your wallet: on creation (new users) and once per login (existing users) ──
+  const [backupNudgeDismissed, setBackupNudgeDismissed] = useState(false);
+  const [forceBackupNudge, setForceBackupNudge] = useState(false);
+
+  useEffect(() => {
+    const onVaultLinked = () => setForceBackupNudge(true);
+    window.addEventListener("vault-linked", onVaultLinked);
+    return () => window.removeEventListener("vault-linked", onVaultLinked);
+  }, []);
+
+  const hasVault = isProvisioned.wallet || localVaultExists === true;
+  const needsBackup = !!profile && (profile as any).is_seed_backed_up !== true;
+
+  const showBackupNudge =
+    !showWelcome &&
+    !showNudge &&
+    !profileLoading &&
+    hasVault &&
+    needsBackup &&
+    !backupNudgeDismissed &&
+    (forceBackupNudge || true);
+
+  const dismissBackupNudge = () => {
+    setBackupNudgeDismissed(true);
+    setForceBackupNudge(false);
+  };
+
+  const handleBackUpFromNudge = () => {
+    dismissBackupNudge();
+    setActiveTab("wallet");
+    window.dispatchEvent(new CustomEvent("wallet:open-security", { detail: { mode: "backup" } }));
+  };
+
+
   // AI Assistant Triggers
   useEffect(() => {
     if (showWelcome) return;
