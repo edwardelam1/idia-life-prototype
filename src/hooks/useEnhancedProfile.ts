@@ -83,6 +83,7 @@ export const useEnhancedProfile = () => {
         return;
       }
 
+      let seedBackedUp = false;
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("*")
