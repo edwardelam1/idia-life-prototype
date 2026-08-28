@@ -351,11 +351,14 @@ const Auth = () => {
   // ==========================================
   if (isResetMode) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted/40 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
         <Card className="w-full max-w-md animate-fade-in">
           <CardHeader className="space-y-1">
+            <div className="flex justify-center pb-2">
+              <img src={polishedLogo} alt="Life by IDIA logo" className="w-16 h-16 rounded-2xl shadow-lg" />
+            </div>
             <CardTitle className="text-2xl font-bold text-center">Reset Password</CardTitle>
-            <p className="text-sm text-gray-600 text-center">
+            <p className="text-sm text-muted-foreground text-center">
               {resetStep === "request"
                 ? "Enter your email address and we'll send you a 6-digit code."
                 : "Enter the 6-digit code sent to your email and your new password."}
@@ -439,13 +442,16 @@ const Auth = () => {
   // RENDER: STANDARD AUTH UI
   // ==========================================
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted/40 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
       <Card className="w-full max-w-md animate-fade-in">
         <CardHeader className="space-y-1">
+          <div className="flex justify-center pb-2">
+            <img src={polishedLogo} alt="Life by IDIA logo" className="w-16 h-16 rounded-2xl shadow-lg" />
+          </div>
           <CardTitle className="text-2xl font-bold text-center">
             {isLogin ? "Welcome Back" : "Create Account"}
           </CardTitle>
-          <p className="text-sm text-gray-600 text-center">
+          <p className="text-sm text-muted-foreground text-center">
             {isLogin ? "Sign in to your account to continue" : "Sign up to get started with IDIA"}
           </p>
         </CardHeader>
