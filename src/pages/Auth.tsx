@@ -8,10 +8,27 @@ import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Mail, Lock, User, KeyRound } from "lucide-react";
 import { runVaultGuard } from "@/lib/vaultGuard";
 import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
+import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png";
+
+const AUTH_HISTORY_KEY = "idia_has_auth_history_v1";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
-  const defaultIsLogin = searchParams.get("mode") !== "signup";
+  // Default to "Welcome Back" only on devices that have authenticated before;
+  // fresh browsers/devices land on "Create Account". Explicit ?mode= overrides.
+  const modeParam = searchParams.get("mode");
+  const defaultIsLogin =
+    modeParam === "signup"
+      ? false
+      : modeParam === "login"
+        ? true
+        : (() => {
+            try {
+              return localStorage.getItem(AUTH_HISTORY_KEY) === "1";
+            } catch {
+              return false;
+            }
+          })();
 
   // Standard Auth States
   const [isLogin, setIsLogin] = useState(defaultIsLogin);
@@ -41,6 +58,7 @@ const Auth = () => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session && !isResetMode) {
+        try { localStorage.setItem(AUTH_HISTORY_KEY, "1"); } catch {}
         console.log("[START] Auth: post-auth Vault Guard handoff");
         try {
           const { isNewUser } = await runVaultGuard(session.user.id);
@@ -333,11 +351,14 @@ const Auth = () => {
   // ==========================================
   if (isResetMode) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted/40 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
         <Card className="w-full max-w-md animate-fade-in">
           <CardHeader className="space-y-1">
+            <div className="flex justify-center pb-2">
+              <img src={polishedLogo} alt="Life by IDIA logo" className="w-16 h-16 rounded-2xl shadow-lg" />
+            </div>
             <CardTitle className="text-2xl font-bold text-center">Reset Password</CardTitle>
-            <p className="text-sm text-gray-600 text-center">
+            <p className="text-sm text-muted-foreground text-center">
               {resetStep === "request"
                 ? "Enter your email address and we'll send you a 6-digit code."
                 : "Enter the 6-digit code sent to your email and your new password."}
@@ -347,7 +368,7 @@ const Auth = () => {
             {resetStep === "request" ? (
               <form onSubmit={handleRequestOTP} className="space-y-4">
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="email"
                     placeholder="Enter your email"
@@ -364,7 +385,7 @@ const Auth = () => {
             ) : (
               <form onSubmit={handleVerifyAndReset} className="space-y-4">
                 <div className="relative">
-                  <KeyRound className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <KeyRound className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="text"
                     placeholder="6-Digit Code"
@@ -376,7 +397,7 @@ const Auth = () => {
                   />
                 </div>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     type={showPassword ? "text" : "password"}
                     placeholder="New Password"
@@ -388,7 +409,7 @@ const Auth = () => {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 h-4 w-4 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground"
                   >
                     {showPassword ? <EyeOff /> : <Eye />}
                   </button>
@@ -421,20 +442,23 @@ const Auth = () => {
   // RENDER: STANDARD AUTH UI
   // ==========================================
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted/40 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
       <Card className="w-full max-w-md animate-fade-in">
         <CardHeader className="space-y-1">
+          <div className="flex justify-center pb-2">
+            <img src={polishedLogo} alt="Life by IDIA logo" className="w-16 h-16 rounded-2xl shadow-lg" />
+          </div>
           <CardTitle className="text-2xl font-bold text-center">
             {isLogin ? "Welcome Back" : "Create Account"}
           </CardTitle>
-          <p className="text-sm text-gray-600 text-center">
+          <p className="text-sm text-muted-foreground text-center">
             {isLogin ? "Sign in to your account to continue" : "Sign up to get started with IDIA"}
           </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleAuth} className="space-y-4">
             <div className="relative">
-              <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
                 type="email"
                 placeholder="Email address"
@@ -445,7 +469,7 @@ const Auth = () => {
               />
             </div>
             <div className="relative">
-              <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
                 type={showPassword ? "text" : "password"}
                 placeholder="Password"
@@ -457,7 +481,7 @@ const Auth = () => {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-3 h-4 w-4 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground"
               >
                 {showPassword ? <EyeOff /> : <Eye />}
               </button>
@@ -528,7 +552,7 @@ const Auth = () => {
           )}
 
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               {isLogin ? "Don't have an account? " : "Already have an account? "}
               <Button variant="link" onClick={() => setIsLogin(!isLogin)} className="text-sm p-0 font-semibold">
                 {isLogin ? "Sign up" : "Sign in"}
