@@ -245,13 +245,22 @@ const SeedBackupModal: React.FC<SeedBackupModalProps> = ({
                 <div className="space-y-1">
                   <div className="h-1 w-full rounded bg-muted overflow-hidden">
                     <div
-                      className="h-full bg-primary transition-all"
+                      className={`h-full transition-all ${
+                        strength.score >= 4 ? "bg-emerald-500" : "bg-primary"
+                      }`}
                       style={{ width: `${(strength.score / 4) * 100}%` }}
                     />
                   </div>
-                  <p className="text-[11px] text-muted-foreground">{strength.label}</p>
+                  <p
+                    className={`text-[11px] ${
+                      strength.score >= 4 ? "text-emerald-600 font-semibold" : "text-muted-foreground"
+                    }`}
+                  >
+                    {strength.label}
+                  </p>
                 </div>
               )}
+
             </div>
 
             <div className="space-y-2">

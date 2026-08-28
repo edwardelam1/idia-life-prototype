@@ -13,7 +13,9 @@ import { FriendAssistantProvider } from "./FriendAssistant";
 import { walletService } from "@/services/walletService";
 import WelcomeSequence from "./life/WelcomeSequence";
 import NoWalletNudge from "./wallet/NoWalletNudge";
+import BackupWalletNudge from "./wallet/BackupWalletNudge";
 import SelfDelegateEducationModal from "./wallet/SelfDelegateEducationModal";
+
 import { IDIA_PAY_RELEASE_DATE } from "@/config/release";
 
 const MainApp = () => {
@@ -135,6 +137,31 @@ const MainApp = () => {
     localVaultExists === false &&
     !nudgeDismissed;
 
+  // ── Back up your wallet: on creation (new users) and once per login (existing users) ──
+  const [backupNudgeDismissed, setBackupNudgeDismissed] = useState(false);
+
+  const hasVault = isProvisioned.wallet || localVaultExists === true;
+  const needsBackup = !!profile && (profile as any).is_seed_backed_up !== true;
+
+  const showBackupNudge =
+    !showWelcome &&
+    !showNudge &&
+    !profileLoading &&
+    hasVault &&
+    needsBackup &&
+    !backupNudgeDismissed;
+
+  const dismissBackupNudge = () => {
+    setBackupNudgeDismissed(true);
+  };
+
+  const handleBackUpFromNudge = () => {
+    dismissBackupNudge();
+    setActiveTab("wallet");
+    window.dispatchEvent(new CustomEvent("wallet:open-security", { detail: { mode: "backup" } }));
+  };
+
+
   // AI Assistant Triggers
   useEffect(() => {
     if (showWelcome) return;
@@ -204,6 +231,11 @@ const MainApp = () => {
           isVisible={showNudge}
           onDismiss={dismissNudge}
           onCreateWallet={handleCreateWalletFromNudge}
+        />
+        <BackupWalletNudge
+          isVisible={showBackupNudge}
+          onDismiss={dismissBackupNudge}
+          onBackUp={handleBackUpFromNudge}
         />
         <SelfDelegateEducationModal
           isVisible={showSelfDelegateEdu}
