@@ -368,7 +368,7 @@ const Auth = () => {
             {resetStep === "request" ? (
               <form onSubmit={handleRequestOTP} className="space-y-4">
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="email"
                     placeholder="Enter your email"
@@ -385,7 +385,7 @@ const Auth = () => {
             ) : (
               <form onSubmit={handleVerifyAndReset} className="space-y-4">
                 <div className="relative">
-                  <KeyRound className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <KeyRound className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="text"
                     placeholder="6-Digit Code"
@@ -397,7 +397,7 @@ const Auth = () => {
                   />
                 </div>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     type={showPassword ? "text" : "password"}
                     placeholder="New Password"
@@ -409,7 +409,7 @@ const Auth = () => {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 h-4 w-4 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground"
                   >
                     {showPassword ? <EyeOff /> : <Eye />}
                   </button>
@@ -458,7 +458,7 @@ const Auth = () => {
         <CardContent>
           <form onSubmit={handleAuth} className="space-y-4">
             <div className="relative">
-              <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
                 type="email"
                 placeholder="Email address"
@@ -469,7 +469,7 @@ const Auth = () => {
               />
             </div>
             <div className="relative">
-              <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
                 type={showPassword ? "text" : "password"}
                 placeholder="Password"
@@ -481,7 +481,7 @@ const Auth = () => {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-3 h-4 w-4 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground"
               >
                 {showPassword ? <EyeOff /> : <Eye />}
               </button>
@@ -552,7 +552,7 @@ const Auth = () => {
           )}
 
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               {isLogin ? "Don't have an account? " : "Already have an account? "}
               <Button variant="link" onClick={() => setIsLogin(!isLogin)} className="text-sm p-0 font-semibold">
                 {isLogin ? "Sign up" : "Sign in"}
