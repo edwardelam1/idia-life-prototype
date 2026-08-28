@@ -212,9 +212,13 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     return () => window.clearInterval(poll);
   }, [autoplayBlocked, playbackStartedAt]);
 
-  // Logo tail: fade-in 1.2s · hold 1.5s · fade-out 1.5s · white 0.8s
+  // Logo tail: fade-in 1.2s · hold 1.5s · fade-out 1.5s · white 0.8s.
+  // Started once when the logo phase begins; later phase changes must not
+  // cancel the chain, so the timers live behind a one-shot guard.
+  const tailStartedRef = useRef(false);
   useEffect(() => {
-    if (phase !== "logo") return;
+    if (phase !== "logo" || tailStartedRef.current) return;
+    tailStartedRef.current = true;
     const t1 = setTimeout(() => setPhase("logoFadeOut"), 2700);
     const t2 = setTimeout(() => setPhase("white"), 4200);
     const t3 = setTimeout(() => onComplete(), 5000);
