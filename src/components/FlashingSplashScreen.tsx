@@ -20,6 +20,13 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const mountedAtRef = useRef<number>(Date.now());
   const recoveryAttemptsRef = useRef(0);
+  const awaitingGestureRef = useRef(false);
+  const suppressSkipUntilRef = useRef(0);
+  const playRequestRef = useRef<(() => void) | null>(null);
+  const debugEnabledRef = useRef(
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("splashdebug") === "1",
+  );
+  const [debugEvents, setDebugEvents] = useState<string[]>([]);
 
   // Attempt imperative play on mount — older iOS (iPhone 11-era WebKit)
   // often defers autoplay until an explicit .play() call, even when muted.
@@ -36,21 +43,33 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     let playInFlight = false;
     let retryTimer: number | null = null;
 
+    const record = (message: string) => {
+      splashLog(message);
+      if (debugEnabledRef.current) {
+        setDebugEvents((events) => [...events.slice(-7), message]);
+      }
+    };
+
     const tryPlay = () => {
       if (!active || v.ended || playInFlight || !v.paused) return;
       playInFlight = true;
       const p = v.play();
       if (p && typeof p.catch === "function") {
         p.then(() => {
-          if (active) setAutoplayBlocked(false);
+          if (active) {
+            awaitingGestureRef.current = false;
+            setAutoplayBlocked(false);
+          }
         })
           .catch((err: unknown) => {
             // AbortError is produced when WebKit supersedes one play request
             // with another media operation; it is recoverable, not a failure.
             const name = err instanceof DOMException ? err.name : String(err);
-            splashLog("play() rejected:", name);
+            record(`play rejected: ${name}`);
             if (active && err instanceof DOMException && err.name === "NotAllowedError") {
-              setAutoplayBlocked(true);
+              // Keep the video phase visible and let the next user gesture
+              // recover playback instead of timing out to a white screen.
+              awaitingGestureRef.current = true;
             }
           })
           .finally(() => {
@@ -60,6 +79,7 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
         playInFlight = false;
       }
     };
+    playRequestRef.current = tryPlay;
 
     const schedulePlay = () => {
       if (!active || v.ended || retryTimer !== null) return;
@@ -74,13 +94,17 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     };
     const onPlaying = () => {
       setAutoplayBlocked(false);
+      awaitingGestureRef.current = false;
       setPlaybackStartedAt((prev) => prev ?? Date.now());
+      record(`playing · t=${v.currentTime.toFixed(2)} rs=${v.readyState}`);
+      window.dispatchEvent(new CustomEvent("splash:video-playing"));
     };
     // iOS WKWebView may pause a media element when its audio session changes.
     // The splash asset is video-only now, but recover any external pause rather
     // than allowing a transient interruption to terminate the sequence.
     const onPause = () => {
-      if (!v.ended) schedulePlay();
+      record(`pause · t=${v.currentTime.toFixed(2)} rs=${v.readyState}`);
+      if (!v.ended && !awaitingGestureRef.current) schedulePlay();
     };
     const onStalled = () => schedulePlay();
     // A single media error must not collapse the whole sequence: reload the
@@ -102,7 +126,7 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     };
 
     const trace = (name: string) => () =>
-      splashLog(name, "· t=", v.currentTime.toFixed(2), "readyState=", v.readyState);
+      record(`${name} · t=${v.currentTime.toFixed(2)} rs=${v.readyState}`);
     const traced: Array<[string, EventListener]> = [
       ["loadedmetadata", trace("loadedmetadata")],
       ["canplay", trace("canplay")],
@@ -136,6 +160,7 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
 
     return () => {
       active = false;
+      playRequestRef.current = null;
       window.clearTimeout(guard);
       window.clearInterval(ticker);
       if (retryTimer !== null) window.clearTimeout(retryTimer);
@@ -152,6 +177,12 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   }, []);
 
   const handleSkip = useCallback(() => {
+    if (awaitingGestureRef.current) {
+      suppressSkipUntilRef.current = Date.now() + 700;
+      playRequestRef.current?.();
+      return;
+    }
+    if (Date.now() < suppressSkipUntilRef.current) return;
     // Ignore the very first taps — the audio-unlock gesture (and stray touches
     // while the video starts) were dismissing the splash immediately.
     if (Date.now() - mountedAtRef.current < 2000) return;
@@ -284,6 +315,7 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
         ref={videoRef}
         src={splashVideo.url}
         autoPlay
+        {...({ defaultMuted: true } as { defaultMuted: boolean })}
         muted
         playsInline
         preload="auto"
@@ -296,6 +328,12 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
           opacity: phase === "video" && !autoplayBlocked ? 1 : 0,
         }}
       />
+
+      {debugEnabledRef.current && (
+        <pre className="absolute inset-x-3 top-3 z-40 max-h-48 overflow-hidden bg-black/80 p-3 text-[10px] leading-4 text-white pointer-events-none">
+          {debugEvents.length > 0 ? debugEvents.join("\n") : "splash diagnostics waiting…"}
+        </pre>
+      )}
 
       {/* Logo emerging — cinematic fade-in, glowing hold, graceful release */}
       <div
