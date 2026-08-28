@@ -118,7 +118,9 @@ export const useEnhancedProfile = () => {
           kyc_status: p.kyc_status || "pending",
           ssn_last4: p.ssn_last4 || null,
           fbo_account_id: p.fbo_account_id || null,
+          is_seed_backed_up: p.is_seed_backed_up === true,
         });
+        seedBackedUp = p.is_seed_backed_up === true;
       }
 
       const { data: walletData } = await supabase
