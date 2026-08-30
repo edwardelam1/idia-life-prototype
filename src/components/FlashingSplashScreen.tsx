@@ -66,6 +66,7 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     let active = true;
     let playInFlight = false;
     let retryTimer: number | null = null;
+    let rejections = 0;
 
     const record = (message: string) => {
       splashLog(message);
@@ -74,14 +75,29 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
       }
     };
 
+    const schedulePlay = (delay = 120) => {
+      if (!active || v.ended || retryTimer !== null) return;
+      retryTimer = window.setTimeout(() => {
+        retryTimer = null;
+        tryPlay();
+      }, delay);
+    };
+
     const tryPlay = () => {
       if (!active || v.ended || playInFlight || !v.paused) return;
       playInFlight = true;
+      // Re-assert muted state on every attempt; WebKit can drop it when the
+      // audio session changes underneath the element.
+      v.muted = true;
+      v.defaultMuted = true;
+      v.volume = 0;
       const p = v.play();
       if (p && typeof p.catch === "function") {
         p.then(() => {
           if (active) {
+            rejections = 0;
             awaitingGestureRef.current = false;
+            setNeedsTap(false);
             setAutoplayBlocked(false);
           }
         })
@@ -90,10 +106,24 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
             // with another media operation; it is recoverable, not a failure.
             const name = err instanceof DOMException ? err.name : String(err);
             record(`play rejected: ${name}`);
-            if (active && err instanceof DOMException && err.name === "NotAllowedError") {
-              // Keep the video phase visible and let the next user gesture
-              // recover playback instead of timing out to a white screen.
+            if (!active) return;
+            if (err instanceof DOMException && err.name === "NotAllowedError") {
+              rejections += 1;
+              if (rejections <= 4) {
+                // Retry with backoff instead of latching into gesture mode.
+                if (rejections === 3) {
+                  try {
+                    v.load();
+                  } catch {}
+                }
+                playInFlight = false;
+                schedulePlay(200 * rejections);
+                return;
+              }
+              // Genuinely blocked: keep the video phase visible and offer a
+              // visible tap affordance rather than a silent frozen frame.
               awaitingGestureRef.current = true;
+              setNeedsTap(true);
             }
           })
           .finally(() => {
@@ -105,13 +135,6 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     };
     playRequestRef.current = tryPlay;
 
-    const schedulePlay = () => {
-      if (!active || v.ended || retryTimer !== null) return;
-      retryTimer = window.setTimeout(() => {
-        retryTimer = null;
-        tryPlay();
-      }, 120);
-    };
 
     const onProgress = () => {
       sawData = true;
