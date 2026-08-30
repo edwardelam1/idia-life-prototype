@@ -362,24 +362,33 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
         }}
       />
 
-      {/* Rushing splash video */}
+      {/* Rushing splash video — attributes are applied by attachVideo before
+          the source is set, so WebKit sees a muted inline element at load. */}
       <video
-        ref={videoRef}
-        src={splashVideo.url}
-        autoPlay
-        {...({ defaultMuted: true } as { defaultMuted: boolean })}
+        ref={attachVideo}
         muted
         playsInline
-        preload="auto"
         controls={false}
         disablePictureInPicture
         disableRemotePlayback
-        
         className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in"
         style={{
           opacity: phase === "video" && !autoplayBlocked ? 1 : 0,
         }}
       />
+
+      {/* Last-resort affordance if WebKit refuses muted autoplay entirely */}
+      {needsTap && phase === "video" && !autoplayBlocked && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
+          <p
+            className="rounded-full bg-black/45 px-5 py-2 text-sm font-medium tracking-wide text-white"
+            style={{ textShadow: "0 1px 6px rgba(0,0,0,0.55)" }}
+          >
+            Tap to play
+          </p>
+        </div>
+      )}
+
 
       {debugEnabledRef.current && (
         <pre className="absolute inset-x-3 top-3 z-40 max-h-48 overflow-hidden bg-black/80 p-3 text-[10px] leading-4 text-white pointer-events-none">
