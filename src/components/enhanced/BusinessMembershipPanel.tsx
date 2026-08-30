@@ -4,13 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -19,12 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,8 +43,21 @@ const roleBadgeVariant = (role: string): "default" | "secondary" | "outline" => 
 
 // IRS-published invalid EIN prefixes (campus codes never assigned)
 const INVALID_EIN_PREFIXES = new Set([
-  "00", "07", "08", "09", "17", "18", "19", "28", "29",
-  "49", "69", "70", "78", "79", "89",
+  "00",
+  "07",
+  "08",
+  "09",
+  "17",
+  "18",
+  "19",
+  "28",
+  "29",
+  "49",
+  "69",
+  "70",
+  "78",
+  "79",
+  "89",
 ]);
 
 const ENTITY_TYPES: EntityType[] = ["C-Corp", "S-Corp", "LLC", "Sole", "Non-Profit"];
@@ -115,8 +117,7 @@ interface Submodule {
 }
 
 const BusinessMembershipPanel: React.FC = () => {
-  const { loading, memberships, pendingRequest, submitIntake, leaveBusiness } =
-    useBusinessMembership();
+  const { loading, memberships, pendingRequest, submitIntake, leaveBusiness } = useBusinessMembership();
   const { toast } = useToast();
 
   const [showIntake, setShowIntake] = useState(false);
@@ -152,7 +153,10 @@ const BusinessMembershipPanel: React.FC = () => {
     setTaxLoading(true);
     (async () => {
       const [v, s] = await Promise.all([
-        supabase.from("taxonomy_verticals" as any).select("id, name").order("name"),
+        supabase
+          .from("taxonomy_verticals" as any)
+          .select("id, name")
+          .order("name"),
         supabase
           .from("taxonomy_submodules" as any)
           .select("id, vertical_id, name")
@@ -369,10 +373,7 @@ const BusinessMembershipPanel: React.FC = () => {
               </Button>
             );
             return (
-              <div
-                key={m.employeeId}
-                className="flex items-center justify-between gap-2 px-2.5 py-2"
-              >
+              <div key={m.employeeId} className="flex items-center justify-between gap-2 px-2.5 py-2">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium truncate">{m.businessName}</p>
                   <Badge variant={roleBadgeVariant(m.platformRole)} className="text-[10px] mt-0.5">
@@ -385,8 +386,7 @@ const BusinessMembershipPanel: React.FC = () => {
                       <span tabIndex={0}>{leaveBtn}</span>
                     </TooltipTrigger>
                     <TooltipContent side="left" className="max-w-[220px] text-xs">
-                      You are the last Org Admin. Closing the business is not allowed from IDIA
-                      Life.
+                      You are the last Org Admin. Closing the business is not allowed from IDIA Life.
                     </TooltipContent>
                   </Tooltip>
                 ) : (
@@ -402,8 +402,7 @@ const BusinessMembershipPanel: React.FC = () => {
             <AlertDialogHeader>
               <AlertDialogTitle>Leave {leaveTarget?.businessName}?</AlertDialogTitle>
               <AlertDialogDescription>
-                You will lose access to this business in IDIA Life. An Org Admin can re-invite you
-                later.
+                You will lose access to this business in Life. An Org Admin can re-invite you later.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -497,9 +496,15 @@ const BusinessMembershipPanel: React.FC = () => {
                 className="h-9"
               />
               <Select value={entityType} onValueChange={(v) => setEntityType(v as EntityType)}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Type" /></SelectTrigger>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
                 <SelectContent>
-                  {ENTITY_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  {ENTITY_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -507,12 +512,21 @@ const BusinessMembershipPanel: React.FC = () => {
             <div className="grid grid-cols-2 gap-2">
               <Select
                 value={verticalId}
-                onValueChange={(v) => { setVerticalId(v); setSubmoduleId(""); }}
+                onValueChange={(v) => {
+                  setVerticalId(v);
+                  setSubmoduleId("");
+                }}
                 disabled={taxLoading}
               >
-                <SelectTrigger className="h-9"><SelectValue placeholder={taxLoading ? "..." : "Industry"} /></SelectTrigger>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder={taxLoading ? "..." : "Industry"} />
+                </SelectTrigger>
                 <SelectContent>
-                  {verticals.map((v) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
+                  {verticals.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Select
@@ -520,9 +534,15 @@ const BusinessMembershipPanel: React.FC = () => {
                 onValueChange={setSubmoduleId}
                 disabled={!verticalId || filteredSubmodules.length === 0}
               >
-                <SelectTrigger className="h-9"><SelectValue placeholder="Sub-module" /></SelectTrigger>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Sub-module" />
+                </SelectTrigger>
                 <SelectContent>
-                  {filteredSubmodules.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  {filteredSubmodules.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -542,9 +562,15 @@ const BusinessMembershipPanel: React.FC = () => {
                 className="h-9 col-span-3"
               />
               <Select value={stateCode} onValueChange={setStateCode}>
-                <SelectTrigger className="h-9 col-span-1 px-2"><SelectValue placeholder="ST" /></SelectTrigger>
+                <SelectTrigger className="h-9 col-span-1 px-2">
+                  <SelectValue placeholder="ST" />
+                </SelectTrigger>
                 <SelectContent>
-                  {US_STATES.map((s) => <SelectItem key={s.code} value={s.code}>{s.code}</SelectItem>)}
+                  {US_STATES.map((s) => (
+                    <SelectItem key={s.code} value={s.code}>
+                      {s.code}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Input
@@ -557,7 +583,9 @@ const BusinessMembershipPanel: React.FC = () => {
             </div>
 
             <Select value={contactRole} onValueChange={setContactRole}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Controlling Partner">Controlling Partner</SelectItem>
                 <SelectItem value="Authorized Signatory">Authorized Signatory</SelectItem>
@@ -589,7 +617,14 @@ const BusinessMembershipPanel: React.FC = () => {
 
           <div className="px-4 pb-3 pt-2 border-t shrink-0">
             <Button className="w-full h-9" onClick={handleSubmit} disabled={submitting}>
-              {submitting ? "Submitting..." : (<><Upload className="w-4 h-4 mr-2" />Submit Application</>)}
+              {submitting ? (
+                "Submitting..."
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Submit Application
+                </>
+              )}
             </Button>
           </div>
         </DialogContent>

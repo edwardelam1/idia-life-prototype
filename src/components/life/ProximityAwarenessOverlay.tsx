@@ -26,11 +26,7 @@ function colorForToken(token: string): string {
   return `hsl(${h % 360}, 80%, 65%)`;
 }
 
-export default function ProximityAwarenessOverlay({
-  onPeerSelected,
-  open,
-  onClose,
-}: ProximityAwarenessOverlayProps) {
+export default function ProximityAwarenessOverlay({ onPeerSelected, open, onClose }: ProximityAwarenessOverlayProps) {
   const { isBridgeAvailable, isWatching, peers, startWatching, stopWatching } = useProximityBridge();
   const [labels, setLabels] = useState<Record<string, string>>({});
 
@@ -115,8 +111,7 @@ export default function ProximityAwarenessOverlay({
         <div
           className="relative w-[320px] h-[320px] rounded-full"
           style={{
-            background:
-              "radial-gradient(circle, hsla(195, 90%, 60%, 0.10), hsla(195, 90%, 60%, 0) 70%)",
+            background: "radial-gradient(circle, hsla(195, 90%, 60%, 0.10), hsla(195, 90%, 60%, 0) 70%)",
             boxShadow: "inset 0 0 60px hsla(195, 90%, 60%, 0.18)",
           }}
         >
@@ -185,9 +180,7 @@ export default function ProximityAwarenessOverlay({
                     boxShadow: `0 0 14px ${color}`,
                   }}
                 />
-                <span className="mt-1 block text-[10px] text-foreground/80 whitespace-nowrap text-center">
-                  {label}
-                </span>
+                <span className="mt-1 block text-[10px] text-foreground/80 whitespace-nowrap text-center">{label}</span>
               </button>
             );
           })}
@@ -200,7 +193,7 @@ export default function ProximityAwarenessOverlay({
                   ? isWatching
                     ? "No one is in range yet. Bring your phone close to another IDIA member."
                     : "Starting proximity sensor."
-                  : "Open IDIA Life on your phone to use proximity sensing."}
+                  : "Life by IDIA on your phone to use proximity sensing."}
               </p>
             </div>
           )}

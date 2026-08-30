@@ -12,7 +12,6 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const { fadeOutAndStop } = useSplashAudio();
 
-
   // Lifecycle Observability
   useEffect(() => {
     console.log("[LANDING_SCREEN_INIT_START] Mounting LandingScreen component.");
@@ -97,7 +96,7 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
     <div className="fixed inset-0 z-30 flex flex-col bg-black text-white overflow-hidden touch-none">
       {/* Logo */}
       <div className="absolute top-[max(2rem,env(safe-area-inset-top))] left-1/2 transform -translate-x-1/2 z-20">
-        <img src={polishedLogo} alt="IDIA Life Logo" className="w-16 h-16 rounded-2xl shadow-lg" />
+        <img src={polishedLogo} alt="Life by IDIA Logo" className="w-16 h-16 rounded-2xl shadow-lg" />
       </div>
 
       {/* Full-bleed carousel */}
@@ -107,10 +106,7 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
           style={{ transform: `translateX(-${currentSlide * 100}%)` }}
         >
           {slides.map((slide, index) => (
-            <div
-              key={index}
-              className={`min-w-full h-full bg-gradient-to-br ${slide.gradient} relative`}
-            >
+            <div key={index} className={`min-w-full h-full bg-gradient-to-br ${slide.gradient} relative`}>
               {/* Background Pattern */}
               <div className="absolute inset-0 opacity-10">
                 <div className="absolute top-20 left-10 w-32 h-32 rounded-full bg-white/20 blur-xl"></div>
@@ -123,16 +119,12 @@ const LandingScreen = ({ onSignUp }: LandingScreenProps) => {
 
         {/* Title Overlay */}
         <div className="absolute top-36 bottom-1/2 left-0 right-0 z-10 flex flex-col justify-center items-center px-8 text-center">
-          <h1 className="text-4xl font-bold leading-tight max-w-sm mx-auto">
-            {slides[currentSlide].title}
-          </h1>
+          <h1 className="text-4xl font-bold leading-tight max-w-sm mx-auto">{slides[currentSlide].title}</h1>
         </div>
 
         {/* Description Overlay */}
         <div className="absolute top-[48%] bottom-40 left-0 right-0 z-10 flex flex-col justify-center items-center px-8 text-center">
-          <p className="text-lg text-white/90 leading-relaxed max-w-sm mx-auto">
-            {slides[currentSlide].description}
-          </p>
+          <p className="text-lg text-white/90 leading-relaxed max-w-sm mx-auto">{slides[currentSlide].description}</p>
         </div>
 
         {/* Navigation Arrows */}
