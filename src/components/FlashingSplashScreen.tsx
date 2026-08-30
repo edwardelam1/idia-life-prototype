@@ -183,15 +183,18 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     ];
     traced.forEach(([n, fn]) => v.addEventListener(n, fn));
 
+    const onReady = () => schedulePlay();
     v.addEventListener("loadedmetadata", onProgress);
-    v.addEventListener("loadeddata", schedulePlay);
-    v.addEventListener("canplay", schedulePlay);
+    v.addEventListener("loadedmetadata", onReady);
+    v.addEventListener("loadeddata", onReady);
+    v.addEventListener("canplay", onReady);
     v.addEventListener("progress", onProgress);
     v.addEventListener("playing", onPlaying);
     v.addEventListener("pause", onPause);
     v.addEventListener("stalled", onStalled);
     v.addEventListener("error", onError);
     tryPlay();
+
 
     const ticker = window.setInterval(() => {
       splashLog("tick · t=", v.currentTime.toFixed(2), "paused=", v.paused, "readyState=", v.readyState);
