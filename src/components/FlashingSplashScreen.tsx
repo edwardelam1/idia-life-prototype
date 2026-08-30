@@ -216,8 +216,10 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
       if (retryTimer !== null) window.clearTimeout(retryTimer);
       traced.forEach(([n, fn]) => v.removeEventListener(n, fn));
       v.removeEventListener("loadedmetadata", onProgress);
-      v.removeEventListener("loadeddata", schedulePlay);
-      v.removeEventListener("canplay", schedulePlay);
+      v.removeEventListener("loadedmetadata", onReady);
+      v.removeEventListener("loadeddata", onReady);
+      v.removeEventListener("canplay", onReady);
+
       v.removeEventListener("progress", onProgress);
       v.removeEventListener("playing", onPlaying);
       v.removeEventListener("pause", onPause);
