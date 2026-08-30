@@ -17,16 +17,40 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   const [phase, setPhase] = useState<"video" | "logo" | "logoFadeOut" | "white">("video");
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [playbackStartedAt, setPlaybackStartedAt] = useState<number | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const mountedAtRef = useRef<number>(Date.now());
   const recoveryAttemptsRef = useRef(0);
   const awaitingGestureRef = useRef(false);
   const suppressSkipUntilRef = useRef(0);
   const playRequestRef = useRef<(() => void) | null>(null);
+  const [needsTap, setNeedsTap] = useState(false);
   const debugEnabledRef = useRef(
     typeof window !== "undefined" && new URLSearchParams(window.location.search).get("splashdebug") === "1",
   );
   const [debugEvents, setDebugEvents] = useState<string[]>([]);
+
+  // Configure the element as muted + inline BEFORE the source is assigned.
+  // WebKit decides autoplay eligibility when media loading begins, so the
+  // muted/playsinline attributes must already be present in the DOM by then.
+  const attachVideo = useCallback((v: HTMLVideoElement | null) => {
+    videoRef.current = v;
+    if (!v) return;
+    v.setAttribute("muted", "");
+    v.muted = true;
+    v.defaultMuted = true;
+    v.setAttribute("playsinline", "true");
+    v.setAttribute("webkit-playsinline", "true");
+    v.setAttribute("autoplay", "");
+    v.setAttribute("preload", "auto");
+    v.volume = 0;
+    if (v.getAttribute("src") !== splashVideo.url) {
+      v.setAttribute("src", splashVideo.url);
+      try {
+        v.load();
+      } catch {}
+    }
+  }, []);
+
 
   // Attempt imperative play on mount — older iOS (iPhone 11-era WebKit)
   // often defers autoplay until an explicit .play() call, even when muted.
