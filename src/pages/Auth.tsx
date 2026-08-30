@@ -448,7 +448,7 @@ const Auth = () => {
             {isLogin ? "Welcome Back" : "Create Account"}
           </CardTitle>
           <p className="text-sm text-muted-foreground text-center">
-            {isLogin ? "Sign in to your Life account" : "Sign up to get started with Life"}
+            {isLogin ? "Sign in to your Life" : "Welcome to Life"}
           </p>
         </CardHeader>
         <CardContent>
