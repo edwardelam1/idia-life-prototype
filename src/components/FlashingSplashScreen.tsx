@@ -17,16 +17,40 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   const [phase, setPhase] = useState<"video" | "logo" | "logoFadeOut" | "white">("video");
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [playbackStartedAt, setPlaybackStartedAt] = useState<number | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const mountedAtRef = useRef<number>(Date.now());
   const recoveryAttemptsRef = useRef(0);
   const awaitingGestureRef = useRef(false);
   const suppressSkipUntilRef = useRef(0);
   const playRequestRef = useRef<(() => void) | null>(null);
+  const [needsTap, setNeedsTap] = useState(false);
   const debugEnabledRef = useRef(
     typeof window !== "undefined" && new URLSearchParams(window.location.search).get("splashdebug") === "1",
   );
   const [debugEvents, setDebugEvents] = useState<string[]>([]);
+
+  // Configure the element as muted + inline BEFORE the source is assigned.
+  // WebKit decides autoplay eligibility when media loading begins, so the
+  // muted/playsinline attributes must already be present in the DOM by then.
+  const attachVideo = useCallback((v: HTMLVideoElement | null) => {
+    videoRef.current = v;
+    if (!v) return;
+    v.setAttribute("muted", "");
+    v.muted = true;
+    v.defaultMuted = true;
+    v.setAttribute("playsinline", "true");
+    v.setAttribute("webkit-playsinline", "true");
+    v.setAttribute("autoplay", "");
+    v.setAttribute("preload", "auto");
+    v.volume = 0;
+    if (v.getAttribute("src") !== splashVideo.url) {
+      v.setAttribute("src", splashVideo.url);
+      try {
+        v.load();
+      } catch {}
+    }
+  }, []);
+
 
   // Attempt imperative play on mount — older iOS (iPhone 11-era WebKit)
   // often defers autoplay until an explicit .play() call, even when muted.
@@ -42,6 +66,7 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     let active = true;
     let playInFlight = false;
     let retryTimer: number | null = null;
+    let rejections = 0;
 
     const record = (message: string) => {
       splashLog(message);
@@ -50,14 +75,29 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
       }
     };
 
+    const schedulePlay = (delay = 120) => {
+      if (!active || v.ended || retryTimer !== null) return;
+      retryTimer = window.setTimeout(() => {
+        retryTimer = null;
+        tryPlay();
+      }, delay);
+    };
+
     const tryPlay = () => {
       if (!active || v.ended || playInFlight || !v.paused) return;
       playInFlight = true;
+      // Re-assert muted state on every attempt; WebKit can drop it when the
+      // audio session changes underneath the element.
+      v.muted = true;
+      v.defaultMuted = true;
+      v.volume = 0;
       const p = v.play();
       if (p && typeof p.catch === "function") {
         p.then(() => {
           if (active) {
+            rejections = 0;
             awaitingGestureRef.current = false;
+            setNeedsTap(false);
             setAutoplayBlocked(false);
           }
         })
@@ -66,10 +106,24 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
             // with another media operation; it is recoverable, not a failure.
             const name = err instanceof DOMException ? err.name : String(err);
             record(`play rejected: ${name}`);
-            if (active && err instanceof DOMException && err.name === "NotAllowedError") {
-              // Keep the video phase visible and let the next user gesture
-              // recover playback instead of timing out to a white screen.
+            if (!active) return;
+            if (err instanceof DOMException && err.name === "NotAllowedError") {
+              rejections += 1;
+              if (rejections <= 4) {
+                // Retry with backoff instead of latching into gesture mode.
+                if (rejections === 3) {
+                  try {
+                    v.load();
+                  } catch {}
+                }
+                playInFlight = false;
+                schedulePlay(200 * rejections);
+                return;
+              }
+              // Genuinely blocked: keep the video phase visible and offer a
+              // visible tap affordance rather than a silent frozen frame.
               awaitingGestureRef.current = true;
+              setNeedsTap(true);
             }
           })
           .finally(() => {
@@ -81,13 +135,6 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     };
     playRequestRef.current = tryPlay;
 
-    const schedulePlay = () => {
-      if (!active || v.ended || retryTimer !== null) return;
-      retryTimer = window.setTimeout(() => {
-        retryTimer = null;
-        tryPlay();
-      }, 120);
-    };
 
     const onProgress = () => {
       sawData = true;
@@ -136,15 +183,18 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     ];
     traced.forEach(([n, fn]) => v.addEventListener(n, fn));
 
+    const onReady = () => schedulePlay();
     v.addEventListener("loadedmetadata", onProgress);
-    v.addEventListener("loadeddata", schedulePlay);
-    v.addEventListener("canplay", schedulePlay);
+    v.addEventListener("loadedmetadata", onReady);
+    v.addEventListener("loadeddata", onReady);
+    v.addEventListener("canplay", onReady);
     v.addEventListener("progress", onProgress);
     v.addEventListener("playing", onPlaying);
     v.addEventListener("pause", onPause);
     v.addEventListener("stalled", onStalled);
     v.addEventListener("error", onError);
     tryPlay();
+
 
     const ticker = window.setInterval(() => {
       splashLog("tick · t=", v.currentTime.toFixed(2), "paused=", v.paused, "readyState=", v.readyState);
@@ -166,8 +216,10 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
       if (retryTimer !== null) window.clearTimeout(retryTimer);
       traced.forEach(([n, fn]) => v.removeEventListener(n, fn));
       v.removeEventListener("loadedmetadata", onProgress);
-      v.removeEventListener("loadeddata", schedulePlay);
-      v.removeEventListener("canplay", schedulePlay);
+      v.removeEventListener("loadedmetadata", onReady);
+      v.removeEventListener("loadeddata", onReady);
+      v.removeEventListener("canplay", onReady);
+
       v.removeEventListener("progress", onProgress);
       v.removeEventListener("playing", onPlaying);
       v.removeEventListener("pause", onPause);
@@ -310,24 +362,33 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
         }}
       />
 
-      {/* Rushing splash video */}
+      {/* Rushing splash video — attributes are applied by attachVideo before
+          the source is set, so WebKit sees a muted inline element at load. */}
       <video
-        ref={videoRef}
-        src={splashVideo.url}
-        autoPlay
-        {...({ defaultMuted: true } as { defaultMuted: boolean })}
+        ref={attachVideo}
         muted
         playsInline
-        preload="auto"
         controls={false}
         disablePictureInPicture
         disableRemotePlayback
-        
         className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in"
         style={{
           opacity: phase === "video" && !autoplayBlocked ? 1 : 0,
         }}
       />
+
+      {/* Last-resort affordance if WebKit refuses muted autoplay entirely */}
+      {needsTap && phase === "video" && !autoplayBlocked && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
+          <p
+            className="rounded-full bg-black/45 px-5 py-2 text-sm font-medium tracking-wide text-white"
+            style={{ textShadow: "0 1px 6px rgba(0,0,0,0.55)" }}
+          >
+            Tap to play
+          </p>
+        </div>
+      )}
+
 
       {debugEnabledRef.current && (
         <pre className="absolute inset-x-3 top-3 z-40 max-h-48 overflow-hidden bg-black/80 p-3 text-[10px] leading-4 text-white pointer-events-none">
