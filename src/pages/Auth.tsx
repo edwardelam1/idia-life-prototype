@@ -58,7 +58,9 @@ const Auth = () => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session && !isResetMode) {
-        try { localStorage.setItem(AUTH_HISTORY_KEY, "1"); } catch {}
+        try {
+          localStorage.setItem(AUTH_HISTORY_KEY, "1");
+        } catch {}
         console.log("[START] Auth: post-auth Vault Guard handoff");
         try {
           const { isNewUser } = await runVaultGuard(session.user.id);
@@ -91,7 +93,6 @@ const Auth = () => {
     window.addEventListener("message", handleNativeAuthMessage);
     return () => window.removeEventListener("message", handleNativeAuthMessage);
   }, [toast]);
-
 
   // ==========================================
   // 1. STANDARD AUTH (LOGIN / SIGNUP / OAUTH)
@@ -180,8 +181,7 @@ const Auth = () => {
         console.log("[START][GOOGLE_AUTH] Plugin initialize()");
         try {
           await GoogleAuth.initialize({
-            clientId:
-              "349472255801-091p5a3320h0kb9636hjsd2otfs160ct.apps.googleusercontent.com",
+            clientId: "349472255801-091p5a3320h0kb9636hjsd2otfs160ct.apps.googleusercontent.com",
             scopes: ["profile", "email"],
             grantOfflineAccess: false,
           });
@@ -215,10 +215,7 @@ const Auth = () => {
             });
             console.log("[END:OK][GOOGLE_AUTH] PII sealed in Secure Enclave");
           } catch (sealErr: any) {
-            console.error(
-              "[END:FAIL][GOOGLE_AUTH] Secure Enclave seal failed",
-              sealErr?.message || sealErr,
-            );
+            console.error("[END:FAIL][GOOGLE_AUTH] Secure Enclave seal failed", sealErr?.message || sealErr);
             // Non-fatal — continue with Supabase auth so user can still log in.
           }
         } else {
@@ -250,8 +247,7 @@ const Auth = () => {
         // stays signed out — so force the deep-link redirect for Google inside the shell.
         const inIdiaShell =
           typeof navigator !== "undefined" &&
-          (/IDIA-Native-Shell/i.test(navigator.userAgent) ||
-            !!(window as any)?.webkit?.messageHandlers?.appleSignIn);
+          (/IDIA-Native-Shell/i.test(navigator.userAgent) || !!(window as any)?.webkit?.messageHandlers?.appleSignIn);
 
         const useDeepLink = isNative || (inIdiaShell && provider === "google");
         console.log(
@@ -452,7 +448,7 @@ const Auth = () => {
             {isLogin ? "Welcome Back" : "Create Account"}
           </CardTitle>
           <p className="text-sm text-muted-foreground text-center">
-            {isLogin ? "Sign in to your account to continue" : "Sign up to get started with IDIA"}
+            {isLogin ? "Sign in to your Life account" : "Sign up to get started with Life"}
           </p>
         </CardHeader>
         <CardContent>
