@@ -1296,6 +1296,84 @@ export type Database = {
           },
         ]
       }
+      buyer_diagnostic_responses: {
+        Row: {
+          battery_level: string
+          id: string
+          question_id: string
+          recorded_at: string
+          role_battery: string | null
+          selected_choice: string
+          user_id: string
+        }
+        Insert: {
+          battery_level: string
+          id?: string
+          question_id: string
+          recorded_at?: string
+          role_battery?: string | null
+          selected_choice: string
+          user_id: string
+        }
+        Update: {
+          battery_level?: string
+          id?: string
+          question_id?: string
+          recorded_at?: string
+          role_battery?: string | null
+          selected_choice?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      buyer_profile_vectors: {
+        Row: {
+          created_at: string
+          id: string
+          jurisdiction: Database["public"]["Enums"]["buyer_jurisdiction_type"]
+          latency_requirement: Database["public"]["Enums"]["buyer_latency_type"]
+          level0_completed_at: string | null
+          level1_battery: string | null
+          level1_completed_at: string | null
+          raw_answers: Json
+          role: Database["public"]["Enums"]["buyer_role_type"]
+          tier_at_completion: string | null
+          updated_at: string
+          user_id: string
+          weights: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          jurisdiction?: Database["public"]["Enums"]["buyer_jurisdiction_type"]
+          latency_requirement?: Database["public"]["Enums"]["buyer_latency_type"]
+          level0_completed_at?: string | null
+          level1_battery?: string | null
+          level1_completed_at?: string | null
+          raw_answers?: Json
+          role?: Database["public"]["Enums"]["buyer_role_type"]
+          tier_at_completion?: string | null
+          updated_at?: string
+          user_id: string
+          weights?: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          jurisdiction?: Database["public"]["Enums"]["buyer_jurisdiction_type"]
+          latency_requirement?: Database["public"]["Enums"]["buyer_latency_type"]
+          level0_completed_at?: string | null
+          level1_battery?: string | null
+          level1_completed_at?: string | null
+          raw_answers?: Json
+          role?: Database["public"]["Enums"]["buyer_role_type"]
+          tier_at_completion?: string | null
+          updated_at?: string
+          user_id?: string
+          weights?: Json
+        }
+        Relationships: []
+      }
       campaign_performance: {
         Row: {
           campaign_id: string
@@ -5938,16 +6016,22 @@ export type Database = {
           data_points: string[] | null
           description: string
           features: string[] | null
+          generated_at: string
           is_active: boolean | null
           key_insights: string[] | null
           match_percentage: number | null
           participant_count: number | null
           predictive_analytics: Json | null
           price: number
+          source_latest_at: string | null
+          stat_fingerprint: Json
           suggested_filters: string[] | null
           tier: string
           title: string
           updated_at: string | null
+          window_end: string | null
+          window_key: string
+          window_start: string | null
         }
         Insert: {
           bundle_category?: string | null
@@ -5961,16 +6045,22 @@ export type Database = {
           data_points?: string[] | null
           description: string
           features?: string[] | null
+          generated_at?: string
           is_active?: boolean | null
           key_insights?: string[] | null
           match_percentage?: number | null
           participant_count?: number | null
           predictive_analytics?: Json | null
           price: number
+          source_latest_at?: string | null
+          stat_fingerprint?: Json
           suggested_filters?: string[] | null
           tier: string
           title: string
           updated_at?: string | null
+          window_end?: string | null
+          window_key?: string
+          window_start?: string | null
         }
         Update: {
           bundle_category?: string | null
@@ -5984,16 +6074,22 @@ export type Database = {
           data_points?: string[] | null
           description?: string
           features?: string[] | null
+          generated_at?: string
           is_active?: boolean | null
           key_insights?: string[] | null
           match_percentage?: number | null
           participant_count?: number | null
           predictive_analytics?: Json | null
           price?: number
+          source_latest_at?: string | null
+          stat_fingerprint?: Json
           suggested_filters?: string[] | null
           tier?: string
           title?: string
           updated_at?: string | null
+          window_end?: string | null
+          window_key?: string
+          window_start?: string | null
         }
         Relationships: []
       }
@@ -12055,6 +12151,21 @@ export type Database = {
           total_records: number
         }[]
       }
+      get_staging_aggregates_windowed: {
+        Args: never
+        Returns: {
+          activity_mix: Json
+          avg_quality: number
+          category: string
+          distinct_contributors: number
+          source: string
+          source_latest_at: string
+          total_records: number
+          window_end: string
+          window_key: string
+          window_start: string
+        }[]
+      }
       get_synapse_balance: { Args: { uid: string }; Returns: number }
       get_user_business_access: {
         Args: { p_user_id: string }
@@ -12459,6 +12570,13 @@ export type Database = {
       }
     }
     Enums: {
+      buyer_jurisdiction_type: "USA" | "SGP" | "IND" | "NGA_ZAF" | "UAE"
+      buyer_latency_type: "STREAMING" | "INTRADAY" | "BATCH"
+      buyer_role_type:
+        | "TRADING_DESK"
+        | "ORG_ADMIN"
+        | "COMPLIANCE_OFFICER"
+        | "INDIVIDUAL"
       idia_account_type: "individual" | "business" | "enterprise"
       idia_pay_role: "org_admin" | "team_lead" | "team_member"
       idia_saas_tier:
@@ -12620,6 +12738,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      buyer_jurisdiction_type: ["USA", "SGP", "IND", "NGA_ZAF", "UAE"],
+      buyer_latency_type: ["STREAMING", "INTRADAY", "BATCH"],
+      buyer_role_type: [
+        "TRADING_DESK",
+        "ORG_ADMIN",
+        "COMPLIANCE_OFFICER",
+        "INDIVIDUAL",
+      ],
       idia_account_type: ["individual", "business", "enterprise"],
       idia_pay_role: ["org_admin", "team_lead", "team_member"],
       idia_saas_tier: [
