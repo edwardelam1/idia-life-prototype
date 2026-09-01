@@ -94,8 +94,7 @@ serve(async (req) => {
     const url = new URL(req.url);
     const queryAcaHash = url.searchParams.get("aca_hash_key");
 
-    // Fuzzy key matching — prioritizing aca_hash_key for DELT verification
-    const userId = rawBody.user_id || rawBody.userId || rawBody.config?.user_id;
+    // Fuzzy key matching — the ACA hash is the sovereign identity anchor.
     const acaHash = queryAcaHash || rawBody.aca_hash_key || rawBody.aca_hash || rawBody.acaHash;
 
     // Broad extraction: Supports both the structured object and the raw Firehose array
@@ -140,13 +139,6 @@ serve(async (req) => {
     const automatedSync = rawBody.automated_sync || false;
     const forceRealDataOnly = rawBody.force_real_data_only || false;
 
-    if (!userId) {
-      return new Response(JSON.stringify({ success: false, error: "Missing required field: user_id" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     if (!acaHash) {
       return new Response(
         JSON.stringify({
@@ -160,31 +152,19 @@ serve(async (req) => {
       );
     }
 
-    // DELT/ACA Verification: Verification of platform_guid to establish lineage proof
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("platform_guid")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    const platformGuid = profile?.platform_guid;
-    if (!platformGuid) {
-      return new Response(JSON.stringify({ success: false, error: "No profile/platform_guid found for user" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
+    // SOVEREIGN BACKGROUND CONTINUITY AUTHENTICATION
+    // The body-supplied user_id is spoofable and the JWT expires after 1 hour, which
+    // deadlocks background uploads. Instead, reverse-lookup the true identity from the
+    // ACA hash using the elevated service-role client.
     const { data: acaRecord } = await supabase
       .from("user_aca_records")
-      .select("id")
+      .select("platform_guid")
       .eq("aca_hash_key", acaHash)
-      .eq("platform_guid", platformGuid)
       .maybeSingle();
 
-    if (!acaRecord) {
+    if (!acaRecord?.platform_guid) {
       return new Response(
-        JSON.stringify({ success: false, error: "DELT Protocol Verification Failed. No matching audit record found." }),
+        JSON.stringify({ success: false, error: "DELT Protocol Verification Failed. Invalid ACA Hash." }),
         {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -192,7 +172,21 @@ serve(async (req) => {
       );
     }
 
-    console.log("✅ DELT Protocol verified for user:", userId);
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("user_id")
+      .eq("platform_guid", acaRecord.platform_guid)
+      .maybeSingle();
+
+    const userId = profile?.user_id;
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, error: "Orphaned ACA Hash. No profile linked." }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    console.log("✅ DELT Protocol verified and identity anchored for user:", userId);
 
     // Normalize incoming payload keys
     let processableData: any = {};

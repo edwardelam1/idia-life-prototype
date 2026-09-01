@@ -29,6 +29,13 @@ import { startPushBootstrap } from "@/utils/pushBootstrap";
 import ConsentGate from "@/components/ConsentGate";
 import { useSessionSentinel } from "@/hooks/useSessionSentinel";
 import SessionLockShield from "@/components/SessionLockShield";
+import { useHealthKitHydrator } from "@/hooks/useHealthKitHydrator";
+
+/** Keeps the iOS native layer supplied with a fresh Supabase token for HealthKit uploads. */
+const HealthKitHydrator = () => {
+  useHealthKitHydrator();
+  return null;
+};
 
 /**
  * Session Sentinel — mounted inside the router so it can navigate on logout.
@@ -183,6 +190,7 @@ const App = () => {
           <BrowserRouter>
             <AnalyticsTracker />
             <SessionSentinel enabled={!!session} />
+            {session ? <HealthKitHydrator /> : null}
             <Routes>
               <Route path="/auth" element={session ? <Navigate to="/" replace /> : <Auth />} />
               <Route path="/" element={<Index />} />
