@@ -249,7 +249,9 @@ const Auth = () => {
           typeof navigator !== "undefined" &&
           (/IDIA-Native-Shell/i.test(navigator.userAgent) || !!(window as any)?.webkit?.messageHandlers?.appleSignIn);
 
-        const useDeepLink = isNative || (inIdiaShell && provider === "google");
+        // Apple must use the same deep-link scheme as Google: redirecting to the
+        // web origin navigates the host webview away and the shell re-boots from splash.
+        const useDeepLink = isNative || inIdiaShell;
         console.log(
           `[INFO][OAUTH] Falling back to web signInWithOAuth · provider=${provider} shell=${inIdiaShell} deepLink=${useDeepLink}`,
         );
