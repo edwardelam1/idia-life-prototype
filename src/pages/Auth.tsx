@@ -94,6 +94,36 @@ const Auth = () => {
     return () => window.removeEventListener("message", handleNativeAuthMessage);
   }, [toast]);
 
+  // ── Surface provider errors returned on the OAuth callback ──
+  // Apple/Google can bounce back with ?error=... or #error=... (e.g. invalid_client
+  // when the provider credentials are stale). Without this the shell just sits on a
+  // blank screen after the biometric prompt succeeds.
+  useEffect(() => {
+    const readErr = (raw: string) => {
+      const p = new URLSearchParams(raw.replace(/^[#?]/, ""));
+      const code = p.get("error") || p.get("error_code");
+      if (!code) return null;
+      return { code, desc: p.get("error_description") || "" };
+    };
+
+    const found = readErr(window.location.hash) || readErr(window.location.search);
+    if (!found) return;
+
+    console.error(`[END:FAIL][OAUTH_CALLBACK] ${found.code} · ${found.desc}`);
+    setIsLoading(false);
+    toast({
+      title: "Sign in failed",
+      description:
+        decodeURIComponent(found.desc.replace(/\+/g, " ")) ||
+        "The identity provider rejected the sign-in. Please try again.",
+      variant: "destructive",
+    });
+
+    // Clean the URL so the error doesn't re-fire on re-render/navigation.
+    window.history.replaceState({}, "", window.location.pathname);
+  }, [toast]);
+
+
   // ==========================================
   // 1. STANDARD AUTH (LOGIN / SIGNUP / OAUTH)
   // ==========================================
