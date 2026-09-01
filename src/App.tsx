@@ -190,6 +190,7 @@ const App = () => {
           <BrowserRouter>
             <AnalyticsTracker />
             <SessionSentinel enabled={!!session} />
+            {session ? <HealthKitHydrator /> : null}
             <Routes>
               <Route path="/auth" element={session ? <Navigate to="/" replace /> : <Auth />} />
               <Route path="/" element={<Index />} />
