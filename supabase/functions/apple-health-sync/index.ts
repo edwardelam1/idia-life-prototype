@@ -94,8 +94,7 @@ serve(async (req) => {
     const url = new URL(req.url);
     const queryAcaHash = url.searchParams.get("aca_hash_key");
 
-    // Fuzzy key matching — prioritizing aca_hash_key for DELT verification
-    const userId = rawBody.user_id || rawBody.userId || rawBody.config?.user_id;
+    // Fuzzy key matching — the ACA hash is the sovereign identity anchor.
     const acaHash = queryAcaHash || rawBody.aca_hash_key || rawBody.aca_hash || rawBody.acaHash;
 
     // Broad extraction: Supports both the structured object and the raw Firehose array
