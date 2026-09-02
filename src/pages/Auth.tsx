@@ -12,11 +12,6 @@ import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png";
 
 const AUTH_HISTORY_KEY = "idia_has_auth_history_v1";
 
-// The iOS app is a custom Swift WKWebView shell, NOT Capacitor. Capacitor
-// detection returns false there, so we identify the shell by its injected
-// User Agent string instead.
-const isIOSShell = typeof navigator !== "undefined" && navigator.userAgent.includes("IDIA-Native-Shell");
-
 const Auth = () => {
   const [searchParams] = useSearchParams();
   // Default to "Welcome Back" only on devices that have authenticated before;
@@ -98,72 +93,6 @@ const Auth = () => {
     window.addEventListener("message", handleNativeAuthMessage);
     return () => window.removeEventListener("message", handleNativeAuthMessage);
   }, [toast]);
-
-  // ── Surface provider errors returned on the OAuth callback ──
-  // Apple/Google can bounce back with ?error=... or #error=... (e.g. invalid_client
-  // when the provider credentials are stale). Without this the shell just sits on a
-  // blank screen after the biometric prompt succeeds.
-  //
-  // CRITICAL (iOS WKWebView): the native shell delivers the session as a URL hash
-  // (#access_token=...). We must NEVER mutate the URL before supabase-js has parsed
-  // it and confirmed SIGNED_IN — scrubbing early destroys the token and white-screens.
-  useEffect(() => {
-    // The iOS shell reloads the WebView with the session token in the URL hash.
-    // Any URL mutation before supabase-js parses it destroys the token and leaves
-    // the user stuck on a white screen. Let the SDK claim the hash naturally.
-    if (isIOSShell) return;
-
-    const readErr = (raw: string) => {
-      const p = new URLSearchParams(raw.replace(/^[#?]/, ""));
-      const code = p.get("error") || p.get("error_code");
-      if (!code) return null;
-      return { code, desc: p.get("error_description") || "" };
-    };
-
-    // A live auth token in the hash means this is a success callback — leave the
-    // URL completely alone and let supabase-js claim it.
-    if (window.location.hash.includes("access_token=")) return;
-
-    // Defer the error read until Supabase has had its chance to process the URL.
-    // If a session lands (SIGNED_IN), the callback was a success — do nothing.
-    let settled = false;
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN") {
-        settled = true;
-        subscription.unsubscribe();
-        // Session established — the URL hash is now safe to clean.
-        window.history.replaceState({}, "", window.location.pathname + window.location.search);
-      }
-    });
-
-    const timer = window.setTimeout(() => {
-      subscription.unsubscribe();
-      if (settled) return;
-      // No token arrived — now it's safe to check for a provider error.
-      const found = readErr(window.location.hash) || readErr(window.location.search);
-      if (!found) return;
-
-      console.error(`[END:FAIL][OAUTH_CALLBACK] ${found.code} · ${found.desc}`);
-      setIsLoading(false);
-      toast({
-        title: "Sign in failed",
-        description:
-          decodeURIComponent(found.desc.replace(/\+/g, " ")) ||
-          "The identity provider rejected the sign-in. Please try again.",
-        variant: "destructive",
-      });
-      // Clean the URL so the error doesn't re-fire on re-render/navigation.
-      window.history.replaceState({}, "", window.location.pathname);
-    }, 1500);
-
-    return () => {
-      window.clearTimeout(timer);
-      subscription.unsubscribe();
-    };
-  }, [toast]);
-
 
   // ==========================================
   // 1. STANDARD AUTH (LOGIN / SIGNUP / OAUTH)
@@ -312,22 +241,27 @@ const Auth = () => {
         console.log("[END] Native Google Auth Complete.");
       } else {
         // The iOS shell is a plain WKWebView (not Capacitor), so isNative is false here.
-        // It intercepts navigations to the OAuth provider and hands them to
+        // It intercepts navigations to accounts.google.com and hands them to
         // ASWebAuthenticationSession, which only closes on the `idialife` callback scheme.
         // Without that scheme the auth sheet finishes inside itself and the host app
-        // stays signed out — so force the deep-link redirect for Apple/Google inside the shell.
-        const useDeepLink = isNative || isIOSShell;
-        const redirectTo = useDeepLink ? "idialife://auth-callback" : `${window.location.origin}/`;
+        // stays signed out — so force the deep-link redirect for Google inside the shell.
+        const inIdiaShell =
+          typeof navigator !== "undefined" &&
+          (/IDIA-Native-Shell/i.test(navigator.userAgent) || !!(window as any)?.webkit?.messageHandlers?.appleSignIn);
+
+        const useDeepLink = isNative || (inIdiaShell && provider === "google");
         console.log(
-          `[INFO][OAUTH] Web signInWithOAuth · provider=${provider} iosShell=${isIOSShell} deepLink=${useDeepLink} redirectTo=${redirectTo}`,
+          `[INFO][OAUTH] Falling back to web signInWithOAuth · provider=${provider} shell=${inIdiaShell} deepLink=${useDeepLink}`,
         );
 
         const { error } = await supabase.auth.signInWithOAuth({
           provider,
-          options: { redirectTo },
+          options: {
+            redirectTo: useDeepLink ? "idialife://auth-callback" : `${window.location.origin}/`,
+          },
         });
         if (error) throw error;
-        console.log("[END][OAUTH] Web OAuth redirect dispatched to", redirectTo);
+        console.log("[END][OAUTH] Web OAuth redirect dispatched");
       }
 
       console.log(`[END] OAuth Sign-In Dispatch · provider=${provider}`);
