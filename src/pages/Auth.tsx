@@ -98,6 +98,10 @@ const Auth = () => {
   // Apple/Google can bounce back with ?error=... or #error=... (e.g. invalid_client
   // when the provider credentials are stale). Without this the shell just sits on a
   // blank screen after the biometric prompt succeeds.
+  //
+  // CRITICAL (iOS WKWebView): the native shell delivers the session as a URL hash
+  // (#access_token=...). We must NEVER mutate the URL before supabase-js has parsed
+  // it and confirmed SIGNED_IN — scrubbing early destroys the token and white-screens.
   useEffect(() => {
     const readErr = (raw: string) => {
       const p = new URLSearchParams(raw.replace(/^[#?]/, ""));
@@ -106,21 +110,48 @@ const Auth = () => {
       return { code, desc: p.get("error_description") || "" };
     };
 
-    const found = readErr(window.location.hash) || readErr(window.location.search);
-    if (!found) return;
+    // A live auth token in the hash means this is a success callback — leave the
+    // URL completely alone and let supabase-js claim it.
+    if (window.location.hash.includes("access_token=")) return;
 
-    console.error(`[END:FAIL][OAUTH_CALLBACK] ${found.code} · ${found.desc}`);
-    setIsLoading(false);
-    toast({
-      title: "Sign in failed",
-      description:
-        decodeURIComponent(found.desc.replace(/\+/g, " ")) ||
-        "The identity provider rejected the sign-in. Please try again.",
-      variant: "destructive",
+    // Defer the error read until Supabase has had its chance to process the URL.
+    // If a session lands (SIGNED_IN), the callback was a success — do nothing.
+    let settled = false;
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN") {
+        settled = true;
+        subscription.unsubscribe();
+        // Session established — the URL hash is now safe to clean.
+        window.history.replaceState({}, "", window.location.pathname + window.location.search);
+      }
     });
 
-    // Clean the URL so the error doesn't re-fire on re-render/navigation.
-    window.history.replaceState({}, "", window.location.pathname);
+    const timer = window.setTimeout(() => {
+      subscription.unsubscribe();
+      if (settled) return;
+      // No token arrived — now it's safe to check for a provider error.
+      const found = readErr(window.location.hash) || readErr(window.location.search);
+      if (!found) return;
+
+      console.error(`[END:FAIL][OAUTH_CALLBACK] ${found.code} · ${found.desc}`);
+      setIsLoading(false);
+      toast({
+        title: "Sign in failed",
+        description:
+          decodeURIComponent(found.desc.replace(/\+/g, " ")) ||
+          "The identity provider rejected the sign-in. Please try again.",
+        variant: "destructive",
+      });
+      // Clean the URL so the error doesn't re-fire on re-render/navigation.
+      window.history.replaceState({}, "", window.location.pathname);
+    }, 1500);
+
+    return () => {
+      window.clearTimeout(timer);
+      subscription.unsubscribe();
+    };
   }, [toast]);
 
 
