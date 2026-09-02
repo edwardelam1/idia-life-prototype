@@ -12,6 +12,11 @@ import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png";
 
 const AUTH_HISTORY_KEY = "idia_has_auth_history_v1";
 
+// The iOS app is a custom Swift WKWebView shell, NOT Capacitor. Capacitor
+// detection returns false there, so we identify the shell by its injected
+// User Agent string instead.
+const isIOSShell = typeof navigator !== "undefined" && navigator.userAgent.includes("IDIA-Native-Shell");
+
 const Auth = () => {
   const [searchParams] = useSearchParams();
   // Default to "Welcome Back" only on devices that have authenticated before;
@@ -103,6 +108,11 @@ const Auth = () => {
   // (#access_token=...). We must NEVER mutate the URL before supabase-js has parsed
   // it and confirmed SIGNED_IN — scrubbing early destroys the token and white-screens.
   useEffect(() => {
+    // The iOS shell reloads the WebView with the session token in the URL hash.
+    // Any URL mutation before supabase-js parses it destroys the token and leaves
+    // the user stuck on a white screen. Let the SDK claim the hash naturally.
+    if (isIOSShell) return;
+
     const readErr = (raw: string) => {
       const p = new URLSearchParams(raw.replace(/^[#?]/, ""));
       const code = p.get("error") || p.get("error_code");
@@ -306,26 +316,10 @@ const Auth = () => {
         // ASWebAuthenticationSession, which only closes on the `idialife` callback scheme.
         // Without that scheme the auth sheet finishes inside itself and the host app
         // stays signed out — so force the deep-link redirect for Apple/Google inside the shell.
-        const inIdiaShell =
-          typeof navigator !== "undefined" &&
-          (/IDIA-Native-Shell/i.test(navigator.userAgent) ||
-            !!(window as any)?.webkit?.messageHandlers?.appleSignIn ||
-            !!(window as any)?.webkit?.messageHandlers?.idiaNativeBridge);
-
-        // Broader iOS WKWebView detection for shells that don't inject the exact handler above.
-        const isIOSShell =
-          !isNative &&
-          typeof navigator !== "undefined" &&
-          /iPhone|iPad|iPod/i.test(navigator.userAgent) &&
-          !!(window as any)?.webkit?.messageHandlers &&
-          Object.keys((window as any)?.webkit?.messageHandlers || {}).length > 0;
-
-        // Apple (and Google) must use the same deep-link scheme: redirecting to the
-        // web origin navigates the host webview away and the shell re-boots from splash.
-        const useDeepLink = isNative || inIdiaShell || isIOSShell;
+        const useDeepLink = isNative || isIOSShell;
         const redirectTo = useDeepLink ? "idialife://auth-callback" : `${window.location.origin}/`;
         console.log(
-          `[INFO][OAUTH] Web signInWithOAuth · provider=${provider} shell=${inIdiaShell} iosShell=${isIOSShell} deepLink=${useDeepLink} redirectTo=${redirectTo}`,
+          `[INFO][OAUTH] Web signInWithOAuth · provider=${provider} iosShell=${isIOSShell} deepLink=${useDeepLink} redirectTo=${redirectTo}`,
         );
 
         const { error } = await supabase.auth.signInWithOAuth({
