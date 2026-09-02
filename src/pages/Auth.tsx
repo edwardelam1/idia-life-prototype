@@ -302,29 +302,38 @@ const Auth = () => {
         console.log("[END] Native Google Auth Complete.");
       } else {
         // The iOS shell is a plain WKWebView (not Capacitor), so isNative is false here.
-        // It intercepts navigations to accounts.google.com and hands them to
+        // It intercepts navigations to the OAuth provider and hands them to
         // ASWebAuthenticationSession, which only closes on the `idialife` callback scheme.
         // Without that scheme the auth sheet finishes inside itself and the host app
-        // stays signed out — so force the deep-link redirect for Google inside the shell.
+        // stays signed out — so force the deep-link redirect for Apple/Google inside the shell.
         const inIdiaShell =
           typeof navigator !== "undefined" &&
-          (/IDIA-Native-Shell/i.test(navigator.userAgent) || !!(window as any)?.webkit?.messageHandlers?.appleSignIn);
+          (/IDIA-Native-Shell/i.test(navigator.userAgent) ||
+            !!(window as any)?.webkit?.messageHandlers?.appleSignIn ||
+            !!(window as any)?.webkit?.messageHandlers?.idiaNativeBridge);
 
-        // Apple must use the same deep-link scheme as Google: redirecting to the
+        // Broader iOS WKWebView detection for shells that don't inject the exact handler above.
+        const isIOSShell =
+          !isNative &&
+          typeof navigator !== "undefined" &&
+          /iPhone|iPad|iPod/i.test(navigator.userAgent) &&
+          !!(window as any)?.webkit?.messageHandlers &&
+          Object.keys((window as any)?.webkit?.messageHandlers || {}).length > 0;
+
+        // Apple (and Google) must use the same deep-link scheme: redirecting to the
         // web origin navigates the host webview away and the shell re-boots from splash.
-        const useDeepLink = isNative || inIdiaShell;
+        const useDeepLink = isNative || inIdiaShell || isIOSShell;
+        const redirectTo = useDeepLink ? "idialife://auth-callback" : `${window.location.origin}/`;
         console.log(
-          `[INFO][OAUTH] Falling back to web signInWithOAuth · provider=${provider} shell=${inIdiaShell} deepLink=${useDeepLink}`,
+          `[INFO][OAUTH] Web signInWithOAuth · provider=${provider} shell=${inIdiaShell} iosShell=${isIOSShell} deepLink=${useDeepLink} redirectTo=${redirectTo}`,
         );
 
         const { error } = await supabase.auth.signInWithOAuth({
           provider,
-          options: {
-            redirectTo: useDeepLink ? "idialife://auth-callback" : `${window.location.origin}/`,
-          },
+          options: { redirectTo },
         });
         if (error) throw error;
-        console.log("[END][OAUTH] Web OAuth redirect dispatched");
+        console.log("[END][OAUTH] Web OAuth redirect dispatched to", redirectTo);
       }
 
       console.log(`[END] OAuth Sign-In Dispatch · provider=${provider}`);
