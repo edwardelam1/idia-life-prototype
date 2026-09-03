@@ -125,16 +125,23 @@ serve(async (req) => {
 
   const url = new URL(req.url);
 
-  // Ingress trace — logged BEFORE any parsing so a stalled device call is always visible.
+  console.log(`--- BEGIN ERROR HANDLING: Edge Function POST Handler ---`);
   console.log(
-    `[AHS ${requestId}] ingress ${req.method} ${url.pathname}${url.search} headers=${JSON.stringify(
+    `🚨 [EDGE_INIT][BEGIN: Planck.Edge.AppleHealthSync] Processing ${req.method} request. id=${requestId} path=${url.pathname}${url.search} headers=${JSON.stringify(
       [...req.headers.keys()],
     )} len=${req.headers.get("content-length") || "?"}`,
   );
 
-  // Reachability probe for the native shell — no DB, no auth.
-  if (url.searchParams.get("ping") === "1") {
-    return json({ ok: true, request_id: requestId, ts: new Date().toISOString() });
+  // STRICT INGRESS: Swift master posts. Nothing else is accepted.
+  if (req.method !== "POST") {
+    console.log(
+      `🚨 [EDGE_METHOD_FATAL][FATAL: Planck.Edge.AppleHealthSync] Rejecting non-POST method: ${req.method}`,
+    );
+    console.log(
+      `🚨 [EDGE_METHOD_FATAL][END: Planck.Edge.AppleHealthSync] -> Silent stalling occurs: Swift pipeline broken by invalid method.`,
+    );
+    console.log(`--- END ERROR HANDLING: Edge Function POST Handler ---`);
+    return json({ success: false, error: "Method not allowed", request_id: requestId }, 405);
   }
 
   try {
@@ -148,7 +155,8 @@ serve(async (req) => {
       global: { headers: { Authorization: `Bearer ${supabaseKey}` } },
     });
 
-    const rawBody = req.method === "GET" ? {} : await req.json().catch(() => ({}));
+    const rawBody = await req.json().catch(() => ({}));
+
 
     // Fuzzy key matching — query params win so the shell can post the anchor on the URL.
     const userId = url.searchParams.get("user_id") || rawBody.user_id || rawBody.userId || rawBody.config?.user_id;
