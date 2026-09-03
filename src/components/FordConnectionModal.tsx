@@ -230,9 +230,11 @@ const FordConnectionModal = ({
         .eq("user_id", currentUserId)
         .eq("connection_type", "ford")
         .eq("is_active", true)
-        .single();
+        .maybeSingle();
 
       if (data && !error) {
+        stopWatching();
+        setIsConnecting(false);
         setConnected(true);
         toast({ title: "Connected!", description: "Your Ford vehicle has been connected successfully." });
         setTimeout(() => {
