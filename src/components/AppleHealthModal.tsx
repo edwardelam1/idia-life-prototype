@@ -17,28 +17,19 @@ interface AppleHealthModalProps {
 }
 
 const ALL_HEALTH_DATA_TYPES = [
-  // --- CORE ACTIVITY ---
   { id: "HKQuantityTypeIdentifierStepCount", name: "Steps", category: "Activity" },
   { id: "HKQuantityTypeIdentifierActiveEnergyBurned", name: "Active Energy Burned", category: "Activity" },
-
-  // --- KEYSTONE VITALS (PURE ALPHA) ---
   { id: "HKQuantityTypeIdentifierHeartRate", name: "Heart Rate", category: "Vitals" },
   { id: "HKQuantityTypeIdentifierHeartRateVariabilitySDNN", name: "Heart Rate Variability", category: "Vitals" },
   { id: "HKQuantityTypeIdentifierRespiratoryRate", name: "Respiratory Rate", category: "Vitals" },
   { id: "HKQuantityTypeIdentifierOxygenSaturation", name: "Blood Oxygen", category: "Vitals" },
   { id: "HKQuantityTypeIdentifierBodyTemperature", name: "Body Temperature", category: "Vitals" },
-
-  // --- KINETIC TELEMETRY (GAIT & MOBILITY) ---
   { id: "HKQuantityTypeIdentifierWalkingAsymmetryPercentage", name: "Gait Asymmetry", category: "Mobility" },
   { id: "HKQuantityTypeIdentifierWalkingDoubleSupportPercentage", name: "Double Support", category: "Mobility" },
   { id: "HKQuantityTypeIdentifierWalkingSpeed", name: "Walking Speed", category: "Mobility" },
   { id: "HKQuantityTypeIdentifierWalkingStepLength", name: "Step Length", category: "Mobility" },
-
-  // --- ENVIRONMENTAL AWARENESS ---
   { id: "HKQuantityTypeIdentifierEnvironmentalAudioExposure", name: "Acoustic Floor (dB)", category: "Environment" },
   { id: "HKQuantityTypeIdentifierUVExposure", name: "UV Exposure", category: "Environment" },
-
-  // --- SLEEP PROTOCOL ---
   { id: "HKCategoryTypeIdentifierSleepAnalysis", name: "Sleep Analysis", category: "Vitals" },
 ];
 
@@ -72,103 +63,159 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, [onClose, onComplete]);
 
   useEffect(() => {
+    console.log("[BEGIN] isMountedRef initialization");
     isMountedRef.current = true;
+    console.log("[END] isMountedRef initialization");
     return () => {
+      console.log("[BEGIN] Component unmount cleanup");
       isMountedRef.current = false;
+      console.log("[END] Component unmount cleanup");
     };
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user && isMountedRef.current) {
-        setCurrentUserId(session.user.id);
-        setAuthSession(session);
-      }
-    });
+    console.log("[BEGIN] Auth session retrieval");
+    supabase.auth
+      .getSession()
+      .then(({ data: { session }, error }) => {
+        if (error) {
+          console.error("[ERROR] Auth session retrieval failed:", error);
+          return;
+        }
+        if (session?.user && isMountedRef.current) {
+          console.log("[PROGRESS] Auth session retrieved successfully");
+          setCurrentUserId(session.user.id);
+          setAuthSession(session);
+        } else {
+          console.log("[PROGRESS] No active user session found or component unmounted");
+        }
+        console.log("[END] Auth session retrieval");
+      })
+      .catch((err) => {
+        console.error("[ERROR] Auth session retrieval threw exception:", err);
+      });
   }, []);
 
-  // 🚀 THE HYBRID SAFETY NET: Dynamic Realtime + Polling Fallback
   useEffect(() => {
     if (!isConnecting || !currentUserId || !syncSessionIdRef.current) return;
 
+    console.log("[BEGIN] Hybrid safety net initialization");
     const sessionId = syncSessionIdRef.current;
-    console.log(`🎧 Hybrid safety net active for session: ${sessionId}`);
+    console.log(`[PROGRESS] Hybrid safety net active for session: ${sessionId}`);
 
     const triggerSuccessClosure = () => {
+      console.log("[BEGIN] triggerSuccessClosure invoked");
       if (typeof (window as any).onHealthDataSyncComplete === "function") {
+        console.log("[PROGRESS] Manually invoking global onHealthDataSyncComplete callback");
         (window as any).onHealthDataSyncComplete({
           sync_session_id: sessionId,
-          processed_count: 1, // Visual verification flag
+          processed_count: 1,
           processed_data: [{ type: "steps", value: "Verified by Ledger" }],
         });
+      } else {
+        console.error("[ERROR] Global onHealthDataSyncComplete callback is undefined during forced closure");
       }
+      console.log("[END] triggerSuccessClosure execution");
     };
 
-    // 1. Primary: Dynamic Realtime Channel (Avoids Zombie Subscriptions)
+    console.log("[PROGRESS] Setting up Realtime Channel subscription");
     const channel = supabase
       .channel(`sync_watch_${sessionId}`)
       .on(
         "postgres_changes",
         {
-          event: "*", // Catch the Upsert
+          event: "*",
           schema: "public",
           table: "data_connections",
           filter: `user_id=eq.${currentUserId}`,
         },
         (payload) => {
+          console.log("[BEGIN] Realtime Channel payload received");
           const newRow = payload.new as { connection_type?: string; is_active?: boolean } | null;
           if (newRow && newRow.connection_type === "apple_health" && newRow.is_active === true) {
-            console.log("🔥 Realtime Engine confirmed sync! Forcing UI closure.");
+            console.log("[PROGRESS] Realtime Engine confirmed sync! Forcing UI closure.");
             triggerSuccessClosure();
+          } else {
+            console.log("[PROGRESS] Realtime Engine payload ignored (not active or wrong type)");
           }
+          console.log("[END] Realtime Channel payload processed");
         },
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log(`[PROGRESS] Realtime Channel subscription status: ${status}`);
+        if (err) console.error("[ERROR] Realtime Channel subscription error:", err);
+      });
 
-    // 2. Fallback: Ledger Polling (Catches dropped websocket packets)
+    console.log("[PROGRESS] Setting up Ledger Polling interval");
     const pollInterval = setInterval(async () => {
-      if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) return;
-
-      const { data } = await supabase
-        .from("data_connections")
-        .select("is_active")
-        .eq("user_id", currentUserId)
-        .eq("connection_type", "apple_health")
-        .limit(1);
-
-      if (data?.[0]?.is_active === true) {
-        console.log("🔥 Ledger Poll confirmed sync! Forcing UI closure.");
-        triggerSuccessClosure();
+      console.log("[BEGIN] Ledger Polling execution");
+      if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) {
+        console.log("[END] Ledger Polling aborted (unmounted or session mismatch)");
+        return;
       }
+
+      try {
+        const { data, error } = await supabase
+          .from("data_connections")
+          .select("is_active")
+          .eq("user_id", currentUserId)
+          .eq("connection_type", "apple_health")
+          .limit(1);
+
+        if (error) {
+          console.error("[ERROR] Ledger Polling query failed:", error);
+        } else if (data?.[0]?.is_active === true) {
+          console.log("[PROGRESS] Ledger Poll confirmed sync! Forcing UI closure.");
+          triggerSuccessClosure();
+        } else {
+          console.log("[PROGRESS] Ledger Poll verified no active connection yet");
+        }
+      } catch (pollErr) {
+        console.error("[ERROR] Ledger Polling exception caught:", pollErr);
+      }
+      console.log("[END] Ledger Polling execution");
     }, 3500);
 
+    console.log("[END] Hybrid safety net initialization");
+
     return () => {
+      console.log("[BEGIN] Hybrid safety net cleanup");
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
+      console.log("[END] Hybrid safety net cleanup");
     };
   }, [isConnecting, currentUserId]);
 
   const clearAllTimers = useCallback(() => {
+    console.log("[BEGIN] clearAllTimers invoked");
     if (bridgeTimeoutRef.current) {
       clearTimeout(bridgeTimeoutRef.current);
       bridgeTimeoutRef.current = null;
+      console.log("[PROGRESS] bridgeTimeout cleared");
     }
     if (autoCloseTimeoutRef.current) {
       clearTimeout(autoCloseTimeoutRef.current);
       autoCloseTimeoutRef.current = null;
+      console.log("[PROGRESS] autoCloseTimeout cleared");
     }
+    console.log("[END] clearAllTimers complete");
   }, []);
 
   const detachNativeCallbacks = useCallback(() => {
+    console.log("[BEGIN] detachNativeCallbacks invoked");
     if ((window as any).onHealthDataSyncComplete) {
       (window as any).onHealthDataSyncComplete = undefined;
+      console.log("[PROGRESS] onHealthDataSyncComplete detached");
     }
     if ((window as any).onHealthDataSyncError) {
       (window as any).onHealthDataSyncError = undefined;
+      console.log("[PROGRESS] onHealthDataSyncError detached");
     }
+    console.log("[END] detachNativeCallbacks complete");
   }, []);
 
   const closeAndReset = useCallback(() => {
+    console.log("[BEGIN] closeAndReset invoked");
     clearAllTimers();
     syncSessionIdRef.current = null;
     detachNativeCallbacks();
@@ -178,11 +225,17 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setHealthData(null);
     setSyncCount(0);
     setConnectedThisSession(false);
-    onCloseRef.current?.();
+
+    if (onCloseRef.current) {
+      console.log("[PROGRESS] Invoking modal onClose prop");
+      onCloseRef.current();
+    }
+    console.log("[END] closeAndReset complete");
   }, [clearAllTimers, detachNativeCallbacks]);
 
   useEffect(() => {
     if (!isOpen) {
+      console.log("[BEGIN] isOpen false handler");
       clearAllTimers();
       syncSessionIdRef.current = null;
       detachNativeCallbacks();
@@ -193,19 +246,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       setHealthData(null);
       setSyncCount(0);
       setConnectedThisSession(false);
+      console.log("[END] isOpen false handler complete");
     }
   }, [isOpen, clearAllTimers, detachNativeCallbacks]);
 
   useEffect(() => {
-    return () => {
-      clearAllTimers();
-      detachNativeCallbacks();
-    };
-  }, [clearAllTimers, detachNativeCallbacks]);
-
-  useEffect(() => {
     if (connectionStatus !== "connected" || burstTriggeredRef.current) return;
-
+    console.log("[BEGIN] Triggering psychometric confetti");
     const rect = appleHealthIconRef.current?.getBoundingClientRect();
     if (rect) {
       fireAppleHealthDataBurst({
@@ -213,23 +260,33 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         y: (rect.top + rect.height / 2) / window.innerHeight,
       });
       burstTriggeredRef.current = true;
+      console.log("[PROGRESS] Confetti burst fired");
     }
+    console.log("[END] Triggering psychometric confetti");
   }, [connectionStatus]);
 
   const syncHealthDataViaNativeApp = useCallback(
     (hash: string, sessionId: string) => {
+      console.log("[BEGIN] syncHealthDataViaNativeApp: Invoked");
       const webkit = (window as any).webkit;
 
       if (!webkit?.messageHandlers?.syncHealthData) {
+        console.error("[ERROR] syncHealthDataViaNativeApp: webkit.messageHandlers.syncHealthData is undefined");
         setErrorMessage("Please launch from the IDIA iOS App.");
         setConnectionStatus("error");
         setIsConnecting(false);
+        console.log("[END] syncHealthDataViaNativeApp: Aborted due to missing bridge");
         return;
       }
 
       (window as any).onHealthDataSyncComplete = (serverResponse: any) => {
+        console.log("[BEGIN] Native Callback: onHealthDataSyncComplete fired", serverResponse);
         const incomingId = typeof serverResponse === "string" ? serverResponse : serverResponse?.sync_session_id;
-        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+
+        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) {
+          console.log("[END] Native Callback: Session mismatch or unmounted, ignoring success");
+          return;
+        }
 
         try {
           const count = serverResponse?.processed_count || 57;
@@ -240,13 +297,18 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           setConnectedThisSession(true);
           setIsConnecting(false);
 
-          onCompleteRef.current?.();
+          if (onCompleteRef.current) {
+            console.log("[PROGRESS] Invoking onComplete prop");
+            onCompleteRef.current();
+          }
 
           autoCloseTimeoutRef.current = setTimeout(() => {
+            console.log("[PROGRESS] Native Callback: Auto-closing modal");
             closeAndReset();
           }, 3000);
+          console.log("[END] Native Callback: Success state fully resolved");
         } catch (err: any) {
-          console.error("Sync complete handler error:", err);
+          console.error("[ERROR] Native Callback: onHealthDataSyncComplete exception", err);
           setErrorMessage("Failed to process sync response.");
           setConnectionStatus("error");
           setIsConnecting(false);
@@ -254,16 +316,25 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       };
 
       (window as any).onHealthDataSyncError = (errorMsg: string, incomingId?: string) => {
-        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
-        if (connectionStatus === "connected" || connectedThisSession) return;
+        console.error(`[BEGIN] Native Callback: onHealthDataSyncError fired - ${errorMsg}`);
+        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) {
+          console.log("[END] Native Callback: Error callback ignored (session mismatch or unmounted)");
+          return;
+        }
+        if (connectionStatus === "connected" || connectedThisSession) {
+          console.log("[END] Native Callback: Error callback ignored (already connected)");
+          return;
+        }
 
         clearAllTimers();
         setErrorMessage(`Sync Error: ${errorMsg}`);
         setConnectionStatus("error");
         setIsConnecting(false);
+        console.log("[END] Native Callback: Error state fully resolved");
       };
 
       try {
+        console.log("[PROGRESS] syncHealthDataViaNativeApp: Dispatching postMessage to Swift");
         webkit.messageHandlers.syncHealthData.postMessage({
           action: "comprehensive_health_sync",
           endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash_key=${hash}`,
@@ -271,38 +342,49 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           auth_token: authSession?.access_token,
           aca_hash_key: hash,
           sync_session_id: sessionId,
-          requestedDataTypes: {}, // 🚨 THE MISSING KEY: Add this so Swift doesn't crash!
+          requestedDataTypes: {},
         });
+        console.log("[PROGRESS] syncHealthDataViaNativeApp: postMessage dispatched successfully");
       } catch (postErr: any) {
+        console.error("[ERROR] syncHealthDataViaNativeApp: webkit.postMessage failed", postErr);
         setErrorMessage(`Native bridge dispatch failed.`);
         setConnectionStatus("error");
         setIsConnecting(false);
-        return;
+        console.log("[END] syncHealthDataViaNativeApp: Failed during dispatch");
       }
     },
     [currentUserId, authSession, connectionStatus, connectedThisSession, clearAllTimers, closeAndReset],
   );
 
   const handleConnect = useCallback(async () => {
+    console.log("[BEGIN] handleConnect: Invoked");
     setErrorMessage(null);
     setIsConnecting(true);
     setConnectionStatus("connecting");
 
     const sessionId = Math.random().toString(36).substring(7);
     syncSessionIdRef.current = sessionId;
+    console.log(`[PROGRESS] handleConnect: Generated session ID ${sessionId}`);
 
     try {
-      const { data: profile } = await supabase
+      console.log("[PROGRESS] handleConnect: Fetching platform_guid from profiles");
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("platform_guid")
         .eq("user_id", currentUserId)
         .limit(1);
 
+      if (profileError) {
+        console.error(`[ERROR] handleConnect: Profile fetch failed`, profileError);
+      }
+
       const platformGuid = profile?.[0]?.platform_guid || currentUserId;
       if (!platformGuid) throw new Error("Profile anchor missing.");
 
+      console.log("[PROGRESS] handleConnect: Generating ACA Hash");
       const { hash, payload } = await generateACAHash(platformGuid, "apple_health", ["KYC_VAULT", "HEALTH_DATA_READ"]);
 
+      console.log("[PROGRESS] handleConnect: Upserting user_aca_records");
       const { error: acaError } = await supabase.from("user_aca_records").upsert(
         {
           platform_guid: platformGuid,
@@ -314,27 +396,57 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       );
 
       if (acaError) {
+        console.error(`[ERROR] handleConnect: ACA Upsert failed`, acaError);
         throw new Error(`Database rejected ACA record: ${acaError.message}`);
       }
 
-      if (syncSessionIdRef.current !== sessionId) return;
+      if (syncSessionIdRef.current !== sessionId) {
+        console.log("[END] handleConnect: Session ID mismatch, aborting");
+        return;
+      }
+
+      console.log("[PROGRESS] handleConnect: Handoff to syncHealthDataViaNativeApp");
       syncHealthDataViaNativeApp(hash, sessionId);
+      console.log("[END] handleConnect: Successful setup before native dispatch");
     } catch (error: any) {
+      console.error(`[ERROR] handleConnect: Caught exception - ${error.message}`, error);
       if (syncSessionIdRef.current !== sessionId) return;
       setErrorMessage(error.message);
       setConnectionStatus("error");
       setIsConnecting(false);
+      console.log("[END] handleConnect: Failed state updated");
     }
   }, [currentUserId, syncHealthDataViaNativeApp]);
 
   const handleDisconnect = async () => {
-    if (!currentUserId || !existingConnection) return;
+    console.log("[BEGIN] handleDisconnect: Invoked");
+    if (!currentUserId || !existingConnection) {
+      console.log("[END] handleDisconnect: Aborted (no active user or connection)");
+      return;
+    }
     try {
-      await supabase.from("data_connections").update({ is_active: false }).eq("id", existingConnection.id);
-      onDisconnect?.();
+      console.log(`[PROGRESS] handleDisconnect: Updating connection ${existingConnection.id} to inactive`);
+      const { error } = await supabase
+        .from("data_connections")
+        .update({ is_active: false })
+        .eq("id", existingConnection.id);
+
+      if (error) {
+        console.error("[ERROR] handleDisconnect: Supabase update failed", error);
+        throw error;
+      }
+
+      if (onDisconnect) {
+        console.log("[PROGRESS] handleDisconnect: Invoking onDisconnect prop");
+        onDisconnect();
+      }
+
+      console.log("[PROGRESS] handleDisconnect: Executing closeAndReset");
       closeAndReset();
-    } catch (e) {
-      console.error(e);
+      console.log("[END] handleDisconnect: Success");
+    } catch (e: any) {
+      console.error("[ERROR] handleDisconnect: Exception caught:", e);
+      console.log("[END] handleDisconnect: Failed");
     }
   };
 
