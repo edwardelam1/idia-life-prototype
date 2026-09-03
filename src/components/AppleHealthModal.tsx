@@ -287,7 +287,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       try {
         webkit.messageHandlers.syncHealthData.postMessage({
           action: "comprehensive_health_sync",
-          endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash_key=${hash}`,
+          endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash_key=${hash}&user_id=${currentUserId}`,
           user_id: currentUserId,
           auth_token: authSession?.access_token,
           aca_hash_key: hash,
@@ -300,9 +300,25 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setIsConnecting(false);
         return;
       }
+
+      // 🛑 WATCHDOG: never spin forever. If neither the bridge nor the ledger
+      // confirms within 75s, surface an actionable error instead of a hung spinner.
+      if (bridgeTimeoutRef.current) clearTimeout(bridgeTimeoutRef.current);
+      bridgeTimeoutRef.current = setTimeout(() => {
+        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+        setConnectionStatus((prev) => {
+          if (prev === "connected") return prev;
+          setErrorMessage(
+            "Apple Health did not return any data within 75 seconds. Open Settings → Privacy → Health → IDIA and allow all categories, then try again.",
+          );
+          setIsConnecting(false);
+          return "error";
+        });
+      }, 75000);
     },
     [currentUserId, authSession, connectionStatus, connectedThisSession, clearAllTimers, closeAndReset],
   );
+
 
   const handleConnect = useCallback(async () => {
     setErrorMessage(null);
