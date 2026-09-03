@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-idia-session",
-  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS, DELETE",
   "Access-Control-Max-Age": "86400",
 };
 
@@ -138,7 +138,14 @@ serve(async (req) => {
     return json({ status: "awake" });
   }
 
-  // 3. ACCOMMODATE THE SWIFT MASTER (Fixes the 403 POST Error)
+  // 3. PACIFY THE FRONTEND DISCONNECT (Fixes the 405 DELETE Error)
+  if (req.method === "DELETE") {
+    console.log(`🚨 [EDGE_DELETE][END: Planck.Edge.AppleHealthSync.Delete] -> Silent stalling prevented: Returning 200 OK to frontend disconnect.`);
+    console.log(`--- END ERROR HANDLING: Edge Function Ingress ---`);
+    return json({ success: true, message: "Sync disconnected" });
+  }
+
+  // 4. ACCOMMODATE THE SWIFT MASTER (Fixes the 403 POST Error)
   if (req.method === "POST") {
     try {
       // Step 1: Parse JSON safely
@@ -171,14 +178,15 @@ serve(async (req) => {
       }
 
       // Step 3: Validate user identification (fuzzy: query params or body)
-      const userId = url.searchParams.get("user_id") || rawBody.user_id || rawBody.userId || rawBody.config?.user_id;
+      const resolvedUserId = url.searchParams.get("user_id") || rawBody.user_id || rawBody.userId || rawBody.config?.user_id;
+      const userId = resolvedUserId;
       const acaHash =
         url.searchParams.get("aca_hash_key") || rawBody.aca_hash_key || rawBody.aca_hash || rawBody.acaHash || "UNANCHORED";
       const syncSessionId = rawBody.sync_session_id || url.searchParams.get("sync_session_id") || null;
 
-      if (!userId) {
+      if (!resolvedUserId) {
         console.log(`--- BEGIN ERROR HANDLING: Missing User ID ---`);
-        console.log(`🚨 [EDGE_PAYLOAD_FATAL][FATAL: Planck.Edge.AppleHealthSync] Missing user_id in payload.`);
+        console.log(`🚨 [EDGE_PAYLOAD_FATAL][FATAL: Planck.Edge.AppleHealthSync] Missing user_id or userId in payload.`);
         console.log(`🚨 [EDGE_PAYLOAD_FATAL][END: Planck.Edge.AppleHealthSync] -> Silent stalling occurs: Rejecting payload.`);
         console.log(`--- END ERROR HANDLING: Missing User ID ---`);
         console.log(`--- END ERROR HANDLING: Edge Function Ingress ---`);
@@ -478,7 +486,7 @@ serve(async (req) => {
     }
   }
 
-  console.log(`🚨 [EDGE_METHOD_FATAL][FATAL: Planck.Edge.AppleHealthSync] Rejecting non-POST/GET method: ${req.method}`);
+  console.log(`🚨 [EDGE_METHOD_FATAL][FATAL: Planck.Edge.AppleHealthSync] Rejecting non-POST/GET/DELETE method: ${req.method}`);
   console.log(`🚨 [EDGE_METHOD_FATAL][END: Planck.Edge.AppleHealthSync] -> Silent stalling occurs: Invalid method.`);
   console.log(`--- END ERROR HANDLING: Edge Function Ingress ---`);
   return new Response("Method not allowed", { headers: corsHeaders, status: 405 });
