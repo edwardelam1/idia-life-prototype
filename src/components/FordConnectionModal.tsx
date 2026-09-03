@@ -27,7 +27,20 @@ const FordConnectionModal = ({
   const [isConnecting, setIsConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const watchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
+
+  const stopWatching = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    if (watchTimeoutRef.current) {
+      clearTimeout(watchTimeoutRef.current);
+      watchTimeoutRef.current = null;
+    }
+  };
 
   useEffect(() => {
     const getUser = async () => {
@@ -37,7 +50,27 @@ const FordConnectionModal = ({
       if (user) setCurrentUserId(user.id);
     };
     getUser();
+    return () => stopWatching();
   }, []);
+
+  // Returning from the system browser after Ford login is the moment the
+  // callback has stamped the connection — re-check immediately.
+  useEffect(() => {
+    if (!isConnecting) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") checkConnection();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [isConnecting, currentUserId]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      stopWatching();
+      setIsConnecting(false);
+    }
+  }, [isOpen]);
+
 
   const handleDisconnect = async () => {
     if (!currentUserId || !existingConnection) return;
