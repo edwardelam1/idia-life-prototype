@@ -45,6 +45,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.id)),
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [stage, setStage] = useState<string>("Anchoring cryptographic proof...");
   const [syncCount, setSyncCount] = useState(0);
   const [connectedThisSession, setConnectedThisSession] = useState(false);
 
@@ -147,6 +148,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       });
 
     console.log("[PROGRESS] Setting up Ledger Polling interval");
+    const startedAt = new Date().toISOString();
     const pollInterval = setInterval(async () => {
       console.log("[BEGIN] Ledger Polling execution");
       if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) {
@@ -167,8 +169,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         } else if (data?.[0]?.is_active === true) {
           console.log("[PROGRESS] Ledger Poll confirmed sync! Forcing UI closure.");
           triggerSuccessClosure();
+          return;
+        }
+
+        // Secondary signal: raw rows landed even if the connection flag lagged.
+        const { data: rows } = await supabase
+          .from("raw_health_data")
+          .select("id")
+          .eq("user_id", currentUserId)
+          .gte("created_at", startedAt)
+          .limit(1);
+        if (rows && rows.length > 0) {
+          console.log("[PROGRESS] Ledger Poll saw fresh raw_health_data! Forcing UI closure.");
+          triggerSuccessClosure();
         } else {
-          console.log("[PROGRESS] Ledger Poll verified no active connection yet");
+          console.log("[PROGRESS] Ledger Poll verified no ingestion yet");
         }
       } catch (pollErr) {
         console.error("[ERROR] Ledger Polling exception caught:", pollErr);
@@ -289,6 +304,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         }
 
         try {
+          clearAllTimers();
           const count = serverResponse?.processed_count || 57;
           setSyncCount(count);
           setHealthData({ steps: "Verified", heartRate: "Verified" });
@@ -335,6 +351,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
       try {
         console.log("[PROGRESS] syncHealthDataViaNativeApp: Dispatching postMessage to Swift");
+        setStage("Reading HealthKit and uploading to the vault...");
         webkit.messageHandlers.syncHealthData.postMessage({
           action: "comprehensive_health_sync",
           endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash_key=${hash}`,
@@ -345,6 +362,20 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           requestedDataTypes: {},
         });
         console.log("[PROGRESS] syncHealthDataViaNativeApp: postMessage dispatched successfully");
+
+        // Watchdog: the shell must answer (or the ledger must move) within 60s.
+        // Without this the modal spins forever when the native request never fires.
+        if (bridgeTimeoutRef.current) clearTimeout(bridgeTimeoutRef.current);
+        bridgeTimeoutRef.current = setTimeout(() => {
+          if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) return;
+          if (connectedThisSession) return;
+          console.error("[ERROR] Bridge watchdog tripped — no native callback and no ingestion in 60s");
+          setErrorMessage(
+            "The iOS app never delivered your health data (no upload reached the server). Open Settings › Privacy & Security › Health › IDIA and enable all categories, then retry.",
+          );
+          setConnectionStatus("error");
+          setIsConnecting(false);
+        }, 60000);
       } catch (postErr: any) {
         console.error("[ERROR] syncHealthDataViaNativeApp: webkit.postMessage failed", postErr);
         setErrorMessage(`Native bridge dispatch failed.`);
@@ -360,6 +391,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     console.log("[BEGIN] handleConnect: Invoked");
     setErrorMessage(null);
     setIsConnecting(true);
+    setStage("Anchoring cryptographic proof...");
     setConnectionStatus("connecting");
 
     const sessionId = Math.random().toString(36).substring(7);
@@ -512,7 +544,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           {connectionStatus === "connecting" && (
             <div className="text-center py-10 space-y-4">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-sm text-muted-foreground animate-pulse">Anchoring cryptographic proof...</p>
+              <p className="text-sm text-muted-foreground animate-pulse">{stage}</p>
               <Button variant="outline" className="w-full" onClick={closeAndReset}>
                 Cancel
               </Button>
