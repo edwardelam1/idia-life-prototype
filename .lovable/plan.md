@@ -1,38 +1,34 @@
-# Restore the Ping + Service-Role Ingress on `apple-health-sync`
+# Fix Apple Health anchoring stall — server side only
 
-The last change made this function strict-POST-only, so `GET ?ping=1` now returns **405**. Your new spec reverses that: the ping must answer **200**, and POST must ingest with the service-role key. This plan applies your spec while keeping the parts of the pipeline that actually write data.
+## What the evidence shows
 
-## What changes in `supabase/functions/apple-health-sync/index.ts`
+- `user_aca_records` has 179 `apple_health` consent rows, the newest stamped today at 14:01 UTC — the consent handshake in the app is working.
+- `raw_health_data` is completely empty (0 rows, ever) — no health payload has ever landed.
+- `apple-health-sync` edge function logs show only boot/shutdown events, no request lines, during the same window the spinner was running.
+- The function itself is reachable and healthy from the outside: `OPTIONS` returns 200 with CORS headers, `POST {}` returns a clean 400 "Missing required field: user_id".
 
-1. **CORS** — allow `POST, GET, OPTIONS` again; `OPTIONS` returns `ok` with the headers, logged as `[EDGE_CORS]`.
-2. **Restore the ping** — `GET ?ping=1` returns `200 {"status":"awake"}` with `[EDGE_PING]` logs. This removes the 405 the UI/shell is hitting.
-3. **POST branch — strict execution order** (this ordering is load-bearing; the logs show empty `{}` background posts dying with 400 because `user_id` was validated first):
-   - `[EDGE_INIT]` on every request with the method.
-   - **Step 1: parse JSON safely** — `const body = await req.json().catch(() => ({}))`.
-   - **Step 2: empty-payload check FIRST**, before any field validation — `const healthRecords = body.data || body.healthData; if (!healthRecords || (Array.isArray(healthRecords) && healthRecords.length === 0))` → the exact `[EDGE_PAYLOAD_EMPTY]` BEGIN/END block + **200** `{success:true,message:"No data to process"}`. Empty background-task posts can no longer hit the 400 path.
-   - **Step 3: validate `user_id`** → missing → the exact `[EDGE_PAYLOAD_FATAL]` "Missing user_id in payload." block + **400** `{error:"Missing user_id"}`.
-   - `[EDGE_PROCESS]` log with record count and ACA hash.
-   - Service-role client from `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (already how the function builds its client) — this is what bypasses the expired-token 403s from iOS background tasks.
-   - Insert failure → `[EDGE_DB_FATAL]` + throw into the catch → **500**.
-   - Success → `[EDGE_SUCCESS]` + **200** `{success:true, processed_count}` so `evaluateSyncSuccess` fires.
-   - Catch → `[EDGE_CATCH_FATAL]` + **500**.
-4. **Any other method** → `[EDGE_METHOD_FATAL]` + **405** with CORS headers.
+So the consent anchor writes fine, the function is up, but the native shell's POST either never arrives or arrives and never gets a response the shell can act on. The spinner never resolves because nothing ever calls the completion handler.
 
-## Two corrections to the pasted block (needed or ingestion silently breaks)
+Work stays entirely in `supabase/functions/apple-health-sync/index.ts`. No React changes.
 
-- **Target table.** Your snippet inserts into the placeholder `your_health_table_name`. The real table is **`raw_health_data`**, and it does not accept Swift's raw sample shape directly — rows need `user_id`, `aca_hash_key`, `device_type`, `raw_payload`, `recorded_at`, `processing_status`, `step_count`. So the existing HealthKit key-mapping + row-builder stays in place between `[EDGE_PROCESS]` and the insert; a bare `.insert(body.data)` would fail on every row and return 500.
-- **Payload shape.** Two non-Swift callers also POST here — `src/services/healthService.ts` (Android Health Connect) and the `daily-apple-health-sync` cron — and they send `healthData`, an object, not a `data` array. The empty-payload check will treat "no `data`/`healthData`, or an empty one" as the empty case so both pipelines keep working.
+## Changes to the edge function
 
-Everything else you specified is applied literally, including the exact log strings and the BEGIN/END delimiter lines.
+1. **Log every ingress before anything else.** First line of the handler logs method, URL, present headers (names only, no values), content length and a request id. This makes it definitive next attempt whether the device's POST reaches the function at all or dies at the gateway.
 
-## Kept from the current function — with the ACA 403 trap removed
+2. **Always answer, always fast.** The current handler does chunked inserts with a `select("id")` round trip per chunk before responding. A large HealthKit firehose can blow past the response window, so the shell waits forever. Restructure to: validate → verify consent → acknowledge with `200 {success:true, accepted:N, request_id}` immediately, then finish the inserts in the background with `EdgeRuntime.waitUntil`. Drop the per-chunk `select("id")` and raise chunk size; the response no longer needs row ids.
 
-The logs show the 403 is thrown inside the function when the ACA hash doesn't match a `user_aca_records` row (e.g. test/fallback hash `nope`, 701ms execution proving it passed the gateway). So:
+3. **Never return an empty or non-JSON body.** Every path — 400, 403, 500 — returns a JSON body with `success:false`, `error`, and `request_id`, with CORS headers attached, so the shell's error callback can fire instead of hanging.
 
-- **ACA verification becomes non-blocking.** The lookup against `user_aca_records` still runs and is logged (a `[DELT_SOFT_FAIL]`-style line when no artifact matches), but a missing/pending/test hash **no longer returns 403** — ingestion proceeds, associating rows by the provided `user_id`. The DELT audit anchor is preserved on every inserted row via the `aca_hash_key` column, so lineage is recorded without breaking the pipeline. A mismatched `platform_guid` is logged the same way instead of rejected.
-- The HealthKit → internal key mapping, the chunked `raw_health_data` inserts, and the `data_connections` "healthy" stamp stay exactly as they are.
+4. **Widen CORS and method handling.** Add `Access-Control-Allow-Methods` (POST, GET, OPTIONS), `Access-Control-Max-Age`, and return `200 "ok"` on preflight. Accept `user_id`, `source` and `aca_hash_key` from query params as well as body, since the shell posts the hash on the query string.
 
-## Technical details
+5. **Add a reachability probe.** `GET /apple-health-sync?ping=1` returns `{ok:true, ts}` without touching the database, so the device can be tested directly and we can tell a network/gateway failure apart from a payload failure.
 
-- File touched: `supabase/functions/apple-health-sync/index.ts`. No frontend change, no migration.
-- Deploy immediately after editing, then verify: `GET ?ping=1` → 200 `{"status":"awake"}`, `POST {}` → 200 "No data to process", and a real Swift POST → `[EDGE_INIT] → [EDGE_PROCESS] → [EDGE_SUCCESS]` in the logs with rows in `raw_health_data`.
+6. **Make the consent check forgiving of the shell's shape.** Match the ACA record on `aca_hash_key` first; only require the `platform_guid` match when a profile row exists. A mismatch returns a descriptive JSON error naming which side failed rather than a bare 403.
+
+7. **Report what was dropped.** The response includes counts of records received, accepted and skipped-by-whitelist, so a payload full of unmapped keys shows up as `accepted: 0` instead of a silent success.
+
+## Verification
+
+- `POST` with no body, with a bad ACA, and with a valid metric payload against the live function, confirming each returns JSON quickly.
+- Query `raw_health_data` after the valid payload to confirm rows land.
+- Re-read the function logs to confirm the new ingress line appears for every call.
