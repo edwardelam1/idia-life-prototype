@@ -2,12 +2,15 @@
 
 ## What the evidence shows
 
-- `user_aca_records` has 179 `apple_health` consent rows, the newest stamped today at 14:01 UTC — the consent handshake in the app is working.
-- `raw_health_data` is completely empty (0 rows, ever) — no health payload has ever landed.
-- `apple-health-sync` edge function logs show only boot/shutdown events, no request lines, during the same window the spinner was running.
-- The function itself is reachable and healthy from the outside: `OPTIONS` returns 200 with CORS headers, `POST {}` returns a clean 400 "Missing required field: user_id".
+Checked the staged table (raw rows are drained by the pipeline, so an empty `raw_health_data` proves nothing):
 
-So the consent anchor writes fine, the function is up, but the native shell's POST either never arrives or arrives and never gets a response the shell can act on. The spinner never resolves because nothing ever calls the completion handler.
+- `staged_health_data` has real rows today — 73 in the 11:00 hour, 55 at 12:00, 16 at 13:00, the last at **13:08:49** (steps 124, walking speed, step length, asymmetry, double support) for user `217c6224…`.
+- Nothing has landed since 13:08, yet that same user minted **six new Apple Health consent anchors** between 13:11 and 14:01 — each a spinner attempt that produced no data.
+- Every one of those anchors carries a `platform_guid` that matches the user's profile, so the DELT check inside the function would pass.
+- `apple-health-sync` is up and reachable: `OPTIONS` returns 200 with CORS headers, `POST {}` returns a clean 400 "Missing required field: user_id". Its logs show no request lines during the stalled attempts.
+
+So consent anchoring succeeds and the pipeline works when a payload lands, but the recent syncs never produce a response the shell can act on — the spinner has nothing to resolve it. The 13:08 batch also shows the same metric repeated dozens of times, i.e. a large firehose inserted chunk-by-chunk with a round trip per chunk.
+
 
 Work stays entirely in `supabase/functions/apple-health-sync/index.ts`. No React changes.
 
