@@ -7,8 +7,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Map Apple HealthKit identifiers to internal schema keys
-// Expanded to include the High-Fidelity Discovery labels from Swift
 const healthKitKeyMapping: Record<string, string> = {
   HKQuantityTypeIdentifierStepCount: "steps",
   HKQuantityTypeIdentifierDistanceWalkingRunning: "distanceWalkingRunning",
@@ -52,7 +50,6 @@ const healthKitKeyMapping: Record<string, string> = {
   HKCategoryTypeIdentifierMenstrualFlow: "menstrualFlow",
   HKQuantityTypeIdentifierBasalBodyTemperature: "basalBodyTemperature",
   HKWorkoutTypeIdentifier: "workouts",
-  // Direct Bridge Mapping for Tactical Labels
   steps: "steps",
   heartRate: "heartRate",
   hrv: "hrv",
@@ -89,16 +86,20 @@ serve(async (req) => {
     });
 
     const rawBody = await req.json().catch(() => ({}));
-
-    // Parse query params (aligned to aca_hash_key schema)
     const url = new URL(req.url);
     const queryAcaHash = url.searchParams.get("aca_hash_key");
 
-    // Fuzzy key matching — prioritizing aca_hash_key for DELT verification
-    const userId = rawBody.user_id || rawBody.userId || rawBody.config?.user_id;
-    const acaHash = queryAcaHash || rawBody.aca_hash_key || rawBody.aca_hash || rawBody.acaHash;
+    // 🚨 FIX 1: Robust extraction supporting top-level and nested config formats
+    const userId = rawBody.user_id || rawBody.userId || rawBody.config?.user_id || rawBody.config?.userId;
+    const acaHash =
+      queryAcaHash ||
+      rawBody.aca_hash_key ||
+      rawBody.aca_hash ||
+      rawBody.acaHash ||
+      rawBody.config?.aca_hash_key ||
+      rawBody.config?.aca_hash ||
+      rawBody.config?.acaHash;
 
-    // Broad extraction: Supports both the structured object and the raw Firehose array
     let healthData =
       rawBody.data ||
       rawBody.apple_health_data ||
@@ -109,7 +110,6 @@ serve(async (req) => {
       rawBody.config?.healthData ||
       rawBody.config?.health_data;
 
-    // Root-level check for flat structures
     if (
       !healthData ||
       (typeof healthData === "object" && !Array.isArray(healthData) && Object.keys(healthData).length === 0)
@@ -126,19 +126,6 @@ serve(async (req) => {
         healthData = rootHealthData;
       }
     }
-
-    console.log("Raw body keys:", Object.keys(rawBody));
-    console.log(
-      "Ingression source resolved:",
-      Array.isArray(healthData)
-        ? healthData.length + " firehose records"
-        : healthData
-          ? Object.keys(healthData).length + " grouped keys"
-          : "null",
-    );
-
-    const automatedSync = rawBody.automated_sync || false;
-    const forceRealDataOnly = rawBody.force_real_data_only || false;
 
     if (!userId) {
       return new Response(JSON.stringify({ success: false, error: "Missing required field: user_id" }), {
@@ -160,7 +147,7 @@ serve(async (req) => {
       );
     }
 
-    // DELT/ACA Verification: Verification of platform_guid to establish lineage proof
+    // DELT/ACA Lineage Verification
     const { data: profile } = await supabase
       .from("profiles")
       .select("platform_guid")
@@ -194,6 +181,21 @@ serve(async (req) => {
 
     console.log("✅ DELT Protocol verified for user:", userId);
 
+    // 🚨 FIX 2: Stamp data_connections immediately upon verified anchor handshake
+    const payloadSource = String(rawBody.source || rawBody.config?.source || "apple_health").toLowerCase();
+    const isHealthConnect = payloadSource.includes("health_connect") || payloadSource.includes("android");
+
+    await supabase.from("data_connections").upsert(
+      {
+        user_id: userId,
+        connection_type: isHealthConnect ? "health_connect" : "apple_health",
+        connection_name: isHealthConnect ? "Health Connect" : "Apple Health",
+        is_active: true,
+        last_sync_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,connection_type" },
+    );
+
     // Normalize incoming payload keys
     let processableData: any = {};
     if (healthData && typeof healthData === "object" && !Array.isArray(healthData)) {
@@ -203,7 +205,6 @@ serve(async (req) => {
       });
     }
 
-    // EXPANDED WHITELIST: The complete 22-metric Discovery Set from Swift
     const healthDataTypes = [
       "steps",
       "heartRate",
@@ -235,20 +236,18 @@ serve(async (req) => {
 
     const recordsToInsert: any[] = [];
 
-    // --- CASE 1: NATIVE FIREHOSE ARRAY ---
+    // CASE 1: Native Firehose Array
     if (Array.isArray(healthData)) {
-      console.log("Processing direct firehose array...");
       for (const item of healthData) {
         const rawType = item.dataType || item.type || item.typeIdentifier;
         const dataType = healthKitKeyMapping[rawType] || rawType;
-
         if (!healthDataTypes.includes(dataType)) continue;
 
         const actualValue = typeof item === "object" && item !== null && item.value !== undefined ? item.value : item;
 
         recordsToInsert.push({
           user_id: userId,
-          aca_hash_key: acaHash, // Aligned to aca_hash_key
+          aca_hash_key: acaHash,
           device_type: "Apple Health",
           raw_payload: {
             dataType,
@@ -263,7 +262,7 @@ serve(async (req) => {
         });
       }
     }
-    // --- CASE 2: STRUCTURED OBJECT (LEGACY/WEB) ---
+    // CASE 2: Structured Object
     else {
       for (const dataType of healthDataTypes) {
         if (!processableData[dataType]) continue;
@@ -316,7 +315,7 @@ serve(async (req) => {
       }
     }
 
-    // Process workouts separately to maintain original logic
+    // Workouts
     if (processableData.workouts && Array.isArray(processableData.workouts)) {
       for (const workout of processableData.workouts) {
         const rec = {
@@ -350,34 +349,26 @@ serve(async (req) => {
       }
     }
 
+    // 🚨 FIX 3: If 0 records were found, return the full anchor payload so the modal resolves cleanly
     if (recordsToInsert.length === 0) {
       return new Response(
-        JSON.stringify({ success: true, message: "No actionable health data found", processed_count: 0 }),
+        JSON.stringify({
+          success: true,
+          message: "Connection anchored successfully; no new samples to ingest.",
+          processed_data: [],
+          processed_count: 0,
+          delt_anchor: acaHash.substring(0, 12),
+          sync_timestamp: new Date().toISOString(),
+        }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );
     }
 
-    // Update synchronization status in data_connections.
-    // Source-aware: Android (Health Connect) must not stamp the Apple row.
-    const payloadSource = String(rawBody.source || rawBody.config?.source || "apple_health").toLowerCase();
-    const isHealthConnect = payloadSource.includes("health_connect") || payloadSource.includes("android");
-    await supabase.from("data_connections").upsert(
-      {
-        user_id: userId,
-        connection_type: isHealthConnect ? "health_connect" : "apple_health",
-        connection_name: isHealthConnect ? "Health Connect" : "Apple Health",
-        is_active: true,
-        last_sync_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,connection_type" },
-    );
-
-
-    // CHUNKED BATCH INSERT: Maintaining your procedural select("id") and metadata reconstruction
+    // Batch insertion
     const processedData: any[] = [];
-    const CHUNK_SIZE = 100; // Adjusted for massive firehose efficiency
+    const CHUNK_SIZE = 100;
 
     for (let i = 0; i < recordsToInsert.length; i += CHUNK_SIZE) {
       const chunk = recordsToInsert.slice(i, i + CHUNK_SIZE);
@@ -409,10 +400,6 @@ serve(async (req) => {
         console.error(`Chunk ${i / CHUNK_SIZE} threw exception:`, err);
       }
     }
-
-    console.log(
-      `✅ Sovereign Hydration Complete: ${processedData.length} records anchored with aca_hash_key: ${acaHash.substring(0, 12)}...`,
-    );
 
     return new Response(
       JSON.stringify({
