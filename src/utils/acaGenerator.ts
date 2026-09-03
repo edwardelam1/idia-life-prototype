@@ -25,6 +25,8 @@ export const generateACAHash = async (
 
         // Await the asynchronous hardware result from the Swift shell
         await new Promise((resolve, reject) => {
+          let settleTimer: number | undefined;
+
           const handleSuccess = () => {
             console.log(`🪪 [END: performBiologicalBinding] SUCCESS: Biological signature verified by Secure Enclave.`);
             cleanup();
@@ -40,6 +42,7 @@ export const generateACAHash = async (
           };
 
           const cleanup = () => {
+            window.clearTimeout(settleTimer);
             window.removeEventListener("biological:capture-success", handleSuccess);
             window.removeEventListener("biological:capture-error", handleError);
           };
@@ -48,9 +51,17 @@ export const generateACAHash = async (
           window.addEventListener("biological:capture-success", handleSuccess);
           window.addEventListener("biological:capture-error", handleError);
 
+          // The bridge must answer. Without this bound, a dropped native event
+          // strands the caller on a spinner with no error and no retry path.
+          settleTimer = window.setTimeout(() => {
+            cleanup();
+            reject(new Error("BIOMETRIC_TIMEOUT"));
+          }, 45000);
+
           // Trigger the hardware
           (window as any).webkit.messageHandlers.triggerBiologicalCapture.postMessage({});
         });
+
 
         // Generate a secure local UUID to replace the deprecated Capacitor Device.getId()
         const secureLocalId = crypto.randomUUID();
