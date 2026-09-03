@@ -181,20 +181,53 @@ serve(async (req) => {
 
     console.log("✅ DELT Protocol verified for user:", userId);
 
-    // 🚨 FIX 2: Stamp data_connections immediately upon verified anchor handshake
+    // Stamp data_connections on a verified anchor handshake. No upsert: read the
+    // existing row first, then insert or update explicitly so a write failure is
+    // visible instead of being swallowed behind a conflict clause.
     const payloadSource = String(rawBody.source || rawBody.config?.source || "apple_health").toLowerCase();
     const isHealthConnect = payloadSource.includes("health_connect") || payloadSource.includes("android");
+    const connectionType = isHealthConnect ? "health_connect" : "apple_health";
+    const connectionName = isHealthConnect ? "Health Connect" : "Apple Health";
+    const syncedAt = new Date().toISOString();
 
-    await supabase.from("data_connections").upsert(
-      {
-        user_id: userId,
-        connection_type: isHealthConnect ? "health_connect" : "apple_health",
-        connection_name: isHealthConnect ? "Health Connect" : "Apple Health",
-        is_active: true,
-        last_sync_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,connection_type" },
-    );
+    const { data: existingConnection, error: connectionLookupError } = await supabase
+      .from("data_connections")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("connection_type", connectionType)
+      .maybeSingle();
+
+    if (connectionLookupError) {
+      console.error("[HEALTH_SYNC] connection lookup failed:", connectionLookupError.message);
+      return new Response(
+        JSON.stringify({ success: false, error: `Could not read your connection record: ${connectionLookupError.message}` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const connectionWrite = existingConnection?.id
+      ? await supabase
+          .from("data_connections")
+          .update({ connection_name: connectionName, is_active: true, last_sync_at: syncedAt })
+          .eq("id", existingConnection.id)
+      : await supabase.from("data_connections").insert({
+          user_id: userId,
+          connection_type: connectionType,
+          connection_name: connectionName,
+          is_active: true,
+          last_sync_at: syncedAt,
+        });
+
+    if (connectionWrite.error) {
+      console.error("[HEALTH_SYNC] connection write failed:", connectionWrite.error.message);
+      return new Response(
+        JSON.stringify({ success: false, error: `Could not save your connection: ${connectionWrite.error.message}` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    console.log(`[HEALTH_SYNC] connection anchored (${connectionType}) for user ${userId}`);
+
 
     // Normalize incoming payload keys
     let processableData: any = {};
@@ -349,14 +382,19 @@ serve(async (req) => {
       }
     }
 
-    // 🚨 FIX 3: If 0 records were found, return the full anchor payload so the modal resolves cleanly
+    // No recognizable samples. The anchor is saved, but say so plainly instead of
+    // reporting a completed data sync the client cannot verify.
     if (recordsToInsert.length === 0) {
+      console.log("[HEALTH_SYNC] anchor saved, zero recognizable samples in payload");
       return new Response(
         JSON.stringify({
           success: true,
-          message: "Connection anchored successfully; no new samples to ingest.",
+          anchored: true,
+          ingested: false,
+          message: "Connection anchored, but the payload contained no readable samples.",
           processed_data: [],
           processed_count: 0,
+          connection_synced_at: syncedAt,
           delt_anchor: acaHash.substring(0, 12),
           sync_timestamp: new Date().toISOString(),
         }),
@@ -368,6 +406,7 @@ serve(async (req) => {
 
     // Batch insertion
     const processedData: any[] = [];
+    const insertErrors: string[] = [];
     const CHUNK_SIZE = 100;
 
     for (let i = 0; i < recordsToInsert.length; i += CHUNK_SIZE) {
@@ -381,7 +420,8 @@ serve(async (req) => {
           .select("id");
 
         if (insertError) {
-          console.error(`Batch insert error (chunk ${i / CHUNK_SIZE}):`, insertError);
+          console.error(`[HEALTH_SYNC] batch insert error (chunk ${i / CHUNK_SIZE}):`, insertError.message);
+          insertErrors.push(insertError.message);
           continue;
         }
 
@@ -397,16 +437,41 @@ serve(async (req) => {
           });
         }
       } catch (err) {
-        console.error(`Chunk ${i / CHUNK_SIZE} threw exception:`, err);
+        const detail = err instanceof Error ? err.message : String(err);
+        console.error(`[HEALTH_SYNC] chunk ${i / CHUNK_SIZE} threw:`, detail);
+        insertErrors.push(detail);
       }
     }
+
+    // Every write failed: this is not a successful sync, so do not report one.
+    if (processedData.length === 0 && insertErrors.length > 0) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          anchored: true,
+          ingested: false,
+          error: `Your health records could not be saved: ${insertErrors[0]}`,
+          processed_count: 0,
+          connection_synced_at: syncedAt,
+        }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    console.log(
+      `[HEALTH_SYNC] committed ${processedData.length} records (${insertErrors.length} failed chunks) for user ${userId}`,
+    );
 
     return new Response(
       JSON.stringify({
         success: true,
+        anchored: true,
+        ingested: processedData.length > 0,
         message: "Apple Health data synced successfully via IDIA Protocol",
         processed_data: processedData,
         processed_count: processedData.length,
+        partial_failures: insertErrors.length,
+        connection_synced_at: syncedAt,
         delt_anchor: acaHash.substring(0, 12),
         sync_timestamp: new Date().toISOString(),
       }),
@@ -414,6 +479,7 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
+
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("🚨 [SYSTEM_STALL] Apple Health Sync Error:", message);

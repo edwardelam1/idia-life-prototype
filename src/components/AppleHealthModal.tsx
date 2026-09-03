@@ -104,19 +104,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     const sessionId = syncSessionIdRef.current;
     console.log(`[PROGRESS] Hybrid safety net active for session: ${sessionId}`);
 
-    const triggerSuccessClosure = () => {
-      console.log("[BEGIN] triggerSuccessClosure invoked");
+    // Only a write committed during THIS attempt counts as proof of a sync.
+    const startedAt = new Date().toISOString();
+
+    const confirmFromLedger = (recordCount: number) => {
+      console.log("[PROGRESS] Ledger confirmed a committed sync for this session");
       if (typeof (window as any).onHealthDataSyncComplete === "function") {
-        console.log("[PROGRESS] Manually invoking global onHealthDataSyncComplete callback");
         (window as any).onHealthDataSyncComplete({
           sync_session_id: sessionId,
-          processed_count: 1,
-          processed_data: [{ type: "steps", value: "Verified by Ledger" }],
+          success: true,
+          source: "ledger",
+          processed_count: recordCount,
         });
       } else {
-        console.error("[ERROR] Global onHealthDataSyncComplete callback is undefined during forced closure");
+        console.error("[ERROR] Global onHealthDataSyncComplete callback is undefined during ledger closure");
       }
-      console.log("[END] triggerSuccessClosure execution");
     };
 
     console.log("[PROGRESS] Setting up Realtime Channel subscription");
@@ -131,15 +133,15 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           filter: `user_id=eq.${currentUserId}`,
         },
         (payload) => {
-          console.log("[BEGIN] Realtime Channel payload received");
-          const newRow = payload.new as { connection_type?: string; is_active?: boolean } | null;
-          if (newRow && newRow.connection_type === "apple_health" && newRow.is_active === true) {
-            console.log("[PROGRESS] Realtime Engine confirmed sync! Forcing UI closure.");
-            triggerSuccessClosure();
+          const newRow = payload.new as
+            | { connection_type?: string; is_active?: boolean; last_sync_at?: string | null }
+            | null;
+          const syncedNow = !!newRow?.last_sync_at && newRow.last_sync_at >= startedAt;
+          if (newRow && newRow.connection_type === "apple_health" && newRow.is_active === true && syncedNow) {
+            confirmFromLedger(0);
           } else {
-            console.log("[PROGRESS] Realtime Engine payload ignored (not active or wrong type)");
+            console.log("[PROGRESS] Realtime payload ignored (stale, inactive, or wrong type)");
           }
-          console.log("[END] Realtime Channel payload processed");
         },
       )
       .subscribe((status, err) => {
@@ -148,31 +150,25 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       });
 
     console.log("[PROGRESS] Setting up Ledger Polling interval");
-    const startedAt = new Date().toISOString();
     const pollInterval = setInterval(async () => {
-      console.log("[BEGIN] Ledger Polling execution");
-      if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) {
-        console.log("[END] Ledger Polling aborted (unmounted or session mismatch)");
-        return;
-      }
+      if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) return;
 
       try {
         const { data, error } = await supabase
           .from("data_connections")
-          .select("is_active")
+          .select("is_active,last_sync_at")
           .eq("user_id", currentUserId)
           .eq("connection_type", "apple_health")
           .limit(1);
 
         if (error) {
           console.error("[ERROR] Ledger Polling query failed:", error);
-        } else if (data?.[0]?.is_active === true) {
-          console.log("[PROGRESS] Ledger Poll confirmed sync! Forcing UI closure.");
-          triggerSuccessClosure();
+        } else if (data?.[0]?.is_active === true && data[0].last_sync_at && data[0].last_sync_at >= startedAt) {
+          confirmFromLedger(0);
           return;
         }
 
-        // Secondary signal: raw rows landed even if the connection flag lagged.
+        // Secondary signal: raw rows committed during this attempt.
         const { data: rows } = await supabase
           .from("raw_health_data")
           .select("id")
@@ -180,16 +176,15 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           .gte("created_at", startedAt)
           .limit(1);
         if (rows && rows.length > 0) {
-          console.log("[PROGRESS] Ledger Poll saw fresh raw_health_data! Forcing UI closure.");
-          triggerSuccessClosure();
+          confirmFromLedger(rows.length);
         } else {
           console.log("[PROGRESS] Ledger Poll verified no ingestion yet");
         }
       } catch (pollErr) {
         console.error("[ERROR] Ledger Polling exception caught:", pollErr);
       }
-      console.log("[END] Ledger Polling execution");
     }, 3500);
+
 
     console.log("[END] Hybrid safety net initialization");
 
@@ -296,7 +291,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
       (window as any).onHealthDataSyncComplete = (serverResponse: any) => {
         console.log("[BEGIN] Native Callback: onHealthDataSyncComplete fired", serverResponse);
-        const incomingId = typeof serverResponse === "string" ? serverResponse : serverResponse?.sync_session_id;
 
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) {
           console.log("[END] Native Callback: Session mismatch or unmounted, ignoring success");
@@ -304,10 +298,26 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         }
 
         try {
+          const response = typeof serverResponse === "string" ? {} : serverResponse || {};
+          const status = Number(response.status ?? response.http_status ?? 0);
+
+          // The shell (or the ledger watcher) must report an actual server success.
+          // A bare callback is not proof that anything was saved.
+          const serverRejected = response.success === false || (status > 0 && status >= 400);
+          if (serverRejected) {
+            clearAllTimers();
+            setErrorMessage(
+              response.error || `The server rejected the upload${status ? ` (HTTP ${status})` : ""}. Please retry.`,
+            );
+            setConnectionStatus("error");
+            setIsConnecting(false);
+            return;
+          }
+
           clearAllTimers();
-          const count = serverResponse?.processed_count || 57;
-          setSyncCount(count);
-          setHealthData({ steps: "Verified", heartRate: "Verified" });
+          const count = Number(response.processed_count ?? 0);
+          setSyncCount(Number.isFinite(count) ? count : 0);
+          setHealthData(null);
 
           setConnectionStatus("connected");
           setConnectedThisSession(true);
@@ -325,11 +335,12 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           console.log("[END] Native Callback: Success state fully resolved");
         } catch (err: any) {
           console.error("[ERROR] Native Callback: onHealthDataSyncComplete exception", err);
-          setErrorMessage("Failed to process sync response.");
+          setErrorMessage("The app could not read the server's response. Please retry.");
           setConnectionStatus("error");
           setIsConnecting(false);
         }
       };
+
 
       (window as any).onHealthDataSyncError = (errorMsg: string, incomingId?: string) => {
         console.error(`[BEGIN] Native Callback: onHealthDataSyncError fired - ${errorMsg}`);
@@ -382,19 +393,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         });
         console.log("[PROGRESS] syncHealthDataViaNativeApp: postMessage dispatched successfully");
 
-        // Watchdog: the shell must answer (or the ledger must move) within 60s.
-        // Without this the modal spins forever when the native request never fires.
+        // Upload watchdog: the shell must answer, or the ledger must show a write,
+        // within 60s. Report the stage that actually failed — this is a transport
+        // problem between the app and the server, not a Health settings problem.
         if (bridgeTimeoutRef.current) clearTimeout(bridgeTimeoutRef.current);
         bridgeTimeoutRef.current = setTimeout(() => {
           if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) return;
           if (connectedThisSession) return;
-          console.error("[ERROR] Bridge watchdog tripped — no native callback and no ingestion in 60s");
+          console.error("[ERROR] Upload watchdog tripped — no server confirmation in 60s");
           setErrorMessage(
-            "The iOS app never delivered your health data (no upload reached the server). Open Settings › Privacy & Security › Health › IDIA and enable all categories, then retry.",
+            "Upload timed out: the app finished verification but the server never confirmed a saved sync. Tap Retry.",
           );
           setConnectionStatus("error");
           setIsConnecting(false);
         }, 60000);
+
       } catch (postErr: any) {
         console.error("[ERROR] syncHealthDataViaNativeApp: webkit.postMessage failed", postErr);
         setErrorMessage(`Native bridge dispatch failed.`);
@@ -474,13 +487,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       syncHealthDataViaNativeApp(hash, sessionId);
       console.log("[END] handleConnect: Successful setup before native dispatch");
     } catch (error: any) {
-      console.error(`[ERROR] handleConnect: Caught exception - ${error.message}`, error);
+      console.error(`[ERROR] handleConnect: Caught exception - ${error?.message}`, error);
       if (syncSessionIdRef.current !== sessionId) return;
-      setErrorMessage(error.message);
+      const raw = String(error?.message || "");
+      const friendly =
+        raw === "BIOMETRIC_TIMEOUT"
+          ? "Face ID / Touch ID did not respond in time. Tap Retry to verify again."
+          : raw === "BIOMETRIC_REJECTED"
+            ? "Biometric verification was cancelled or failed. Tap Retry."
+            : raw || "Connection failed. Tap Retry.";
+      setErrorMessage(friendly);
       setConnectionStatus("error");
       setIsConnecting(false);
       console.log("[END] handleConnect: Failed state updated");
     }
+
   }, [currentUserId, syncHealthDataViaNativeApp]);
 
   const handleDisconnect = async () => {
