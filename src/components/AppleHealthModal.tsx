@@ -327,6 +327,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
     const sessionId = Math.random().toString(36).substring(7);
     syncSessionIdRef.current = sessionId;
+    syncStartedAtRef.current = new Date(Date.now() - 5000).toISOString();
 
     try {
       const { data: profile } = await supabase
