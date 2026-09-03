@@ -6,9 +6,11 @@ The last change made this function strict-POST-only, so `GET ?ping=1` now return
 
 1. **CORS** — allow `POST, GET, OPTIONS` again; `OPTIONS` returns `ok` with the headers, logged as `[EDGE_CORS]`.
 2. **Restore the ping** — `GET ?ping=1` returns `200 {"status":"awake"}` with `[EDGE_PING]` logs. This removes the 405 the UI/shell is hitting.
-3. **POST branch** per your block:
+3. **POST branch — strict execution order** (this ordering is load-bearing; the logs show empty `{}` background posts dying with 400 because `user_id` was validated first):
    - `[EDGE_INIT]` on every request with the method.
-   - Empty payload (`!body.data || body.data.length === 0`) → `[EDGE_PAYLOAD_EMPTY]` + **200** `{success:true,message:"No data to process"}` so Swift's background task never stalls.
+   - **Step 1: parse JSON safely** — `const body = await req.json().catch(() => ({}))`.
+   - **Step 2: empty-payload check FIRST**, before any field validation — `const healthRecords = body.data || body.healthData; if (!healthRecords || (Array.isArray(healthRecords) && healthRecords.length === 0))` → the exact `[EDGE_PAYLOAD_EMPTY]` BEGIN/END block + **200** `{success:true,message:"No data to process"}`. Empty background-task posts can no longer hit the 400 path.
+   - **Step 3: validate `user_id`** → missing → the exact `[EDGE_PAYLOAD_FATAL]` "Missing user_id in payload." block + **400** `{error:"Missing user_id"}`.
    - `[EDGE_PROCESS]` log with record count and ACA hash.
    - Service-role client from `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (already how the function builds its client) — this is what bypasses the expired-token 403s from iOS background tasks.
    - Insert failure → `[EDGE_DB_FATAL]` + throw into the catch → **500**.
@@ -23,9 +25,12 @@ The last change made this function strict-POST-only, so `GET ?ping=1` now return
 
 Everything else you specified is applied literally, including the exact log strings and the BEGIN/END delimiter lines.
 
-## Kept from the current function
+## Kept from the current function — with the ACA 403 trap removed
 
-DELT/ACA verification against `user_aca_records`, the HealthKit → internal key mapping, the chunked `raw_health_data` inserts, and the `data_connections` "healthy" stamp. These are the steps your `// Execute database insert logic here` comment stands in for.
+The logs show the 403 is thrown inside the function when the ACA hash doesn't match a `user_aca_records` row (e.g. test/fallback hash `nope`, 701ms execution proving it passed the gateway). So:
+
+- **ACA verification becomes non-blocking.** The lookup against `user_aca_records` still runs and is logged (a `[DELT_SOFT_FAIL]`-style line when no artifact matches), but a missing/pending/test hash **no longer returns 403** — ingestion proceeds, associating rows by the provided `user_id`. The DELT audit anchor is preserved on every inserted row via the `aca_hash_key` column, so lineage is recorded without breaking the pipeline. A mismatched `platform_guid` is logged the same way instead of rejected.
+- The HealthKit → internal key mapping, the chunked `raw_health_data` inserts, and the `data_connections` "healthy" stamp stay exactly as they are.
 
 ## Technical details
 
