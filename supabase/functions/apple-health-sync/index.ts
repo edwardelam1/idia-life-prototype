@@ -486,7 +486,7 @@ serve(async (req) => {
     }
   }
 
-  console.log(`🚨 [EDGE_METHOD_FATAL][FATAL: Planck.Edge.AppleHealthSync] Rejecting non-POST/GET method: ${req.method}`);
+  console.log(`🚨 [EDGE_METHOD_FATAL][FATAL: Planck.Edge.AppleHealthSync] Rejecting non-POST/GET/DELETE method: ${req.method}`);
   console.log(`🚨 [EDGE_METHOD_FATAL][END: Planck.Edge.AppleHealthSync] -> Silent stalling occurs: Invalid method.`);
   console.log(`--- END ERROR HANDLING: Edge Function Ingress ---`);
   return new Response("Method not allowed", { headers: corsHeaders, status: 405 });
