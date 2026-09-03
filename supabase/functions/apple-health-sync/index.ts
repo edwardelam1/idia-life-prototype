@@ -1,11 +1,24 @@
-// Canonical ingestion path: apple-health-sync → raw_health_data → (trigger) → synapse-controller → staged_health_data → best-friend-ai
+// Canonical ingestion path: apple-health-sync → raw_health_data → (trigger) → staged_health_data → best-friend-ai
+//
+// Response contract: this function ACKNOWLEDGES fast and finishes the heavy
+// insert work in the background (EdgeRuntime.waitUntil). A full HealthKit
+// firehose can exceed the isolate's wall-clock budget if the response waits on
+// every chunk — that is what left the native shell spinning forever even though
+// the rows landed in staged_health_data.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
+
+const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+
+const reply = (body: Record<string, unknown>, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: jsonHeaders });
 
 // Map Apple HealthKit identifiers to internal schema keys
 // Expanded to include the High-Fidelity Discovery labels from Swift
@@ -74,12 +87,96 @@ const healthKitKeyMapping: Record<string, string> = {
   bpDiastolic: "bpDiastolic",
 };
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+// EXPANDED WHITELIST: The complete Discovery Set from Swift
+const healthDataTypes = [
+  "steps",
+  "heartRate",
+  "hrv",
+  "restingHR",
+  "bloodOxygen",
+  "respiratoryRate",
+  "walkingSpeed",
+  "stepLength",
+  "walkingAsymmetry",
+  "doubleSupport",
+  "steadiness",
+  "calories",
+  "basalEnergy",
+  "noiseLevel",
+  "uvExposure",
+  "bodyTemp",
+  "vo2max",
+  "bpSystolic",
+  "bpDiastolic",
+  "sleep",
+  "sleepAnalysis",
+  "distanceWalkingRunning",
+  "distanceCycling",
+  "flightsClimbed",
+  "exerciseTime",
+  "bloodOxygenSaturation",
+];
+
+const CHUNK_SIZE = 250;
+const CONCURRENCY = 4;
+
+/** Background writer — runs AFTER the response has been flushed. */
+async function drainInserts(supabase: any, records: any[], reqId: string) {
+  console.log(`[BEGIN: Edge.ChunkedInsert] ${reqId} draining ${records.length} records.`);
+  let inserted = 0;
+  let rejected = 0;
+
+  const chunks: any[][] = [];
+  for (let i = 0; i < records.length; i += CHUNK_SIZE) chunks.push(records.slice(i, i + CHUNK_SIZE));
+
+  for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+    const batch = chunks.slice(i, i + CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map((chunk) => supabase.from("raw_health_data").insert(chunk)),
+    );
+    results.forEach((r, idx) => {
+      const size = batch[idx].length;
+      if (r.status === "rejected") {
+        rejected += size;
+        console.error(`🚨 [FATAL: Edge.Chunk_${i + idx}] ${reqId} threw:`, r.reason);
+        return;
+      }
+      const err = (r.value as any)?.error;
+      if (err) {
+        rejected += size;
+        console.error(`🚨 [ERROR: Edge.Chunk_${i + idx}] ${reqId} Supabase rejection:`, err);
+        return;
+      }
+      inserted += size;
+      console.log(`[END: Edge.Chunk_${i + idx}] ${reqId} inserted ${size} rows.`);
+    });
   }
 
+  console.log(`[END: Edge.ChunkedInsert] ${reqId} inserted=${inserted} rejected=${rejected}.`);
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  const reqId = crypto.randomUUID().substring(0, 8);
+  const url = new URL(req.url);
+
+  // Reachability probe — no DB, no auth, no payload.
+  if (url.searchParams.get("ping") === "1") {
+    console.log(`[PING: Edge.Execution] ${reqId} reachability probe.`);
+    return reply({ ok: true, request_id: reqId, ts: new Date().toISOString() });
+  }
+
+  console.log(
+    `[BEGIN: Edge.Execution] ${reqId} method=${req.method} len=${req.headers.get("content-length") ?? "?"} headers=${[
+      ...req.headers.keys(),
+    ].join(",")}`,
+  );
+
   try {
+    console.log(`[BEGIN: Edge.EnvVerification] ${reqId}`);
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !supabaseKey) throw new Error("Missing Supabase configuration");
@@ -87,18 +184,31 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: `Bearer ${supabaseKey}` } },
     });
+    console.log(`[END: Edge.EnvVerification] ${reqId} client instantiated.`);
 
-    const rawBody = await req.json().catch(() => ({}));
+    // Granular parse — never swallow OOM / malformed payloads behind .catch(() => ({}))
+    console.log(`[BEGIN: Edge.RequestParse] ${reqId}`);
+    let rawBody: any;
+    try {
+      rawBody = await req.json();
+    } catch (parseErr) {
+      console.error(`🚨 [FATAL: Edge.RequestParse] ${reqId} payload unreadable:`, parseErr);
+      return reply(
+        {
+          success: false,
+          request_id: reqId,
+          error: "Invalid or excessively large JSON payload.",
+        },
+        400,
+      );
+    }
+    console.log(`[END: Edge.RequestParse] ${reqId} keys=${Object.keys(rawBody || {}).join(",")}`);
 
-    // Parse query params (aligned to aca_hash_key schema)
-    const url = new URL(req.url);
-    const queryAcaHash = url.searchParams.get("aca_hash_key");
+    console.log(`[BEGIN: Edge.DataExtraction] ${reqId}`);
+    const userId = rawBody.user_id || rawBody.userId || rawBody.config?.user_id || url.searchParams.get("user_id");
+    const acaHash =
+      url.searchParams.get("aca_hash_key") || rawBody.aca_hash_key || rawBody.aca_hash || rawBody.acaHash;
 
-    // Fuzzy key matching — prioritizing aca_hash_key for DELT verification
-    const userId = rawBody.user_id || rawBody.userId || rawBody.config?.user_id;
-    const acaHash = queryAcaHash || rawBody.aca_hash_key || rawBody.aca_hash || rawBody.acaHash;
-
-    // Broad extraction: Supports both the structured object and the raw Firehose array
     let healthData =
       rawBody.data ||
       rawBody.apple_health_data ||
@@ -114,165 +224,141 @@ serve(async (req) => {
       !healthData ||
       (typeof healthData === "object" && !Array.isArray(healthData) && Object.keys(healthData).length === 0)
     ) {
-      const knownHealthKeys = Object.values(healthKitKeyMapping);
-      const allKnownKeys = [...Object.keys(healthKitKeyMapping), ...knownHealthKeys];
+      const allKnownKeys = [...Object.keys(healthKitKeyMapping), ...Object.values(healthKitKeyMapping)];
       const rootHealthData: Record<string, any> = {};
       for (const key of Object.keys(rawBody)) {
-        if (allKnownKeys.includes(key)) {
-          rootHealthData[key] = rawBody[key];
-        }
+        if (allKnownKeys.includes(key)) rootHealthData[key] = rawBody[key];
       }
-      if (Object.keys(rootHealthData).length > 0) {
-        healthData = rootHealthData;
-      }
+      if (Object.keys(rootHealthData).length > 0) healthData = rootHealthData;
     }
 
-    console.log("Raw body keys:", Object.keys(rawBody));
+    const receivedCount = Array.isArray(healthData)
+      ? healthData.length
+      : healthData && typeof healthData === "object"
+        ? Object.keys(healthData).length
+        : 0;
     console.log(
-      "Ingression source resolved:",
-      Array.isArray(healthData)
-        ? healthData.length + " firehose records"
-        : healthData
-          ? Object.keys(healthData).length + " grouped keys"
-          : "null",
+      `[END: Edge.DataExtraction] ${reqId} shape=${Array.isArray(healthData) ? "firehose" : healthData ? "object" : "null"} received=${receivedCount}`,
     );
 
-    const automatedSync = rawBody.automated_sync || false;
-    const forceRealDataOnly = rawBody.force_real_data_only || false;
-
     if (!userId) {
-      return new Response(JSON.stringify({ success: false, error: "Missing required field: user_id" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.error(`🚨 [FATAL: Edge.Validation] ${reqId} user_id missing.`);
+      return reply({ success: false, request_id: reqId, error: "Missing required field: user_id" }, 400);
     }
 
     if (!acaHash) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Missing required field: aca_hash_key. DELT Protocol requires a valid audit anchor.",
-        }),
+      console.error(`🚨 [FATAL: Edge.Validation] ${reqId} aca_hash_key missing.`);
+      return reply(
         {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          success: false,
+          request_id: reqId,
+          error: "Missing required field: aca_hash_key. DELT Protocol requires a valid audit anchor.",
         },
+        400,
       );
     }
 
-    // DELT/ACA Verification: Verification of platform_guid to establish lineage proof
-    const { data: profile } = await supabase
+    // ── DELT / ACA verification ───────────────────────────────────────────────
+    console.log(`[BEGIN: Edge.DELT_Verify] ${reqId} resolving platform_guid.`);
+    const { data: profile, error: profileErr } = await supabase
       .from("profiles")
       .select("platform_guid")
       .eq("user_id", userId)
       .maybeSingle();
+    if (profileErr) console.error(`🚨 [ERROR: Edge.DELT_Verify.Profile] ${reqId}`, profileErr);
 
     const platformGuid = profile?.platform_guid;
     if (!platformGuid) {
-      return new Response(JSON.stringify({ success: false, error: "No profile/platform_guid found for user" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.error(`🚨 [FATAL: Edge.DELT_Verify] ${reqId} no platform_guid for user ${userId}.`);
+      return reply({ success: false, request_id: reqId, error: "No profile/platform_guid found for user" }, 403);
     }
 
-    const { data: acaRecord } = await supabase
+    console.log(`[BEGIN: Edge.DELT_Verify.ACA] ${reqId} hash=${String(acaHash).substring(0, 12)}…`);
+    const { data: acaRecord, error: acaErr } = await supabase
       .from("user_aca_records")
-      .select("id")
+      .select("id, platform_guid")
       .eq("aca_hash_key", acaHash)
-      .eq("platform_guid", platformGuid)
       .maybeSingle();
+    if (acaErr) console.error(`🚨 [ERROR: Edge.DELT_Verify.ACA] ${reqId}`, acaErr);
 
     if (!acaRecord) {
-      return new Response(
-        JSON.stringify({ success: false, error: "DELT Protocol Verification Failed. No matching audit record found." }),
+      console.error(`🚨 [FATAL: Edge.DELT_Verify.ACA] ${reqId} no audit record for this hash.`);
+      return reply(
         {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          success: false,
+          request_id: reqId,
+          error: "DELT Protocol Verification Failed: no audit record matches this consent hash.",
         },
+        403,
       );
     }
+    if (acaRecord.platform_guid && String(acaRecord.platform_guid) !== String(platformGuid)) {
+      console.error(`🚨 [FATAL: Edge.DELT_Verify.ACA] ${reqId} platform_guid mismatch on audit record.`);
+      return reply(
+        {
+          success: false,
+          request_id: reqId,
+          error: "DELT Protocol Verification Failed: consent artifact belongs to a different platform identity.",
+        },
+        403,
+      );
+    }
+    console.log(`[END: Edge.DELT_Verify] ${reqId} DELT cleared.`);
 
-    console.log("✅ DELT Protocol verified for user:", userId);
-
-    // Normalize incoming payload keys
-    let processableData: any = {};
+    // ── Normalize + build rows ────────────────────────────────────────────────
+    console.log(`[BEGIN: Edge.DataTransformation] ${reqId}`);
+    const processableData: Record<string, any> = {};
     if (healthData && typeof healthData === "object" && !Array.isArray(healthData)) {
-      Object.keys(healthData).forEach((key: string) => {
-        const normalizedKey = healthKitKeyMapping[key] || key;
-        processableData[normalizedKey] = healthData[key];
-      });
+      for (const key of Object.keys(healthData)) {
+        processableData[healthKitKeyMapping[key] || key] = healthData[key];
+      }
     }
 
-    // EXPANDED WHITELIST: The complete 22-metric Discovery Set from Swift
-    const healthDataTypes = [
-      "steps",
-      "heartRate",
-      "hrv",
-      "restingHR",
-      "bloodOxygen",
-      "respiratoryRate",
-      "walkingSpeed",
-      "stepLength",
-      "walkingAsymmetry",
-      "doubleSupport",
-      "steadiness",
-      "calories",
-      "basalEnergy",
-      "noiseLevel",
-      "uvExposure",
-      "bodyTemp",
-      "vo2max",
-      "bpSystolic",
-      "bpDiastolic",
-      "sleep",
-      "sleepAnalysis",
-      "distanceWalkingRunning",
-      "distanceCycling",
-      "flightsClimbed",
-      "exerciseTime",
-      "bloodOxygenSaturation",
-    ];
-
     const recordsToInsert: any[] = [];
+    let skipped = 0;
 
-    // --- CASE 1: NATIVE FIREHOSE ARRAY ---
+    // CASE 1: native firehose array
     if (Array.isArray(healthData)) {
-      console.log("Processing direct firehose array...");
       for (const item of healthData) {
-        const rawType = item.dataType || item.type || item.typeIdentifier;
+        const rawType = item?.dataType || item?.type || item?.typeIdentifier;
         const dataType = healthKitKeyMapping[rawType] || rawType;
 
-        if (!healthDataTypes.includes(dataType)) continue;
+        if (!healthDataTypes.includes(dataType)) {
+          skipped++;
+          continue;
+        }
 
         const actualValue = typeof item === "object" && item !== null && item.value !== undefined ? item.value : item;
+        const parsedSteps = dataType === "steps" ? parseInt(String(actualValue)) : NaN;
 
         recordsToInsert.push({
           user_id: userId,
-          aca_hash_key: acaHash, // Aligned to aca_hash_key
+          aca_hash_key: acaHash,
           device_type: "Apple Health",
           raw_payload: {
             dataType,
             value: actualValue,
-            metadata: item.metadata || {},
-            src_v: item.metadata?.src_v || "Native-PureAlpha",
+            metadata: item?.metadata || {},
+            src_v: item?.metadata?.src_v || "Native-PureAlpha",
           },
-          recorded_at: item.startDate || item.date || new Date().toISOString(),
+          recorded_at: item?.startDate || item?.date || new Date().toISOString(),
           processing_status: "pending",
           processed: false,
-          step_count: dataType === "steps" ? parseInt(String(actualValue)) : null,
+          step_count: Number.isNaN(parsedSteps) ? null : parsedSteps,
         });
       }
     }
-    // --- CASE 2: STRUCTURED OBJECT (LEGACY/WEB) ---
+    // CASE 2: structured object (legacy / web)
     else {
       for (const dataType of healthDataTypes) {
-        if (!processableData[dataType]) continue;
+        if (processableData[dataType] === undefined || processableData[dataType] === null) continue;
         const dataArray = Array.isArray(processableData[dataType])
           ? processableData[dataType]
           : [processableData[dataType]];
+
         for (const record of dataArray) {
-          const actualValue =
-            typeof record === "object" && record !== null && record.value !== undefined ? record.value : record;
+          const isObj = typeof record === "object" && record !== null;
+          const actualValue = isObj && record.value !== undefined ? record.value : record;
 
           const healthRecord: any = {
             user_id: userId,
@@ -281,45 +367,33 @@ serve(async (req) => {
             raw_payload: {
               dataType,
               value: actualValue,
-              unit: typeof record === "object" && record !== null ? record.unit || null : null,
-              startDate: typeof record === "object" && record !== null ? record.startDate || record.date : null,
-              endDate: typeof record === "object" && record !== null ? record.endDate || record.date : null,
-              sourceBundle:
-                typeof record === "object" && record !== null
-                  ? record.sourceBundle || "com.apple.health"
-                  : "com.apple.health",
-              sourceName:
-                typeof record === "object" && record !== null ? record.sourceName || "Apple Health" : "Apple Health",
-              metadata: typeof record === "object" && record !== null ? record.metadata || {} : {},
-              originalRecord: typeof record === "object" ? record : { value: actualValue },
+              unit: isObj ? record.unit || null : null,
+              startDate: isObj ? record.startDate || record.date : null,
+              endDate: isObj ? record.endDate || record.date : null,
+              sourceBundle: isObj ? record.sourceBundle || "com.apple.health" : "com.apple.health",
+              sourceName: isObj ? record.sourceName || "Apple Health" : "Apple Health",
+              metadata: isObj ? record.metadata || {} : {},
+              originalRecord: isObj ? record : { value: actualValue },
             },
-            recorded_at:
-              typeof record === "object" && record !== null
-                ? record.startDate || record.date || new Date().toISOString()
-                : new Date().toISOString(),
+            recorded_at: (isObj ? record.startDate || record.date : null) || new Date().toISOString(),
             processing_status: "pending",
             processed: false,
           };
 
           if (dataType === "steps" && actualValue !== undefined && actualValue !== null) {
             const parsed = parseInt(String(actualValue));
-            if (!isNaN(parsed)) healthRecord.step_count = parsed;
+            if (!Number.isNaN(parsed)) healthRecord.step_count = parsed;
           }
 
-          recordsToInsert.push({
-            __dataType: dataType,
-            __actualValue: actualValue,
-            __recordedAt: healthRecord.recorded_at,
-            ...healthRecord,
-          });
+          recordsToInsert.push(healthRecord);
         }
       }
     }
 
-    // Process workouts separately to maintain original logic
+    // Workouts keep their original shape
     if (processableData.workouts && Array.isArray(processableData.workouts)) {
       for (const workout of processableData.workouts) {
-        const rec = {
+        recordsToInsert.push({
           user_id: userId,
           aca_hash_key: acaHash,
           device_type: "Apple Health",
@@ -337,33 +411,37 @@ serve(async (req) => {
             metadata: workout.metadata || {},
             originalRecord: workout,
           },
-          recorded_at: workout.startDate,
+          recorded_at: workout.startDate || new Date().toISOString(),
           processing_status: "pending",
           processed: false,
-        };
-        recordsToInsert.push({
-          __dataType: "workout",
-          __actualValue: workout.workoutActivityType,
-          __recordedAt: workout.startDate,
-          ...rec,
         });
       }
     }
 
+    console.log(
+      `[END: Edge.DataTransformation] ${reqId} accepted=${recordsToInsert.length} skipped=${skipped} received=${receivedCount}`,
+    );
+
     if (recordsToInsert.length === 0) {
-      return new Response(
-        JSON.stringify({ success: true, message: "No actionable health data found", processed_count: 0 }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      console.log(`[ACTION: Edge.EarlyExit] ${reqId} nothing actionable.`);
+      return reply({
+        success: true,
+        request_id: reqId,
+        message: "No actionable health data found",
+        received_count: receivedCount,
+        accepted: 0,
+        skipped,
+        processed_count: 0,
+      });
     }
 
-    // Update synchronization status in data_connections.
-    // Source-aware: Android (Health Connect) must not stamp the Apple row.
+    // Stamp the connection BEFORE the heavy write so the app's realtime/poll
+    // watcher on data_connections can close the modal even if the client
+    // dropped the HTTP response.
+    console.log(`[BEGIN: Edge.StatusUpsert] ${reqId}`);
     const payloadSource = String(rawBody.source || rawBody.config?.source || "apple_health").toLowerCase();
     const isHealthConnect = payloadSource.includes("health_connect") || payloadSource.includes("android");
-    await supabase.from("data_connections").upsert(
+    const { error: connError } = await supabase.from("data_connections").upsert(
       {
         user_id: userId,
         connection_type: isHealthConnect ? "health_connect" : "apple_health",
@@ -373,66 +451,37 @@ serve(async (req) => {
       },
       { onConflict: "user_id,connection_type" },
     );
+    if (connError) console.error(`🚨 [ERROR: Edge.StatusUpsert] ${reqId}`, connError);
+    console.log(`[END: Edge.StatusUpsert] ${reqId}`);
 
-
-    // CHUNKED BATCH INSERT: Maintaining your procedural select("id") and metadata reconstruction
-    const processedData: any[] = [];
-    const CHUNK_SIZE = 100; // Adjusted for massive firehose efficiency
-
-    for (let i = 0; i < recordsToInsert.length; i += CHUNK_SIZE) {
-      const chunk = recordsToInsert.slice(i, i + CHUNK_SIZE);
-      const cleanChunk = chunk.map(({ __dataType, __actualValue, __recordedAt, ...rest }) => rest);
-
-      try {
-        const { data: inserted, error: insertError } = await supabase
-          .from("raw_health_data")
-          .insert(cleanChunk)
-          .select("id");
-
-        if (insertError) {
-          console.error(`Batch insert error (chunk ${i / CHUNK_SIZE}):`, insertError);
-          continue;
-        }
-
-        if (inserted) {
-          inserted.forEach((row: any, idx: number) => {
-            const meta = chunk[idx];
-            processedData.push({
-              type: meta.__dataType || meta.raw_payload.dataType,
-              id: row.id,
-              value: meta.__actualValue || meta.raw_payload.value,
-              recordedAt: meta.__recordedAt || meta.recorded_at,
-            });
-          });
-        }
-      } catch (err) {
-        console.error(`Chunk ${i / CHUNK_SIZE} threw exception:`, err);
-      }
+    // Acknowledge now; drain in the background.
+    const drain = drainInserts(supabase, recordsToInsert, reqId).catch((e) =>
+      console.error(`🚨 [FATAL: Edge.ChunkedInsert] ${reqId} drain failed:`, e?.stack || e),
+    );
+    try {
+      // @ts-ignore — EdgeRuntime is provided by supabase edge-runtime
+      EdgeRuntime.waitUntil(drain);
+    } catch {
+      // Local/dev runtimes without EdgeRuntime: the promise still resolves in-isolate.
     }
 
-    console.log(
-      `✅ Sovereign Hydration Complete: ${processedData.length} records anchored with aca_hash_key: ${acaHash.substring(0, 12)}...`,
-    );
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Apple Health data synced successfully via IDIA Protocol",
-        processed_data: processedData,
-        processed_count: processedData.length,
-        delt_anchor: acaHash.substring(0, 12),
-        sync_timestamp: new Date().toISOString(),
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("🚨 [SYSTEM_STALL] Apple Health Sync Error:", message);
-    return new Response(JSON.stringify({ error: message, success: false }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
+    console.log(`[END: Edge.Execution] ${reqId} acknowledged ${recordsToInsert.length} records.`);
+    return reply({
+      success: true,
+      request_id: reqId,
+      message: "Apple Health data accepted via IDIA Protocol",
+      received_count: receivedCount,
+      accepted: recordsToInsert.length,
+      skipped,
+      // Legacy field the native shell reads for its success banner.
+      processed_count: recordsToInsert.length,
+      processed_data: [],
+      delt_anchor: String(acaHash).substring(0, 12),
+      sync_timestamp: new Date().toISOString(),
     });
+  } catch (error: any) {
+    const detail = error?.stack || error?.message || String(error);
+    console.error(`🚨 [FATAL: Edge.Execution.Unhandled] ${reqId} stalled:`, detail);
+    return reply({ success: false, request_id: reqId, error: error?.message || String(error) }, 500);
   }
 });
