@@ -246,6 +246,8 @@ serve(async (req) => {
         },
         400,
       );
+    }
+
 
 
     console.log(
