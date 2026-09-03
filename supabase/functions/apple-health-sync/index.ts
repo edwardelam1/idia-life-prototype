@@ -181,20 +181,53 @@ serve(async (req) => {
 
     console.log("✅ DELT Protocol verified for user:", userId);
 
-    // 🚨 FIX 2: Stamp data_connections immediately upon verified anchor handshake
+    // Stamp data_connections on a verified anchor handshake. No upsert: read the
+    // existing row first, then insert or update explicitly so a write failure is
+    // visible instead of being swallowed behind a conflict clause.
     const payloadSource = String(rawBody.source || rawBody.config?.source || "apple_health").toLowerCase();
     const isHealthConnect = payloadSource.includes("health_connect") || payloadSource.includes("android");
+    const connectionType = isHealthConnect ? "health_connect" : "apple_health";
+    const connectionName = isHealthConnect ? "Health Connect" : "Apple Health";
+    const syncedAt = new Date().toISOString();
 
-    await supabase.from("data_connections").upsert(
-      {
-        user_id: userId,
-        connection_type: isHealthConnect ? "health_connect" : "apple_health",
-        connection_name: isHealthConnect ? "Health Connect" : "Apple Health",
-        is_active: true,
-        last_sync_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,connection_type" },
-    );
+    const { data: existingConnection, error: connectionLookupError } = await supabase
+      .from("data_connections")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("connection_type", connectionType)
+      .maybeSingle();
+
+    if (connectionLookupError) {
+      console.error("[HEALTH_SYNC] connection lookup failed:", connectionLookupError.message);
+      return new Response(
+        JSON.stringify({ success: false, error: `Could not read your connection record: ${connectionLookupError.message}` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const connectionWrite = existingConnection?.id
+      ? await supabase
+          .from("data_connections")
+          .update({ connection_name: connectionName, is_active: true, last_sync_at: syncedAt })
+          .eq("id", existingConnection.id)
+      : await supabase.from("data_connections").insert({
+          user_id: userId,
+          connection_type: connectionType,
+          connection_name: connectionName,
+          is_active: true,
+          last_sync_at: syncedAt,
+        });
+
+    if (connectionWrite.error) {
+      console.error("[HEALTH_SYNC] connection write failed:", connectionWrite.error.message);
+      return new Response(
+        JSON.stringify({ success: false, error: `Could not save your connection: ${connectionWrite.error.message}` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    console.log(`[HEALTH_SYNC] connection anchored (${connectionType}) for user ${userId}`);
+
 
     // Normalize incoming payload keys
     let processableData: any = {};
