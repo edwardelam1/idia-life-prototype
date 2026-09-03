@@ -269,6 +269,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       };
 
       try {
+        // Build the requested-types map from the user's actual selections.
+        // An empty map tells the native pipeline to fetch NOTHING and silently
+        // skip the ingest — that is what left the modal spinning forever.
+        const requestedDataTypesMap: Record<string, boolean> = {};
+        selectedDataTypes.forEach((id) => {
+          requestedDataTypesMap[id] = true;
+        });
+        console.log(`[BEGIN: React.NativeDispatch] dispatching ${Object.keys(requestedDataTypesMap).length} requested types.`);
         webkit.messageHandlers.syncHealthData.postMessage({
           action: "comprehensive_health_sync",
           endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash_key=${hash}`,
@@ -276,16 +284,18 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           auth_token: authSession?.access_token,
           aca_hash_key: hash,
           sync_session_id: sessionId,
-          requestedDataTypes: {}, // 🚨 THE MISSING KEY: Add this so Swift doesn't crash!
+          requestedDataTypes: requestedDataTypesMap,
         });
+        console.log(`[END: React.NativeDispatch] dispatch accepted. Awaiting native callback.`);
       } catch (postErr: any) {
+        clearAllTimers();
         setErrorMessage(`Native bridge dispatch failed.`);
         setConnectionStatus("error");
         setIsConnecting(false);
         return;
       }
     },
-    [currentUserId, authSession, connectionStatus, connectedThisSession, clearAllTimers, closeAndReset],
+    [currentUserId, authSession, connectionStatus, connectedThisSession, clearAllTimers, closeAndReset, selectedDataTypes],
   );
 
   const handleConnect = useCallback(async () => {
