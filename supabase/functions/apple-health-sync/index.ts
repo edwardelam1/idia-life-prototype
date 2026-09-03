@@ -436,6 +436,10 @@ serve(async (req) => {
 
     if (recordsToInsert.length === 0) {
       console.log(`[AHS ${requestId}] no actionable records (skipped=${skipped})`);
+      console.log(
+        `🚨 [EDGE_SUCCESS][END: Planck.Edge.AppleHealthSync] -> Silent stalling prevented: Returning 200 OK to Swift master.`,
+      );
+      console.log(`--- END ERROR HANDLING: Edge Function POST Handler ---`);
       return json({
         success: true,
         message: "Connection anchored — no actionable health data in this payload",
@@ -478,6 +482,10 @@ serve(async (req) => {
     console.log(
       `[AHS ${requestId}] ✅ ingested ${inserted}/${recordsToInsert.length} records (skipped=${skipped}) anchor=${acaHash.substring(0, 12)}`,
     );
+    console.log(
+      `🚨 [EDGE_SUCCESS][END: Planck.Edge.AppleHealthSync] -> Silent stalling prevented: Returning 200 OK to Swift master.`,
+    );
+    console.log(`--- END ERROR HANDLING: Edge Function POST Handler ---`);
 
     return json({
       success: true,
@@ -494,6 +502,14 @@ serve(async (req) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[AHS ${requestId}] 🚨 fatal:`, message);
+    console.log(
+      `🚨 [EDGE_CATCH_FATAL][FATAL: Planck.Edge.AppleHealthSync] Exception caught during ingestion: ${message}`,
+    );
+    console.log(
+      `🚨 [EDGE_CATCH_FATAL][END: Planck.Edge.AppleHealthSync] -> Silent stalling occurs: Returning 500 error to Swift master.`,
+    );
+    console.log(`--- END ERROR HANDLING: Edge Function POST Handler ---`);
     return json({ success: false, error: message, request_id: requestId }, 500);
   }
+
 });
