@@ -1,45 +1,47 @@
-# Fix Apple Health and FordConnect connection failures
+# Fix the manual Apple Health connection flow
 
-Both flows complete the biometric (ACA) step and then stall. They fail for different reasons after that point.
+## Confirmed diagnosis
 
-## 1. Apple Health — endless spinner
+The failure is after biometric verification, not in Apple Health permissions:
 
-What the code does today after Face ID succeeds:
-- writes the consent record, then posts `syncHealthData` to the iOS shell
-- waits for the shell to call back `onHealthDataSyncComplete` / `onHealthDataSyncError`
-- a backup watcher polls `data_connections` and listens on Realtime for an active `apple_health` row
+- The latest attempt created a fresh Apple Health ACA record at `2026-09-03 13:11:10 UTC`, confirming the biometric/consent stage completed.
+- At `13:08:49–13:08:51 UTC`, the native shell reached `apple-health-sync` 23 times. Every request passed DELT verification and returned HTTP 200.
+- Despite those successful responses, no `apple_health` connection row, `raw_health_data` row, or downstream `synapse_controller` row exists for that user.
+- The edge function currently ignores the result of the `data_connections` upsert, catches and suppresses health-row insert failures, and still returns `success: true`. This creates a false-success response while nothing was saved.
+- The modal does not require proof that a row was committed before treating the native callback as success. If no usable callback arrives, it waits 60 seconds and displays an incorrect message blaming Apple settings.
+- Separately, the biometric promise has no timeout. That is not what happened in the logged attempt, but it is another path that can leave the same modal spinning indefinitely.
 
-Confirmed problems in the code:
-- The current message flattened `endpoint`, identity, token, and ACA fields at the root. The established iOS shell contract reads those upload credentials from a nested `config` object, so it completed Face ID but never created the URLSession request. This matches the backend evidence: fresh ACA records exist, but `apple-health-sync` has no incoming invocation.
-- `bridgeTimeoutRef` is declared and cleared but **never armed** — if the shell never calls back (HealthKit permission sheet dismissed, request failed, HTTP error swallowed natively), the modal spins forever with no error and no exit.
-- The success watcher only accepts `data_connections.is_active === true`. If `apple-health-sync` rejects the request (it returns 403 when no matching consent record is found), nothing is ever stamped, so neither the callback nor the watcher fires.
+## Implementation
 
-Fix:
-- Restore the nested `config` contract while retaining duplicate root fields for forward compatibility, and send the actual selected HealthKit identifiers rather than an empty request map.
-- Arm a bridge watchdog (60s) that stops the spinner and shows an actionable error with the last known stage, instead of hanging.
-- Add stage-level status text ("Consent anchored", "Requesting HealthKit data", "Awaiting ingestion") so a stall is visible where it happens.
-- Broaden the success watcher: also treat a fresh `raw_health_data` row (created after the sync started) as success, not only the `data_connections` flag.
-- Surface the real reason on failure: if the native callback returns an error, or the watchdog trips, show the message and a Retry button.
+1. **Make edge-function persistence authoritative**
+   - Validate the authenticated user against the submitted `user_id`.
+   - Check and return errors from the `data_connections` upsert instead of discarding them.
+   - Normalize each native HealthKit request shape, including single-sample payloads, before building records.
+   - Treat zero recognized samples as a clear non-success result rather than reporting a completed sync.
+   - Stop suppressing batch insert errors; return a non-2xx response with a safe, specific error.
+   - Return success only after either health records are committed or an explicitly valid no-new-data connection anchor is committed.
 
-Before writing the fix, verify the actual stall point by inspecting the backend for the affected account: whether a `user_aca_records` row exists for `apple_health`, whether `data_connections` has an `apple_health` row, whether any `raw_health_data` arrived, and what `apple-health-sync` logged (403 consent-verification failures vs. no invocation at all). If the function was never invoked, the stall is in the shell; if it returned 403, the consent record shape is the cause and the fix moves to how the consent record is written/matched.
+2. **Make the modal follow the real server result**
+   - Keep the connection manual: the user presses Connect, passes the biometric challenge, and the app performs that one requested sync.
+   - Accept native completion only when it reports a successful server response for the current sync session.
+   - Use a newly committed `data_connections.last_sync_at` or fresh health-ingestion signal as the backup completion condition.
+   - Remove the fabricated processed count and the synthetic “Verified” data.
+   - Replace the Apple-settings timeout message with the actual bridge/server failure returned by the pipeline.
 
-## 2. FordConnect — white screen
+3. **Eliminate indefinite spinner paths**
+   - Add a bounded biometric callback timeout with listener cleanup.
+   - Start separate timeouts for biometric verification and server upload so the UI identifies the stage that failed.
+   - Always reset `isConnecting` and expose Retry after a rejected callback, malformed response, HTTP error, or timeout.
 
-The Ford flow opens a popup window with `window.open("about:blank", ...)`, writes placeholder HTML into it, then redirects it to Ford's login. Inside the iOS WKWebView shell this is exactly what produces a white screen: the popup either has no navigation delegate to load into, or opens a blank child web view that cannot follow the cross-origin Ford redirect. It also relies on `popup.closed` polling and on Ford's callback page calling `window.close()`, neither of which work in the shell.
+4. **Add focused diagnostics without health values or PII**
+   - Log one sync/session identifier, recognized sample count, connection-upsert outcome, insert outcome, and final response status.
+   - Avoid logging tokens, ACA hashes, or raw HealthKit payloads.
 
-Fix:
-- Detect the native shell and stop using `window.open` there. Hand the Ford OAuth URL to the native shell to open in the system browser (the shell already exposes an external-open bridge used for the IDIA Hub); on plain web keep the popup path as-is.
-- Replace close-detection with connection polling: while the modal is open, poll `data_connections` for an active `ford` row every few seconds (and on app foreground / visibility change), so the flow completes when the user returns to the app regardless of how the browser window ended.
-- Make the Ford callback page end on a deep link back into the app instead of `window.close()`, so returning is automatic.
-- Add an explicit timeout with a clear error rather than a silent blank state, and log the failing step.
+## Verification
 
-Note: if the shell's external-open bridge only accepts the Hub URL (no arbitrary `url` payload), the iOS shell needs a one-line change to accept a `url` field. The plan includes a graceful in-app fallback until that ships, and the exact shell change will be spelled out.
-
-## Technical notes
-
-Files expected to change:
-- `src/components/AppleHealthModal.tsx` — watchdog timer, stage status, broader success detection, retry.
-- `src/components/FordConnectionModal.tsx` — native-shell branch for opening OAuth, polling-based completion, timeout/error handling.
-- `supabase/functions/ford-oauth-callback/index.ts` — redirect to the app deep link on success instead of `window.close()`.
-
-Diagnostics (read-only) run first: Supabase queries against `user_aca_records`, `data_connections`, `raw_health_data`, plus `apple-health-sync` and `ford-auth-url` function logs.
+- Exercise the modal manually in the iOS WKWebView and pass Face ID.
+- Confirm exactly one manual sync session resolves without an indefinite spinner.
+- Confirm `data_connections.apple_health` is active with a fresh `last_sync_at`.
+- Confirm the submitted HealthKit samples reach the ingestion/downstream pipeline.
+- Confirm malformed or rejected server writes return a visible Retry state with the real error and never blame unchanged Apple settings.
+- Confirm the function no longer returns HTTP 200 when persistence fails.
