@@ -36,7 +36,6 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [accountExists, setAccountExists] = useState(false);
 
   // OTP Password Reset States
   const [isResetMode, setIsResetMode] = useState(false);
@@ -109,36 +108,13 @@ const Auth = () => {
         supabase.functions.invoke("send-security-alert", { body: { event: "new_login" } }).catch(() => {});
         toast({ title: "Welcome back!", description: "You've been signed in successfully." });
       } else {
-        const { data, error } = await supabase.auth.signUp({
+        const { error } = await supabase.auth.signUp({
           email,
           password,
           // Surgical Fix: Land on root after email confirmation
           options: { emailRedirectTo: `${window.location.origin}/` },
         });
-        if (error) {
-          if (/already registered|already been registered|already exists/i.test(error.message || "")) {
-            setAccountExists(true);
-            toast({
-              title: "Account already exists",
-              description: "An account with this email was already created. Please sign in instead.",
-              variant: "destructive",
-            });
-            return;
-          }
-          throw error;
-        }
-        // Supabase returns a fake user with empty identities when the email is taken
-        // (email-enumeration protection). Treat that as "account already exists".
-        if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
-          setAccountExists(true);
-          toast({
-            title: "Account already exists",
-            description: "An account with this email was already created. Please sign in instead.",
-            variant: "destructive",
-          });
-          return;
-        }
-        setAccountExists(false);
+        if (error) throw error;
         toast({ title: "Account created!", description: "Please check your email to verify your account." });
       }
     } catch (error: any) {
@@ -472,7 +448,7 @@ const Auth = () => {
             {isLogin ? "Welcome Back" : "Create Account"}
           </CardTitle>
           <p className="text-sm text-muted-foreground text-center">
-            {isLogin ? "Sign in to your Life" : "Welcome to Life"}
+            {isLogin ? "Sign in to your Life account" : "Sign up to get started with Life"}
           </p>
         </CardHeader>
         <CardContent>
@@ -483,10 +459,7 @@ const Auth = () => {
                 type="email"
                 placeholder="Email address"
                 value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (accountExists) setAccountExists(false);
-                }}
+                onChange={(e) => setEmail(e.target.value)}
                 className="pl-10"
                 required
               />
@@ -577,19 +550,7 @@ const Auth = () => {
           <div className="mt-6 text-center">
             <p className="text-sm text-muted-foreground">
               {isLogin ? "Don't have an account? " : "Already have an account? "}
-              <Button
-                variant={accountExists && !isLogin ? "default" : "link"}
-                size={accountExists && !isLogin ? "sm" : undefined}
-                onClick={() => {
-                  setAccountExists(false);
-                  setIsLogin(!isLogin);
-                }}
-                className={
-                  accountExists && !isLogin
-                    ? "text-sm font-semibold ml-1 animate-pulse"
-                    : "text-sm p-0 font-semibold"
-                }
-              >
+              <Button variant="link" onClick={() => setIsLogin(!isLogin)} className="text-sm p-0 font-semibold">
                 {isLogin ? "Sign up" : "Sign in"}
               </Button>
             </p>

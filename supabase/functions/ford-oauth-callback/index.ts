@@ -105,20 +105,13 @@ serve(async (req) => {
             .success { color: #1351d8; font-size: 24px; margin-bottom: 20px; font-weight: bold; }
             .message { color: #666; font-size: 16px; }
             .ford-logo { font-size: 48px; margin-bottom: 16px; }
-            a.btn { display:inline-block; margin-top:24px; padding:12px 20px; background:#1351d8; color:#fff; border-radius:8px; text-decoration:none; }
           </style>
         </head>
         <body>
           <div class="ford-logo">🚙</div>
           <div class="success">✓ FordConnect Linked Successfully!</div>
-          <div class="message">Vehicle telemetry is now streaming. Returning to IDIA…</div>
-          <a class="btn" href="idialife://ford-connected">Return to IDIA</a>
-          <script>
-            // Deep-link back into the native app (system browser / SFSafariViewController),
-            // then fall back to closing the popup for desktop web.
-            setTimeout(function () { window.location.href = "idialife://ford-connected"; }, 400);
-            setTimeout(function () { try { window.close(); } catch (e) {} }, 2500);
-          </script>
+          <div class="message">Vehicle telemetry is now streaming. You can close this window.</div>
+          <script>setTimeout(() => window.close(), 3000);</script>
         </body>
       </html>
     `;

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import polishedLogo from "@/assets/IDIA_Life_Logo_Polished.png";
 import splashVideo from "@/assets/splash-rush-web.mp4.asset.json";
 
+
 interface FlashingSplashScreenProps {
   onComplete: () => void;
 }
@@ -15,93 +16,90 @@ const splashLog = (...args: unknown[]) => {
 const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
   const [phase, setPhase] = useState<"video" | "logo" | "logoFadeOut" | "white">("video");
   const [playbackStartedAt, setPlaybackStartedAt] = useState<number | null>(null);
-  const [awaitingGesture, setAwaitingGesture] = useState(false);
-
-  const videoContainerRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-
-  const retryCountRef = useRef(0);
-  const maxRetries = 3;
-
   const mountedAtRef = useRef<number>(Date.now());
   const debugEnabledRef = useRef(
     typeof window !== "undefined" && new URLSearchParams(window.location.search).get("splashdebug") === "1",
   );
   const [debugEvents, setDebugEvents] = useState<string[]>([]);
 
-  const record = useCallback((message: string) => {
-    splashLog(message);
-    if (debugEnabledRef.current) {
-      setDebugEvents((events) => [...events.slice(-7), message]);
+  // Configure the element as muted + inline BEFORE the source is assigned.
+  // WebKit decides autoplay eligibility when media loading begins, so the
+  // muted/playsinline attributes must already be present in the DOM by then.
+  const attachVideo = useCallback((v: HTMLVideoElement | null) => {
+    videoRef.current = v;
+    if (!v) return;
+    v.setAttribute("muted", "");
+    v.muted = true;
+    v.defaultMuted = true;
+    v.setAttribute("playsinline", "true");
+    v.setAttribute("webkit-playsinline", "true");
+    v.setAttribute("autoplay", "");
+    v.setAttribute("preload", "auto");
+    v.volume = 0;
+    if (v.getAttribute("src") !== splashVideo.url) {
+      v.setAttribute("src", splashVideo.url);
+      try {
+        v.load();
+      } catch {}
     }
   }, []);
 
-  // 1 & 2: Build video imperatively, single owner for playback, retry loop
+
+  // Attempt imperative play on mount — older iOS (iPhone 11-era WebKit)
+  // often defers autoplay until an explicit .play() call, even when muted.
   useEffect(() => {
-    if (!videoContainerRef.current || videoRef.current) return;
-
-    record("Building imperative video element...");
-
-    const video = document.createElement("video");
-    videoRef.current = video;
-
-    // 1. Set attributes BEFORE src assignment to guarantee inline/autoplay eligibility
-    video.setAttribute("muted", "true");
-    video.setAttribute("playsinline", "true");
-    video.setAttribute("webkit-playsinline", "true");
-    video.setAttribute("autoplay", "true");
-    video.setAttribute("preload", "auto");
-    video.setAttribute("disablepictureinpicture", "true");
-    video.setAttribute("disableremoteplayback", "true");
-
-    video.muted = true;
-    video.defaultMuted = true;
-    video.volume = 0;
-
-    video.className = "absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in";
-    video.style.opacity = "1";
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = true;
+    v.setAttribute("muted", "");
+    v.setAttribute("webkit-playsinline", "true");
+    v.setAttribute("playsinline", "true");
 
     let active = true;
     let playInFlight = false;
+    let retryTimer: number | null = null;
 
-    // 2 & 3: Single owner start routine with backoff retry
-    const attemptPlay = () => {
-      if (!active || video.ended || playInFlight || (!video.paused && video.currentTime > 0)) return;
+    const record = (message: string) => {
+      splashLog(message);
+      if (debugEnabledRef.current) {
+        setDebugEvents((events) => [...events.slice(-7), message]);
+      }
+    };
 
+    const schedulePlay = (delay = 120) => {
+      if (!active || v.ended || retryTimer !== null) return;
+      retryTimer = window.setTimeout(() => {
+        retryTimer = null;
+        tryPlay();
+      }, delay);
+    };
+
+    const tryPlay = () => {
+      if (!active || v.ended || playInFlight || !v.paused) return;
       playInFlight = true;
-      record(`attemptPlay (retry ${retryCountRef.current})`);
-
-      // Re-assert muted state on every attempt
-      video.muted = true;
-      video.defaultMuted = true;
-      video.volume = 0;
-
-      const p = video.play();
+      // Re-assert muted state on every attempt; WebKit can drop it when the
+      // audio session changes underneath the element.
+      v.muted = true;
+      v.defaultMuted = true;
+      v.volume = 0;
+      const p = v.play();
       if (p && typeof p.catch === "function") {
         p.then(() => {
-          if (!active) return;
-          retryCountRef.current = 0;
-          setAwaitingGesture(false);
-          record("autoplay accepted");
+          if (active) {
+            record("autoplay accepted");
+          }
         })
           .catch((err: unknown) => {
-            if (!active) return;
+            // AbortError is produced when WebKit supersedes one play request
+            // with another media operation; it is recoverable, not a failure.
             const name = err instanceof DOMException ? err.name : String(err);
             record(`play rejected: ${name}`);
-
-            if (name === "NotAllowedError") {
-              if (retryCountRef.current < maxRetries) {
-                retryCountRef.current++;
-                setTimeout(() => {
-                  if (active) attemptPlay();
-                }, 500 * retryCountRef.current);
-              } else {
-                record("Max retries exhausted. Awaiting gesture.");
-                setAwaitingGesture(true);
-              }
-            } else if (name !== "AbortError") {
-              record(`unrecoverable error: ${name}`);
-            }
+            if (!active) return;
+            // Never switch to a gesture gate. The element remains muted and
+            // retries automatically until WebKit accepts inline autoplay.
+            playInFlight = false;
+            schedulePlay(250);
           })
           .finally(() => {
             playInFlight = false;
@@ -110,100 +108,71 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
         playInFlight = false;
       }
     };
-
     const onPlaying = () => {
-      if (!active) return;
       setPlaybackStartedAt((prev) => prev ?? Date.now());
-      record(`playing · t=${video.currentTime.toFixed(2)} rs=${video.readyState}`);
-      // 4. Dispatch event to start audio strictly after video begins playing
+      record(`playing · t=${v.currentTime.toFixed(2)} rs=${v.readyState}`);
       window.dispatchEvent(new CustomEvent("splash:video-playing"));
     };
-
+    // iOS WKWebView may pause a media element when its audio session changes.
+    // The splash asset is video-only now, but recover any external pause rather
+    // than allowing a transient interruption to terminate the sequence.
     const onPause = () => {
-      if (!active) return;
-      record(`pause · t=${video.currentTime.toFixed(2)} rs=${video.readyState}`);
-      if (!video.ended && !awaitingGesture) {
-        setTimeout(attemptPlay, 100);
-      }
+      record(`pause · t=${v.currentTime.toFixed(2)} rs=${v.readyState}`);
+      if (!v.ended) schedulePlay();
     };
-
-    const onEnded = () => {
-      if (!active) return;
-      record("video ended — handing off to logo");
-      setPhase((p) => (p === "video" ? "logo" : p));
-    };
-
+    const onStalled = () => schedulePlay();
+    // Media errors stay in the video phase and recover automatically.
     const onError = () => {
+      const code = v.error?.code;
+      splashLog("error event · code:", code, "message:", v.error?.message, "readyState:", v.readyState);
       if (!active) return;
-      record(`error event · code: ${video.error?.code}`);
       try {
-        video.load();
+        v.load();
       } catch {}
-      setTimeout(attemptPlay, 250);
+      schedulePlay(250);
     };
 
-    const onReady = () => attemptPlay();
-
-    const trace = (name: string) => () => {
-      if (active) record(`${name} · t=${video.currentTime.toFixed(2)} rs=${video.readyState}`);
-    };
+    const trace = (name: string) => () =>
+      record(`${name} · t=${v.currentTime.toFixed(2)} rs=${v.readyState}`);
     const traced: Array<[string, EventListener]> = [
       ["loadedmetadata", trace("loadedmetadata")],
       ["canplay", trace("canplay")],
       ["waiting", trace("waiting")],
       ["suspend", trace("suspend")],
+      ["ended", trace("ended")],
     ];
-    traced.forEach(([n, fn]) => video.addEventListener(n, fn));
+    traced.forEach(([n, fn]) => v.addEventListener(n, fn));
 
-    video.addEventListener("loadedmetadata", onReady);
-    video.addEventListener("loadeddata", onReady);
-    video.addEventListener("canplay", onReady);
-    video.addEventListener("stalled", onReady);
-    video.addEventListener("playing", onPlaying);
-    video.addEventListener("pause", onPause);
-    video.addEventListener("ended", onEnded);
-    video.addEventListener("error", onError);
+    const onReady = () => schedulePlay();
+    v.addEventListener("loadedmetadata", onReady);
+    v.addEventListener("loadeddata", onReady);
+    v.addEventListener("canplay", onReady);
+    v.addEventListener("playing", onPlaying);
+    v.addEventListener("pause", onPause);
+    v.addEventListener("stalled", onStalled);
+    v.addEventListener("error", onError);
+    tryPlay();
 
-    // Assign src AFTER attributes
-    record(`assigning src: ${splashVideo.url}`);
-    video.src = splashVideo.url;
-    videoContainerRef.current.appendChild(video);
-
-    attemptPlay();
 
     const ticker = window.setInterval(() => {
-      if (active) {
-        record(`tick · t=${video.currentTime.toFixed(2)} p=${video.paused} rs=${video.readyState}`);
-      }
+      splashLog("tick · t=", v.currentTime.toFixed(2), "paused=", v.paused, "readyState=", v.readyState);
     }, 1000);
 
     return () => {
       active = false;
       window.clearInterval(ticker);
-      traced.forEach(([n, fn]) => video.removeEventListener(n, fn));
-      video.removeEventListener("loadedmetadata", onReady);
-      video.removeEventListener("loadeddata", onReady);
-      video.removeEventListener("canplay", onReady);
-      video.removeEventListener("stalled", onReady);
-      video.removeEventListener("playing", onPlaying);
-      video.removeEventListener("pause", onPause);
-      video.removeEventListener("ended", onEnded);
-      video.removeEventListener("error", onError);
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      traced.forEach(([n, fn]) => v.removeEventListener(n, fn));
+      v.removeEventListener("loadedmetadata", onReady);
+      v.removeEventListener("loadeddata", onReady);
+      v.removeEventListener("canplay", onReady);
 
-      if (videoContainerRef.current && video.parentNode === videoContainerRef.current) {
-        videoContainerRef.current.removeChild(video);
-      }
-      video.src = "";
-      videoRef.current = null;
+      v.removeEventListener("playing", onPlaying);
+      v.removeEventListener("pause", onPause);
+      v.removeEventListener("stalled", onStalled);
+      v.removeEventListener("error", onError);
     };
-  }, [record]);
-
-  // Sync video opacity with phase
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.style.opacity = phase === "video" ? "1" : "0";
-    }
-  }, [phase]);
+  }, []);
 
   const handleSkip = useCallback(() => {
     // Ignore the very first taps — the audio-unlock gesture (and stray touches
@@ -212,7 +181,20 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
     onComplete();
   }, [onComplete]);
 
-  // Video → logo hand-off fallback (watchdog)
+  // Hand off to the logo when the video ends naturally.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const onEnded = () => {
+      splashLog("video ended — handing off to logo");
+      setPhase((p) => (p === "video" ? "logo" : p));
+    };
+    v.addEventListener("ended", onEnded);
+    return () => v.removeEventListener("ended", onEnded);
+  }, []);
+
+  // Video → logo hand-off. Driven by real playback progress, never by a
+  // wall-clock timer that can cut the video off while it is still painting.
   useEffect(() => {
     if (playbackStartedAt === null) return;
 
@@ -232,7 +214,7 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
       }
 
       if (v.ended || t >= duration - 0.15) {
-        record(`playback complete at t=${t.toFixed(2)} — logo`);
+        splashLog("playback complete at t=", t.toFixed(2), "— logo");
         window.clearInterval(poll);
         setPhase((p) => (p === "video" ? "logo" : p));
         return;
@@ -240,16 +222,18 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
 
       // Hard stall: no forward progress for 6s despite recovery attempts.
       if (Date.now() - lastProgressAt > 6000) {
-        record(`stalled with no progress for 6s at t=${t.toFixed(2)} — logo`);
+        splashLog("stalled with no progress for 6s at t=", t.toFixed(2), "— logo");
         window.clearInterval(poll);
         setPhase((p) => (p === "video" ? "logo" : p));
       }
     }, 250);
 
     return () => window.clearInterval(poll);
-  }, [playbackStartedAt, record]);
+  }, [playbackStartedAt]);
 
   // Logo tail: fade-in 1.2s · hold 1.5s · fade-out 1.5s · white 0.8s.
+  // Started once when the logo phase begins; the timers are held in a ref so a
+  // later phase change cannot cancel the chain. Cleared only on unmount.
   const tailStartedRef = useRef(false);
   const tailTimersRef = useRef<number[]>([]);
   useEffect(() => {
@@ -264,21 +248,6 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
 
   useEffect(() => () => tailTimersRef.current.forEach((id) => window.clearTimeout(id)), []);
 
-  // 5. Visible last-resort affordance
-  const handleManualPlay = (e: React.MouseEvent | React.TouchEvent) => {
-    e.stopPropagation();
-    record("manual playback triggered");
-    setAwaitingGesture(false);
-
-    if (videoRef.current) {
-      videoRef.current.muted = true;
-      videoRef.current.defaultMuted = true;
-      videoRef.current
-        .play()
-        .then(() => record("manual playback accepted"))
-        .catch((err) => record(`manual playback failed: ${err}`));
-    }
-  };
 
   const logoVisible = phase === "logo";
   const logoReleasing = phase === "logoFadeOut" || phase === "white";
@@ -313,9 +282,11 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
         </p>
       </div>
 
+
+
       {/* Milky fluid background (fallback while video buffers) */}
       <div
-        className="absolute inset-0 pointer-events-none"
+        className="absolute inset-0"
         style={{
           background: `
             radial-gradient(ellipse at 20% 50%, rgba(255,250,245,1) 0%, transparent 50%),
@@ -327,23 +298,22 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
         }}
       />
 
-      {/* Imperative Video Container */}
-      <div ref={videoContainerRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+      {/* Rushing splash video — attributes are applied by attachVideo before
+          the source is set, so WebKit sees a muted inline element at load. */}
+      <video
+        ref={attachVideo}
+        autoPlay
+        muted
+        playsInline
+        controls={false}
+        disablePictureInPicture
+        disableRemotePlayback
+        className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in"
+        style={{
+          opacity: phase === "video" ? 1 : 0,
+        }}
+      />
 
-      {/* 5. Visible last-resort affordance */}
-      {awaitingGesture && phase === "video" && (
-        <div
-          className="absolute inset-0 flex items-center justify-center bg-black/40 z-50 cursor-pointer"
-          onClick={handleManualPlay}
-          onTouchStart={handleManualPlay}
-        >
-          <div className="text-white p-6 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md transition-all">
-            <svg className="w-12 h-12 ml-2" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          </div>
-        </div>
-      )}
 
       {debugEnabledRef.current && (
         <pre className="absolute inset-x-3 top-3 z-40 max-h-48 overflow-hidden bg-black/80 p-3 text-[10px] leading-4 text-white pointer-events-none">
@@ -353,7 +323,7 @@ const FlashingSplashScreen = ({ onComplete }: FlashingSplashScreenProps) => {
 
       {/* Logo emerging — cinematic fade-in, glowing hold, graceful release */}
       <div
-        className="absolute inset-0 flex items-center justify-center pointer-events-none"
+        className="absolute inset-0 flex items-center justify-center"
         style={{
           opacity: logoVisible ? 1 : logoReleasing ? 0 : 0,
           transform: logoVisible ? "scale(1)" : logoReleasing ? "scale(1.04)" : "scale(0.92)",

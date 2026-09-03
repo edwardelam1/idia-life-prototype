@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { getCachedUser } from "@/lib/authUser";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -27,20 +27,7 @@ const FordConnectionModal = ({
   const [isConnecting, setIsConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const watchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
-
-  const stopWatching = () => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-    if (watchTimeoutRef.current) {
-      clearTimeout(watchTimeoutRef.current);
-      watchTimeoutRef.current = null;
-    }
-  };
 
   useEffect(() => {
     const getUser = async () => {
@@ -50,27 +37,7 @@ const FordConnectionModal = ({
       if (user) setCurrentUserId(user.id);
     };
     getUser();
-    return () => stopWatching();
   }, []);
-
-  // Returning from the system browser after Ford login is the moment the
-  // callback has stamped the connection — re-check immediately.
-  useEffect(() => {
-    if (!isConnecting) return;
-    const onVisible = () => {
-      if (document.visibilityState === "visible") checkConnection();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [isConnecting, currentUserId]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      stopWatching();
-      setIsConnecting(false);
-    }
-  }, [isOpen]);
-
 
   const handleDisconnect = async () => {
     if (!currentUserId || !existingConnection) return;
@@ -117,44 +84,6 @@ const FordConnectionModal = ({
     }
   };
 
-  /**
-   * Inside the iOS WKWebView shell `window.open` yields a blank child view that cannot
-   * follow Ford's cross-origin redirect (the "white screen"). Detect the shell and hand
-   * the OAuth URL to the native external-browser bridge instead.
-   */
-  const nativeOpen = (url: string): boolean => {
-    const handlers = (window as any).webkit?.messageHandlers;
-    const handler = handlers?.openExternalUrl || handlers?.openExternalHub;
-    if (!handler) return false;
-    try {
-      handler.postMessage({ url });
-      return true;
-    } catch (e) {
-      console.error("[FORD] native open bridge failed", e);
-      return false;
-    }
-  };
-
-  /** Poll the ledger until the OAuth callback stamps an active Ford connection. */
-  const watchForConnection = (timeoutMs = 300000) => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    if (watchTimeoutRef.current) clearTimeout(watchTimeoutRef.current);
-
-    pollRef.current = setInterval(() => {
-      checkConnection();
-    }, 3000);
-
-    watchTimeoutRef.current = setTimeout(() => {
-      stopWatching();
-      setIsConnecting(false);
-      toast({
-        title: "Connection Timeout",
-        description: "We never heard back from Ford. Please try again.",
-        variant: "destructive",
-      });
-    }, timeoutMs);
-  };
-
   const handleConnect = async () => {
     if (!currentUserId) {
       toast({ title: "Error", description: "Please log in to connect your Ford account.", variant: "destructive" });
@@ -164,33 +93,40 @@ const FordConnectionModal = ({
     eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "connect_initiated", success: false });
     setIsConnecting(true);
 
-    const isNativeShell = !!(window as any).webkit?.messageHandlers?.triggerBiologicalCapture;
-
-    // On web only: open the popup synchronously so the browser does not block it.
-    let popup: Window | null = null;
-    if (!isNativeShell) {
-      popup = window.open("about:blank", "ford-oauth", "width=600,height=700,scrollbars=yes,resizable=yes");
-      if (popup) {
-        popup.document.write(`
+    // 1. Open popup synchronously to bypass popup blocker constraints
+    const popup = window.open("about:blank", "ford-oauth", "width=600,height=700,scrollbars=yes,resizable=yes");
+    if (popup) {
+      popup.document.write(`
         <html>
           <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;background:#f8fafc;color:#1e293b;text-align:center;padding:2rem;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:1rem;animation:pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
             <h2 style="margin:0 0 0.5rem 0;">Awaiting Biometrics...</h2>
             <p style="color:#64748b;margin:0;">Please confirm via Face ID / Touch ID on your device.</p>
           </body>
         </html>
       `);
-      }
     }
 
     try {
-      // 1. Trigger Biometric Hardware (Face ID / Fingerprint) to generate ACA Hash
+      // 2. Trigger Biometric Hardware (Face ID / Fingerprint) to generate ACA Hash
       const { hash, payload } = await generateACAHash(currentUserId, "ford_connection_auth", [
         "DATA_CONNECTION",
         "VEHICLE_TELEMETRY",
         "OAUTH_AUTHORIZATION",
       ]);
 
-      // 2. Fetch specific OAuth URL from Edge Function
+      if (popup) {
+        popup.document.write(`
+          <html>
+            <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;background:#f8fafc;color:#1e293b;text-align:center;padding:2rem;">
+              <h2 style="margin:0 0 0.5rem 0;">Identity Verified</h2>
+              <p style="color:#10b981;margin:0;">Loading Ford Secure Login...</p>
+            </body>
+          </html>
+        `);
+      }
+
+      // 3. Fetch specific OAuth URL from Edge Function
       const { data: urlData, error: urlError } = await supabase.functions.invoke("ford-auth-url", {
         body: { userId: currentUserId },
       });
@@ -200,45 +136,60 @@ const FordConnectionModal = ({
 
       eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "oauth_url_retrieved", success: true });
 
-      // 3. Anchor the ACA Hash to the Immutable Ledger
+      // 4. Anchor the ACA Hash to the Immutable Ledger
       await recordACA({
         userId: currentUserId,
         sourceId: "ford",
         consentType: "data_connection_auth",
-        hash,
-        payload,
+        hash: hash,
+        payload: payload,
       });
-
-      // 4. Native shell → system browser; web → popup.
-      if (isNativeShell) {
-        const opened = nativeOpen(urlData.oauthUrl);
-        if (!opened) {
-          // Last resort inside the shell: navigate this view to Ford so the user never
-          // lands on a blank window. The callback deep-links back into the app.
-          window.location.href = urlData.oauthUrl;
-          return;
-        }
-        toast({
-          title: "Ford login opened",
-          description: "Finish signing in with Ford, then return to IDIA — we'll link it automatically.",
-        });
-        watchForConnection();
-        return;
-      }
 
       if (!popup || popup.closed) {
         setIsConnecting(false);
         const useDirectLink = confirm("Your browser blocked the popup. Open Ford login in this window instead?");
-        if (useDirectLink) window.location.href = urlData.oauthUrl;
+        if (useDirectLink) {
+          window.location.href = urlData.oauthUrl;
+        }
         return;
       }
 
+      // 5. Safely redirect the active popup to the Ford URL
       popup.location.href = urlData.oauthUrl;
-      watchForConnection();
+
+      let checkClosed: ReturnType<typeof setInterval>;
+      let timeoutId: ReturnType<typeof setTimeout>;
+
+      const cleanup = () => {
+        if (checkClosed) clearInterval(checkClosed);
+        if (timeoutId) clearTimeout(timeoutId);
+      };
+
+      // Polling block to catch when the user finishes OAuth and the window closes
+      checkClosed = setInterval(() => {
+        try {
+          if (popup.closed) {
+            cleanup();
+            setIsConnecting(false);
+            // Wait a moment for Supabase to digest the redirect tokens
+            setTimeout(() => checkConnection(), 1500);
+          }
+        } catch {
+          /* cross-origin expected */
+        }
+      }, 1000);
+
+      timeoutId = setTimeout(() => {
+        if (!popup.closed) {
+          cleanup();
+          popup.close();
+          setIsConnecting(false);
+          toast({ title: "Connection Timeout", description: "Please try again.", variant: "destructive" });
+        }
+      }, 300000); // 5 minute max timeout
     } catch (error: any) {
       console.error("Error connecting Ford:", error);
-      if (popup && !popup.closed) popup.close();
-      stopWatching();
+      if (popup && !popup.closed) popup.close(); // Clean up popup if pipeline snaps
       setIsConnecting(false);
 
       if (error.message?.includes("cancelled") || error.message?.includes("aborted")) {
@@ -253,7 +204,6 @@ const FordConnectionModal = ({
     }
   };
 
-
   const checkConnection = async () => {
     if (!currentUserId) return;
     try {
@@ -263,11 +213,9 @@ const FordConnectionModal = ({
         .eq("user_id", currentUserId)
         .eq("connection_type", "ford")
         .eq("is_active", true)
-        .maybeSingle();
+        .single();
 
       if (data && !error) {
-        stopWatching();
-        setIsConnecting(false);
         setConnected(true);
         toast({ title: "Connected!", description: "Your Ford vehicle has been connected successfully." });
         setTimeout(() => {
