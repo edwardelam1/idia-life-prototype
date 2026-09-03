@@ -158,6 +158,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       clearTimeout(autoCloseTimeoutRef.current);
       autoCloseTimeoutRef.current = null;
     }
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+      connectionTimeoutRef.current = null;
+    }
   }, []);
 
   const detachNativeCallbacks = useCallback(() => {
