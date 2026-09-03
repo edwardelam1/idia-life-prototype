@@ -10,10 +10,12 @@ What the code does today after Face ID succeeds:
 - a backup watcher polls `data_connections` and listens on Realtime for an active `apple_health` row
 
 Confirmed problems in the code:
+- The current message flattened `endpoint`, identity, token, and ACA fields at the root. The established iOS shell contract reads those upload credentials from a nested `config` object, so it completed Face ID but never created the URLSession request. This matches the backend evidence: fresh ACA records exist, but `apple-health-sync` has no incoming invocation.
 - `bridgeTimeoutRef` is declared and cleared but **never armed** — if the shell never calls back (HealthKit permission sheet dismissed, request failed, HTTP error swallowed natively), the modal spins forever with no error and no exit.
 - The success watcher only accepts `data_connections.is_active === true`. If `apple-health-sync` rejects the request (it returns 403 when no matching consent record is found), nothing is ever stamped, so neither the callback nor the watcher fires.
 
 Fix:
+- Restore the nested `config` contract while retaining duplicate root fields for forward compatibility, and send the actual selected HealthKit identifiers rather than an empty request map.
 - Arm a bridge watchdog (60s) that stops the spinner and shows an actionable error with the last known stage, instead of hanging.
 - Add stage-level status text ("Consent anchored", "Requesting HealthKit data", "Awaiting ingestion") so a stall is visible where it happens.
 - Broaden the success watcher: also treat a fresh `raw_health_data` row (created after the sync started) as success, not only the `data_connections` flag.
