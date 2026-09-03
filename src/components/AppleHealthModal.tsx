@@ -239,85 +239,89 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
   const syncHealthDataViaNativeApp = useCallback(
     (hash: string, sessionId: string) => {
-      const webkit = (window as any).webkit;
+      console.log("--- BEGIN ERROR HANDLING: Lovable Sync Trigger ---");
+      console.log("🚨 [FRONTEND_INIT][BEGIN: Planck.Lovable.TriggerSync] Attempting to invoke native Swift bridge.");
 
-      if (!webkit?.messageHandlers?.syncHealthData) {
-        setErrorMessage("Please launch from the IDIA iOS App.");
-        setConnectionStatus("error");
-        setIsConnecting(false);
-        return;
-      }
+      // Swift Master Callbacks — the ONLY authority on sync completion.
+      (window as any).onHealthDataSyncComplete = (result: any) => {
+        console.log("--- BEGIN ERROR HANDLING: Swift Callback Success ---");
+        console.log("🚨 [FRONTEND_CALLBACK_SUCCESS][BEGIN: Planck.Lovable.Callback] Swift reported successful egress.");
+        console.log(
+          "🚨 [FRONTEND_CALLBACK_SUCCESS][END: Planck.Lovable.Callback] -> Sync complete. Processed: " +
+            (result?.processed_count ?? 0) +
+            ". Releasing UI loading state.",
+        );
+        console.log("--- END ERROR HANDLING: Swift Callback Success ---");
 
-      (window as any).onHealthDataSyncComplete = (serverResponse: any) => {
-        const incomingId = typeof serverResponse === "string" ? serverResponse : serverResponse?.sync_session_id;
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
-
-        try {
-          const count = serverResponse?.processed_count || 57;
-          setSyncCount(count);
-          setHealthData({ steps: "Verified", heartRate: "Verified" });
-
-          setConnectionStatus("connected");
-          setConnectedThisSession(true);
-          setIsConnecting(false);
-
-          onCompleteRef.current?.();
-
-          autoCloseTimeoutRef.current = setTimeout(() => {
-            closeAndReset();
-          }, 3000);
-        } catch (err: any) {
-          console.error("Sync complete handler error:", err);
-          setErrorMessage("Failed to process sync response.");
-          setConnectionStatus("error");
-          setIsConnecting(false);
-        }
+        clearAllTimers();
+        setSyncCount(result?.processed_count ?? 0);
+        setHealthData({ steps: "Verified", heartRate: "Verified" });
+        setConnectionStatus("connected");
+        setConnectedThisSession(true);
+        setIsConnecting(false);
+        onCompleteRef.current?.();
+        autoCloseTimeoutRef.current = setTimeout(() => closeAndReset(), 3000);
       };
 
-      (window as any).onHealthDataSyncError = (errorMsg: string, incomingId?: string) => {
-        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
-        if (connectionStatus === "connected" || connectedThisSession) return;
+      (window as any).onHealthDataSyncError = (errorMsg: string, _sessionIdFromSwift?: string) => {
+        console.log("--- BEGIN ERROR HANDLING: Swift Callback Error ---");
+        console.log("🚨 [FRONTEND_CALLBACK_ERROR][FATAL: Planck.Lovable.Callback] Swift reported error: " + errorMsg);
+        console.log(
+          "🚨 [FRONTEND_CALLBACK_ERROR][END: Planck.Lovable.Callback] -> Silent stalling prevented: Releasing UI loading state to show error.",
+        );
+        console.log("--- END ERROR HANDLING: Swift Callback Error ---");
 
+        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+        if (connectedThisSession) return;
         clearAllTimers();
         setErrorMessage(`Sync Error: ${errorMsg}`);
         setConnectionStatus("error");
         setIsConnecting(false);
       };
 
-      try {
+      const webkit = (window as any).webkit;
+      if (webkit && webkit.messageHandlers && webkit.messageHandlers.syncHealthData) {
         webkit.messageHandlers.syncHealthData.postMessage({
-          action: "comprehensive_health_sync",
-          endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash_key=${hash}&user_id=${currentUserId}`,
           user_id: currentUserId,
-          auth_token: authSession?.access_token,
           aca_hash_key: hash,
+          auth_token: authSession?.access_token,
           sync_session_id: sessionId,
-          requestedDataTypes: {}, // 🚨 THE MISSING KEY: Add this so Swift doesn't crash!
         });
-      } catch (postErr: any) {
-        setErrorMessage(`Native bridge dispatch failed.`);
-        setConnectionStatus("error");
-        setIsConnecting(false);
+        console.log(
+          "🚨 [FRONTEND_SUCCESS][END: Planck.Lovable.TriggerSync] -> Payload handed off to Swift master. UI should remain in loading state.",
+        );
+        console.log("--- END ERROR HANDLING: Lovable Sync Trigger ---");
+
+        // 🛑 WATCHDOG: Swift owns the egress, but a silent native failure must never hang the UI.
+        if (bridgeTimeoutRef.current) clearTimeout(bridgeTimeoutRef.current);
+        bridgeTimeoutRef.current = setTimeout(() => {
+          if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+          setConnectionStatus((prev) => {
+            if (prev === "connected") return prev;
+            setErrorMessage(
+              "Native shell did not respond within 75 seconds. Open Settings → Privacy → Health → IDIA and allow all categories, then try again.",
+            );
+            setIsConnecting(false);
+            return "error";
+          });
+        }, 75000);
         return;
       }
 
-      // 🛑 WATCHDOG: never spin forever. If neither the bridge nor the ledger
-      // confirms within 75s, surface an actionable error instead of a hung spinner.
-      if (bridgeTimeoutRef.current) clearTimeout(bridgeTimeoutRef.current);
-      bridgeTimeoutRef.current = setTimeout(() => {
-        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
-        setConnectionStatus((prev) => {
-          if (prev === "connected") return prev;
-          setErrorMessage(
-            "Apple Health did not return any data within 75 seconds. Open Settings → Privacy → Health → IDIA and allow all categories, then try again.",
-          );
-          setIsConnecting(false);
-          return "error";
-        });
-      }, 75000);
+      console.log("🚨 [FRONTEND_FATAL][FATAL: Planck.Lovable.TriggerSync] Native bridge 'syncHealthData' not found.");
+      console.log(
+        "🚨 [FRONTEND_FATAL][END: Planck.Lovable.TriggerSync] -> Silent stalling occurs: App is not running in native shell. Releasing UI loading state.",
+      );
+      console.log("--- END ERROR HANDLING: Lovable Sync Trigger ---");
+      clearAllTimers();
+      setErrorMessage("Please launch from the IDIA iOS App.");
+      setConnectionStatus("error");
+      setIsConnecting(false);
     },
-    [currentUserId, authSession, connectionStatus, connectedThisSession, clearAllTimers, closeAndReset],
+    [currentUserId, authSession, connectedThisSession, clearAllTimers, closeAndReset],
   );
+
 
 
   const handleConnect = useCallback(async () => {
