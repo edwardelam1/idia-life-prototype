@@ -221,6 +221,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       (window as any).onHealthDataSyncError = undefined;
       console.log("[PROGRESS] onHealthDataSyncError detached");
     }
+    if ((window as any).onHealthSamplesReady) {
+      (window as any).onHealthSamplesReady = undefined;
+      console.log("[PROGRESS] onHealthSamplesReady detached");
+    }
     console.log("[END] detachNativeCallbacks complete");
   }, []);
 
