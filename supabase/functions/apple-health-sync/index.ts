@@ -88,6 +88,8 @@ serve(async (req) => {
     const rawBody = await req.json().catch(() => ({}));
     const url = new URL(req.url);
     const queryAcaHash = url.searchParams.get("aca_hash_key");
+    const syncSessionId = rawBody.sync_session_id || rawBody.config?.sync_session_id || "no-session";
+    console.log(`[BEGIN] apple-health-sync invoked (session ${syncSessionId})`);
 
     // 🚨 FIX 1: Robust extraction supporting top-level and nested config formats
     const userId = rawBody.user_id || rawBody.userId || rawBody.config?.user_id || rawBody.config?.userId;

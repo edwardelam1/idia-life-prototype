@@ -548,7 +548,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       console.log("[END] handleConnect: Failed state updated");
     }
 
-  }, [currentUserId, syncHealthDataViaNativeApp]);
+  }, [currentUserId, authSession, syncHealthDataViaNativeApp]);
 
   const handleDisconnect = async () => {
     console.log("[BEGIN] handleDisconnect: Invoked");
