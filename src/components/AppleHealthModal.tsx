@@ -352,14 +352,33 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       try {
         console.log("[PROGRESS] syncHealthDataViaNativeApp: Dispatching postMessage to Swift");
         setStage("Reading HealthKit and uploading to the vault...");
-        webkit.messageHandlers.syncHealthData.postMessage({
-          action: "comprehensive_health_sync",
-          endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash_key=${hash}`,
+
+        const endpoint = `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash_key=${encodeURIComponent(hash)}`;
+        const requestedDataTypes = ALL_HEALTH_DATA_TYPES.reduce<Record<string, string[]>>((groups, dataType) => {
+          if (!selectedDataTypes.has(dataType.id)) return groups;
+          const category = dataType.category.toLowerCase();
+          groups[category] = [...(groups[category] ?? []), dataType.id];
+          return groups;
+        }, {});
+
+        // Keep both forms during the native-shell transition. Existing iOS builds
+        // decode upload credentials from `config`, while newer builds read the
+        // same fields at the root. Removing `config` caused the shell to stop
+        // before making its URLSession request, so the Edge Function was never hit.
+        const config = {
+          endpoint,
           user_id: currentUserId,
           auth_token: authSession?.access_token,
+          aca_hash: hash,
           aca_hash_key: hash,
           sync_session_id: sessionId,
-          requestedDataTypes: {},
+        };
+
+        webkit.messageHandlers.syncHealthData.postMessage({
+          action: "comprehensive_health_sync",
+          config,
+          ...config,
+          requestedDataTypes,
         });
         console.log("[PROGRESS] syncHealthDataViaNativeApp: postMessage dispatched successfully");
 
@@ -384,11 +403,25 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         console.log("[END] syncHealthDataViaNativeApp: Failed during dispatch");
       }
     },
-    [currentUserId, authSession, connectionStatus, connectedThisSession, clearAllTimers, closeAndReset],
+    [
+      currentUserId,
+      authSession,
+      selectedDataTypes,
+      connectionStatus,
+      connectedThisSession,
+      clearAllTimers,
+      closeAndReset,
+    ],
   );
 
   const handleConnect = useCallback(async () => {
     console.log("[BEGIN] handleConnect: Invoked");
+    if (!currentUserId || !authSession?.access_token) {
+      setErrorMessage("Your sign-in session is not ready. Close this window and try again.");
+      setConnectionStatus("error");
+      setIsConnecting(false);
+      return;
+    }
     setErrorMessage(null);
     setIsConnecting(true);
     setStage("Anchoring cryptographic proof...");
