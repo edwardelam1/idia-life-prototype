@@ -393,19 +393,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         });
         console.log("[PROGRESS] syncHealthDataViaNativeApp: postMessage dispatched successfully");
 
-        // Watchdog: the shell must answer (or the ledger must move) within 60s.
-        // Without this the modal spins forever when the native request never fires.
+        // Upload watchdog: the shell must answer, or the ledger must show a write,
+        // within 60s. Report the stage that actually failed — this is a transport
+        // problem between the app and the server, not a Health settings problem.
         if (bridgeTimeoutRef.current) clearTimeout(bridgeTimeoutRef.current);
         bridgeTimeoutRef.current = setTimeout(() => {
           if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) return;
           if (connectedThisSession) return;
-          console.error("[ERROR] Bridge watchdog tripped — no native callback and no ingestion in 60s");
+          console.error("[ERROR] Upload watchdog tripped — no server confirmation in 60s");
           setErrorMessage(
-            "The iOS app never delivered your health data (no upload reached the server). Open Settings › Privacy & Security › Health › IDIA and enable all categories, then retry.",
+            "Upload timed out: the app finished verification but the server never confirmed a saved sync. Tap Retry.",
           );
           setConnectionStatus("error");
           setIsConnecting(false);
         }, 60000);
+
       } catch (postErr: any) {
         console.error("[ERROR] syncHealthDataViaNativeApp: webkit.postMessage failed", postErr);
         setErrorMessage(`Native bridge dispatch failed.`);
