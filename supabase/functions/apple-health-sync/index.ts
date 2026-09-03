@@ -387,12 +387,13 @@ serve(async (req) => {
     // No recognizable samples. The anchor is saved, but say so plainly instead of
     // reporting a completed data sync the client cannot verify.
     if (recordsToInsert.length === 0) {
-      console.log("[HEALTH_SYNC] anchor saved, zero recognizable samples in payload");
+      console.log(`[END] apple-health-sync (session ${syncSessionId}): anchor saved, 0 samples`);
       return new Response(
         JSON.stringify({
           success: true,
           anchored: true,
           ingested: false,
+          sync_session_id: syncSessionId,
           message: "Connection anchored, but the payload contained no readable samples.",
           processed_data: [],
           processed_count: 0,
@@ -452,6 +453,7 @@ serve(async (req) => {
           success: false,
           anchored: true,
           ingested: false,
+          sync_session_id: syncSessionId,
           error: `Your health records could not be saved: ${insertErrors[0]}`,
           processed_count: 0,
           connection_synced_at: syncedAt,
@@ -461,13 +463,14 @@ serve(async (req) => {
     }
 
     console.log(
-      `[HEALTH_SYNC] committed ${processedData.length} records (${insertErrors.length} failed chunks) for user ${userId}`,
+      `[END] apple-health-sync (session ${syncSessionId}): committed ${processedData.length} records, ${insertErrors.length} failed chunks`,
     );
 
     return new Response(
       JSON.stringify({
         success: true,
         anchored: true,
+        sync_session_id: syncSessionId,
         ingested: processedData.length > 0,
         message: "Apple Health data synced successfully via IDIA Protocol",
         processed_data: processedData,
