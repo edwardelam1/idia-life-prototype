@@ -193,6 +193,17 @@ serve(async (req) => {
         return json({ success: false, error: "Missing user_id", request_id: requestId, sync_session_id: syncSessionId }, 400);
       }
 
+      // 🚨 STRICT PRODUCTION ENFORCEMENT (No mock data allowed)
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(resolvedUserId)) {
+        console.log(`--- BEGIN ERROR HANDLING: Invalid User ID Format ---`);
+        console.log(`🚨 [EDGE_PAYLOAD_FATAL][FATAL: Planck.Edge.AppleHealthSync] Invalid user_id format. Expected UUID, got: ${resolvedUserId}`);
+        console.log(`🚨 [EDGE_PAYLOAD_FATAL][END: Planck.Edge.AppleHealthSync] -> Silent stalling occurs: Rejecting test/invalid payload.`);
+        console.log(`--- END ERROR HANDLING: Invalid User ID Format ---`);
+        console.log(`--- END ERROR HANDLING: Edge Function Ingress ---`);
+        return json({ success: false, error: "Invalid user_id format. Must be a valid UUID.", request_id: requestId, sync_session_id: syncSessionId }, 400);
+      }
+
       console.log(
         `🚨 [EDGE_PROCESS][ACTION: Planck.Edge.AppleHealthSync] Ingesting ${
           Array.isArray(healthRecords) ? healthRecords.length : Object.keys(healthRecords).length
