@@ -109,13 +109,36 @@ const Auth = () => {
         supabase.functions.invoke("send-security-alert", { body: { event: "new_login" } }).catch(() => {});
         toast({ title: "Welcome back!", description: "You've been signed in successfully." });
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           // Surgical Fix: Land on root after email confirmation
           options: { emailRedirectTo: `${window.location.origin}/` },
         });
-        if (error) throw error;
+        if (error) {
+          if (/already registered|already been registered|already exists/i.test(error.message || "")) {
+            setAccountExists(true);
+            toast({
+              title: "Account already exists",
+              description: "An account with this email was already created. Please sign in instead.",
+              variant: "destructive",
+            });
+            return;
+          }
+          throw error;
+        }
+        // Supabase returns a fake user with empty identities when the email is taken
+        // (email-enumeration protection). Treat that as "account already exists".
+        if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          setAccountExists(true);
+          toast({
+            title: "Account already exists",
+            description: "An account with this email was already created. Please sign in instead.",
+            variant: "destructive",
+          });
+          return;
+        }
+        setAccountExists(false);
         toast({ title: "Account created!", description: "Please check your email to verify your account." });
       }
     } catch (error: any) {
