@@ -236,6 +236,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         const incomingId = typeof serverResponse === "string" ? serverResponse : serverResponse?.sync_session_id;
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
 
+        clearAllTimers();
+
         try {
           const count = serverResponse?.processed_count || 57;
           setSyncCount(count);
