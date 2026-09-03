@@ -36,6 +36,7 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [accountExists, setAccountExists] = useState(false);
 
   // OTP Password Reset States
   const [isResetMode, setIsResetMode] = useState(false);
