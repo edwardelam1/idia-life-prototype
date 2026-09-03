@@ -487,13 +487,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       syncHealthDataViaNativeApp(hash, sessionId);
       console.log("[END] handleConnect: Successful setup before native dispatch");
     } catch (error: any) {
-      console.error(`[ERROR] handleConnect: Caught exception - ${error.message}`, error);
+      console.error(`[ERROR] handleConnect: Caught exception - ${error?.message}`, error);
       if (syncSessionIdRef.current !== sessionId) return;
-      setErrorMessage(error.message);
+      const raw = String(error?.message || "");
+      const friendly =
+        raw === "BIOMETRIC_TIMEOUT"
+          ? "Face ID / Touch ID did not respond in time. Tap Retry to verify again."
+          : raw === "BIOMETRIC_REJECTED"
+            ? "Biometric verification was cancelled or failed. Tap Retry."
+            : raw || "Connection failed. Tap Retry.";
+      setErrorMessage(friendly);
       setConnectionStatus("error");
       setIsConnecting(false);
       console.log("[END] handleConnect: Failed state updated");
     }
+
   }, [currentUserId, syncHealthDataViaNativeApp]);
 
   const handleDisconnect = async () => {
