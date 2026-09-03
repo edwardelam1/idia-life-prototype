@@ -121,27 +121,22 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       }
     };
 
+    // NOTE: the connection row is now written by the React handshake before the
+    // shell runs, so `data_connections.last_sync_at` is no longer proof of an
+    // ingested sample. Only committed raw_health_data rows count as success.
     console.log("[PROGRESS] Setting up Realtime Channel subscription");
     const channel = supabase
       .channel(`sync_watch_${sessionId}`)
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
           schema: "public",
-          table: "data_connections",
+          table: "raw_health_data",
           filter: `user_id=eq.${currentUserId}`,
         },
-        (payload) => {
-          const newRow = payload.new as
-            | { connection_type?: string; is_active?: boolean; last_sync_at?: string | null }
-            | null;
-          const syncedNow = !!newRow?.last_sync_at && newRow.last_sync_at >= startedAt;
-          if (newRow && newRow.connection_type === "apple_health" && newRow.is_active === true && syncedNow) {
-            confirmFromLedger(0);
-          } else {
-            console.log("[PROGRESS] Realtime payload ignored (stale, inactive, or wrong type)");
-          }
+        () => {
+          confirmFromLedger(1);
         },
       )
       .subscribe((status, err) => {
