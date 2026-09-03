@@ -313,18 +313,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     const sessionId = Math.random().toString(36).substring(7);
     syncSessionIdRef.current = sessionId;
 
-    // Bounded wait — never spin forever. If the device fetch or ingest stalls
-    // for 30s, surface an explicit, retryable error instead.
-    connectionTimeoutRef.current = setTimeout(() => {
-      if (syncSessionIdRef.current === sessionId && isMountedRef.current) {
-        console.error("[FATAL: React.ConnectionTimeout] no native completion within 30s.");
-        setErrorMessage("Connection timed out. The device fetch or ingest step stalled — please retry.");
-        setConnectionStatus("error");
-        setIsConnecting(false);
-        clearAllTimers();
-      }
-    }, 30000);
-
     try {
       const { data: profile } = await supabase
         .from("profiles")
@@ -335,39 +323,40 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       const platformGuid = profile?.[0]?.platform_guid || currentUserId;
       if (!platformGuid) throw new Error("Profile anchor missing.");
 
-      // Reuse the existing apple_health consent anchor when one exists — one
-      // mint per tap was bloating the ledger and never followed by a payload.
-      const { data: existingAca } = await supabase
-        .from("user_aca_records")
-        .select("aca_hash_key")
-        .eq("platform_guid", platformGuid)
-        .eq("source_id", "apple_health")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // DELT Protocol: every data connect is a Human Touchpoint — the Secure
+      // Enclave biometric challenge fires here, on every tap, before any hash
+      // exists. Never reuse a stored anchor to skip the challenge.
+      console.log("[BEGIN: React.HandleConnect.Biometric] Firing biological capture for consent anchor.");
+      const { hash, payload } = await generateACAHash(platformGuid, "apple_health", ["KYC_VAULT", "HEALTH_DATA_READ"]);
+      const activeHash = hash;
+      console.log("[END: React.HandleConnect.Biometric] Consent anchored.");
 
-      let activeHash: string;
-      if (existingAca?.aca_hash_key) {
-        activeHash = existingAca.aca_hash_key;
-        console.log("[React.HandleConnect] reusing existing ACA anchor.");
-      } else {
-        const { hash, payload } = await generateACAHash(platformGuid, "apple_health", ["KYC_VAULT", "HEALTH_DATA_READ"]);
-        activeHash = hash;
+      const { error: acaError } = await supabase.from("user_aca_records").upsert(
+        {
+          platform_guid: platformGuid,
+          aca_hash_key: activeHash,
+          source_id: "apple_health",
+          consent_scope: payload?.consent_scope || ["HEALTH_DATA_READ"],
+        },
+        { onConflict: "aca_hash_key" },
+      );
 
-        const { error: acaError } = await supabase.from("user_aca_records").upsert(
-          {
-            platform_guid: platformGuid,
-            aca_hash_key: activeHash,
-            source_id: "apple_health",
-            consent_scope: payload?.consent_scope || ["HEALTH_DATA_READ"],
-          },
-          { onConflict: "aca_hash_key" },
-        );
-
-        if (acaError) {
-          throw new Error(`Database rejected ACA record: ${acaError.message}`);
-        }
+      if (acaError) {
+        throw new Error(`Database rejected ACA record: ${acaError.message}`);
       }
+
+      // Bounded wait — armed only AFTER the biometric handshake so the Face ID
+      // sheet can take as long as the user needs without tripping recovery.
+      connectionTimeoutRef.current = setTimeout(() => {
+        if (syncSessionIdRef.current === sessionId && isMountedRef.current) {
+          console.error("[FATAL: React.ConnectionTimeout] no native completion within 30s.");
+          setErrorMessage("Connection timed out. The device fetch or ingest step stalled — please retry.");
+          setConnectionStatus("error");
+          setIsConnecting(false);
+          clearAllTimers();
+        }
+      }, 30000);
+
 
       // Seed an inactive apple_health row so the realtime subscription and the
       // poll fallback have a row to observe; the sync flips it active.
