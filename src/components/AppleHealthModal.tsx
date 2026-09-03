@@ -544,7 +544,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           {connectionStatus === "connecting" && (
             <div className="text-center py-10 space-y-4">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-sm text-muted-foreground animate-pulse">Anchoring cryptographic proof...</p>
+              <p className="text-sm text-muted-foreground animate-pulse">{stage}</p>
               <Button variant="outline" className="w-full" onClick={closeAndReset}>
                 Cancel
               </Button>
