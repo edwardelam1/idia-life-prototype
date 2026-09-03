@@ -125,16 +125,23 @@ serve(async (req) => {
 
   const url = new URL(req.url);
 
-  // Ingress trace — logged BEFORE any parsing so a stalled device call is always visible.
+  console.log(`--- BEGIN ERROR HANDLING: Edge Function POST Handler ---`);
   console.log(
-    `[AHS ${requestId}] ingress ${req.method} ${url.pathname}${url.search} headers=${JSON.stringify(
+    `🚨 [EDGE_INIT][BEGIN: Planck.Edge.AppleHealthSync] Processing ${req.method} request. id=${requestId} path=${url.pathname}${url.search} headers=${JSON.stringify(
       [...req.headers.keys()],
     )} len=${req.headers.get("content-length") || "?"}`,
   );
 
-  // Reachability probe for the native shell — no DB, no auth.
-  if (url.searchParams.get("ping") === "1") {
-    return json({ ok: true, request_id: requestId, ts: new Date().toISOString() });
+  // STRICT INGRESS: Swift master posts. Nothing else is accepted.
+  if (req.method !== "POST") {
+    console.log(
+      `🚨 [EDGE_METHOD_FATAL][FATAL: Planck.Edge.AppleHealthSync] Rejecting non-POST method: ${req.method}`,
+    );
+    console.log(
+      `🚨 [EDGE_METHOD_FATAL][END: Planck.Edge.AppleHealthSync] -> Silent stalling occurs: Swift pipeline broken by invalid method.`,
+    );
+    console.log(`--- END ERROR HANDLING: Edge Function POST Handler ---`);
+    return json({ success: false, error: "Method not allowed", request_id: requestId }, 405);
   }
 
   try {
@@ -148,7 +155,8 @@ serve(async (req) => {
       global: { headers: { Authorization: `Bearer ${supabaseKey}` } },
     });
 
-    const rawBody = req.method === "GET" ? {} : await req.json().catch(() => ({}));
+    const rawBody = await req.json().catch(() => ({}));
+
 
     // Fuzzy key matching — query params win so the shell can post the anchor on the URL.
     const userId = url.searchParams.get("user_id") || rawBody.user_id || rawBody.userId || rawBody.config?.user_id;
@@ -194,9 +202,23 @@ serve(async (req) => {
     );
 
     if (!userId) {
+      console.log(
+        `🚨 [EDGE_PAYLOAD_FATAL][FATAL: Planck.Edge.AppleHealthSync] Missing user_id in payload.`,
+      );
+      console.log(
+        `🚨 [EDGE_PAYLOAD_FATAL][END: Planck.Edge.AppleHealthSync] -> Silent stalling occurs: Rejecting malformed Swift payload.`,
+      );
+      console.log(`--- END ERROR HANDLING: Edge Function POST Handler ---`);
       return json({ success: false, error: "Missing required field: user_id", request_id: requestId, sync_session_id: syncSessionId }, 400);
     }
     if (!acaHash) {
+      console.log(
+        `🚨 [EDGE_PAYLOAD_FATAL][FATAL: Planck.Edge.AppleHealthSync] Missing ACA Hash in payload.`,
+      );
+      console.log(
+        `🚨 [EDGE_PAYLOAD_FATAL][END: Planck.Edge.AppleHealthSync] -> Silent stalling occurs: Rejecting malformed Swift payload.`,
+      );
+      console.log(`--- END ERROR HANDLING: Edge Function POST Handler ---`);
       return json(
         {
           success: false,
@@ -207,6 +229,13 @@ serve(async (req) => {
         400,
       );
     }
+
+    console.log(
+      `🚨 [EDGE_PROCESS][ACTION: Planck.Edge.AppleHealthSync] Ingesting ${
+        Array.isArray(healthData) ? healthData.length : healthData ? Object.keys(healthData).length : 0
+      } records for ACA: ${acaHash}`,
+    );
+
 
     // DELT/ACA Verification — match the anchor first, then confirm lineage when a profile exists.
     const { data: acaRecord, error: acaErr } = await supabase
@@ -407,6 +436,10 @@ serve(async (req) => {
 
     if (recordsToInsert.length === 0) {
       console.log(`[AHS ${requestId}] no actionable records (skipped=${skipped})`);
+      console.log(
+        `🚨 [EDGE_SUCCESS][END: Planck.Edge.AppleHealthSync] -> Silent stalling prevented: Returning 200 OK to Swift master.`,
+      );
+      console.log(`--- END ERROR HANDLING: Edge Function POST Handler ---`);
       return json({
         success: true,
         message: "Connection anchored — no actionable health data in this payload",
@@ -449,6 +482,10 @@ serve(async (req) => {
     console.log(
       `[AHS ${requestId}] ✅ ingested ${inserted}/${recordsToInsert.length} records (skipped=${skipped}) anchor=${acaHash.substring(0, 12)}`,
     );
+    console.log(
+      `🚨 [EDGE_SUCCESS][END: Planck.Edge.AppleHealthSync] -> Silent stalling prevented: Returning 200 OK to Swift master.`,
+    );
+    console.log(`--- END ERROR HANDLING: Edge Function POST Handler ---`);
 
     return json({
       success: true,
@@ -465,6 +502,14 @@ serve(async (req) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[AHS ${requestId}] 🚨 fatal:`, message);
+    console.log(
+      `🚨 [EDGE_CATCH_FATAL][FATAL: Planck.Edge.AppleHealthSync] Exception caught during ingestion: ${message}`,
+    );
+    console.log(
+      `🚨 [EDGE_CATCH_FATAL][END: Planck.Edge.AppleHealthSync] -> Silent stalling occurs: Returning 500 error to Swift master.`,
+    );
+    console.log(`--- END ERROR HANDLING: Edge Function POST Handler ---`);
     return json({ success: false, error: message, request_id: requestId }, 500);
   }
+
 });
