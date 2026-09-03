@@ -178,14 +178,15 @@ serve(async (req) => {
       }
 
       // Step 3: Validate user identification (fuzzy: query params or body)
-      const userId = url.searchParams.get("user_id") || rawBody.user_id || rawBody.userId || rawBody.config?.user_id;
+      const resolvedUserId = url.searchParams.get("user_id") || rawBody.user_id || rawBody.userId || rawBody.config?.user_id;
+      const userId = resolvedUserId;
       const acaHash =
         url.searchParams.get("aca_hash_key") || rawBody.aca_hash_key || rawBody.aca_hash || rawBody.acaHash || "UNANCHORED";
       const syncSessionId = rawBody.sync_session_id || url.searchParams.get("sync_session_id") || null;
 
-      if (!userId) {
+      if (!resolvedUserId) {
         console.log(`--- BEGIN ERROR HANDLING: Missing User ID ---`);
-        console.log(`🚨 [EDGE_PAYLOAD_FATAL][FATAL: Planck.Edge.AppleHealthSync] Missing user_id in payload.`);
+        console.log(`🚨 [EDGE_PAYLOAD_FATAL][FATAL: Planck.Edge.AppleHealthSync] Missing user_id or userId in payload.`);
         console.log(`🚨 [EDGE_PAYLOAD_FATAL][END: Planck.Edge.AppleHealthSync] -> Silent stalling occurs: Rejecting payload.`);
         console.log(`--- END ERROR HANDLING: Missing User ID ---`);
         console.log(`--- END ERROR HANDLING: Edge Function Ingress ---`);
