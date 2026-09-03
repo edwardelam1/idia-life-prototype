@@ -362,43 +362,49 @@ const DataDashboard = () => {
         <TabsContent value="connections" className="space-y-4">
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">Available Data Sources</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="flex flex-wrap justify-center gap-6">
               {/* Health App Connection */}
               {!hasHealth && (
                 <div
-                  className="relative cursor-pointer group flex flex-col items-center p-4 bg-card rounded-2xl border border-border hover:shadow-md transition-all"
+                  className="flex flex-col items-center cursor-pointer group"
                   onClick={() => {
                     if (isAndroid()) setShowAndroidHealthModal(true);
                     else setShowAppleHealthModal(true);
                   }}
                 >
-                  <div className="w-14 h-14 rounded-full overflow-hidden bg-muted/30 flex items-center justify-center mb-2">
-                    {isAndroid() ? (
-                      <Activity className="w-7 h-7 text-green-600" />
-                    ) : (
-                      <img
-                        src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
-                        alt="Apple Health"
-                        className="w-8 h-8 object-contain"
-                      />
-                    )}
+                  <div className="relative">
+                    <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border-2 border-emerald-400 transition-all group-hover:scale-105 flex items-center justify-center">
+                      {isAndroid() ? (
+                        <Activity className="w-8 h-8 text-green-600" />
+                      ) : (
+                        <img
+                          src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
+                          alt="Apple Health"
+                          className="w-8 h-8 object-contain"
+                        />
+                      )}
+                    </div>
                   </div>
-                  <p className="text-xs font-bold text-center">{isAndroid() ? "Health Connect" : "Apple Health"}</p>
-                  <p className="text-[9px] text-muted-foreground mt-1">Biometrics</p>
+                  <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground text-center">
+                    {isAndroid() ? "Health Connect" : "Apple Health"}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground text-center">Biometrics</p>
                 </div>
               )}
 
               {/* FordConnect */}
               {!hasFord && (
                 <div
-                  className="relative cursor-pointer group flex flex-col items-center p-4 bg-card rounded-2xl border border-border hover:shadow-md transition-all"
+                  className="flex flex-col items-center cursor-pointer group"
                   onClick={() => setShowFordModal(true)}
                 >
-                  <div className="w-14 h-14 rounded-full overflow-hidden bg-muted/30 flex items-center justify-center mb-2">
-                    <img src={fordLogo} alt="FordConnect" className="w-9 h-9 object-contain" />
+                  <div className="relative">
+                    <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border-2 border-emerald-400 transition-all group-hover:scale-105 flex items-center justify-center">
+                      <img src={fordLogo} alt="FordConnect" className="w-9 h-9 object-contain" />
+                    </div>
                   </div>
-                  <p className="text-xs font-bold text-center">FordConnect</p>
-                  <p className="text-[9px] text-muted-foreground mt-1">Vehicle Telemetry</p>
+                  <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground text-center">FordConnect</p>
+                  <p className="text-[9px] text-muted-foreground text-center">Vehicle Telemetry</p>
                 </div>
               )}
 
