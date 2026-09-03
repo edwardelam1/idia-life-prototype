@@ -60,6 +60,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   const bridgeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const autoCloseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const syncSessionIdRef = useRef<string | null>(null);
+  const syncStartedAtRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
   const onCloseRef = useRef(onClose);
   const onCompleteRef = useRef(onComplete);
@@ -87,58 +88,77 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     });
   }, []);
 
-  // 🚀 THE HYBRID SAFETY NET: Dynamic Realtime + Polling Fallback
+  // 🚀 HYBRID SAFETY NET: watch for *fresh* ingestion evidence, never a stale flag.
   useEffect(() => {
     if (!isConnecting || !currentUserId || !syncSessionIdRef.current) return;
 
     const sessionId = syncSessionIdRef.current;
-    console.log(`🎧 Hybrid safety net active for session: ${sessionId}`);
+    const startedAt = syncStartedAtRef.current || new Date().toISOString();
+    console.log(`🎧 Hybrid safety net active for session: ${sessionId} (since ${startedAt})`);
 
-    const triggerSuccessClosure = () => {
+    const triggerSuccessClosure = (count: number) => {
       if (typeof (window as any).onHealthDataSyncComplete === "function") {
         (window as any).onHealthDataSyncComplete({
           sync_session_id: sessionId,
-          processed_count: 1, // Visual verification flag
+          processed_count: count,
           processed_data: [{ type: "steps", value: "Verified by Ledger" }],
         });
       }
     };
 
-    // 1. Primary: Dynamic Realtime Channel (Avoids Zombie Subscriptions)
+    // 1. Primary: realtime on the connection ledger — only accept a sync stamped after we started.
     const channel = supabase
       .channel(`sync_watch_${sessionId}`)
       .on(
         "postgres_changes",
         {
-          event: "*", // Catch the Upsert
+          event: "*",
           schema: "public",
           table: "data_connections",
           filter: `user_id=eq.${currentUserId}`,
         },
         (payload) => {
-          const newRow = payload.new as { connection_type?: string; is_active?: boolean } | null;
-          if (newRow && newRow.connection_type === "apple_health" && newRow.is_active === true) {
-            console.log("🔥 Realtime Engine confirmed sync! Forcing UI closure.");
-            triggerSuccessClosure();
+          const newRow = payload.new as { connection_type?: string; last_sync_at?: string } | null;
+          if (
+            newRow &&
+            newRow.connection_type === "apple_health" &&
+            newRow.last_sync_at &&
+            newRow.last_sync_at > startedAt
+          ) {
+            console.log("🔥 Realtime confirmed a fresh sync. Closing UI.");
+            triggerSuccessClosure(1);
           }
         },
       )
       .subscribe();
 
-    // 2. Fallback: Ledger Polling (Catches dropped websocket packets)
+    // 2. Fallback: poll both the connection ledger AND the staged ledger for rows created this session.
     const pollInterval = setInterval(async () => {
       if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) return;
 
-      const { data } = await supabase
-        .from("data_connections")
-        .select("is_active")
-        .eq("user_id", currentUserId)
-        .eq("connection_type", "apple_health")
-        .limit(1);
+      const [{ data: conn }, { count: stagedCount }] = await Promise.all([
+        supabase
+          .from("data_connections")
+          .select("last_sync_at")
+          .eq("user_id", currentUserId)
+          .eq("connection_type", "apple_health")
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("staged_health_data" as any)
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", currentUserId)
+          .gt("created_at", startedAt),
+      ]);
 
-      if (data?.[0]?.is_active === true) {
-        console.log("🔥 Ledger Poll confirmed sync! Forcing UI closure.");
-        triggerSuccessClosure();
+      if (stagedCount && stagedCount > 0) {
+        console.log(`🔥 Staged ledger confirmed ${stagedCount} new rows. Closing UI.`);
+        triggerSuccessClosure(stagedCount);
+        return;
+      }
+      if (conn?.last_sync_at && conn.last_sync_at > startedAt) {
+        console.log("🔥 Connection ledger confirmed a fresh sync. Closing UI.");
+        triggerSuccessClosure(1);
       }
     }, 3500);
 
@@ -147,6 +167,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       clearInterval(pollInterval);
     };
   }, [isConnecting, currentUserId]);
+
 
   const clearAllTimers = useCallback(() => {
     if (bridgeTimeoutRef.current) {
@@ -266,7 +287,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       try {
         webkit.messageHandlers.syncHealthData.postMessage({
           action: "comprehensive_health_sync",
-          endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash_key=${hash}`,
+          endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash_key=${hash}&user_id=${currentUserId}`,
           user_id: currentUserId,
           auth_token: authSession?.access_token,
           aca_hash_key: hash,
@@ -279,9 +300,25 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setIsConnecting(false);
         return;
       }
+
+      // 🛑 WATCHDOG: never spin forever. If neither the bridge nor the ledger
+      // confirms within 75s, surface an actionable error instead of a hung spinner.
+      if (bridgeTimeoutRef.current) clearTimeout(bridgeTimeoutRef.current);
+      bridgeTimeoutRef.current = setTimeout(() => {
+        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+        setConnectionStatus((prev) => {
+          if (prev === "connected") return prev;
+          setErrorMessage(
+            "Apple Health did not return any data within 75 seconds. Open Settings → Privacy → Health → IDIA and allow all categories, then try again.",
+          );
+          setIsConnecting(false);
+          return "error";
+        });
+      }, 75000);
     },
     [currentUserId, authSession, connectionStatus, connectedThisSession, clearAllTimers, closeAndReset],
   );
+
 
   const handleConnect = useCallback(async () => {
     setErrorMessage(null);
@@ -290,6 +327,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
     const sessionId = Math.random().toString(36).substring(7);
     syncSessionIdRef.current = sessionId;
+    syncStartedAtRef.current = new Date(Date.now() - 5000).toISOString();
 
     try {
       const { data: profile } = await supabase

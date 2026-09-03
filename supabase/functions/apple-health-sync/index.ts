@@ -4,8 +4,16 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-idia-session",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 
 // Map Apple HealthKit identifiers to internal schema keys
 // Expanded to include the High-Fidelity Discovery labels from Swift
@@ -72,31 +80,81 @@ const healthKitKeyMapping: Record<string, string> = {
   vo2max: "vo2max",
   bpSystolic: "bpSystolic",
   bpDiastolic: "bpDiastolic",
+  sleep: "sleep",
+  weight: "weight",
+  height: "height",
 };
 
+const healthDataTypes = [
+  "steps",
+  "heartRate",
+  "hrv",
+  "restingHR",
+  "bloodOxygen",
+  "respiratoryRate",
+  "walkingSpeed",
+  "stepLength",
+  "walkingAsymmetry",
+  "doubleSupport",
+  "steadiness",
+  "calories",
+  "basalEnergy",
+  "noiseLevel",
+  "uvExposure",
+  "bodyTemp",
+  "vo2max",
+  "bpSystolic",
+  "bpDiastolic",
+  "sleep",
+  "sleepAnalysis",
+  "distanceWalkingRunning",
+  "distanceCycling",
+  "flightsClimbed",
+  "exerciseTime",
+  "bloodOxygenSaturation",
+  "weight",
+  "height",
+];
+
 serve(async (req) => {
+  const requestId = crypto.randomUUID().slice(0, 8);
+
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  const url = new URL(req.url);
+
+  // Ingress trace — logged BEFORE any parsing so a stalled device call is always visible.
+  console.log(
+    `[AHS ${requestId}] ingress ${req.method} ${url.pathname}${url.search} headers=${JSON.stringify(
+      [...req.headers.keys()],
+    )} len=${req.headers.get("content-length") || "?"}`,
+  );
+
+  // Reachability probe for the native shell — no DB, no auth.
+  if (url.searchParams.get("ping") === "1") {
+    return json({ ok: true, request_id: requestId, ts: new Date().toISOString() });
   }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !supabaseKey) throw new Error("Missing Supabase configuration");
+    if (!supabaseUrl || !supabaseKey) {
+      return json({ success: false, error: "Missing Supabase configuration", request_id: requestId }, 500);
+    }
 
     const supabase = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: `Bearer ${supabaseKey}` } },
     });
 
-    const rawBody = await req.json().catch(() => ({}));
+    const rawBody = req.method === "GET" ? {} : await req.json().catch(() => ({}));
 
-    // Parse query params (aligned to aca_hash_key schema)
-    const url = new URL(req.url);
-    const queryAcaHash = url.searchParams.get("aca_hash_key");
-
-    // Fuzzy key matching — prioritizing aca_hash_key for DELT verification
-    const userId = rawBody.user_id || rawBody.userId || rawBody.config?.user_id;
-    const acaHash = queryAcaHash || rawBody.aca_hash_key || rawBody.aca_hash || rawBody.acaHash;
+    // Fuzzy key matching — query params win so the shell can post the anchor on the URL.
+    const userId = url.searchParams.get("user_id") || rawBody.user_id || rawBody.userId || rawBody.config?.user_id;
+    const acaHash =
+      url.searchParams.get("aca_hash_key") || rawBody.aca_hash_key || rawBody.aca_hash || rawBody.acaHash;
+    const syncSessionId = rawBody.sync_session_id || url.searchParams.get("sync_session_id") || null;
 
     // Broad extraction: Supports both the structured object and the raw Firehose array
     let healthData =
@@ -105,6 +163,7 @@ serve(async (req) => {
       rawBody.healthData ||
       rawBody.health_data ||
       rawBody.samples ||
+      rawBody.records ||
       rawBody.config?.apple_health_data ||
       rawBody.config?.healthData ||
       rawBody.config?.health_data;
@@ -114,212 +173,169 @@ serve(async (req) => {
       !healthData ||
       (typeof healthData === "object" && !Array.isArray(healthData) && Object.keys(healthData).length === 0)
     ) {
-      const knownHealthKeys = Object.values(healthKitKeyMapping);
-      const allKnownKeys = [...Object.keys(healthKitKeyMapping), ...knownHealthKeys];
+      const allKnownKeys = [...Object.keys(healthKitKeyMapping), ...Object.values(healthKitKeyMapping)];
       const rootHealthData: Record<string, any> = {};
       for (const key of Object.keys(rawBody)) {
-        if (allKnownKeys.includes(key)) {
-          rootHealthData[key] = rawBody[key];
-        }
+        if (allKnownKeys.includes(key)) rootHealthData[key] = rawBody[key];
       }
-      if (Object.keys(rootHealthData).length > 0) {
-        healthData = rootHealthData;
-      }
+      if (Object.keys(rootHealthData).length > 0) healthData = rootHealthData;
     }
 
-    console.log("Raw body keys:", Object.keys(rawBody));
     console.log(
-      "Ingression source resolved:",
-      Array.isArray(healthData)
-        ? healthData.length + " firehose records"
-        : healthData
-          ? Object.keys(healthData).length + " grouped keys"
-          : "null",
+      `[AHS ${requestId}] body_keys=${JSON.stringify(Object.keys(rawBody))} user=${userId ? "yes" : "no"} aca=${
+        acaHash ? "yes" : "no"
+      } payload=${
+        Array.isArray(healthData)
+          ? healthData.length + " firehose records"
+          : healthData
+            ? Object.keys(healthData).length + " grouped keys"
+            : "null"
+      }`,
     );
 
-    const automatedSync = rawBody.automated_sync || false;
-    const forceRealDataOnly = rawBody.force_real_data_only || false;
-
     if (!userId) {
-      return new Response(JSON.stringify({ success: false, error: "Missing required field: user_id" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ success: false, error: "Missing required field: user_id", request_id: requestId, sync_session_id: syncSessionId }, 400);
     }
-
     if (!acaHash) {
-      return new Response(
-        JSON.stringify({
+      return json(
+        {
           success: false,
           error: "Missing required field: aca_hash_key. DELT Protocol requires a valid audit anchor.",
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          request_id: requestId,
+          sync_session_id: syncSessionId,
         },
+        400,
       );
     }
 
-    // DELT/ACA Verification: Verification of platform_guid to establish lineage proof
+    // DELT/ACA Verification — match the anchor first, then confirm lineage when a profile exists.
+    const { data: acaRecord, error: acaErr } = await supabase
+      .from("user_aca_records")
+      .select("id, platform_guid")
+      .eq("aca_hash_key", acaHash)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (acaErr) console.error(`[AHS ${requestId}] aca lookup error`, acaErr);
+
+    if (!acaRecord) {
+      return json(
+        {
+          success: false,
+          error: "DELT Protocol Verification Failed: no consent artifact matches this aca_hash_key.",
+          request_id: requestId,
+          sync_session_id: syncSessionId,
+        },
+        403,
+      );
+    }
+
     const { data: profile } = await supabase
       .from("profiles")
       .select("platform_guid")
       .eq("user_id", userId)
       .maybeSingle();
 
-    const platformGuid = profile?.platform_guid;
-    if (!platformGuid) {
-      return new Response(JSON.stringify({ success: false, error: "No profile/platform_guid found for user" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const { data: acaRecord } = await supabase
-      .from("user_aca_records")
-      .select("id")
-      .eq("aca_hash_key", acaHash)
-      .eq("platform_guid", platformGuid)
-      .maybeSingle();
-
-    if (!acaRecord) {
-      return new Response(
-        JSON.stringify({ success: false, error: "DELT Protocol Verification Failed. No matching audit record found." }),
+    const platformGuid = profile?.platform_guid ?? null;
+    if (platformGuid && acaRecord.platform_guid && platformGuid !== acaRecord.platform_guid) {
+      return json(
         {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          success: false,
+          error: "DELT Protocol Verification Failed: consent artifact belongs to a different platform_guid.",
+          request_id: requestId,
+          sync_session_id: syncSessionId,
         },
+        403,
       );
     }
 
-    console.log("✅ DELT Protocol verified for user:", userId);
+    console.log(`[AHS ${requestId}] ✅ DELT verified for user ${userId}`);
 
     // Normalize incoming payload keys
-    let processableData: any = {};
+    const processableData: Record<string, any> = {};
     if (healthData && typeof healthData === "object" && !Array.isArray(healthData)) {
-      Object.keys(healthData).forEach((key: string) => {
-        const normalizedKey = healthKitKeyMapping[key] || key;
-        processableData[normalizedKey] = healthData[key];
-      });
+      for (const key of Object.keys(healthData)) {
+        processableData[healthKitKeyMapping[key] || key] = healthData[key];
+      }
     }
 
-    // EXPANDED WHITELIST: The complete 22-metric Discovery Set from Swift
-    const healthDataTypes = [
-      "steps",
-      "heartRate",
-      "hrv",
-      "restingHR",
-      "bloodOxygen",
-      "respiratoryRate",
-      "walkingSpeed",
-      "stepLength",
-      "walkingAsymmetry",
-      "doubleSupport",
-      "steadiness",
-      "calories",
-      "basalEnergy",
-      "noiseLevel",
-      "uvExposure",
-      "bodyTemp",
-      "vo2max",
-      "bpSystolic",
-      "bpDiastolic",
-      "sleep",
-      "sleepAnalysis",
-      "distanceWalkingRunning",
-      "distanceCycling",
-      "flightsClimbed",
-      "exerciseTime",
-      "bloodOxygenSaturation",
-    ];
-
     const recordsToInsert: any[] = [];
+    let skipped = 0;
 
     // --- CASE 1: NATIVE FIREHOSE ARRAY ---
     if (Array.isArray(healthData)) {
-      console.log("Processing direct firehose array...");
       for (const item of healthData) {
-        const rawType = item.dataType || item.type || item.typeIdentifier;
+        const rawType = item?.dataType || item?.type || item?.typeIdentifier;
         const dataType = healthKitKeyMapping[rawType] || rawType;
-
-        if (!healthDataTypes.includes(dataType)) continue;
-
+        if (!healthDataTypes.includes(dataType)) {
+          skipped++;
+          continue;
+        }
         const actualValue = typeof item === "object" && item !== null && item.value !== undefined ? item.value : item;
+        const parsedSteps = dataType === "steps" ? parseInt(String(actualValue)) : NaN;
 
         recordsToInsert.push({
           user_id: userId,
-          aca_hash_key: acaHash, // Aligned to aca_hash_key
+          aca_hash_key: acaHash,
           device_type: "Apple Health",
           raw_payload: {
             dataType,
             value: actualValue,
-            metadata: item.metadata || {},
-            src_v: item.metadata?.src_v || "Native-PureAlpha",
+            metadata: item?.metadata || {},
+            src_v: item?.metadata?.src_v || "Native-PureAlpha",
           },
-          recorded_at: item.startDate || item.date || new Date().toISOString(),
+          recorded_at: item?.startDate || item?.date || new Date().toISOString(),
           processing_status: "pending",
           processed: false,
-          step_count: dataType === "steps" ? parseInt(String(actualValue)) : null,
+          step_count: Number.isNaN(parsedSteps) ? null : parsedSteps,
         });
       }
     }
-    // --- CASE 2: STRUCTURED OBJECT (LEGACY/WEB) ---
+    // --- CASE 2: STRUCTURED OBJECT (LEGACY/WEB/BRIDGE) ---
     else {
-      for (const dataType of healthDataTypes) {
-        if (!processableData[dataType]) continue;
-        const dataArray = Array.isArray(processableData[dataType])
-          ? processableData[dataType]
-          : [processableData[dataType]];
-        for (const record of dataArray) {
-          const actualValue =
-            typeof record === "object" && record !== null && record.value !== undefined ? record.value : record;
+      for (const key of Object.keys(processableData)) {
+        if (!healthDataTypes.includes(key)) {
+          skipped++;
+          continue;
+        }
+        const value = processableData[key];
+        if (value === null || value === undefined) continue;
+        const dataArray = Array.isArray(value) ? value : [value];
 
-          const healthRecord: any = {
+        for (const record of dataArray) {
+          const isObj = typeof record === "object" && record !== null;
+          const actualValue = isObj && record.value !== undefined ? record.value : record;
+          const parsedSteps = key === "steps" ? parseInt(String(actualValue)) : NaN;
+
+          recordsToInsert.push({
             user_id: userId,
             aca_hash_key: acaHash,
             device_type: "Apple Health",
             raw_payload: {
-              dataType,
+              dataType: key,
               value: actualValue,
-              unit: typeof record === "object" && record !== null ? record.unit || null : null,
-              startDate: typeof record === "object" && record !== null ? record.startDate || record.date : null,
-              endDate: typeof record === "object" && record !== null ? record.endDate || record.date : null,
-              sourceBundle:
-                typeof record === "object" && record !== null
-                  ? record.sourceBundle || "com.apple.health"
-                  : "com.apple.health",
-              sourceName:
-                typeof record === "object" && record !== null ? record.sourceName || "Apple Health" : "Apple Health",
-              metadata: typeof record === "object" && record !== null ? record.metadata || {} : {},
-              originalRecord: typeof record === "object" ? record : { value: actualValue },
+              unit: isObj ? record.unit || null : null,
+              startDate: isObj ? record.startDate || record.date || null : null,
+              endDate: isObj ? record.endDate || record.date || null : null,
+              sourceBundle: (isObj && record.sourceBundle) || "com.apple.health",
+              sourceName: (isObj && record.sourceName) || "Apple Health",
+              metadata: (isObj && record.metadata) || {},
+              originalRecord: isObj ? record : { value: actualValue },
             },
-            recorded_at:
-              typeof record === "object" && record !== null
-                ? record.startDate || record.date || new Date().toISOString()
-                : new Date().toISOString(),
+            recorded_at: (isObj && (record.startDate || record.date)) || new Date().toISOString(),
             processing_status: "pending",
             processed: false,
-          };
-
-          if (dataType === "steps" && actualValue !== undefined && actualValue !== null) {
-            const parsed = parseInt(String(actualValue));
-            if (!isNaN(parsed)) healthRecord.step_count = parsed;
-          }
-
-          recordsToInsert.push({
-            __dataType: dataType,
-            __actualValue: actualValue,
-            __recordedAt: healthRecord.recorded_at,
-            ...healthRecord,
+            step_count: Number.isNaN(parsedSteps) ? null : parsedSteps,
           });
         }
       }
     }
 
-    // Process workouts separately to maintain original logic
-    if (processableData.workouts && Array.isArray(processableData.workouts)) {
+    // Workouts keep their own shape
+    if (Array.isArray(processableData.workouts)) {
       for (const workout of processableData.workouts) {
-        const rec = {
+        recordsToInsert.push({
           user_id: userId,
           aca_hash_key: acaHash,
           device_type: "Apple Health",
@@ -337,102 +353,118 @@ serve(async (req) => {
             metadata: workout.metadata || {},
             originalRecord: workout,
           },
-          recorded_at: workout.startDate,
+          recorded_at: workout.startDate || new Date().toISOString(),
           processing_status: "pending",
           processed: false,
-        };
-        recordsToInsert.push({
-          __dataType: "workout",
-          __actualValue: workout.workoutActivityType,
-          __recordedAt: workout.startDate,
-          ...rec,
         });
       }
     }
 
-    if (recordsToInsert.length === 0) {
-      return new Response(
-        JSON.stringify({ success: true, message: "No actionable health data found", processed_count: 0 }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    // Update synchronization status in data_connections.
-    // Source-aware: Android (Health Connect) must not stamp the Apple row.
+    // Stamp the connection ledger FIRST so the client's watcher can resolve even on a thin payload.
     const payloadSource = String(rawBody.source || rawBody.config?.source || "apple_health").toLowerCase();
     const isHealthConnect = payloadSource.includes("health_connect") || payloadSource.includes("android");
-    await supabase.from("data_connections").upsert(
-      {
-        user_id: userId,
-        connection_type: isHealthConnect ? "health_connect" : "apple_health",
-        connection_name: isHealthConnect ? "Health Connect" : "Apple Health",
-        is_active: true,
-        last_sync_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,connection_type" },
-    );
+    const connectionType = isHealthConnect ? "health_connect" : "apple_health";
+    const connectionName = isHealthConnect ? "Health Connect" : "Apple Health";
+    const nowIso = new Date().toISOString();
 
+    try {
+      const { data: existingConn } = await supabase
+        .from("data_connections")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("connection_type", connectionType)
+        .limit(1)
+        .maybeSingle();
 
-    // CHUNKED BATCH INSERT: Maintaining your procedural select("id") and metadata reconstruction
-    const processedData: any[] = [];
-    const CHUNK_SIZE = 100; // Adjusted for massive firehose efficiency
+      if (existingConn?.id) {
+        const { error: updErr } = await supabase
+          .from("data_connections")
+          .update({
+            connection_name: connectionName,
+            is_active: true,
+            last_sync_at: nowIso,
+            last_successful_sync: nowIso,
+            sync_status: "healthy",
+            updated_at: nowIso,
+          })
+          .eq("id", existingConn.id);
+        if (updErr) console.error(`[AHS ${requestId}] data_connections update failed`, updErr);
+      } else {
+        const { error: insErr } = await supabase.from("data_connections").insert({
+          user_id: userId,
+          connection_type: connectionType,
+          connection_name: connectionName,
+          is_active: true,
+          last_sync_at: nowIso,
+          last_successful_sync: nowIso,
+          sync_status: "healthy",
+        });
+        if (insErr) console.error(`[AHS ${requestId}] data_connections insert failed`, insErr);
+      }
+    } catch (connErr) {
+      console.error(`[AHS ${requestId}] data_connections ledger exception`, connErr);
+    }
 
+    if (recordsToInsert.length === 0) {
+      console.log(`[AHS ${requestId}] no actionable records (skipped=${skipped})`);
+      return json({
+        success: true,
+        message: "Connection anchored — no actionable health data in this payload",
+        processed_count: 0,
+        skipped,
+        request_id: requestId,
+        sync_session_id: syncSessionId,
+      });
+    }
+
+    // CHUNKED BATCH INSERT — no per-chunk select round trip, chunks issued in small parallel waves
+    const CHUNK_SIZE = 250;
+    const WAVE = 4;
+    const chunks: any[][] = [];
     for (let i = 0; i < recordsToInsert.length; i += CHUNK_SIZE) {
-      const chunk = recordsToInsert.slice(i, i + CHUNK_SIZE);
-      const cleanChunk = chunk.map(({ __dataType, __actualValue, __recordedAt, ...rest }) => rest);
+      chunks.push(recordsToInsert.slice(i, i + CHUNK_SIZE));
+    }
 
-      try {
-        const { data: inserted, error: insertError } = await supabase
-          .from("raw_health_data")
-          .insert(cleanChunk)
-          .select("id");
+    let inserted = 0;
+    const failures: string[] = [];
 
-        if (insertError) {
-          console.error(`Batch insert error (chunk ${i / CHUNK_SIZE}):`, insertError);
-          continue;
-        }
-
-        if (inserted) {
-          inserted.forEach((row: any, idx: number) => {
-            const meta = chunk[idx];
-            processedData.push({
-              type: meta.__dataType || meta.raw_payload.dataType,
-              id: row.id,
-              value: meta.__actualValue || meta.raw_payload.value,
-              recordedAt: meta.__recordedAt || meta.recorded_at,
-            });
-          });
-        }
-      } catch (err) {
-        console.error(`Chunk ${i / CHUNK_SIZE} threw exception:`, err);
+    for (let i = 0; i < chunks.length; i += WAVE) {
+      const wave = chunks.slice(i, i + WAVE);
+      const results = await Promise.all(
+        wave.map(async (chunk) => {
+          const { error } = await supabase.from("raw_health_data").insert(chunk);
+          if (error) {
+            console.error(`[AHS ${requestId}] chunk insert error`, error.message);
+            return { ok: false, count: 0, message: error.message };
+          }
+          return { ok: true, count: chunk.length, message: "" };
+        }),
+      );
+      for (const r of results) {
+        inserted += r.count;
+        if (!r.ok && failures.length < 3) failures.push(r.message);
       }
     }
 
     console.log(
-      `✅ Sovereign Hydration Complete: ${processedData.length} records anchored with aca_hash_key: ${acaHash.substring(0, 12)}...`,
+      `[AHS ${requestId}] ✅ ingested ${inserted}/${recordsToInsert.length} records (skipped=${skipped}) anchor=${acaHash.substring(0, 12)}`,
     );
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Apple Health data synced successfully via IDIA Protocol",
-        processed_data: processedData,
-        processed_count: processedData.length,
-        delt_anchor: acaHash.substring(0, 12),
-        sync_timestamp: new Date().toISOString(),
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    return json({
+      success: true,
+      message: "Apple Health data synced successfully via IDIA Protocol",
+      processed_count: inserted,
+      received_count: recordsToInsert.length,
+      skipped,
+      errors: failures,
+      delt_anchor: acaHash.substring(0, 12),
+      request_id: requestId,
+      sync_session_id: syncSessionId,
+      sync_timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("🚨 [SYSTEM_STALL] Apple Health Sync Error:", message);
-    return new Response(JSON.stringify({ error: message, success: false }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
+    console.error(`[AHS ${requestId}] 🚨 fatal:`, message);
+    return json({ success: false, error: message, request_id: requestId }, 500);
   }
 });
