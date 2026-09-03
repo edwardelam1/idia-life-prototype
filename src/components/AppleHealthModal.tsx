@@ -148,6 +148,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       });
 
     console.log("[PROGRESS] Setting up Ledger Polling interval");
+    const startedAt = new Date().toISOString();
     const pollInterval = setInterval(async () => {
       console.log("[BEGIN] Ledger Polling execution");
       if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) {
@@ -168,8 +169,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         } else if (data?.[0]?.is_active === true) {
           console.log("[PROGRESS] Ledger Poll confirmed sync! Forcing UI closure.");
           triggerSuccessClosure();
+          return;
+        }
+
+        // Secondary signal: raw rows landed even if the connection flag lagged.
+        const { data: rows } = await supabase
+          .from("raw_health_data")
+          .select("id")
+          .eq("user_id", currentUserId)
+          .gte("created_at", startedAt)
+          .limit(1);
+        if (rows && rows.length > 0) {
+          console.log("[PROGRESS] Ledger Poll saw fresh raw_health_data! Forcing UI closure.");
+          triggerSuccessClosure();
         } else {
-          console.log("[PROGRESS] Ledger Poll verified no active connection yet");
+          console.log("[PROGRESS] Ledger Poll verified no ingestion yet");
         }
       } catch (pollErr) {
         console.error("[ERROR] Ledger Polling exception caught:", pollErr);
