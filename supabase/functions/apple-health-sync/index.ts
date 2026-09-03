@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-idia-session",
-  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Max-Age": "86400",
 };
 
@@ -229,6 +229,26 @@ serve(async (req) => {
         400,
       );
     }
+    if (!healthData) {
+      console.log(
+        `🚨 [EDGE_PAYLOAD_FATAL][FATAL: Planck.Edge.AppleHealthSync] Missing health data payload (expected 'data' or 'healthData').`,
+      );
+      console.log(
+        `🚨 [EDGE_PAYLOAD_FATAL][END: Planck.Edge.AppleHealthSync] -> Silent stalling occurs: Rejecting malformed Swift payload.`,
+      );
+      console.log(`--- END ERROR HANDLING: Edge Function POST Handler ---`);
+      return json(
+        {
+          success: false,
+          error: "Missing required field: data. Payload must include health records.",
+          request_id: requestId,
+          sync_session_id: syncSessionId,
+        },
+        400,
+      );
+    }
+
+
 
     console.log(
       `🚨 [EDGE_PROCESS][ACTION: Planck.Edge.AppleHealthSync] Ingesting ${
