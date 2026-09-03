@@ -391,6 +391,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     console.log("[BEGIN] handleConnect: Invoked");
     setErrorMessage(null);
     setIsConnecting(true);
+    setStage("Anchoring cryptographic proof...");
     setConnectionStatus("connecting");
 
     const sessionId = Math.random().toString(36).substring(7);
