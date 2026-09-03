@@ -483,7 +483,10 @@ const Auth = () => {
                 type="email"
                 placeholder="Email address"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (accountExists) setAccountExists(false);
+                }}
                 className="pl-10"
                 required
               />
