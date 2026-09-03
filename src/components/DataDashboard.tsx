@@ -292,6 +292,7 @@ const DataDashboard = () => {
   const visibleConnections = connections.filter((c) => {
     if (c.connection_type === "apple_health") return isIOS() || isWeb();
     if (c.connection_type === "health_connect") return isAndroid();
+    if (c.connection_type === "ford") return true;
     return false;
   });
 
@@ -308,6 +309,8 @@ const DataDashboard = () => {
 
   const healthType = isAndroid() ? "health_connect" : "apple_health";
   const hasHealth = getConnectionStatus(healthType);
+  const hasFord = getConnectionStatus("ford");
+
 
   return (
     <div className="space-y-4">
