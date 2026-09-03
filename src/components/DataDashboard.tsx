@@ -38,6 +38,8 @@ const DataDashboard = () => {
   // Modal States
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
   const [showAndroidHealthModal, setShowAndroidHealthModal] = useState(false);
+  const [showFordModal, setShowFordModal] = useState(false);
+
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [acaRecords, setAcaRecords] = useState<any[]>([]);
@@ -539,6 +541,24 @@ const DataDashboard = () => {
           setShowAndroidHealthModal(false);
         }}
       />
+
+      <FordConnectionModal
+        isOpen={showFordModal}
+        onClose={() => setShowFordModal(false)}
+        onComplete={async () => {
+          setShowFordModal(false);
+          await fetchConnections();
+          await fetchAcaRecords();
+          triggerFriendForDataEvent();
+        }}
+        existingConnection={getConnectionStatus("ford")}
+        onDisconnect={async () => {
+          await fetchConnections();
+          await fetchAcaRecords();
+          setShowFordModal(false);
+        }}
+      />
+
     </div>
   );
 };
