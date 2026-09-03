@@ -138,7 +138,14 @@ serve(async (req) => {
     return json({ status: "awake" });
   }
 
-  // 3. ACCOMMODATE THE SWIFT MASTER (Fixes the 403 POST Error)
+  // 3. PACIFY THE FRONTEND DISCONNECT (Fixes the 405 DELETE Error)
+  if (req.method === "DELETE") {
+    console.log(`🚨 [EDGE_DELETE][END: Planck.Edge.AppleHealthSync.Delete] -> Silent stalling prevented: Returning 200 OK to frontend disconnect.`);
+    console.log(`--- END ERROR HANDLING: Edge Function Ingress ---`);
+    return json({ success: true, message: "Sync disconnected" });
+  }
+
+  // 4. ACCOMMODATE THE SWIFT MASTER (Fixes the 403 POST Error)
   if (req.method === "POST") {
     try {
       // Step 1: Parse JSON safely
