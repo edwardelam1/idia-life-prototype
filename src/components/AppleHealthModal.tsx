@@ -299,12 +299,29 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   );
 
   const handleConnect = useCallback(async () => {
+    if (selectedDataTypes.size === 0) {
+      setErrorMessage("Please select at least one health metric to sync.");
+      return;
+    }
+
     setErrorMessage(null);
     setIsConnecting(true);
     setConnectionStatus("connecting");
 
     const sessionId = Math.random().toString(36).substring(7);
     syncSessionIdRef.current = sessionId;
+
+    // Bounded wait — never spin forever. If the device fetch or ingest stalls
+    // for 30s, surface an explicit, retryable error instead.
+    connectionTimeoutRef.current = setTimeout(() => {
+      if (syncSessionIdRef.current === sessionId && isMountedRef.current) {
+        console.error("[FATAL: React.ConnectionTimeout] no native completion within 30s.");
+        setErrorMessage("Connection timed out. The device fetch or ingest step stalled — please retry.");
+        setConnectionStatus("error");
+        setIsConnecting(false);
+        clearAllTimers();
+      }
+    }, 30000);
 
     try {
       const { data: profile } = await supabase
@@ -316,31 +333,63 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       const platformGuid = profile?.[0]?.platform_guid || currentUserId;
       if (!platformGuid) throw new Error("Profile anchor missing.");
 
-      const { hash, payload } = await generateACAHash(platformGuid, "apple_health", ["KYC_VAULT", "HEALTH_DATA_READ"]);
+      // Reuse the existing apple_health consent anchor when one exists — one
+      // mint per tap was bloating the ledger and never followed by a payload.
+      const { data: existingAca } = await supabase
+        .from("user_aca_records")
+        .select("aca_hash_key")
+        .eq("platform_guid", platformGuid)
+        .eq("source_id", "apple_health")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      const { error: acaError } = await supabase.from("user_aca_records").upsert(
-        {
-          platform_guid: platformGuid,
-          aca_hash_key: hash,
-          source_id: "apple_health",
-          consent_scope: payload?.consent_scope || ["HEALTH_DATA_READ"],
-        },
-        { onConflict: "aca_hash_key" },
-      );
+      let activeHash: string;
+      if (existingAca?.aca_hash_key) {
+        activeHash = existingAca.aca_hash_key;
+        console.log("[React.HandleConnect] reusing existing ACA anchor.");
+      } else {
+        const { hash, payload } = await generateACAHash(platformGuid, "apple_health", ["KYC_VAULT", "HEALTH_DATA_READ"]);
+        activeHash = hash;
 
-      if (acaError) {
-        throw new Error(`Database rejected ACA record: ${acaError.message}`);
+        const { error: acaError } = await supabase.from("user_aca_records").upsert(
+          {
+            platform_guid: platformGuid,
+            aca_hash_key: activeHash,
+            source_id: "apple_health",
+            consent_scope: payload?.consent_scope || ["HEALTH_DATA_READ"],
+          },
+          { onConflict: "aca_hash_key" },
+        );
+
+        if (acaError) {
+          throw new Error(`Database rejected ACA record: ${acaError.message}`);
+        }
       }
 
+      // Seed an inactive apple_health row so the realtime subscription and the
+      // poll fallback have a row to observe; the sync flips it active.
+      const { error: seedError } = await supabase.from("data_connections").upsert(
+        {
+          user_id: currentUserId,
+          connection_type: "apple_health",
+          connection_name: "Apple Health",
+          is_active: false,
+        },
+        { onConflict: "user_id,connection_type" },
+      );
+      if (seedError) console.warn("[React.HandleConnect] connection row seed failed:", seedError);
+
       if (syncSessionIdRef.current !== sessionId) return;
-      syncHealthDataViaNativeApp(hash, sessionId);
+      syncHealthDataViaNativeApp(activeHash, sessionId);
     } catch (error: any) {
       if (syncSessionIdRef.current !== sessionId) return;
+      clearAllTimers();
       setErrorMessage(error.message);
       setConnectionStatus("error");
       setIsConnecting(false);
     }
-  }, [currentUserId, syncHealthDataViaNativeApp]);
+  }, [currentUserId, syncHealthDataViaNativeApp, clearAllTimers, selectedDataTypes]);
 
   const handleDisconnect = async () => {
     if (!currentUserId || !existingConnection) return;
