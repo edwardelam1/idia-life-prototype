@@ -574,7 +574,19 @@ const Auth = () => {
           <div className="mt-6 text-center">
             <p className="text-sm text-muted-foreground">
               {isLogin ? "Don't have an account? " : "Already have an account? "}
-              <Button variant="link" onClick={() => setIsLogin(!isLogin)} className="text-sm p-0 font-semibold">
+              <Button
+                variant={accountExists && !isLogin ? "default" : "link"}
+                size={accountExists && !isLogin ? "sm" : undefined}
+                onClick={() => {
+                  setAccountExists(false);
+                  setIsLogin(!isLogin);
+                }}
+                className={
+                  accountExists && !isLogin
+                    ? "text-sm font-semibold ml-1 animate-pulse"
+                    : "text-sm p-0 font-semibold"
+                }
+              >
                 {isLogin ? "Sign up" : "Sign in"}
               </Button>
             </p>
