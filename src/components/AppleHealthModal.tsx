@@ -88,85 +88,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     });
   }, []);
 
-  // 🚀 HYBRID SAFETY NET: watch for *fresh* ingestion evidence, never a stale flag.
-  useEffect(() => {
-    if (!isConnecting || !currentUserId || !syncSessionIdRef.current) return;
+  // NOTE: No client-side network polling or Realtime watchers. The Swift master owns
+  // the egress; completion is signalled exclusively via window.onHealthDataSync* callbacks.
 
-    const sessionId = syncSessionIdRef.current;
-    const startedAt = syncStartedAtRef.current || new Date().toISOString();
-    console.log(`🎧 Hybrid safety net active for session: ${sessionId} (since ${startedAt})`);
 
-    const triggerSuccessClosure = (count: number) => {
-      if (typeof (window as any).onHealthDataSyncComplete === "function") {
-        (window as any).onHealthDataSyncComplete({
-          sync_session_id: sessionId,
-          processed_count: count,
-          processed_data: [{ type: "steps", value: "Verified by Ledger" }],
-        });
-      }
-    };
-
-    // 1. Primary: realtime on the connection ledger — only accept a sync stamped after we started.
-    const channel = supabase
-      .channel(`sync_watch_${sessionId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "data_connections",
-          filter: `user_id=eq.${currentUserId}`,
-        },
-        (payload) => {
-          const newRow = payload.new as { connection_type?: string; last_sync_at?: string } | null;
-          if (
-            newRow &&
-            newRow.connection_type === "apple_health" &&
-            newRow.last_sync_at &&
-            newRow.last_sync_at > startedAt
-          ) {
-            console.log("🔥 Realtime confirmed a fresh sync. Closing UI.");
-            triggerSuccessClosure(1);
-          }
-        },
-      )
-      .subscribe();
-
-    // 2. Fallback: poll both the connection ledger AND the staged ledger for rows created this session.
-    const pollInterval = setInterval(async () => {
-      if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) return;
-
-      const [{ data: conn }, { count: stagedCount }] = await Promise.all([
-        supabase
-          .from("data_connections")
-          .select("last_sync_at")
-          .eq("user_id", currentUserId)
-          .eq("connection_type", "apple_health")
-          .limit(1)
-          .maybeSingle(),
-        supabase
-          .from("staged_health_data" as any)
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", currentUserId)
-          .gt("created_at", startedAt),
-      ]);
-
-      if (stagedCount && stagedCount > 0) {
-        console.log(`🔥 Staged ledger confirmed ${stagedCount} new rows. Closing UI.`);
-        triggerSuccessClosure(stagedCount);
-        return;
-      }
-      if (conn?.last_sync_at && conn.last_sync_at > startedAt) {
-        console.log("🔥 Connection ledger confirmed a fresh sync. Closing UI.");
-        triggerSuccessClosure(1);
-      }
-    }, 3500);
-
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(pollInterval);
-    };
-  }, [isConnecting, currentUserId]);
 
 
   const clearAllTimers = useCallback(() => {
