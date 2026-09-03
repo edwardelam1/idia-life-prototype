@@ -521,6 +521,30 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         return;
       }
 
+      // React-driven reachability handshake. This guarantees the Edge Function is
+      // actually invoked and the apple_health connection row is written, even if
+      // the native shell later goes silent. Zero samples: it never overwrites data.
+      console.log("[PROGRESS] handleConnect: Executing direct server reachability handshake");
+      setStage("Testing server reachability...");
+      const { data: handshake, error: handshakeError } = await supabase.functions.invoke("apple-health-sync", {
+        body: { user_id: currentUserId, aca_hash_key: hash, sync_session_id: sessionId, data: [] },
+      });
+
+      if (handshakeError) {
+        console.error("[ERROR] handleConnect: Handshake failed", handshakeError);
+        throw new Error(`Server unreachable during handshake: ${handshakeError.message}`);
+      }
+      if (handshake && handshake.success === false) {
+        console.error("[ERROR] handleConnect: Handshake rejected by server", handshake.error);
+        throw new Error(handshake.error || "The server rejected the connection handshake.");
+      }
+      console.log("[PROGRESS] handleConnect: Server handshake successful. Connection row anchored.");
+
+      if (syncSessionIdRef.current !== sessionId) {
+        console.log("[END] handleConnect: Session ID mismatch after handshake, aborting");
+        return;
+      }
+
       console.log("[PROGRESS] handleConnect: Handoff to syncHealthDataViaNativeApp");
       syncHealthDataViaNativeApp(hash, sessionId);
       console.log("[END] handleConnect: Successful setup before native dispatch");
