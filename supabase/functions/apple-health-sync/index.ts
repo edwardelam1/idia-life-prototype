@@ -202,9 +202,23 @@ serve(async (req) => {
     );
 
     if (!userId) {
+      console.log(
+        `🚨 [EDGE_PAYLOAD_FATAL][FATAL: Planck.Edge.AppleHealthSync] Missing user_id in payload.`,
+      );
+      console.log(
+        `🚨 [EDGE_PAYLOAD_FATAL][END: Planck.Edge.AppleHealthSync] -> Silent stalling occurs: Rejecting malformed Swift payload.`,
+      );
+      console.log(`--- END ERROR HANDLING: Edge Function POST Handler ---`);
       return json({ success: false, error: "Missing required field: user_id", request_id: requestId, sync_session_id: syncSessionId }, 400);
     }
     if (!acaHash) {
+      console.log(
+        `🚨 [EDGE_PAYLOAD_FATAL][FATAL: Planck.Edge.AppleHealthSync] Missing ACA Hash in payload.`,
+      );
+      console.log(
+        `🚨 [EDGE_PAYLOAD_FATAL][END: Planck.Edge.AppleHealthSync] -> Silent stalling occurs: Rejecting malformed Swift payload.`,
+      );
+      console.log(`--- END ERROR HANDLING: Edge Function POST Handler ---`);
       return json(
         {
           success: false,
@@ -215,6 +229,13 @@ serve(async (req) => {
         400,
       );
     }
+
+    console.log(
+      `🚨 [EDGE_PROCESS][ACTION: Planck.Edge.AppleHealthSync] Ingesting ${
+        Array.isArray(healthData) ? healthData.length : healthData ? Object.keys(healthData).length : 0
+      } records for ACA: ${acaHash}`,
+    );
+
 
     // DELT/ACA Verification — match the anchor first, then confirm lineage when a profile exists.
     const { data: acaRecord, error: acaErr } = await supabase
