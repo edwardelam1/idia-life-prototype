@@ -5,14 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Activity, CheckCircle, DollarSign, FileKey, Copy, Plus } from "lucide-react";
+import { Activity, CheckCircle, DollarSign, FileKey, Copy } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase as typedSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AppleHealthModal from "./AppleHealthModal";
 import AndroidHealthModal from "./AndroidHealthModal";
-import FordConnectionModal from "./FordConnectionModal";
-import fordLogo from "@/assets/ford-logo.png";
 import { isAndroid, isIOS, isWeb } from "@/services/platform";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 
@@ -38,8 +36,6 @@ const DataDashboard = () => {
   // Modal States
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
   const [showAndroidHealthModal, setShowAndroidHealthModal] = useState(false);
-  const [showFordModal, setShowFordModal] = useState(false);
-
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [acaRecords, setAcaRecords] = useState<any[]>([]);
@@ -292,7 +288,6 @@ const DataDashboard = () => {
   const visibleConnections = connections.filter((c) => {
     if (c.connection_type === "apple_health") return isIOS() || isWeb();
     if (c.connection_type === "health_connect") return isAndroid();
-    if (c.connection_type === "ford") return true;
     return false;
   });
 
@@ -309,8 +304,6 @@ const DataDashboard = () => {
 
   const healthType = isAndroid() ? "health_connect" : "apple_health";
   const hasHealth = getConnectionStatus(healthType);
-  const hasFord = getConnectionStatus("ford");
-
 
   return (
     <div className="space-y-4">
@@ -346,59 +339,35 @@ const DataDashboard = () => {
 
         <TabsContent value="connections" className="space-y-4">
           <div className="space-y-4">
-            <h2 className="text-xl font-bold text-foreground text-center">Available Data Sources</h2>
-            <div className="flex flex-wrap justify-center gap-6">
+            <h2 className="text-xl font-bold text-foreground">Available Data Sources</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {/* Health App Connection */}
               {!hasHealth && (
                 <div
-                  className="flex flex-col items-center cursor-pointer group"
+                  className="relative cursor-pointer group flex flex-col items-center p-4 bg-card rounded-2xl border border-border hover:shadow-md transition-all"
                   onClick={() => {
                     if (isAndroid()) setShowAndroidHealthModal(true);
                     else setShowAppleHealthModal(true);
                   }}
                 >
-                  <div className="relative">
-                    <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border-2 border-dashed border-border transition-all group-hover:scale-105 flex items-center justify-center">
-                      {isAndroid() ? (
-                        <Activity className="w-8 h-8 text-green-600" />
-                      ) : (
-                        <img
-                          src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
-                          alt="Apple Health"
-                          className="w-8 h-8 object-contain"
-                        />
-                      )}
-                    </div>
-                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-muted rounded-full border-2 border-background flex items-center justify-center">
-                      <Plus className="w-3 h-3 text-muted-foreground" />
-                    </div>
+                  <div className="w-14 h-14 rounded-full overflow-hidden bg-muted/30 flex items-center justify-center mb-2">
+                    {isAndroid() ? (
+                      <Activity className="w-7 h-7 text-green-600" />
+                    ) : (
+                      <img
+                        src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
+                        alt="Apple Health"
+                        className="w-8 h-8 object-contain"
+                      />
+                    )}
                   </div>
-                  <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground">
-                    {isAndroid() ? "Health Connect" : "Apple Health"}
-                  </p>
+                  <p className="text-xs font-bold text-center">{isAndroid() ? "Health Connect" : "Apple Health"}</p>
+                  <p className="text-[9px] text-muted-foreground mt-1">Biometrics</p>
                 </div>
               )}
 
-              {/* FordConnect */}
-              {!hasFord && (
-                <div
-                  className="flex flex-col items-center cursor-pointer group"
-                  onClick={() => setShowFordModal(true)}
-                >
-                  <div className="relative">
-                    <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border-2 border-dashed border-border transition-all group-hover:scale-105 flex items-center justify-center">
-                      <img src={fordLogo} alt="FordConnect" className="w-9 h-9 object-contain" />
-                    </div>
-                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-muted rounded-full border-2 border-background flex items-center justify-center">
-                      <Plus className="w-3 h-3 text-muted-foreground" />
-                    </div>
-                  </div>
-                  <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground">Ford</p>
-                </div>
-              )}
-
-              {hasHealth && hasFord && (
-                <div className="w-full text-center py-6 text-muted-foreground">
+              {hasHealth && (
+                <div className="col-span-full text-center py-6 text-muted-foreground">
                   <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50 text-teal-600" />
                   <p className="text-sm">All available sources connected</p>
                 </div>
@@ -407,9 +376,9 @@ const DataDashboard = () => {
           </div>
 
           <div className="space-y-4">
-            <h2 className="text-xl font-bold text-foreground text-center">Active Streams</h2>
+            <h2 className="text-xl font-bold text-foreground">Active Streams</h2>
             {visibleConnections.length > 0 ? (
-              <div className="flex flex-wrap justify-center gap-6">
+              <div className="flex flex-wrap gap-6">
                 {visibleConnections.map((connection) => (
                   <div
                     key={connection.id}
@@ -417,7 +386,6 @@ const DataDashboard = () => {
                     onClick={() => {
                       if (connection.connection_type === "apple_health") setShowAppleHealthModal(true);
                       else if (connection.connection_type === "health_connect") setShowAndroidHealthModal(true);
-                      else if (connection.connection_type === "ford") setShowFordModal(true);
                     }}
                   >
                     <div className="relative">
@@ -431,9 +399,6 @@ const DataDashboard = () => {
                             alt="Apple Health"
                             className="w-8 h-8 object-contain"
                           />
-                        )}
-                        {connection.connection_type === "ford" && (
-                          <img src={fordLogo} alt="FordConnect" className="w-9 h-9 object-contain" />
                         )}
                       </div>
                       <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-background flex items-center justify-center">
@@ -455,7 +420,6 @@ const DataDashboard = () => {
             )}
           </div>
         </TabsContent>
-
 
         <TabsContent value="audit">
           <Card className="rounded-[1.5rem] border-none shadow-md overflow-hidden">
@@ -544,24 +508,6 @@ const DataDashboard = () => {
           setShowAndroidHealthModal(false);
         }}
       />
-
-      <FordConnectionModal
-        isOpen={showFordModal}
-        onClose={() => setShowFordModal(false)}
-        onComplete={async () => {
-          setShowFordModal(false);
-          await fetchConnections();
-          await fetchAcaRecords();
-          triggerFriendForDataEvent();
-        }}
-        existingConnection={getConnectionStatus("ford")}
-        onDisconnect={async () => {
-          await fetchConnections();
-          await fetchAcaRecords();
-          setShowFordModal(false);
-        }}
-      />
-
     </div>
   );
 };
