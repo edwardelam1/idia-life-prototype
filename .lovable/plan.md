@@ -2,42 +2,41 @@
 
 ## What the evidence actually shows (verified this turn)
 
-- Three consent/biometric anchors were written for your account at 13:21:47, 13:22:48 and 13:24:21 UTC (`user_aca_records`, source `apple_health`). So the modal, the ACA stage and Face ID all completed three times.
-- `apple-health-sync` has **zero** invocations in that window. The edge-function log stream for it is empty, and no analytics rows exist for it in the last 6 hours.
+- Three consent/biometric anchors were written for your account at 13:21:47, 13:22:48 and 13:24:21 UTC (`user_aca_records`, source `apple_health`). The modal, ACA stage and Face ID all completed three times.
+- `apple-health-sync` has **zero** invocations in that window — empty log stream, no analytics rows in 6 hours.
 - A direct server-side call to the deployed function answers correctly (HTTP 400 `Missing required field: aca_hash_key`), so the function is deployed, healthy and reachable.
 - Your account has **no** `apple_health` row in `data_connections` at all (only a 2025 Strava row), and **zero** rows ever in `raw_health_data`.
-- The 200 response you captured is the modal's own polling read of `data_connections`. It returns 200 with an empty result, correctly, because nothing was ever written.
+- The 200 you captured is the modal's own polling read of `data_connections`; it returns an empty result correctly, because nothing was ever written.
 
-Conclusion: after Face ID succeeds, the JS posts `syncHealthData` to the native shell and the shell never makes the HTTP request. Nothing on the server side is failing because the server is never called. The shell also never calls `onHealthDataSyncError`, so the modal spins until the 60s watchdog fires with the "server never confirmed a saved sync" message — which is accurate but useless.
+Conclusion: after Face ID succeeds, JS posts `syncHealthData` to the native shell and the shell never makes the HTTP request, never calls `onHealthDataSyncError`, and the modal spins until the watchdog fires.
 
-## What to change
+## Approach (as you outlined — React drives the handshake, Swift untouched)
 
-The web app must stop delegating the upload to the shell, because the shell's upload is unverifiable and currently silent.
+1. **React-driven server handshake**
+   - After the ACA record is written, the modal calls `apple-health-sync` itself with the ACA hash and an empty sample array, before delegating to the shell.
+   - This guarantees the function is invoked and the `apple_health` connection row exists, so the UI can resolve independently of the shell.
+   - The call goes through `supabase.functions.invoke` (correct auth + CORS handling) rather than a bare `fetch` to a hardcoded host.
 
-1. **Move the HTTP call into the web app**
-   - Ask the shell only for HealthKit samples: post `action: "fetch_health_samples"` (keeping the legacy `comprehensive_health_sync` payload in the same message for older builds) and accept samples through a JS callback.
-   - When samples arrive, the web app itself calls `apple-health-sync` via `supabase.functions.invoke`. The real HTTP status, body and error then belong to the app instead of the shell, and the function is guaranteed to be invoked.
-   - Keep the legacy path alive: if the shell instead performs its own upload and fires `onHealthDataSyncComplete`, that still resolves the session.
+2. **Strict 15-second shell watchdog**
+   - After `postMessage`, a 15s timer fires "The iOS app never returned HealthKit data — no upload was attempted." with Retry, replacing the 60s catch-all that blamed the server.
+   - Separate stage labels: `handshake` ("Testing server reachability…") and `shell_sync` ("Awaiting iOS HealthKit extraction…").
+   - Existing ledger/Realtime confirmation stays as the success path when the shell does deliver.
 
-2. **Prove reachability before blaming anything**
-   - Immediately after the ACA anchor is written, the web app calls `apple-health-sync` once with a handshake-only payload (ACA hash, no samples). The function already handles the "anchored, zero samples" case and writes the `data_connections` row.
-   - This guarantees an `apple_health` connection row exists and gives a definitive signal in the UI: if the handshake succeeds and the sample step then fails, the failure is provably the iOS shell, not the server.
+3. **Payload for the shell**
+   - Send `action: "fetch_health_samples"` plus the legacy `comprehensive_health_sync` fields and `config` block in the same message, so older shell builds still parse it.
 
-3. **Split the watchdogs so the message names the real stage**
-   - Short shell watchdog (about 15s): "The iOS app never returned HealthKit data — no upload was attempted." Show Retry.
-   - Upload watchdog only after samples are in hand, reporting the actual invoke error text.
-   - Remove the current single 60s catch-all message.
+4. **Granular `[BEGIN]/[PROGRESS]/[ERROR]/[END]` logging** on both sides, as in your draft — no tokens, ACA hashes or raw HealthKit values in the logs.
 
-4. **Diagnostics that survive to the server**
-   - Send the sync session id in the handshake so each attempt is visible in the function logs, with sample count and write outcome only — no health values, tokens or raw payloads.
+## Corrections to the pasted code (must be applied)
 
-## Native shell note
-
-If the current iOS build has no handler that returns HealthKit samples to JS, step 1's sample path will no-op and the modal will show the shell watchdog message instead of spinning. Steps 2–4 still land the connection row and give an honest UI. Handing samples back to JS needs one Swift-side handler; the web side will be ready for it.
+- **Column names.** `raw_health_data` has no `data_type`, `value`, `start_date`, `end_date` or `source_device` columns. Inserts must use the real shape: `user_id`, `aca_hash_key`, `device_type`, `raw_payload` (jsonb), `recorded_at`, `processing_status`, `processed`, `step_count`. The pasted insert would fail on every sample. The existing normalization and HealthKit key mapping in the current function stays.
+- **No upsert.** Per your earlier instruction, keep the explicit read-then-insert-or-update on `data_connections` instead of `upsert(..., { onConflict })`.
+- **Keep DELT verification.** The pasted version drops the `platform_guid` match against `profiles`; the ACA hash alone is not sufficient. Keep the profile → `platform_guid` → `user_aca_records` check.
+- **Keep the existing modal UI.** The pasted component's JSX is truncated and drops the data-type selection, connected/disconnect states and the icon ref. Apply the state machine, handshake and watchdog into the current file rather than replacing it.
 
 ## Verification
 
-- Confirm `apple-health-sync` shows an invocation per attempt in the function logs (currently zero).
-- Confirm a `data_connections` row of type `apple_health` exists for the account with a fresh `last_sync_at`.
-- Confirm the modal never spins past ~15s and always ends in Connected or a stage-specific error with Retry.
-- Confirm `raw_health_data` rows appear once the shell returns samples.
+- `apple-health-sync` shows one invocation per attempt in the function logs (currently zero).
+- An `apple_health` row exists for the account with a fresh `last_sync_at` right after pressing Connect.
+- The modal never spins past ~15s and always ends in Connected or a stage-specific error with Retry.
+- `raw_health_data` rows appear once the shell returns samples; until then the UI says the shell stalled, not that Apple settings are wrong.
