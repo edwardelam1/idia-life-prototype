@@ -304,6 +304,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         }
 
         try {
+          clearAllTimers();
           const count = serverResponse?.processed_count || 57;
           setSyncCount(count);
           setHealthData({ steps: "Verified", heartRate: "Verified" });
