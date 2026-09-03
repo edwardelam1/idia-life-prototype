@@ -149,28 +149,17 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) return;
 
       try {
-        const { data, error } = await supabase
-          .from("data_connections")
-          .select("is_active,last_sync_at")
-          .eq("user_id", currentUserId)
-          .eq("connection_type", "apple_health")
-          .limit(1);
-
-        if (error) {
-          console.error("[ERROR] Ledger Polling query failed:", error);
-        } else if (data?.[0]?.is_active === true && data[0].last_sync_at && data[0].last_sync_at >= startedAt) {
-          confirmFromLedger(0);
-          return;
-        }
-
-        // Secondary signal: raw rows committed during this attempt.
-        const { data: rows } = await supabase
+        // Only committed health rows count. The connection row is anchored by the
+        // handshake and would otherwise report a sync that never carried data.
+        const { data: rows, error } = await supabase
           .from("raw_health_data")
           .select("id")
           .eq("user_id", currentUserId)
           .gte("created_at", startedAt)
           .limit(1);
-        if (rows && rows.length > 0) {
+        if (error) {
+          console.error("[ERROR] Ledger Polling query failed:", error);
+        } else if (rows && rows.length > 0) {
           confirmFromLedger(rows.length);
         } else {
           console.log("[PROGRESS] Ledger Poll verified no ingestion yet");
