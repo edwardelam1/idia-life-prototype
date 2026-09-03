@@ -380,7 +380,7 @@ const DataDashboard = () => {
                         <img
                           src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
                           alt="Apple Health"
-                          className="w-8 h-8 object-contain"
+                          className="w-8 h-8 object-contain block mx-auto"
                         />
                       )}
                     </div>
