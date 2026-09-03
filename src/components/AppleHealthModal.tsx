@@ -104,19 +104,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     const sessionId = syncSessionIdRef.current;
     console.log(`[PROGRESS] Hybrid safety net active for session: ${sessionId}`);
 
-    const triggerSuccessClosure = () => {
-      console.log("[BEGIN] triggerSuccessClosure invoked");
+    // Only a write committed during THIS attempt counts as proof of a sync.
+    const startedAt = new Date().toISOString();
+
+    const confirmFromLedger = (recordCount: number) => {
+      console.log("[PROGRESS] Ledger confirmed a committed sync for this session");
       if (typeof (window as any).onHealthDataSyncComplete === "function") {
-        console.log("[PROGRESS] Manually invoking global onHealthDataSyncComplete callback");
         (window as any).onHealthDataSyncComplete({
           sync_session_id: sessionId,
-          processed_count: 1,
-          processed_data: [{ type: "steps", value: "Verified by Ledger" }],
+          success: true,
+          source: "ledger",
+          processed_count: recordCount,
         });
       } else {
-        console.error("[ERROR] Global onHealthDataSyncComplete callback is undefined during forced closure");
+        console.error("[ERROR] Global onHealthDataSyncComplete callback is undefined during ledger closure");
       }
-      console.log("[END] triggerSuccessClosure execution");
     };
 
     console.log("[PROGRESS] Setting up Realtime Channel subscription");
@@ -131,15 +133,15 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           filter: `user_id=eq.${currentUserId}`,
         },
         (payload) => {
-          console.log("[BEGIN] Realtime Channel payload received");
-          const newRow = payload.new as { connection_type?: string; is_active?: boolean } | null;
-          if (newRow && newRow.connection_type === "apple_health" && newRow.is_active === true) {
-            console.log("[PROGRESS] Realtime Engine confirmed sync! Forcing UI closure.");
-            triggerSuccessClosure();
+          const newRow = payload.new as
+            | { connection_type?: string; is_active?: boolean; last_sync_at?: string | null }
+            | null;
+          const syncedNow = !!newRow?.last_sync_at && newRow.last_sync_at >= startedAt;
+          if (newRow && newRow.connection_type === "apple_health" && newRow.is_active === true && syncedNow) {
+            confirmFromLedger(0);
           } else {
-            console.log("[PROGRESS] Realtime Engine payload ignored (not active or wrong type)");
+            console.log("[PROGRESS] Realtime payload ignored (stale, inactive, or wrong type)");
           }
-          console.log("[END] Realtime Channel payload processed");
         },
       )
       .subscribe((status, err) => {
@@ -148,31 +150,25 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       });
 
     console.log("[PROGRESS] Setting up Ledger Polling interval");
-    const startedAt = new Date().toISOString();
     const pollInterval = setInterval(async () => {
-      console.log("[BEGIN] Ledger Polling execution");
-      if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) {
-        console.log("[END] Ledger Polling aborted (unmounted or session mismatch)");
-        return;
-      }
+      if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) return;
 
       try {
         const { data, error } = await supabase
           .from("data_connections")
-          .select("is_active")
+          .select("is_active,last_sync_at")
           .eq("user_id", currentUserId)
           .eq("connection_type", "apple_health")
           .limit(1);
 
         if (error) {
           console.error("[ERROR] Ledger Polling query failed:", error);
-        } else if (data?.[0]?.is_active === true) {
-          console.log("[PROGRESS] Ledger Poll confirmed sync! Forcing UI closure.");
-          triggerSuccessClosure();
+        } else if (data?.[0]?.is_active === true && data[0].last_sync_at && data[0].last_sync_at >= startedAt) {
+          confirmFromLedger(0);
           return;
         }
 
-        // Secondary signal: raw rows landed even if the connection flag lagged.
+        // Secondary signal: raw rows committed during this attempt.
         const { data: rows } = await supabase
           .from("raw_health_data")
           .select("id")
@@ -180,16 +176,15 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           .gte("created_at", startedAt)
           .limit(1);
         if (rows && rows.length > 0) {
-          console.log("[PROGRESS] Ledger Poll saw fresh raw_health_data! Forcing UI closure.");
-          triggerSuccessClosure();
+          confirmFromLedger(rows.length);
         } else {
           console.log("[PROGRESS] Ledger Poll verified no ingestion yet");
         }
       } catch (pollErr) {
         console.error("[ERROR] Ledger Polling exception caught:", pollErr);
       }
-      console.log("[END] Ledger Polling execution");
     }, 3500);
+
 
     console.log("[END] Hybrid safety net initialization");
 
