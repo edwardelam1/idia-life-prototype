@@ -350,6 +350,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
       try {
         console.log("[PROGRESS] syncHealthDataViaNativeApp: Dispatching postMessage to Swift");
+        setStage("Reading HealthKit and uploading to the vault...");
         webkit.messageHandlers.syncHealthData.postMessage({
           action: "comprehensive_health_sync",
           endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash_key=${hash}`,
@@ -360,6 +361,20 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           requestedDataTypes: {},
         });
         console.log("[PROGRESS] syncHealthDataViaNativeApp: postMessage dispatched successfully");
+
+        // Watchdog: the shell must answer (or the ledger must move) within 60s.
+        // Without this the modal spins forever when the native request never fires.
+        if (bridgeTimeoutRef.current) clearTimeout(bridgeTimeoutRef.current);
+        bridgeTimeoutRef.current = setTimeout(() => {
+          if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) return;
+          if (connectedThisSession) return;
+          console.error("[ERROR] Bridge watchdog tripped — no native callback and no ingestion in 60s");
+          setErrorMessage(
+            "The iOS app never delivered your health data (no upload reached the server). Open Settings › Privacy & Security › Health › IDIA and enable all categories, then retry.",
+          );
+          setConnectionStatus("error");
+          setIsConnecting(false);
+        }, 60000);
       } catch (postErr: any) {
         console.error("[ERROR] syncHealthDataViaNativeApp: webkit.postMessage failed", postErr);
         setErrorMessage(`Native bridge dispatch failed.`);
