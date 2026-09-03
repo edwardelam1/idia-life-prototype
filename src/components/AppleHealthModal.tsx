@@ -291,7 +291,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
       (window as any).onHealthDataSyncComplete = (serverResponse: any) => {
         console.log("[BEGIN] Native Callback: onHealthDataSyncComplete fired", serverResponse);
-        const incomingId = typeof serverResponse === "string" ? serverResponse : serverResponse?.sync_session_id;
 
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) {
           console.log("[END] Native Callback: Session mismatch or unmounted, ignoring success");
@@ -299,10 +298,26 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         }
 
         try {
+          const response = typeof serverResponse === "string" ? {} : serverResponse || {};
+          const status = Number(response.status ?? response.http_status ?? 0);
+
+          // The shell (or the ledger watcher) must report an actual server success.
+          // A bare callback is not proof that anything was saved.
+          const serverRejected = response.success === false || (status > 0 && status >= 400);
+          if (serverRejected) {
+            clearAllTimers();
+            setErrorMessage(
+              response.error || `The server rejected the upload${status ? ` (HTTP ${status})` : ""}. Please retry.`,
+            );
+            setConnectionStatus("error");
+            setIsConnecting(false);
+            return;
+          }
+
           clearAllTimers();
-          const count = serverResponse?.processed_count || 57;
-          setSyncCount(count);
-          setHealthData({ steps: "Verified", heartRate: "Verified" });
+          const count = Number(response.processed_count ?? 0);
+          setSyncCount(Number.isFinite(count) ? count : 0);
+          setHealthData(null);
 
           setConnectionStatus("connected");
           setConnectedThisSession(true);
@@ -320,11 +335,12 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           console.log("[END] Native Callback: Success state fully resolved");
         } catch (err: any) {
           console.error("[ERROR] Native Callback: onHealthDataSyncComplete exception", err);
-          setErrorMessage("Failed to process sync response.");
+          setErrorMessage("The app could not read the server's response. Please retry.");
           setConnectionStatus("error");
           setIsConnecting(false);
         }
       };
+
 
       (window as any).onHealthDataSyncError = (errorMsg: string, incomingId?: string) => {
         console.error(`[BEGIN] Native Callback: onHealthDataSyncError fired - ${errorMsg}`);
