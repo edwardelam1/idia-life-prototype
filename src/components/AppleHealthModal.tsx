@@ -360,9 +360,39 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         console.log("[END] Native Callback: Error state fully resolved");
       };
 
+      // The shell may instead hand raw HealthKit samples back to JS. When it does,
+      // the web app performs the upload itself so the request is provably made.
+      (window as any).onHealthSamplesReady = async (samples: any) => {
+        console.log("[BEGIN] Native Callback: onHealthSamplesReady fired");
+        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) {
+          console.log("[END] Native Callback: onHealthSamplesReady ignored (session mismatch)");
+          return;
+        }
+        try {
+          const payload = typeof samples === "string" ? JSON.parse(samples) : samples;
+          const list = Array.isArray(payload) ? payload : payload?.data || payload?.samples || [];
+          console.log(`[PROGRESS] onHealthSamplesReady: uploading ${list.length} samples from JS`);
+          setStage("Uploading HealthKit samples to the vault...");
+          const { data: result, error } = await supabase.functions.invoke("apple-health-sync", {
+            body: { user_id: currentUserId, aca_hash_key: hash, sync_session_id: sessionId, data: list },
+          });
+          if (error) throw new Error(error.message);
+          if (typeof (window as any).onHealthDataSyncComplete === "function") {
+            (window as any).onHealthDataSyncComplete({ ...(result || {}), sync_session_id: sessionId });
+          }
+          console.log("[END] Native Callback: onHealthSamplesReady upload complete");
+        } catch (uploadErr: any) {
+          console.error("[ERROR] onHealthSamplesReady upload failed", uploadErr);
+          clearAllTimers();
+          setErrorMessage(`Upload failed: ${uploadErr?.message || "unknown error"}`);
+          setConnectionStatus("error");
+          setIsConnecting(false);
+        }
+      };
+
       try {
         console.log("[PROGRESS] syncHealthDataViaNativeApp: Dispatching postMessage to Swift");
-        setStage("Reading HealthKit and uploading to the vault...");
+        setStage("Awaiting iOS HealthKit extraction...");
 
         const endpoint = `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash_key=${encodeURIComponent(hash)}`;
         const requestedDataTypes = ALL_HEALTH_DATA_TYPES.reduce<Record<string, string[]>>((groups, dataType) => {
@@ -386,27 +416,30 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         };
 
         webkit.messageHandlers.syncHealthData.postMessage({
-          action: "comprehensive_health_sync",
+          // Newer shells hand samples back to JS; older shells upload themselves.
+          action: "fetch_health_samples",
+          legacy_action: "comprehensive_health_sync",
           config,
           ...config,
           requestedDataTypes,
         });
         console.log("[PROGRESS] syncHealthDataViaNativeApp: postMessage dispatched successfully");
 
-        // Upload watchdog: the shell must answer, or the ledger must show a write,
-        // within 60s. Report the stage that actually failed — this is a transport
-        // problem between the app and the server, not a Health settings problem.
+        // Shell watchdog: the connection row is already anchored by the React
+        // handshake, so the only thing outstanding is the shell. If it goes silent
+        // (it never calls the error callback when it crashes), fail fast at 15s and
+        // name the real stage instead of blaming Apple Health settings.
         if (bridgeTimeoutRef.current) clearTimeout(bridgeTimeoutRef.current);
         bridgeTimeoutRef.current = setTimeout(() => {
           if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) return;
           if (connectedThisSession) return;
-          console.error("[ERROR] Upload watchdog tripped — no server confirmation in 60s");
+          console.error("[ERROR] Shell watchdog tripped — no HealthKit data returned in 15s");
           setErrorMessage(
-            "Upload timed out: the app finished verification but the server never confirmed a saved sync. Tap Retry.",
+            "The iOS app never returned HealthKit data — no upload was attempted. Your connection is registered; tap Retry to pull data again.",
           );
           setConnectionStatus("error");
           setIsConnecting(false);
-        }, 60000);
+        }, 15000);
 
       } catch (postErr: any) {
         console.error("[ERROR] syncHealthDataViaNativeApp: webkit.postMessage failed", postErr);
@@ -415,6 +448,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setIsConnecting(false);
         console.log("[END] syncHealthDataViaNativeApp: Failed during dispatch");
       }
+
     },
     [
       currentUserId,
