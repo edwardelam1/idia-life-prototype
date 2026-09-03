@@ -45,6 +45,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.id)),
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [stage, setStage] = useState<string>("Anchoring cryptographic proof...");
   const [syncCount, setSyncCount] = useState(0);
   const [connectedThisSession, setConnectedThisSession] = useState(false);
 
