@@ -88,67 +88,6 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     });
   }, []);
 
-  // 🚀 THE HYBRID SAFETY NET: Dynamic Realtime + Polling Fallback
-  useEffect(() => {
-    if (!isConnecting || !currentUserId || !syncSessionIdRef.current) return;
-
-    const sessionId = syncSessionIdRef.current;
-    console.log(`🎧 Hybrid safety net active for session: ${sessionId}`);
-
-    const triggerSuccessClosure = () => {
-      if (typeof (window as any).onHealthDataSyncComplete === "function") {
-        (window as any).onHealthDataSyncComplete({
-          sync_session_id: sessionId,
-          processed_count: 1, // Visual verification flag
-          processed_data: [{ type: "steps", value: "Verified by Ledger" }],
-        });
-      }
-    };
-
-    // 1. Primary: Dynamic Realtime Channel (Avoids Zombie Subscriptions)
-    const channel = supabase
-      .channel(`sync_watch_${sessionId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*", // Catch the Upsert
-          schema: "public",
-          table: "data_connections",
-          filter: `user_id=eq.${currentUserId}`,
-        },
-        (payload) => {
-          const newRow = payload.new as { connection_type?: string; is_active?: boolean } | null;
-          if (newRow && newRow.connection_type === "apple_health" && newRow.is_active === true) {
-            console.log("🔥 Realtime Engine confirmed sync! Forcing UI closure.");
-            triggerSuccessClosure();
-          }
-        },
-      )
-      .subscribe();
-
-    // 2. Fallback: Ledger Polling (Catches dropped websocket packets)
-    const pollInterval = setInterval(async () => {
-      if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) return;
-
-      const { data } = await supabase
-        .from("data_connections")
-        .select("is_active")
-        .eq("user_id", currentUserId)
-        .eq("connection_type", "apple_health")
-        .limit(1);
-
-      if (data?.[0]?.is_active === true) {
-        console.log("🔥 Ledger Poll confirmed sync! Forcing UI closure.");
-        triggerSuccessClosure();
-      }
-    }, 3500);
-
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(pollInterval);
-    };
-  }, [isConnecting, currentUserId]);
-
   const clearAllTimers = useCallback(() => {
     if (bridgeTimeoutRef.current) {
       clearTimeout(bridgeTimeoutRef.current);
@@ -188,18 +127,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
   useEffect(() => {
     if (!isOpen) {
-      clearAllTimers();
-      syncSessionIdRef.current = null;
-      detachNativeCallbacks();
+      closeAndReset();
       burstTriggeredRef.current = false;
-      setIsConnecting(false);
-      setConnectionStatus("idle");
-      setErrorMessage(null);
-      setHealthData(null);
-      setSyncCount(0);
-      setConnectedThisSession(false);
     }
-  }, [isOpen, clearAllTimers, detachNativeCallbacks]);
+  }, [isOpen, closeAndReset]);
 
   useEffect(() => {
     return () => {
@@ -221,6 +152,68 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     }
   }, [connectionStatus]);
 
+  // Invoked directly when the database confirms the edge function succeeded
+  const handleLedgerVerification = useCallback(() => {
+    console.log(`[ACTION: React.Verification] Hardware ingestion verified by ledger.`);
+    clearAllTimers();
+    setConnectionStatus("connected");
+    setConnectedThisSession(true);
+    setIsConnecting(false);
+    onCompleteRef.current?.();
+
+    autoCloseTimeoutRef.current = setTimeout(() => {
+      closeAndReset();
+    }, 3000);
+  }, [clearAllTimers, closeAndReset]);
+
+  // 🚀 HARDWARE SAFETY NET: Realtime + Polling (No synthetic payloads)
+  useEffect(() => {
+    if (!isConnecting || !currentUserId || !syncSessionIdRef.current) return;
+    const sessionId = syncSessionIdRef.current;
+    console.log(`🎧 Hybrid safety net active for session: ${sessionId}`);
+
+    const channel = supabase
+      .channel(`sync_watch_${sessionId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "data_connections",
+          filter: `user_id=eq.${currentUserId}`,
+        },
+        (payload) => {
+          const newRow = payload.new as { connection_type?: string; is_active?: boolean } | null;
+          if (newRow && newRow.connection_type === "apple_health" && newRow.is_active === true) {
+            console.log("🔥 Realtime Engine confirmed sync!");
+            handleLedgerVerification();
+          }
+        },
+      )
+      .subscribe();
+
+    const pollInterval = setInterval(async () => {
+      if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) return;
+
+      const { data } = await supabase
+        .from("data_connections")
+        .select("is_active")
+        .eq("user_id", currentUserId)
+        .eq("connection_type", "apple_health")
+        .limit(1);
+
+      if (data?.[0]?.is_active === true) {
+        console.log("🔥 Ledger Poll confirmed sync!");
+        handleLedgerVerification();
+      }
+    }, 3500);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+    };
+  }, [isConnecting, currentUserId, handleLedgerVerification]);
+
   const syncHealthDataViaNativeApp = useCallback(
     (hash: string, sessionId: string) => {
       const webkit = (window as any).webkit;
@@ -232,35 +225,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         return;
       }
 
+      // 1. Native Success Handler (Awaits true DB verification)
       (window as any).onHealthDataSyncComplete = (serverResponse: any) => {
-        const incomingId = typeof serverResponse === "string" ? serverResponse : serverResponse?.sync_session_id;
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
-
-        clearAllTimers();
-
-        try {
-          const count = serverResponse?.processed_count || 57;
-          setSyncCount(count);
-          setHealthData({ steps: "Verified", heartRate: "Verified" });
-
-          setConnectionStatus("connected");
-          setConnectedThisSession(true);
-          setIsConnecting(false);
-
-          onCompleteRef.current?.();
-
-          autoCloseTimeoutRef.current = setTimeout(() => {
-            closeAndReset();
-          }, 3000);
-        } catch (err: any) {
-          console.error("Sync complete handler error:", err);
-          setErrorMessage("Failed to process sync response.");
-          setConnectionStatus("error");
-          setIsConnecting(false);
-        }
+        console.log(`[BEGIN: React.NativeCallback.Success] Native execution returned success. Awaiting ledger confirmation.`, serverResponse);
       };
 
-      (window as any).onHealthDataSyncError = (errorMsg: string, incomingId?: string) => {
+      // 2. Native Error Handler
+      (window as any).onHealthDataSyncError = (errorMsg: string) => {
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
         if (connectionStatus === "connected" || connectedThisSession) return;
 
@@ -271,14 +243,17 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       };
 
       try {
-        // Build the requested-types map from the user's actual selections.
-        // An empty map tells the native pipeline to fetch NOTHING and silently
-        // skip the ingest — that is what left the modal spinning forever.
+        // 🚨 FIX 1: Send the real requested types so Swift actually attempts a fetch
         const requestedDataTypesMap: Record<string, boolean> = {};
+        const requestedDataTypesArray: string[] = [];
+
         selectedDataTypes.forEach((id) => {
           requestedDataTypesMap[id] = true;
+          requestedDataTypesArray.push(id);
         });
-        console.log(`[BEGIN: React.NativeDispatch] dispatching ${Object.keys(requestedDataTypesMap).length} requested types.`);
+
+        console.log(`[BEGIN: React.NativeDispatch] Dispatching request for ${requestedDataTypesArray.length} metrics.`);
+
         webkit.messageHandlers.syncHealthData.postMessage({
           action: "comprehensive_health_sync",
           endpoint: `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/apple-health-sync?aca_hash_key=${hash}`,
@@ -287,6 +262,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           aca_hash_key: hash,
           sync_session_id: sessionId,
           requestedDataTypes: requestedDataTypesMap,
+          requestedDataTypesArray: requestedDataTypesArray,
         });
         console.log(`[END: React.NativeDispatch] dispatch accepted. Awaiting native callback.`);
       } catch (postErr: any) {
@@ -294,13 +270,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setErrorMessage(`Native bridge dispatch failed.`);
         setConnectionStatus("error");
         setIsConnecting(false);
-        return;
       }
     },
-    [currentUserId, authSession, connectionStatus, connectedThisSession, clearAllTimers, closeAndReset, selectedDataTypes],
+    [currentUserId, authSession, connectionStatus, connectedThisSession, clearAllTimers, selectedDataTypes],
   );
 
   const handleConnect = useCallback(async () => {
+    // 🚨 FIX 1(b): Block dispatch if nothing is selected
     if (selectedDataTypes.size === 0) {
       setErrorMessage("Please select at least one health metric to sync.");
       return;
@@ -323,9 +299,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       const platformGuid = profile?.[0]?.platform_guid || currentUserId;
       if (!platformGuid) throw new Error("Profile anchor missing.");
 
-      // DELT Protocol: every data connect is a Human Touchpoint — the Secure
-      // Enclave biometric challenge fires here, on every tap, before any hash
-      // exists. Never reuse a stored anchor to skip the challenge.
+      // 🚨 FIX 2: The biometric challenge fires on every connect. The Secure
+      // Enclave anchors a fresh consent artifact for this Human Touchpoint.
       console.log("[BEGIN: React.HandleConnect.Biometric] Firing biological capture for consent anchor.");
       const { hash, payload } = await generateACAHash(platformGuid, "apple_health", ["KYC_VAULT", "HEALTH_DATA_READ"]);
       const activeHash = hash;
@@ -345,21 +320,19 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         throw new Error(`Database rejected ACA record: ${acaError.message}`);
       }
 
-      // Bounded wait — armed only AFTER the biometric handshake so the Face ID
-      // sheet can take as long as the user needs without tripping recovery.
+      // 🚨 FIX 3(b): Give the connect flow a bounded wait with an explicit failure state.
+      // Armed only AFTER the biometric handshake so the Face ID sheet can take as long as needed.
       connectionTimeoutRef.current = setTimeout(() => {
         if (syncSessionIdRef.current === sessionId && isMountedRef.current) {
-          console.error("[FATAL: React.ConnectionTimeout] no native completion within 30s.");
-          setErrorMessage("Connection timed out. The device fetch or ingest step stalled — please retry.");
+          console.error(`🚨 [FATAL: React.ConnectionTimeout] Routine stalled for 30s.`);
+          setErrorMessage("Connection timed out. The consent anchor, device fetch, or ingest step stalled.");
           setConnectionStatus("error");
           setIsConnecting(false);
           clearAllTimers();
         }
       }, 30000);
 
-
-      // Seed an inactive apple_health row so the realtime subscription and the
-      // poll fallback have a row to observe; the sync flips it active.
+      // 🚨 FIX 3(a): Seed the apple_health row in data_connections (inactive, no sync stamp)
       const { error: seedError } = await supabase.from("data_connections").upsert(
         {
           user_id: currentUserId,
@@ -382,16 +355,49 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     }
   }, [currentUserId, syncHealthDataViaNativeApp, clearAllTimers, selectedDataTypes]);
 
+  // 🚨 FIX 4: Complete Disconnect Teardown
   const handleDisconnect = async () => {
-    if (!currentUserId || !existingConnection) return;
+    if (!currentUserId) return;
+
+    console.log("[BEGIN: React.HandleDisconnect] Forcing complete teardown.");
+    setConnectionStatus("connecting");
+
     try {
-      await supabase.from("data_connections").update({ is_active: false }).eq("id", existingConnection.id);
+      // Updates ALL apple_health rows for the current user to is_active: false
+      const { error } = await supabase
+        .from("data_connections")
+        .update({ is_active: false })
+        .eq("user_id", currentUserId)
+        .eq("connection_type", "apple_health");
+
+      if (error) {
+        console.error("🚨 [ERROR: React.HandleDisconnect] Failed to update ledger:", error.message);
+      }
+
+      // Removes any local session flag so a fresh launch cannot resurrect the old state
+      localStorage.removeItem("apple_health_connected");
+
+      // Kills active polling intervals, Supabase realtime channels, and stale syncSessionIdRef values
       onDisconnect?.();
       closeAndReset();
+      console.log("[END: React.HandleDisconnect] Teardown complete.");
     } catch (e) {
-      console.error(e);
+      console.error("🚨 [FATAL: React.HandleDisconnect] Teardown failed:", e);
+      setConnectionStatus("error");
+      setErrorMessage("Failed to disconnect cleanly. Please try again.");
     }
   };
+
+  const toggleDataType = (id: string) => {
+    setSelectedDataTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const categories = Array.from(new Set(ALL_HEALTH_DATA_TYPES.map((d) => d.category)));
 
   return (
     <Dialog
@@ -400,7 +406,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         if (!open) closeAndReset();
       }}
     >
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
             <img
@@ -423,6 +429,28 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           {connectionStatus === "idle" && !existingConnection && !connectedThisSession && (
             <>
               <p className="text-sm text-muted-foreground">Sync your health metrics securely to the IDIA vault.</p>
+
+              <div className="space-y-3">
+                {categories.map((category) => (
+                  <Card key={category} className="border border-border/50">
+                    <CardContent className="p-3 space-y-2">
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{category}</h4>
+                      <div className="grid grid-cols-1 gap-2">
+                        {ALL_HEALTH_DATA_TYPES.filter((d) => d.category === category).map((type) => (
+                          <label key={type.id} className="flex items-center space-x-2 cursor-pointer">
+                            <Checkbox
+                              checked={selectedDataTypes.has(type.id)}
+                              onCheckedChange={() => toggleDataType(type.id)}
+                            />
+                            <span className="text-sm">{type.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
               <div className="flex space-x-2 mt-4">
                 <Button onClick={handleConnect} className="flex-1" disabled={isConnecting}>
                   {isConnecting ? "Connecting..." : "Connect Data"}
