@@ -308,7 +308,6 @@ const EnhancedWalletDashboard: React.FC = () => {
     };
   }, [stableUserId]);
 
-
   // ── Auto-link wallet to Supabase ──
   const linkedPairsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -398,12 +397,8 @@ const EnhancedWalletDashboard: React.FC = () => {
         // Authoritative live balance — sum of ALL signed amounts across the
         // full ledger. Matches Hub's calculation and avoids drift in the
         // cached `balance_after` column.
-        supabase
-          .from("synapse_credit_ledger")
-          .select("amount")
-          .eq("user_id", stableUserId),
+        supabase.from("synapse_credit_ledger").select("amount").eq("user_id", stableUserId),
       ]);
-
 
       const mappedTx = (txResult.data || [])
         .map((tx: any) => {
@@ -456,7 +451,6 @@ const EnhancedWalletDashboard: React.FC = () => {
         0,
       );
       setSynapseCredits(runningTotal);
-
 
       setTransactions(
         [...mappedTx, ...mappedSynapse].sort(
@@ -514,7 +508,7 @@ const EnhancedWalletDashboard: React.FC = () => {
     if (type === "chain_receive") return ArrowDownLeft;
     if (currency === "USDC") return Shield;
     switch (type) {
-      case "DATA_SALE_PAYOUT":
+      case "data_sale_payout":
       case "data_sale":
         return TrendingUp;
       case "payment_sent":
@@ -981,9 +975,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                         <div>
                           <p className="text-sm font-medium">Encrypted Backup</p>
                           <p className="text-[11px] text-muted-foreground">
-                            {seedBackedUp
-                              ? "Recovery phrase backed up"
-                              : "Recovery phrase not backed up yet"}
+                            {seedBackedUp ? "Recovery phrase backed up" : "Recovery phrase not backed up yet"}
                           </p>
                         </div>
                         <Badge
@@ -1164,7 +1156,9 @@ const EnhancedWalletDashboard: React.FC = () => {
         mode={backupModalMode}
         walletAddress={displayAddress}
         getSeedPhrase={handleGetSeedPhrase}
-        onRestore={async (m) => { await handleImportWallet(m); }}
+        onRestore={async (m) => {
+          await handleImportWallet(m);
+        }}
         onBackedUp={() => setSeedBackedUp(true)}
       />
     </div>
