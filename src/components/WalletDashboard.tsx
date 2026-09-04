@@ -12,7 +12,18 @@ type ActivityUnit = "usd" | "cr" | "usdc";
 
 interface ActivityItem {
   id: string;
-  kind: "earn" | "payment_sent" | "payment_received" | "governance" | "royalty" | "credit_purchase" | "synapse_usage" | "synapse_credit" | "usdc_in" | "usdc_out" | "other";
+  kind:
+    | "earn"
+    | "payment_sent"
+    | "payment_received"
+    | "governance"
+    | "royalty"
+    | "credit_purchase"
+    | "synapse_usage"
+    | "synapse_credit"
+    | "usdc_in"
+    | "usdc_out"
+    | "other";
   amount: number; // signed
   unit: ActivityUnit;
   description: string;
@@ -32,17 +43,17 @@ const WalletDashboard = () => {
     let channels: any[] = [];
 
     const setupRealtime = async () => {
-      const { data: { user } } = await getCachedUser();
+      const {
+        data: { user },
+      } = await getCachedUser();
       if (!user) return;
 
       const tables = ["transactions", "fiat_ledger", "synapse_credit_ledger"];
       tables.forEach((table) => {
         const ch = supabase
           .channel(`wallet-activity-${table}`)
-          .on(
-            "postgres_changes",
-            { event: "INSERT", schema: "public", table, filter: `user_id=eq.${user.id}` },
-            () => fetchActivity(),
+          .on("postgres_changes", { event: "INSERT", schema: "public", table, filter: `user_id=eq.${user.id}` }, () =>
+            fetchActivity(),
           )
           .subscribe();
         channels.push(ch);
@@ -65,7 +76,9 @@ const WalletDashboard = () => {
 
   const fetchActivity = async () => {
     try {
-      const { data: { user } } = await getCachedUser();
+      const {
+        data: { user },
+      } = await getCachedUser();
       if (!user) {
         setActivity([]);
         setLoading(false);
@@ -75,11 +88,31 @@ const WalletDashboard = () => {
       const addr = usdcAddress?.toLowerCase() ?? null;
 
       const [txRes, fiatRes, synRes, usdcRes] = await Promise.all([
-        supabase.from("transactions").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25),
-        supabase.from("fiat_ledger").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25),
-        supabase.from("synapse_credit_ledger").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25),
+        supabase
+          .from("transactions")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(25),
+        supabase
+          .from("fiat_ledger")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(25),
+        supabase
+          .from("synapse_credit_ledger")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(25),
         addr
-          ? supabase.from("usdc_payments").select("*").or(`sender_address.eq.${addr},recipient_address.eq.${addr}`).order("created_at", { ascending: false }).limit(25)
+          ? supabase
+              .from("usdc_payments")
+              .select("*")
+              .or(`sender_address.eq.${addr},recipient_address.eq.${addr}`)
+              .order("created_at", { ascending: false })
+              .limit(25)
           : Promise.resolve({ data: [], error: null } as any),
       ]);
 
@@ -106,7 +139,7 @@ const WalletDashboard = () => {
       (fiatRes.data ?? []).forEach((f: any) => {
         const t = f.transaction_type as string;
         const amt = Number(f.amount_usd ?? f.amount) || 0;
-        if (t === "DATA_SALE_PAYOUT") {
+        if (t === "data_sale_payout") {
           items.push({
             id: `f-${f.id}`,
             kind: "royalty",
@@ -221,7 +254,6 @@ const WalletDashboard = () => {
     return `${diffDays} days ago`;
   };
 
-
   if (loading || balanceLoading) {
     // Added balanceLoading check
     return (
@@ -244,12 +276,9 @@ const WalletDashboard = () => {
         <CardContent className="p-7">
           <div className="flex justify-between items-start">
             <div className="space-y-1">
-              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60">
-                Your Balances
-              </p>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60">Your Balances</p>
               <h2 className="text-4xl font-black">
-                ${balance.usdc_balance.toFixed(2)}{" "}
-                <span className="text-sm font-medium text-teal-100/40">USDC</span>
+                ${balance.usdc_balance.toFixed(2)} <span className="text-sm font-medium text-teal-100/40">USDC</span>
               </h2>
             </div>
             <CreditCard className="w-10 h-10 text-orange-400 drop-shadow-lg" />
@@ -319,7 +348,6 @@ const WalletDashboard = () => {
               })}
             </div>
           )}
-
         </CardContent>
       </Card>
 
