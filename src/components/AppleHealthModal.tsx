@@ -380,36 +380,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, [currentUserId, syncHealthDataViaNativeApp, clearAllTimers, selectedDataTypes]);
 
   const handleDisconnect = async () => {
-    if (!currentUserId) return;
-
-    console.log("[BEGIN: React.HandleDisconnect] Forcing complete teardown of Apple Health connection.");
-    setConnectionStatus("connecting"); // Show brief activity during teardown
-
+    if (!currentUserId || !existingConnection) return;
     try {
-      // 1. Force the database row to inactive and clear any trailing session bindings
-      const { error } = await supabase
-        .from("data_connections")
-        .update({ is_active: false })
-        .eq("user_id", currentUserId)
-        .eq("connection_type", "apple_health");
-
-      if (error) {
-        console.error("🚨 [ERROR: React.HandleDisconnect] Failed to update ledger:", error.message);
-      }
-
-      // 2. Clear local storage / session references if any exist
-      localStorage.removeItem("apple_health_connected");
-
-      // 3. Trigger external callback if provided
+      await supabase.from("data_connections").update({ is_active: false }).eq("id", existingConnection.id);
       onDisconnect?.();
-
-      // 4. Fully reset the modal states back to pristine idle
       closeAndReset();
-      console.log("[END: React.HandleDisconnect] Disconnect complete. State reset to idle.");
     } catch (e) {
-      console.error("🚨 [FATAL: React.HandleDisconnect] Exception during teardown:", e);
-      setConnectionStatus("error");
-      setErrorMessage("Failed to disconnect cleanly. Please try again.");
+      console.error(e);
     }
   };
 
