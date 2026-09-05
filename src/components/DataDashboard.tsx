@@ -85,7 +85,13 @@ const DataDashboard = () => {
       const user = authData?.user;
       if (!user) return;
 
-      const connRes = await supabase.from("data_connections").select("*").eq("user_id", user.id);
+      // Only active connections count as connected — the modal seeds an inactive
+      // placeholder row while connecting, which must not render as "Connected".
+      const connRes = await supabase
+        .from("data_connections")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_active", true);
 
       if (connRes.error) {
         throw connRes.error;

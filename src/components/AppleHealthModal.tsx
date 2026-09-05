@@ -295,6 +295,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         if (connectionStatus === "connected" || connectedThisSession) return;
 
         clearAllTimers();
+        setWatching(false);
         setErrorMessage(`Sync Error: ${errorMsg}`);
         setConnectionStatus("error");
         setIsConnecting(false);
