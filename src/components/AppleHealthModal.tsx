@@ -201,6 +201,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   const closeAndReset = useCallback(() => {
     clearAllTimers();
     syncSessionIdRef.current = null;
+    attemptStartRef.current = null;
+    setWatching(false);
     detachNativeCallbacks();
     setIsConnecting(false);
     setConnectionStatus("idle");
@@ -215,6 +217,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     if (!isOpen) {
       clearAllTimers();
       syncSessionIdRef.current = null;
+      attemptStartRef.current = null;
+      setWatching(false);
       detachNativeCallbacks();
       burstTriggeredRef.current = false;
       setIsConnecting(false);
