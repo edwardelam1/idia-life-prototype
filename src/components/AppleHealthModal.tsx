@@ -56,11 +56,13 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [syncCount, setSyncCount] = useState(0);
   const [connectedThisSession, setConnectedThisSession] = useState(false);
+  const [watching, setWatching] = useState(false);
 
   const bridgeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const autoCloseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const syncSessionIdRef = useRef<string | null>(null);
+  const attemptStartRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
   const onCloseRef = useRef(onClose);
   const onCompleteRef = useRef(onComplete);
@@ -89,10 +91,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, []);
 
   // 🚀 THE HYBRID SAFETY NET: Dynamic Realtime + Polling Fallback
+  // Stays alive through the error state: a timeout does NOT mean the sync failed
+  // (the ingest may still be draining), so we keep reconciling until the row
+  // shows active with a sync stamp from THIS attempt.
   useEffect(() => {
-    if (!isConnecting || !currentUserId || !syncSessionIdRef.current) return;
+    if (!watching || !currentUserId || !syncSessionIdRef.current) return;
 
     const sessionId = syncSessionIdRef.current;
+    const attemptStart = attemptStartRef.current;
     console.log(`🎧 Hybrid safety net active for session: ${sessionId}`);
 
     const triggerSuccessClosure = () => {
@@ -103,6 +109,16 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           processed_data: [{ type: "steps", value: "Verified by Ledger" }],
         });
       }
+    };
+
+    const isThisAttempt = (row: { is_active?: boolean; last_sync_at?: string | null } | null | undefined) => {
+      if (!row || row.is_active !== true) return false;
+      // Only a sync stamped after this attempt started counts — an older
+      // background sync must not masquerade as this attempt's success.
+      if (attemptStart && row.last_sync_at) {
+        return new Date(row.last_sync_at).getTime() >= new Date(attemptStart).getTime();
+      }
+      return true;
     };
 
     // 1. Primary: Dynamic Realtime Channel (Avoids Zombie Subscriptions)
@@ -117,8 +133,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           filter: `user_id=eq.${currentUserId}`,
         },
         (payload) => {
-          const newRow = payload.new as { connection_type?: string; is_active?: boolean } | null;
-          if (newRow && newRow.connection_type === "apple_health" && newRow.is_active === true) {
+          const newRow = payload.new as { connection_type?: string; is_active?: boolean; last_sync_at?: string | null } | null;
+          if (newRow && newRow.connection_type === "apple_health" && isThisAttempt(newRow)) {
             console.log("🔥 Realtime Engine confirmed sync! Forcing UI closure.");
             triggerSuccessClosure();
           }
@@ -127,27 +143,36 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       .subscribe();
 
     // 2. Fallback: Ledger Polling (Catches dropped websocket packets)
-    const pollInterval = setInterval(async () => {
+    const pollOnce = async () => {
       if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) return;
 
       const { data } = await supabase
         .from("data_connections")
-        .select("is_active")
+        .select("is_active, last_sync_at")
         .eq("user_id", currentUserId)
         .eq("connection_type", "apple_health")
         .limit(1);
 
-      if (data?.[0]?.is_active === true) {
+      if (isThisAttempt(data?.[0])) {
         console.log("🔥 Ledger Poll confirmed sync! Forcing UI closure.");
         triggerSuccessClosure();
       }
-    }, 3500);
+    };
+    const pollInterval = setInterval(pollOnce, 3500);
+
+    // 3. Foreground re-check: iOS suspends timers while the app is backgrounded
+    // (Face ID sheet, HealthKit prompt), so re-verify the moment we resume.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") pollOnce();
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
+      document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [isConnecting, currentUserId]);
+  }, [watching, currentUserId]);
 
   const clearAllTimers = useCallback(() => {
     if (bridgeTimeoutRef.current) {
@@ -176,6 +201,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   const closeAndReset = useCallback(() => {
     clearAllTimers();
     syncSessionIdRef.current = null;
+    attemptStartRef.current = null;
+    setWatching(false);
     detachNativeCallbacks();
     setIsConnecting(false);
     setConnectionStatus("idle");
@@ -190,6 +217,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     if (!isOpen) {
       clearAllTimers();
       syncSessionIdRef.current = null;
+      attemptStartRef.current = null;
+      setWatching(false);
       detachNativeCallbacks();
       burstTriggeredRef.current = false;
       setIsConnecting(false);
@@ -237,6 +266,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
 
         clearAllTimers();
+        setWatching(false);
 
         try {
           const count = serverResponse?.processed_count || 57;
@@ -265,6 +295,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         if (connectionStatus === "connected" || connectedThisSession) return;
 
         clearAllTimers();
+        setWatching(false);
         setErrorMessage(`Sync Error: ${errorMsg}`);
         setConnectionStatus("error");
         setIsConnecting(false);
@@ -312,6 +343,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
     const sessionId = Math.random().toString(36).substring(7);
     syncSessionIdRef.current = sessionId;
+    attemptStartRef.current = new Date().toISOString();
+    setWatching(true);
 
     try {
       const { data: profile } = await supabase
@@ -376,16 +409,30 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     } catch (error: any) {
       if (syncSessionIdRef.current !== sessionId) return;
       clearAllTimers();
-      setErrorMessage(error.message);
+      setWatching(false);
+      const msg: string = error?.message || "Connection failed.";
+      setErrorMessage(
+        msg.includes("BIOMETRIC_TIMEOUT")
+          ? "Face ID did not complete — the prompt was closed or the device didn't answer. Tap Connect Data to try again."
+          : msg.includes("ACA_PROMPT_REJECTED")
+            ? "The biometric consent was not completed. Face ID is required to connect Apple Health."
+            : msg,
+      );
       setConnectionStatus("error");
       setIsConnecting(false);
     }
   }, [currentUserId, syncHealthDataViaNativeApp, clearAllTimers, selectedDataTypes]);
 
   const handleDisconnect = async () => {
-    if (!currentUserId || !existingConnection) return;
+    if (!currentUserId) return;
     try {
-      await supabase.from("data_connections").update({ is_active: false }).eq("id", existingConnection.id);
+      // Single disconnect path: delete the row (matches the Data tab's flow).
+      // Deactivating instead left a dead row the tab still counted as connected.
+      await supabase
+        .from("data_connections")
+        .delete()
+        .eq("user_id", currentUserId)
+        .eq("connection_type", "apple_health");
       onDisconnect?.();
       closeAndReset();
     } catch (e) {
