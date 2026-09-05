@@ -266,6 +266,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
 
         clearAllTimers();
+        setWatching(false);
 
         try {
           const count = serverResponse?.processed_count || 57;
@@ -341,6 +342,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
     const sessionId = Math.random().toString(36).substring(7);
     syncSessionIdRef.current = sessionId;
+    attemptStartRef.current = new Date().toISOString();
+    setWatching(true);
 
     try {
       const { data: profile } = await supabase
