@@ -62,6 +62,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   const autoCloseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const syncSessionIdRef = useRef<string | null>(null);
+  const attemptStartRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
   const onCloseRef = useRef(onClose);
   const onCompleteRef = useRef(onComplete);
