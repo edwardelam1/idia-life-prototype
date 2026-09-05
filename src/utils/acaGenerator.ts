@@ -23,8 +23,13 @@ export const generateACAHash = async (
       try {
         console.log(`🪪 [BEGIN: performBiologicalBinding] Triggering Secure Enclave via WKWebView bridge`);
 
-        // Await the asynchronous hardware result from the Swift shell
+        // Await the asynchronous hardware result from the Swift shell.
+        // Bounded: if the shell never answers (sheet dismissed, app backgrounded,
+        // shell replying on a different channel) the flow fails with a named
+        // timeout instead of deadlocking the caller forever.
         await new Promise((resolve, reject) => {
+          const previousGlobalCallback = (window as any).onBiologicalCaptureResult;
+
           const handleSuccess = () => {
             console.log(`🪪 [END: performBiologicalBinding] SUCCESS: Biological signature verified by Secure Enclave.`);
             cleanup();
@@ -32,21 +37,34 @@ export const generateACAHash = async (
           };
 
           const handleError = (e: any) => {
-            console.error(
-              `🚨 [FAIL: performBiologicalBinding] ERROR: Native shell rejected biological prompt. Reason: ${e.detail?.error}`,
-            );
+            const reason = e?.detail?.error ?? (typeof e === "string" ? e : e?.detail);
+            console.error(`🚨 [FAIL: performBiologicalBinding] ERROR: Native shell rejected biological prompt. Reason: ${reason}`);
             cleanup();
-            reject(new Error(e.detail?.error || "BIOMETRIC_REJECTED"));
+            reject(new Error(reason || "BIOMETRIC_REJECTED"));
           };
+
+          const timeout = setTimeout(() => {
+            console.error("🚨 [FAIL: performBiologicalBinding] TIMEOUT: Secure Enclave never answered the challenge.");
+            cleanup();
+            reject(new Error("BIOMETRIC_TIMEOUT: Face ID prompt did not complete. Please retry."));
+          }, 60000);
 
           const cleanup = () => {
+            clearTimeout(timeout);
             window.removeEventListener("biological:capture-success", handleSuccess);
             window.removeEventListener("biological:capture-error", handleError);
+            (window as any).onBiologicalCaptureResult = previousGlobalCallback;
           };
 
-          // Attach listeners for the native Swift dispatch events
+          // Channel 1: native dispatch events
           window.addEventListener("biological:capture-success", handleSuccess);
           window.addEventListener("biological:capture-error", handleError);
+
+          // Channel 2: global callback some shells invoke instead of dispatching events
+          (window as any).onBiologicalCaptureResult = (ok: boolean, error?: string) => {
+            if (ok) handleSuccess();
+            else handleError({ detail: { error: error || "BIOMETRIC_REJECTED" } });
+          };
 
           // Trigger the hardware
           (window as any).webkit.messageHandlers.triggerBiologicalCapture.postMessage({});
