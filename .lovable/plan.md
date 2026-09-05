@@ -1,31 +1,42 @@
-# Fix Apple Health Anchoring — React + Database Only
+# Fix the Apple Health connect spinner and the false "Connected" badge
 
-Swift is out of scope and will not be touched.
+## What the records actually show
 
-## What the data proves
+- The Apple Health row on your account is currently marked active with a last sync of **19:21 UTC today**, and 105 health rows landed at 19:21 (plus 35 at 17:07). So the sync function itself works.
+- **No new consent record was written today at all** — the newest Apple Health consent record is from Sep 4, 16:47. Every consent record is written immediately after the Face ID challenge and before anything is sent to the sync function.
 
-- Your device successfully delivered health data earlier today: 128 rows at 12:38 UTC and 16 rows at 13:08 UTC, each under its own consent hash. The native shell therefore posts correctly.
-- Since then, every connect attempt mints a **new consent record** (14:17, 14:39, 14:52, 14:53, 14:56, 14:58, 14:59, 15:06, 15:10, 15:13, 15:23, 15:33, 15:40, 15:43, 16:08) but **no health payload follows** any of them.
-- Your profile has **zero `apple_health` rows in `data_connections`** — so even the modal's realtime/poll safety net has nothing to observe, and it spins forever.
-- The web layer currently tells the device to fetch **an empty set of data types**: the modal keeps a `selectedDataTypes` set with all 16 HealthKit identifiers checked, but the bridge message sends `requestedDataTypes: {}`. Nothing is requested, so nothing is gathered and nothing is posted — which matches "the edge function is never called."
+That combination says the connect attempt stopped *at the Face ID / consent step*, before anything was ever sent to the sync function. The rows at 17:07 and 19:21 came from the background 6-hour refresh, which reuses the older stored consent and quietly re-marks the connection active. That is why the tab reads "Connected" after you navigate away and back, even though your connect attempt failed.
 
-## Fix
+Two separate defects produce what you saw.
 
-### 1. Send the real requested types (React)
-In the Apple Health modal, build the requested-types payload from the user's actual selections instead of an empty object, and send it in the shape the native shell has always consumed: a map keyed by HealthKit identifier with a boolean value, alongside an array of the same identifiers for tolerance. Block the dispatch with a clear message if the user has deselected everything, rather than sending an empty request.
+## Defect 1 — the consent step can hang forever
 
-### 2. Stop minting a throwaway consent record per tap (React + DB)
-Reuse the existing active `apple_health` consent artifact for this platform identity when one is present, and only mint a new one when none exists. This keeps the consent ledger clean and guarantees the hash sent to the device is the same one already anchored in the database.
+The wait for the phone's biometric answer has no time limit and listens for exactly one signal from the shell. If that signal never arrives (sheet dismissed, app backgrounded during the prompt, shell replying on a different channel), the modal spins with nothing to recover it, and the 30-second recovery timer never even starts — it is only armed *after* the biometric completes.
 
-### 3. Make the modal recover on its own (React)
-- Seed the `apple_health` row in `data_connections` (inactive, no sync stamp) at the start of a connect attempt so the realtime subscription and poll fallback have a row to watch; the sync itself flips it active.
-- Give the connect flow a bounded wait with an explicit, readable failure state instead of an endless "Anchoring cryptographic proof" spinner, reporting whether the consent anchor, the device fetch, or the ingest step stalled.
+Fix (app side only, no Swift, no sync function):
 
-### 4. Confirm with hardware only
-No synthetic requests, pings, or fabricated payloads. Verification is one connect attempt from your iPhone, checked against: a new ingest under the reused consent hash, an active `apple_health` connection row with a fresh sync timestamp, and the modal closing on its own.
+- Arm the watchdog the moment "Connect Data" is tapped, in two phases: consent phase, then device-fetch/ingest phase. Each phase fails with a message naming which step stalled instead of an unexplained spinner.
+- Accept the shell's biometric result from either the event channel or a global callback, so a single missed signal cannot deadlock the flow.
+- Always detach the listeners on failure so a retry starts clean.
+- Keep the connection watcher (realtime + poll) running after a timeout and re-check on return to foreground: if the connection turns active with a fresh sync stamp, flip the modal to success rather than leaving it stuck on the error.
 
-## Technical notes
+## Defect 2 — the Data tab calls it "Connected" when it is not
 
-- Files touched: `src/components/AppleHealthModal.tsx` only, plus a data write to seed/repair the `data_connections` row for the affected profile.
-- The edge function stays as-is; its logs show it responds correctly whenever it is actually called.
-- No schema changes and no Swift changes.
+The tab lists a connection as connected if any row exists for it, ignoring whether it is actually active. The modal seeds an inactive placeholder row at the start of a connect attempt, so the tab immediately shows "Connected" even when the attempt fails.
+
+Fix:
+
+- Only treat a connection as connected when it is active.
+- Stop seeding the placeholder row before consent succeeds; write it after the consent anchor exists, so a failed attempt leaves no misleading row.
+- Make disconnect consistent: the modal and the tab currently do different things (one deactivates, one deletes). Both go through the same delete path.
+
+## Technical detail
+
+- `src/utils/acaGenerator.ts` — bound the native biometric promise with a timeout and a second accepted resolution channel; guaranteed listener cleanup.
+- `src/components/AppleHealthModal.tsx` — phase-based watchdog armed at tap; move the `data_connections` seed to after the consent write; keep the realtime/poll safety net alive through the error state and re-check on `visibilitychange`; success reconciliation from an active row with a recent `last_sync_at`.
+- `src/components/DataDashboard.tsx` — filter `data_connections` on `is_active` when building the visible list; single disconnect path.
+- Not touched: `supabase/functions/apple-health-sync/index.ts` and the native shell.
+
+## Verification
+
+Hardware only. After the change, one connect attempt from your iPhone should produce a new consent record with today's timestamp, a fresh sync stamp on the connection, and either a self-closing modal or an error that names the exact step that stalled. A failed attempt should leave the Data tab showing "Not connected".
