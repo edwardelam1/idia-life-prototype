@@ -408,16 +408,30 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     } catch (error: any) {
       if (syncSessionIdRef.current !== sessionId) return;
       clearAllTimers();
-      setErrorMessage(error.message);
+      setWatching(false);
+      const msg: string = error?.message || "Connection failed.";
+      setErrorMessage(
+        msg.includes("BIOMETRIC_TIMEOUT")
+          ? "Face ID did not complete — the prompt was closed or the device didn't answer. Tap Connect Data to try again."
+          : msg.includes("ACA_PROMPT_REJECTED")
+            ? "The biometric consent was not completed. Face ID is required to connect Apple Health."
+            : msg,
+      );
       setConnectionStatus("error");
       setIsConnecting(false);
     }
   }, [currentUserId, syncHealthDataViaNativeApp, clearAllTimers, selectedDataTypes]);
 
   const handleDisconnect = async () => {
-    if (!currentUserId || !existingConnection) return;
+    if (!currentUserId) return;
     try {
-      await supabase.from("data_connections").update({ is_active: false }).eq("id", existingConnection.id);
+      // Single disconnect path: delete the row (matches the Data tab's flow).
+      // Deactivating instead left a dead row the tab still counted as connected.
+      await supabase
+        .from("data_connections")
+        .delete()
+        .eq("user_id", currentUserId)
+        .eq("connection_type", "apple_health");
       onDisconnect?.();
       closeAndReset();
     } catch (e) {
