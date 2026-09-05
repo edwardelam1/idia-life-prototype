@@ -91,10 +91,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, []);
 
   // 🚀 THE HYBRID SAFETY NET: Dynamic Realtime + Polling Fallback
+  // Stays alive through the error state: a timeout does NOT mean the sync failed
+  // (the ingest may still be draining), so we keep reconciling until the row
+  // shows active with a sync stamp from THIS attempt.
   useEffect(() => {
-    if (!isConnecting || !currentUserId || !syncSessionIdRef.current) return;
+    if (!watching || !currentUserId || !syncSessionIdRef.current) return;
 
     const sessionId = syncSessionIdRef.current;
+    const attemptStart = attemptStartRef.current;
     console.log(`🎧 Hybrid safety net active for session: ${sessionId}`);
 
     const triggerSuccessClosure = () => {
@@ -105,6 +109,16 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           processed_data: [{ type: "steps", value: "Verified by Ledger" }],
         });
       }
+    };
+
+    const isThisAttempt = (row: { is_active?: boolean; last_sync_at?: string | null } | null | undefined) => {
+      if (!row || row.is_active !== true) return false;
+      // Only a sync stamped after this attempt started counts — an older
+      // background sync must not masquerade as this attempt's success.
+      if (attemptStart && row.last_sync_at) {
+        return new Date(row.last_sync_at).getTime() >= new Date(attemptStart).getTime();
+      }
+      return true;
     };
 
     // 1. Primary: Dynamic Realtime Channel (Avoids Zombie Subscriptions)
@@ -119,8 +133,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           filter: `user_id=eq.${currentUserId}`,
         },
         (payload) => {
-          const newRow = payload.new as { connection_type?: string; is_active?: boolean } | null;
-          if (newRow && newRow.connection_type === "apple_health" && newRow.is_active === true) {
+          const newRow = payload.new as { connection_type?: string; is_active?: boolean; last_sync_at?: string | null } | null;
+          if (newRow && newRow.connection_type === "apple_health" && isThisAttempt(newRow)) {
             console.log("🔥 Realtime Engine confirmed sync! Forcing UI closure.");
             triggerSuccessClosure();
           }
@@ -129,27 +143,36 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       .subscribe();
 
     // 2. Fallback: Ledger Polling (Catches dropped websocket packets)
-    const pollInterval = setInterval(async () => {
+    const pollOnce = async () => {
       if (!isMountedRef.current || syncSessionIdRef.current !== sessionId) return;
 
       const { data } = await supabase
         .from("data_connections")
-        .select("is_active")
+        .select("is_active, last_sync_at")
         .eq("user_id", currentUserId)
         .eq("connection_type", "apple_health")
         .limit(1);
 
-      if (data?.[0]?.is_active === true) {
+      if (isThisAttempt(data?.[0])) {
         console.log("🔥 Ledger Poll confirmed sync! Forcing UI closure.");
         triggerSuccessClosure();
       }
-    }, 3500);
+    };
+    const pollInterval = setInterval(pollOnce, 3500);
+
+    // 3. Foreground re-check: iOS suspends timers while the app is backgrounded
+    // (Face ID sheet, HealthKit prompt), so re-verify the moment we resume.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") pollOnce();
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
+      document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [isConnecting, currentUserId]);
+  }, [watching, currentUserId]);
 
   const clearAllTimers = useCallback(() => {
     if (bridgeTimeoutRef.current) {
