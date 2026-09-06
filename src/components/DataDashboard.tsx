@@ -414,6 +414,7 @@ const DataDashboard = () => {
                     onClick={() => {
                       if (connection.connection_type === "apple_health") setShowAppleHealthModal(true);
                       else if (connection.connection_type === "health_connect") setShowAndroidHealthModal(true);
+                      else if (connection.connection_type === "ford") setShowFordModal(true);
                     }}
                   >
                     <div className="relative">
@@ -428,6 +429,7 @@ const DataDashboard = () => {
                             className="w-8 h-8 object-contain"
                           />
                         )}
+                        {connection.connection_type === "ford" && <Car className="w-8 h-8 text-blue-600" />}
                       </div>
                       <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-background flex items-center justify-center">
                         <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
