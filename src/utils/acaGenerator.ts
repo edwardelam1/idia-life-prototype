@@ -1,5 +1,10 @@
 import { toast } from "@/hooks/use-toast";
 
+// Monotonic token identifying the only biometric prompt whose result may be honoured.
+let activeBiometricToken = 0;
+
+
+
 /**
  * IDIA Protocol: Localized Native ACA Hardware Generator
  * Mandatory for all Human Touchpoints (Accept, Okay, Link, Transact)
