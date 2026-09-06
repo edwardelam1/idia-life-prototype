@@ -551,7 +551,6 @@ const DataDashboard = () => {
         onDisconnect={async () => {
           await fetchConnections();
           setShowFordModal(false);
-          toast({ title: "Source Disconnected" });
         }}
       />
     </div>
