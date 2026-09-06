@@ -538,6 +538,22 @@ const DataDashboard = () => {
           setShowAndroidHealthModal(false);
         }}
       />
+
+      <FordConnectionModal
+        isOpen={showFordModal}
+        onClose={() => setShowFordModal(false)}
+        onComplete={async () => {
+          await fetchConnections();
+          await fetchAcaRecords();
+          setShowFordModal(false);
+        }}
+        existingConnection={getConnectionStatus("ford")}
+        onDisconnect={async () => {
+          await fetchConnections();
+          setShowFordModal(false);
+          toast({ title: "Source Disconnected" });
+        }}
+      />
     </div>
   );
 };
