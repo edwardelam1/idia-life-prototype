@@ -136,7 +136,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
     autoCloseTimeoutRef.current = setTimeout(() => {
       closeAndReset();
-    }, 3000);
+    }, 2000);
+
   }, [clearAllTimers, closeAndReset]);
 
   // 🚀 RECOVERY SAFETY NET: Stays active even during error states to recover on foreground
@@ -218,18 +219,29 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setSyncCount(serverResponse?.processed_count || 1);
 
         try {
-          // 🚨 CRITICAL FIX: The UI must actively tell the database the connection is now alive.
-          // In previous iterations, this was missing, causing the UI to wait infinitely for a flag it was supposed to set.
-          await supabase.from("data_connections").upsert(
-            {
+          // The UI must actively mark the connection alive. Strict UPDATE-then-INSERT (no upsert).
+          const { data: existingRow } = await supabase
+            .from("data_connections")
+            .select("id")
+            .eq("user_id", currentUserId)
+            .eq("connection_type", "apple_health")
+            .limit(1);
+
+          if (existingRow && existingRow.length > 0) {
+            await supabase
+              .from("data_connections")
+              .update({ is_active: true, last_sync_at: new Date().toISOString() })
+              .eq("id", existingRow[0].id);
+          } else {
+            await supabase.from("data_connections").insert({
               user_id: currentUserId,
               connection_type: "apple_health",
               connection_name: "Apple Health",
               is_active: true,
               last_sync_at: new Date().toISOString(),
-            },
-            { onConflict: "user_id,connection_type" },
-          );
+            });
+          }
+
 
           handleLedgerVerification();
         } catch (err) {
