@@ -152,13 +152,12 @@ const FordConnectionModal = ({
       });
 
       if (!popup || popup.closed) {
+        // Native shell or blocked popup: navigate in place — no blocking confirm() dialog.
         setIsConnecting(false);
-        const useDirectLink = confirm("Your browser blocked the popup. Open Ford login in this window instead?");
-        if (useDirectLink) {
-          window.location.href = urlData.oauthUrl;
-        }
+        window.location.href = urlData.oauthUrl;
         return;
       }
+
 
       // 5. Safely redirect the active popup to the Ford URL
       popup.location.href = urlData.oauthUrl;
