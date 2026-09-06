@@ -290,15 +290,10 @@ const FordConnectionModal = ({
       }, 300000); // 5 minutes given for user to log into Ford
 
       // 🚨 FIX: Force Ford login prompt and guarantee native app callback routing
-      const finalUrl = new URL(urlData.oauthUrl);
-      finalUrl.searchParams.set("prompt", "consent"); // Force Ford credentials prompt to bypass cached cookies
-      finalUrl.searchParams.set("redirect_to", "idialife://auth-callback"); // Tell Hub/Broker to return to the app
-      finalUrl.searchParams.set("fordconnect", "true"); // Guarantee Swift intercepts this exact URL
-
-      // 5. Navigate in place. Swift will intercept this URL and pop the ASWebAuthenticationSession overlay.
-      // Add a slight delay to allow Face ID modal to fully dismiss before ASWebAuthenticationSession slides up.
+      // Native shell or blocked popup: navigate in place
+      // Add a slight delay to allow Face ID modal to fully dismiss before ASWebAuthenticationSession slides up
       setTimeout(() => {
-        window.location.href = finalUrl.toString();
+        window.location.href = urlData.oauthUrl;
       }, 800);
     } catch (error: any) {
       console.error("Error connecting Ford:", error);
