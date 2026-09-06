@@ -149,14 +149,29 @@ const DataSourceModal = ({ source, isOpen, onClose, onComplete }: DataSourceModa
         return;
       }
 
-      // 4. Create data connection record
-      await supabase.from("data_connections").upsert({
-        user_id: userId,
-        connection_type: sourceId,
-        connection_name: source.name,
-        is_active: true,
-        last_sync_at: new Date().toISOString(),
-      });
+      // 4. Create data connection record (UPDATE-then-INSERT, never upsert)
+      const { data: existingConn } = await supabase
+        .from("data_connections")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("connection_type", sourceId)
+        .limit(1);
+
+      if (existingConn && existingConn.length > 0) {
+        await supabase
+          .from("data_connections")
+          .update({ connection_name: source.name, is_active: true, last_sync_at: new Date().toISOString() })
+          .eq("id", existingConn[0].id);
+      } else {
+        await supabase.from("data_connections").insert({
+          user_id: userId,
+          connection_type: sourceId,
+          connection_name: source.name,
+          is_active: true,
+          last_sync_at: new Date().toISOString(),
+        });
+      }
+
 
       // DISCUSSION: DISSEMINATE JOINING FEE (The fix to use $.50 fiat bump)
       await supabase.functions.invoke("credit-user-wallet", {
