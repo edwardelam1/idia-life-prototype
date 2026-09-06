@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { getCachedUser } from "@/lib/authUser";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -29,15 +29,126 @@ const FordConnectionModal = ({
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { toast } = useToast();
 
+  const autoCloseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const syncSessionIdRef = useRef<string | null>(null);
+  const isMountedRef = useRef(true);
+  const onCloseRef = useRef(onClose);
+  const onCompleteRef = useRef(onComplete);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    onCompleteRef.current = onComplete;
+  }, [onClose, onComplete]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     const getUser = async () => {
       const {
         data: { user },
       } = await getCachedUser();
-      if (user) setCurrentUserId(user.id);
+      if (user && isMountedRef.current) setCurrentUserId(user.id);
     };
     getUser();
   }, []);
+
+  const clearAllTimers = useCallback(() => {
+    if (autoCloseTimeoutRef.current) clearTimeout(autoCloseTimeoutRef.current);
+    if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
+    autoCloseTimeoutRef.current = null;
+    connectionTimeoutRef.current = null;
+  }, []);
+
+  const closeAndReset = useCallback(() => {
+    clearAllTimers();
+    syncSessionIdRef.current = null;
+    setIsConnecting(false);
+    setConnected(false);
+    onCloseRef.current?.();
+  }, [clearAllTimers]);
+
+  useEffect(() => {
+    if (!isOpen) closeAndReset();
+  }, [isOpen, closeAndReset]);
+
+  useEffect(() => {
+    return () => clearAllTimers();
+  }, [clearAllTimers]);
+
+  const handleLedgerVerification = useCallback(() => {
+    console.log(`[ACTION: React.Verification] Ford OAuth connection verified by ledger.`);
+    clearAllTimers();
+    setConnected(true); // Triggers the success UI state
+    setIsConnecting(false);
+    onCompleteRef.current?.();
+
+    // Auto-close 2 seconds after the webhook succeeds
+    autoCloseTimeoutRef.current = setTimeout(() => {
+      closeAndReset();
+    }, 2000);
+  }, [clearAllTimers, closeAndReset]);
+
+  // 🚀 RECOVERY SAFETY NET: Stays active while the user is in the native OAuth overlay
+  useEffect(() => {
+    if (!currentUserId || !syncSessionIdRef.current) return;
+    const sessionId = syncSessionIdRef.current;
+
+    console.log(`[BEGIN: React.RecoveryNet] Watchers armed for Ford session: ${sessionId}`);
+
+    const verifyDatabaseRow = async () => {
+      const { data } = await supabase
+        .from("data_connections")
+        .select("is_active")
+        .eq("user_id", currentUserId)
+        .eq("connection_type", "ford")
+        .limit(1);
+
+      if (data?.[0]?.is_active === true) {
+        console.log("🔥 [ACTION: React.RecoveryNet] Ledger Poll confirmed Ford sync!");
+        handleLedgerVerification();
+      }
+    };
+
+    // 1. Realtime Channel listens for the webhook update
+    const channel = supabase
+      .channel(`ford_sync_watch_${sessionId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "data_connections", filter: `user_id=eq.${currentUserId}` },
+        (payload) => {
+          const newRow = payload.new as { connection_type?: string; is_active?: boolean } | null;
+          if (newRow && newRow.connection_type === "ford" && newRow.is_active === true) {
+            console.log("🔥 [ACTION: React.RecoveryNet] Realtime Engine confirmed Ford sync!");
+            handleLedgerVerification();
+          }
+        },
+      )
+      .subscribe();
+
+    // 2. Ledger Polling (Failsafe)
+    const pollInterval = setInterval(() => {
+      if (isMountedRef.current && syncSessionIdRef.current === sessionId) verifyDatabaseRow();
+    }, 3500);
+
+    // 3. Visibility Recovery
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") verifyDatabaseRow();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      console.log(`[END: React.RecoveryNet] Teardown Ford watchers.`);
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [currentUserId, handleLedgerVerification]);
 
   const handleDisconnect = async () => {
     if (!currentUserId || !existingConnection) return;
@@ -51,9 +162,10 @@ const FordConnectionModal = ({
         "VEHICLE_TELEMETRY",
       ]);
 
+      // STRICT DELETE: Replaced upsert/update with strict deletion to match the dashboard ledger rules
       const { error } = await supabase
         .from("data_connections")
-        .update({ is_active: false })
+        .delete()
         .eq("id", existingConnection.id)
         .eq("user_id", currentUserId);
 
@@ -69,7 +181,7 @@ const FordConnectionModal = ({
 
         eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "disconnected", success: true });
         onDisconnect?.();
-        onClose();
+        closeAndReset();
         toast({ title: "Disconnected", description: "FordConnect telemetry has been revoked and recorded." });
       }
     } catch (error: any) {
@@ -84,7 +196,7 @@ const FordConnectionModal = ({
     }
   };
 
-  const handleConnect = async () => {
+  const handleConnect = useCallback(async () => {
     if (!currentUserId) {
       toast({ title: "Error", description: "Please log in to connect your Ford account.", variant: "destructive" });
       return;
@@ -93,46 +205,32 @@ const FordConnectionModal = ({
     eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "connect_initiated", success: false });
     setIsConnecting(true);
 
-    // Inside the iOS shell a detached window never reports back — stay in place.
-    const inNativeShell = !!(window as any).webkit?.messageHandlers;
+    const sessionId = Math.random().toString(36).substring(7);
+    syncSessionIdRef.current = sessionId;
 
-    // 1. Open popup synchronously (desktop browsers only) to bypass popup blocker constraints
-    const popup = inNativeShell
-      ? null
-      : window.open("about:blank", "ford-oauth", "width=600,height=700,scrollbars=yes,resizable=yes");
-    if (popup) {
-      popup.document.write(`
-        <html>
-          <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;background:#f8fafc;color:#1e293b;text-align:center;padding:2rem;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:1rem;"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            <h2 style="margin:0 0 0.5rem 0;">Awaiting Biometrics...</h2>
-            <p style="color:#64748b;margin:0;">Please confirm via Face ID / Touch ID on your device.</p>
-          </body>
-        </html>
-      `);
-    }
-
+    // WATCHDOG: PHASE 1 (Consent)
+    connectionTimeoutRef.current = setTimeout(() => {
+      if (syncSessionIdRef.current === sessionId && isMountedRef.current) {
+        toast({
+          title: "Timeout",
+          description: "Connection timed out at the biometric consent step. Please retry.",
+          variant: "destructive",
+        });
+        setIsConnecting(false);
+        clearAllTimers();
+      }
+    }, 45000);
 
     try {
-      // 2. Trigger Biometric Hardware (Face ID / Fingerprint) to generate ACA Hash
+      // 1. Trigger Biometric Hardware (Face ID / Fingerprint) to generate fresh ACA Hash
+      console.log(`[INFO: React.HandleConnect] Requesting Face ID for fresh ACA.`);
       const { hash, payload } = await generateACAHash(currentUserId, "ford_connection_auth", [
         "DATA_CONNECTION",
         "VEHICLE_TELEMETRY",
         "OAUTH_AUTHORIZATION",
       ]);
 
-      if (popup) {
-        popup.document.write(`
-          <html>
-            <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;background:#f8fafc;color:#1e293b;text-align:center;padding:2rem;">
-              <h2 style="margin:0 0 0.5rem 0;">Identity Verified</h2>
-              <p style="color:#10b981;margin:0;">Loading Ford Secure Login...</p>
-            </body>
-          </html>
-        `);
-      }
-
-      // 3. Fetch specific OAuth URL from Edge Function
+      // 2. Fetch specific OAuth URL from Edge Function
       const { data: urlData, error: urlError } = await supabase.functions.invoke("ford-auth-url", {
         body: { userId: currentUserId },
       });
@@ -142,7 +240,7 @@ const FordConnectionModal = ({
 
       eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "oauth_url_retrieved", success: true });
 
-      // 4. Anchor the ACA Hash to the Immutable Ledger
+      // 3. Anchor the ACA Hash to the Immutable Ledger
       await recordACA({
         userId: currentUserId,
         sourceId: "ford",
@@ -151,50 +249,52 @@ const FordConnectionModal = ({
         payload: payload,
       });
 
-      if (!popup || popup.closed) {
-        // Native shell or blocked popup: navigate in place — no blocking confirm() dialog.
-        setIsConnecting(false);
-        window.location.href = urlData.oauthUrl;
-        return;
+      // 4. Seed the connection row as inactive (Strict UPDATE-or-INSERT, No Upserts)
+      const { data: seedRow } = await supabase
+        .from("data_connections")
+        .select("id")
+        .eq("user_id", currentUserId)
+        .eq("connection_type", "ford")
+        .limit(1);
+
+      if (!seedRow || seedRow.length === 0) {
+        const { error: seedError } = await supabase.from("data_connections").insert({
+          user_id: currentUserId,
+          connection_type: "ford",
+          connection_name: "FordConnect",
+          is_active: false,
+        });
+        if (seedError) console.warn("🚨 [WARNING: React.HandleConnect] Seed insert failed:", seedError);
+      } else {
+        const { error: seedError } = await supabase
+          .from("data_connections")
+          .update({ is_active: false, connection_name: "FordConnect" })
+          .eq("id", seedRow[0].id);
+        if (seedError) console.warn("🚨 [WARNING: React.HandleConnect] Seed update failed:", seedError);
       }
 
+      if (syncSessionIdRef.current !== sessionId) return;
 
-      // 5. Safely redirect the active popup to the Ford URL
-      popup.location.href = urlData.oauthUrl;
-
-      let checkClosed: ReturnType<typeof setInterval>;
-      let timeoutId: ReturnType<typeof setTimeout>;
-
-      const cleanup = () => {
-        if (checkClosed) clearInterval(checkClosed);
-        if (timeoutId) clearTimeout(timeoutId);
-      };
-
-      // Polling block to catch when the user finishes OAuth and the window closes
-      checkClosed = setInterval(() => {
-        try {
-          if (popup.closed) {
-            cleanup();
-            setIsConnecting(false);
-            // Wait a moment for Supabase to digest the redirect tokens
-            setTimeout(() => checkConnection(), 1500);
-          }
-        } catch {
-          /* cross-origin expected */
-        }
-      }, 1000);
-
-      timeoutId = setTimeout(() => {
-        if (!popup.closed) {
-          cleanup();
-          popup.close();
+      // WATCHDOG: PHASE 2 (OAuth Flow & Webhook Resolution)
+      clearAllTimers();
+      connectionTimeoutRef.current = setTimeout(() => {
+        if (syncSessionIdRef.current === sessionId && isMountedRef.current) {
+          toast({
+            title: "Timeout",
+            description: "Connection timed out during the Ford login process. Please retry.",
+            variant: "destructive",
+          });
           setIsConnecting(false);
-          toast({ title: "Connection Timeout", description: "Please try again.", variant: "destructive" });
+          clearAllTimers();
         }
-      }, 300000); // 5 minute max timeout
+      }, 300000); // 5 minutes given for user to log into Ford
+
+      // 5. Navigate in place. Swift will intercept this URL and pop the ASWebAuthenticationSession overlay.
+      window.location.href = urlData.oauthUrl;
     } catch (error: any) {
       console.error("Error connecting Ford:", error);
-      if (popup && !popup.closed) popup.close(); // Clean up popup if pipeline snaps
+      if (syncSessionIdRef.current !== sessionId) return;
+      clearAllTimers();
       setIsConnecting(false);
 
       if (error.message?.includes("cancelled") || error.message?.includes("aborted")) {
@@ -207,32 +307,7 @@ const FordConnectionModal = ({
         });
       }
     }
-  };
-
-  const checkConnection = async () => {
-    if (!currentUserId) return;
-    try {
-      const { data, error } = await supabase
-        .from("data_connections")
-        .select("*")
-        .eq("user_id", currentUserId)
-        .eq("connection_type", "ford")
-        .eq("is_active", true)
-        .limit(1);
-
-      if (data && data.length > 0 && !error) {
-
-        setConnected(true);
-        toast({ title: "Connected!", description: "Your Ford vehicle has been connected successfully." });
-        setTimeout(() => {
-          onComplete();
-          setConnected(false);
-        }, 2000);
-      }
-    } catch (error) {
-      console.error("Error checking Ford connection:", error);
-    }
-  };
+  }, [currentUserId, clearAllTimers]);
 
   const dataCategories = [
     { icon: MapPin, label: "Location & Movement", desc: "GPS, speed, heading" },
@@ -244,7 +319,7 @@ const FordConnectionModal = ({
 
   if (connected) {
     return (
-      <Dialog open={isOpen} onOpenChange={onClose}>
+      <Dialog open={isOpen} onOpenChange={closeAndReset}>
         <DialogContent className="max-w-md">
           <div className="text-center py-8">
             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -260,7 +335,7 @@ const FordConnectionModal = ({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={closeAndReset}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-3">
@@ -293,7 +368,7 @@ const FordConnectionModal = ({
               </div>
 
               <div className="flex space-x-3">
-                <Button variant="outline" className="flex-1" onClick={onClose}>
+                <Button variant="outline" className="flex-1" onClick={closeAndReset}>
                   Close
                 </Button>
                 <Button variant="destructive" className="flex-1" onClick={handleDisconnect}>
@@ -340,7 +415,7 @@ const FordConnectionModal = ({
               </div>
 
               <div className="flex space-x-3">
-                <Button variant="outline" className="flex-1" onClick={onClose} disabled={isConnecting}>
+                <Button variant="outline" className="flex-1" onClick={closeAndReset} disabled={isConnecting}>
                   Cancel
                 </Button>
                 <Button
