@@ -42,8 +42,11 @@ const DataSourceModal = ({ source, isOpen, onClose, onComplete }: DataSourceModa
       const platformGuid = profile?.platform_guid || userId;
 
       // 1. Mandatory ACA Hash Generation (IDIA Liability Shield)
-      const sourceId = source.name.toLowerCase().replace(/\s+/g, "_");
+      const rawSourceId = source.name.toLowerCase().replace(/\s+/g, "_");
+      // Ford must anchor under the canonical "ford" id the OAuth callback writes.
+      const sourceId = rawSourceId.includes("ford") ? "ford" : rawSourceId;
       const { hash, payload } = await generateACAHash(platformGuid, sourceId, ["KYC_VAULT", "WALLET_PROVISIONING"]);
+
 
       // 2. Log Mandatory Transaction Record
       const { error: acaError } = await supabase.from("user_aca_records").insert({
