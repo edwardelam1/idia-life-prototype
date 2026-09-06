@@ -93,19 +93,25 @@ const FordConnectionModal = ({
     eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "connect_initiated", success: false });
     setIsConnecting(true);
 
-    // 1. Open popup synchronously to bypass popup blocker constraints
-    const popup = window.open("about:blank", "ford-oauth", "width=600,height=700,scrollbars=yes,resizable=yes");
+    // Inside the iOS shell a detached window never reports back — stay in place.
+    const inNativeShell = !!(window as any).webkit?.messageHandlers;
+
+    // 1. Open popup synchronously (desktop browsers only) to bypass popup blocker constraints
+    const popup = inNativeShell
+      ? null
+      : window.open("about:blank", "ford-oauth", "width=600,height=700,scrollbars=yes,resizable=yes");
     if (popup) {
       popup.document.write(`
         <html>
           <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;background:#f8fafc;color:#1e293b;text-align:center;padding:2rem;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:1rem;animation:pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:1rem;"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
             <h2 style="margin:0 0 0.5rem 0;">Awaiting Biometrics...</h2>
             <p style="color:#64748b;margin:0;">Please confirm via Face ID / Touch ID on your device.</p>
           </body>
         </html>
       `);
     }
+
 
     try {
       // 2. Trigger Biometric Hardware (Face ID / Fingerprint) to generate ACA Hash
