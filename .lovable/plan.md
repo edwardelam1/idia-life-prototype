@@ -1,63 +1,37 @@
-# Fix the Ford connect path + restore fresh biometrics on Apple Health
+# Expose FordConnect Modal + Restyle Available Source Cards
 
-## What I found (verified in the code)
+## Goal
+1. Surface the FordConnect connection flow from the Data page (it currently exists but is unreachable).
+2. Make the "Available Data Sources" cards (Health, Ford) visually match the "Active Streams" look: circular icon, thin padding, label underneath.
 
-**Ford is not going through the Ford screen at all.**
-`FordConnectionModal.tsx` exists but is never opened anywhere in the app. Every Ford
-attempt actually runs through the generic data-source screen (`DataSourceModal.tsx`),
-which does something different:
+## What changes
 
-- It asks for Face ID, writes a consent record, then opens the Ford login in a **new
-  window** (`window.open(..., "_blank")`). Inside the iOS app shell that new window is a
-  detached web view that never reports back.
-- It then immediately shows "connected" and closes itself after 2 seconds — but it
-  `return`s **before** writing the Ford row into your connections table. So Ford appears
-  to connect and nothing is ever recorded.
-- Its consent record uses a plain insert (no conflict handling) with a source name derived
-  from the card title, so it can differ from the `ford` name the Ford callback function
-  writes.
+### 1. DataDashboard.tsx — wire in Ford (only file with logic changes)
+- Import `FordConnectionModal` and add `showFordModal` state.
+- **Available Data Sources section:**
+  - Show a **FordConnect** card whenever there is no active `ford` connection (`hasFord` check, same pattern as `hasHealth`). Clicking it opens `FordConnectionModal`.
+  - Show the Health card as today when no health connection exists.
+  - The "All available sources connected" message only appears when **both** health and ford are connected.
+- **Active Streams section:**
+  - Add `"ford"` to the `visibleConnections` filter so a connected Ford renders as an active stream (currently the filter would hide it).
+  - Clicking the Ford active-stream circle opens `FordConnectionModal` (manage/revoke view), same as health does today.
+- Render `<FordConnectionModal>` at the bottom next to the two health modals, with `onComplete`/`onDisconnect` refetching connections, `existingConnection={getConnectionStatus("ford")}`.
 
-**Why this poisoned Apple Health.** The shared biometric helper (`acaGenerator.ts`)
-temporarily replaces the global handler the iOS shell calls with the Face ID result, and
-restores the previous one only when its own prompt resolves (up to 60 seconds). An
-abandoned Ford attempt leaves that swap in place, so the next Face ID result — the Apple
-Health one — is delivered to the stale Ford handler and dropped. That is the spinner.
+### 2. Cosmetic restyle of Available Data Sources cards (Health + Ford)
+- Replace the current square card (`p-4 bg-card rounded-2xl border`) with the Active Streams look:
+  - `flex flex-col items-center` column, no card box.
+  - Circular icon well: `w-16 h-16 rounded-full bg-background border border-border shadow-sm` with a subtle `group-hover:scale-105` transition (thin ring, matching the active stream circles but without the emerald "live" border/pulse dot).
+  - Label underneath: `text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground`, plus the small category caption (e.g. "Biometrics" / "Vehicle Telemetry") below it.
+- Grid becomes `flex flex-wrap gap-6` to mirror Active Streams spacing.
 
-## What I will change
+### Ford card icon
+- Blue `Car` (lucide) icon inside the circle, consistent with the FordConnectionModal branding.
 
-### 1. Ford path
-- Route Ford through the real `FordConnectionModal` from the data screen so there is one
-  Ford flow, and remove the Ford branch from the generic data-source screen.
-- Inside the Ford modal, detect the iOS shell: instead of `window.open` + `confirm()`
-  (both of which stall a web view), navigate to the Ford login in the same view and return
-  through the existing callback function; keep the popup flow for desktop browsers.
-- Write the Ford connections row (`connection_type: "ford"`, inactive) before handing off,
-  and let the OAuth callback flip it active; keep polling/refresh on return to foreground.
-- Consent record becomes an upsert keyed on the consent hash with the fixed source name
-  `ford`, matching what the callback function already writes.
+## Explicitly out of scope
+- No changes to `AppleHealthModal.tsx` — it stays byte-for-byte as-is.
+- No changes to `FordConnectionModal.tsx` logic (biometrics, OAuth handoff, recovery net all remain as built).
+- No edge function or database changes.
 
-### 2. Biometric handler isolation (fixes the cross-contamination)
-- Give each biometric request its own token, ignore results whose token does not match,
-  and always restore the previous global handler even when the prompt is abandoned or the
-  app is backgrounded, so a stale Ford prompt can never swallow an Apple Health result.
-
-### 3. Apple Health screen — your pasted version
-Applied exactly as specified:
-- **Fresh consent every time.** The "reuse an existing anchor" lookup is deleted; every
-  connect attempt calls the biometric generator, so Face ID prompts every time.
-- **Auto-close on success.** On the native success callback the connections row is flipped
-  active, the "Data Anchored!" state flashes, and the screen closes itself after 2 seconds.
-- **120-second ingest window.** Phase 1 (consent) stays at 45s; phase 2 (device fetch +
-  ingest) moves to 120s so large historical payloads can land.
-- Keeps the requested-metrics map plus array, the realtime + 3.5s polling safety net, the
-  foreground reconciliation, and the disconnect teardown.
-
-No Swift and no edge-function changes. Verification is your iPhone only — no synthetic
-calls from my side.
-
-## Files touched
-- `src/components/DataSourceModal.tsx` (remove Ford branch)
-- `src/components/DataDashboard.tsx` (open the Ford modal)
-- `src/components/FordConnectionModal.tsx` (shell-safe flow, row seeding, ACA upsert)
-- `src/utils/acaGenerator.ts` (per-request token, guaranteed handler restore)
-- `src/components/AppleHealthModal.tsx` (fresh ACA, 2s auto-close, 120s watchdog)
+## Verification
+- Build passes (`tsgo` clean).
+- Visual check in preview: Available Sources shows circular Health + Ford cards with thin padding; clicking Ford opens the FordConnect modal; connected Ford appears under Active Streams.
