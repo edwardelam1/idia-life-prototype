@@ -350,19 +350,19 @@ const DataDashboard = () => {
         <TabsContent value="connections" className="space-y-4">
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">Available Data Sources</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="flex flex-wrap justify-center gap-6">
               {/* Health App Connection */}
               {!hasHealth && (
                 <div
-                  className="relative cursor-pointer group flex flex-col items-center p-4 bg-card rounded-2xl border border-border hover:shadow-md transition-all"
+                  className="flex flex-col items-center cursor-pointer group"
                   onClick={() => {
                     if (isAndroid()) setShowAndroidHealthModal(true);
                     else setShowAppleHealthModal(true);
                   }}
                 >
-                  <div className="w-14 h-14 rounded-full overflow-hidden bg-muted/30 flex items-center justify-center mb-2">
+                  <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border border-border transition-all group-hover:scale-105 flex items-center justify-center">
                     {isAndroid() ? (
-                      <Activity className="w-7 h-7 text-green-600" />
+                      <Activity className="w-8 h-8 text-green-600" />
                     ) : (
                       <img
                         src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
@@ -371,13 +371,31 @@ const DataDashboard = () => {
                       />
                     )}
                   </div>
-                  <p className="text-xs font-bold text-center">{isAndroid() ? "Health Connect" : "Apple Health"}</p>
-                  <p className="text-[9px] text-muted-foreground mt-1">Biometrics</p>
+                  <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground">
+                    {isAndroid() ? "Health Connect" : "Apple Health"}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground/70 mt-0.5">Biometrics</p>
                 </div>
               )}
 
-              {hasHealth && (
-                <div className="col-span-full text-center py-6 text-muted-foreground">
+              {/* FordConnect Connection */}
+              {!hasFord && (
+                <div
+                  className="flex flex-col items-center cursor-pointer group"
+                  onClick={() => setShowFordModal(true)}
+                >
+                  <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border border-border transition-all group-hover:scale-105 flex items-center justify-center">
+                    <Car className="w-8 h-8 text-blue-600" />
+                  </div>
+                  <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground">
+                    FordConnect
+                  </p>
+                  <p className="text-[9px] text-muted-foreground/70 mt-0.5">Vehicle Telemetry</p>
+                </div>
+              )}
+
+              {hasHealth && hasFord && (
+                <div className="w-full text-center py-6 text-muted-foreground">
                   <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50 text-teal-600" />
                   <p className="text-sm">All available sources connected</p>
                 </div>
