@@ -10,3 +10,7 @@
 - [x] DataDashboard: connected requires is_active=true; modal disconnect now deletes row (single path)
 - [x] Hide Life & Shop tabs + spotlight tour until 2026-12-31 (release.ts date + WelcomeSequence gate; Pro stays visible)
 - [ ] Verify via hardware-only iPhone connect (no synthetic requests) — needs your device attempt
+- [x] Apple Health: fresh ACA every attempt (Face ID always), 2s auto-close on success, 120s ingest watchdog
+- [x] Biometric prompt isolation in acaGenerator (per-request token; stale Ford prompt can no longer swallow a Face ID result)
+- [x] Ford path: canonical "ford" source id, pending row seeded, native shell navigates in place (no detached window / confirm())
+- [x] Protocol rule: no upserts anywhere — explicit UPDATE-then-INSERT only (modal, data source screen, ford-oauth-callback)

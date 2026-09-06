@@ -1,5 +1,10 @@
 import { toast } from "@/hooks/use-toast";
 
+// Monotonic token identifying the only biometric prompt whose result may be honoured.
+let activeBiometricToken = 0;
+
+
+
 /**
  * IDIA Protocol: Localized Native ACA Hardware Generator
  * Mandatory for all Human Touchpoints (Accept, Okay, Link, Transact)
@@ -28,15 +33,23 @@ export const generateACAHash = async (
         // shell replying on a different channel) the flow fails with a named
         // timeout instead of deadlocking the caller forever.
         await new Promise((resolve, reject) => {
+          // Each request owns a token. A stale/abandoned prompt (e.g. a cancelled Ford
+          // attempt) can never swallow or clobber the result of the current one.
+          const token = ++activeBiometricToken;
           const previousGlobalCallback = (window as any).onBiologicalCaptureResult;
+          let ownCallback: any = null;
+
+          const isStale = () => token !== activeBiometricToken;
 
           const handleSuccess = () => {
+            if (isStale()) return;
             console.log(`🪪 [END: performBiologicalBinding] SUCCESS: Biological signature verified by Secure Enclave.`);
             cleanup();
             resolve(true);
           };
 
           const handleError = (e: any) => {
+            if (isStale()) return;
             const reason = e?.detail?.error ?? (typeof e === "string" ? e : e?.detail);
             console.error(`🚨 [FAIL: performBiologicalBinding] ERROR: Native shell rejected biological prompt. Reason: ${reason}`);
             cleanup();
@@ -46,14 +59,17 @@ export const generateACAHash = async (
           const timeout = setTimeout(() => {
             console.error("🚨 [FAIL: performBiologicalBinding] TIMEOUT: Secure Enclave never answered the challenge.");
             cleanup();
-            reject(new Error("BIOMETRIC_TIMEOUT: Face ID prompt did not complete. Please retry."));
+            if (!isStale()) reject(new Error("BIOMETRIC_TIMEOUT: Face ID prompt did not complete. Please retry."));
           }, 60000);
 
           const cleanup = () => {
             clearTimeout(timeout);
             window.removeEventListener("biological:capture-success", handleSuccess);
             window.removeEventListener("biological:capture-error", handleError);
-            (window as any).onBiologicalCaptureResult = previousGlobalCallback;
+            // Only restore if we still own the global slot — never stomp a newer prompt.
+            if ((window as any).onBiologicalCaptureResult === ownCallback) {
+              (window as any).onBiologicalCaptureResult = previousGlobalCallback;
+            }
           };
 
           // Channel 1: native dispatch events
@@ -61,14 +77,16 @@ export const generateACAHash = async (
           window.addEventListener("biological:capture-error", handleError);
 
           // Channel 2: global callback some shells invoke instead of dispatching events
-          (window as any).onBiologicalCaptureResult = (ok: boolean, error?: string) => {
+          ownCallback = (ok: boolean, error?: string) => {
             if (ok) handleSuccess();
             else handleError({ detail: { error: error || "BIOMETRIC_REJECTED" } });
           };
+          (window as any).onBiologicalCaptureResult = ownCallback;
 
           // Trigger the hardware
           (window as any).webkit.messageHandlers.triggerBiologicalCapture.postMessage({});
         });
+
 
         // Generate a secure local UUID to replace the deprecated Capacitor Device.getId()
         const secureLocalId = crypto.randomUUID();

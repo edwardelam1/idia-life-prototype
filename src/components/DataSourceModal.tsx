@@ -42,8 +42,11 @@ const DataSourceModal = ({ source, isOpen, onClose, onComplete }: DataSourceModa
       const platformGuid = profile?.platform_guid || userId;
 
       // 1. Mandatory ACA Hash Generation (IDIA Liability Shield)
-      const sourceId = source.name.toLowerCase().replace(/\s+/g, "_");
+      const rawSourceId = source.name.toLowerCase().replace(/\s+/g, "_");
+      // Ford must anchor under the canonical "ford" id the OAuth callback writes.
+      const sourceId = rawSourceId.includes("ford") ? "ford" : rawSourceId;
       const { hash, payload } = await generateACAHash(platformGuid, sourceId, ["KYC_VAULT", "WALLET_PROVISIONING"]);
+
 
       // 2. Log Mandatory Transaction Record
       const { error: acaError } = await supabase.from("user_aca_records").insert({
@@ -104,28 +107,71 @@ const DataSourceModal = ({ source, isOpen, onClose, onComplete }: DataSourceModa
           return;
         }
         if (data?.oauthUrl) {
-          window.open(data.oauthUrl, "_blank");
-          setConnected(true);
-          onComplete?.(); // DISCUSSION: Trigger UI refresh immediately
-          setTimeout(() => {
-            onClose();
-            setConnected(false);
-          }, 2000);
+          // Seed the pending row so the OAuth callback has a record to activate.
+          const { data: fordRow } = await supabase
+            .from("data_connections")
+            .select("id")
+            .eq("user_id", userId)
+            .eq("connection_type", "ford")
+            .limit(1);
+
+          if (!fordRow || fordRow.length === 0) {
+            await supabase.from("data_connections").insert({
+              user_id: userId,
+              connection_type: "ford",
+              connection_name: "FordConnect",
+              is_active: false,
+            });
+          } else {
+            await supabase
+              .from("data_connections")
+              .update({ is_active: false, connection_name: "FordConnect" })
+              .eq("id", fordRow[0].id);
+          }
+
+          // Inside the iOS shell a detached window never reports back — navigate in place.
+          const inNativeShell = !!(window as any).webkit?.messageHandlers;
+          if (inNativeShell) {
+            window.location.href = data.oauthUrl;
+          } else {
+            window.open(data.oauthUrl, "_blank");
+            onComplete?.();
+            setTimeout(() => {
+              onClose();
+              setConnected(false);
+            }, 2000);
+          }
           return;
         }
+
       } else {
         setErrorMessage(`${source.name} integration requires additional setup. Live data connections only.`);
         return;
       }
 
-      // 4. Create data connection record
-      await supabase.from("data_connections").upsert({
-        user_id: userId,
-        connection_type: sourceId,
-        connection_name: source.name,
-        is_active: true,
-        last_sync_at: new Date().toISOString(),
-      });
+      // 4. Create data connection record (UPDATE-then-INSERT, never upsert)
+      const { data: existingConn } = await supabase
+        .from("data_connections")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("connection_type", sourceId)
+        .limit(1);
+
+      if (existingConn && existingConn.length > 0) {
+        await supabase
+          .from("data_connections")
+          .update({ connection_name: source.name, is_active: true, last_sync_at: new Date().toISOString() })
+          .eq("id", existingConn[0].id);
+      } else {
+        await supabase.from("data_connections").insert({
+          user_id: userId,
+          connection_type: sourceId,
+          connection_name: source.name,
+          is_active: true,
+          last_sync_at: new Date().toISOString(),
+        });
+      }
+
 
       // DISCUSSION: DISSEMINATE JOINING FEE (The fix to use $.50 fiat bump)
       await supabase.functions.invoke("credit-user-wallet", {

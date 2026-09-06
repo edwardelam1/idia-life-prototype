@@ -73,27 +73,36 @@ serve(async (req) => {
 
     const tokenData = await tokenResponse.json();
 
-    // Store the connection in the database
-    const { error: upsertError } = await supabase.from("data_connections").upsert(
-      {
-        user_id: state,
-        connection_type: "ford",
-        connection_name: "FordConnect",
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token,
-        token_expires_at: new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString(),
-        is_active: true,
-        last_sync_at: new Date().toISOString(),
-      },
-      {
-        onConflict: "user_id,connection_type",
-      },
-    );
+    // Store the connection in the database (UPDATE-then-INSERT, never upsert)
+    const { data: existingRows } = await supabase
+      .from("data_connections")
+      .select("id")
+      .eq("user_id", state)
+      .eq("connection_type", "ford")
+      .limit(1);
 
-    if (upsertError) {
-      console.error("Failed to store Ford connection:", upsertError);
+    const connectionRow = {
+      connection_name: "FordConnect",
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      token_expires_at: new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString(),
+      is_active: true,
+      last_sync_at: new Date().toISOString(),
+    };
+
+    const writeError = existingRows && existingRows.length > 0
+      ? (await supabase.from("data_connections").update(connectionRow).eq("id", existingRows[0].id)).error
+      : (await supabase.from("data_connections").insert({
+          user_id: state,
+          connection_type: "ford",
+          ...connectionRow,
+        })).error;
+
+    if (writeError) {
+      console.error("Failed to store Ford connection:", writeError);
       return new Response("Failed to store connection", { status: 500, headers: corsHeaders });
     }
+
 
     const successHtml = `
       <!DOCTYPE html>
