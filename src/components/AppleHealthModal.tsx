@@ -339,50 +339,46 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       const platformGuid = profile?.[0]?.platform_guid || currentUserId;
       if (!platformGuid) throw new Error("Profile anchor missing.");
 
-      let activeHash = "";
-      const { data: existingAca } = await supabase
-        .from("user_aca_records")
-        .select("aca_hash_key")
-        .eq("platform_guid", platformGuid)
-        .eq("source_id", "apple_health")
-        .order("created_at", { ascending: false })
+      // STRICT PROTOCOL: always mint a fresh ACA — Face ID prompts on every attempt. No reuse.
+      console.log(`[INFO: React.HandleConnect] Requesting Face ID for fresh ACA.`);
+      const { hash: activeHash, payload } = await generateACAHash(platformGuid, "apple_health", [
+        "KYC_VAULT",
+        "HEALTH_DATA_READ",
+      ]);
+
+      const { error: acaError } = await supabase.from("user_aca_records").insert({
+        platform_guid: platformGuid,
+        aca_hash_key: activeHash,
+        source_id: "apple_health",
+        consent_scope: payload?.consent_scope || ["HEALTH_DATA_READ"],
+      });
+
+      if (acaError) throw new Error(`Database rejected ACA record: ${acaError.message}`);
+
+      // Seed the data_connections row AFTER consent is acquired. UPDATE-then-INSERT, no upsert.
+      const { data: seedRow } = await supabase
+        .from("data_connections")
+        .select("id")
+        .eq("user_id", currentUserId)
+        .eq("connection_type", "apple_health")
         .limit(1);
 
-      if (existingAca && existingAca.length > 0) {
-        console.log(`[INFO: React.HandleConnect] Found existing ACA anchor. Reusing.`);
-        activeHash = existingAca[0].aca_hash_key;
-      } else {
-        console.log(`[INFO: React.HandleConnect] No anchor found. Requesting Face ID.`);
-        const { hash, payload } = await generateACAHash(platformGuid, "apple_health", [
-          "KYC_VAULT",
-          "HEALTH_DATA_READ",
-        ]);
-        activeHash = hash;
-
-        const { error: acaError } = await supabase.from("user_aca_records").upsert(
-          {
-            platform_guid: platformGuid,
-            aca_hash_key: activeHash,
-            source_id: "apple_health",
-            consent_scope: payload?.consent_scope || ["HEALTH_DATA_READ"],
-          },
-          { onConflict: "aca_hash_key" },
-        );
-
-        if (acaError) throw new Error(`Database rejected ACA record: ${acaError.message}`);
-      }
-
-      // 🚨 CRITICAL FIX: Seed the data_connections row AFTER consent is acquired
-      const { error: seedError } = await supabase.from("data_connections").upsert(
-        {
+      if (!seedRow || seedRow.length === 0) {
+        const { error: seedError } = await supabase.from("data_connections").insert({
           user_id: currentUserId,
           connection_type: "apple_health",
           connection_name: "Apple Health",
           is_active: false,
-        },
-        { onConflict: "user_id,connection_type" },
-      );
-      if (seedError) console.warn("🚨 [WARNING: React.HandleConnect] Seed failed:", seedError);
+        });
+        if (seedError) console.warn("🚨 [WARNING: React.HandleConnect] Seed insert failed:", seedError);
+      } else {
+        const { error: seedError } = await supabase
+          .from("data_connections")
+          .update({ is_active: false, connection_name: "Apple Health" })
+          .eq("id", seedRow[0].id);
+        if (seedError) console.warn("🚨 [WARNING: React.HandleConnect] Seed update failed:", seedError);
+      }
+
 
       if (syncSessionIdRef.current !== sessionId) return;
 
