@@ -84,17 +84,15 @@ const FordConnectionModal = ({
   const handleLedgerVerification = useCallback(() => {
     console.log(`[ACTION: React.Verification] Ford OAuth connection verified by ledger.`);
     clearAllTimers();
-    setConnected(true); // Triggers the success UI state
+    setConnected(true);
     setIsConnecting(false);
     onCompleteRef.current?.();
 
-    // Auto-close 2 seconds after the webhook succeeds
     autoCloseTimeoutRef.current = setTimeout(() => {
       closeAndReset();
     }, 2000);
   }, [clearAllTimers, closeAndReset]);
 
-  // 🚀 RECOVERY SAFETY NET: Stays active while the user is in the native OAuth overlay
   useEffect(() => {
     if (!currentUserId || !syncSessionIdRef.current) return;
     const sessionId = syncSessionIdRef.current;
@@ -115,7 +113,6 @@ const FordConnectionModal = ({
       }
     };
 
-    // 1. Realtime Channel listens for the webhook update
     const channel = supabase
       .channel(`ford_sync_watch_${sessionId}`)
       .on(
@@ -131,12 +128,10 @@ const FordConnectionModal = ({
       )
       .subscribe();
 
-    // 2. Ledger Polling (Failsafe)
     const pollInterval = setInterval(() => {
       if (isMountedRef.current && syncSessionIdRef.current === sessionId) verifyDatabaseRow();
     }, 3500);
 
-    // 3. Visibility Recovery
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") verifyDatabaseRow();
     };
@@ -156,13 +151,11 @@ const FordConnectionModal = ({
     try {
       eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "disconnect_initiated", success: false });
 
-      // Trigger ACA Hash for revocation
       const { hash, payload } = await generateACAHash(currentUserId, "ford_connection_revoke", [
         "DATA_CONNECTION_REVOKE",
         "VEHICLE_TELEMETRY",
       ]);
 
-      // STRICT DELETE: Replaced upsert/update with strict deletion to match the dashboard ledger rules
       const { error } = await supabase
         .from("data_connections")
         .delete()
@@ -170,7 +163,6 @@ const FordConnectionModal = ({
         .eq("user_id", currentUserId);
 
       if (!error) {
-        // Record the immutable cryptographic ledger entry
         await recordACA({
           userId: currentUserId,
           sourceId: "ford",
@@ -208,7 +200,6 @@ const FordConnectionModal = ({
     const sessionId = Math.random().toString(36).substring(7);
     syncSessionIdRef.current = sessionId;
 
-    // WATCHDOG: PHASE 1 (Consent)
     connectionTimeoutRef.current = setTimeout(() => {
       if (syncSessionIdRef.current === sessionId && isMountedRef.current) {
         toast({
@@ -222,7 +213,6 @@ const FordConnectionModal = ({
     }, 45000);
 
     try {
-      // 1. Trigger Biometric Hardware (Face ID / Fingerprint) to generate fresh ACA Hash
       console.log(`[INFO: React.HandleConnect] Requesting Face ID for fresh ACA.`);
       const { hash, payload } = await generateACAHash(currentUserId, "ford_connection_auth", [
         "DATA_CONNECTION",
@@ -230,7 +220,6 @@ const FordConnectionModal = ({
         "OAUTH_AUTHORIZATION",
       ]);
 
-      // 2. Fetch specific OAuth URL from Edge Function
       const { data: urlData, error: urlError } = await supabase.functions.invoke("ford-auth-url", {
         body: { userId: currentUserId },
       });
@@ -240,7 +229,6 @@ const FordConnectionModal = ({
 
       eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "oauth_url_retrieved", success: true });
 
-      // 3. Anchor the ACA Hash to the Immutable Ledger
       await recordACA({
         userId: currentUserId,
         sourceId: "ford",
@@ -249,7 +237,6 @@ const FordConnectionModal = ({
         payload: payload,
       });
 
-      // 4. Seed the connection row as inactive (Strict UPDATE-or-INSERT, No Upserts)
       const { data: seedRow } = await supabase
         .from("data_connections")
         .select("id")
@@ -275,7 +262,6 @@ const FordConnectionModal = ({
 
       if (syncSessionIdRef.current !== sessionId) return;
 
-      // WATCHDOG: PHASE 2 (OAuth Flow & Webhook Resolution)
       clearAllTimers();
       connectionTimeoutRef.current = setTimeout(() => {
         if (syncSessionIdRef.current === sessionId && isMountedRef.current) {
@@ -287,9 +273,8 @@ const FordConnectionModal = ({
           setIsConnecting(false);
           clearAllTimers();
         }
-      }, 300000); // 5 minutes given for user to log into Ford
+      }, 300000);
 
-      // 🚨 FIX: Force Ford login prompt and guarantee native app callback routing
       // Native shell or blocked popup: navigate in place
       // Add a slight delay to allow Face ID modal to fully dismiss before ASWebAuthenticationSession slides up
       setTimeout(() => {
