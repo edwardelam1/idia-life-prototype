@@ -107,15 +107,43 @@ const DataSourceModal = ({ source, isOpen, onClose, onComplete }: DataSourceModa
           return;
         }
         if (data?.oauthUrl) {
-          window.open(data.oauthUrl, "_blank");
-          setConnected(true);
-          onComplete?.(); // DISCUSSION: Trigger UI refresh immediately
-          setTimeout(() => {
-            onClose();
-            setConnected(false);
-          }, 2000);
+          // Seed the pending row so the OAuth callback has a record to activate.
+          const { data: fordRow } = await supabase
+            .from("data_connections")
+            .select("id")
+            .eq("user_id", userId)
+            .eq("connection_type", "ford")
+            .limit(1);
+
+          if (!fordRow || fordRow.length === 0) {
+            await supabase.from("data_connections").insert({
+              user_id: userId,
+              connection_type: "ford",
+              connection_name: "FordConnect",
+              is_active: false,
+            });
+          } else {
+            await supabase
+              .from("data_connections")
+              .update({ is_active: false, connection_name: "FordConnect" })
+              .eq("id", fordRow[0].id);
+          }
+
+          // Inside the iOS shell a detached window never reports back — navigate in place.
+          const inNativeShell = !!(window as any).webkit?.messageHandlers;
+          if (inNativeShell) {
+            window.location.href = data.oauthUrl;
+          } else {
+            window.open(data.oauthUrl, "_blank");
+            onComplete?.();
+            setTimeout(() => {
+              onClose();
+              setConnected(false);
+            }, 2000);
+          }
           return;
         }
+
       } else {
         setErrorMessage(`${source.name} integration requires additional setup. Live data connections only.`);
         return;
