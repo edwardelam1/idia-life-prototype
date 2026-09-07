@@ -66,13 +66,20 @@ const FordConnectionModal = ({
     connectionTimeoutRef.current = null;
   }, []);
 
-  const closeAndReset = useCallback(() => {
-    clearAllTimers();
-    syncSessionIdRef.current = null;
-    setIsConnecting(false);
-    setConnected(false);
-    onCloseRef.current?.();
-  }, [clearAllTimers]);
+  const closeAndReset = useCallback(
+    (e?: React.MouseEvent) => {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      clearAllTimers();
+      syncSessionIdRef.current = null;
+      setIsConnecting(false);
+      setConnected(false);
+      onCloseRef.current?.();
+    },
+    [clearAllTimers],
+  );
 
   useEffect(() => {
     if (!isOpen) closeAndReset();
@@ -146,10 +153,15 @@ const FordConnectionModal = ({
     };
   }, [currentUserId, handleLedgerVerification]);
 
-  const handleDisconnect = async () => {
+  const handleDisconnect = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (!currentUserId || !existingConnection) return;
 
     try {
+      console.log("[BEGIN: React.HandleDisconnect] Revoking Ford connection non-destructively.");
       eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "disconnect_initiated", success: false });
 
       const { hash, payload } = await generateACAHash(currentUserId, "ford_connection_revoke", [
@@ -157,11 +169,12 @@ const FordConnectionModal = ({
         "VEHICLE_TELEMETRY",
       ]);
 
+      // 🚨 FIX: Replaced destructive .delete() with .update() to preserve the database entry
       const { error } = await supabase
         .from("data_connections")
-        .delete()
-        .eq("id", existingConnection.id)
-        .eq("user_id", currentUserId);
+        .update({ is_active: false })
+        .eq("user_id", currentUserId)
+        .eq("connection_type", "ford");
 
       if (!error) {
         await recordACA({
@@ -176,6 +189,9 @@ const FordConnectionModal = ({
         onDisconnect?.();
         closeAndReset();
         toast({ title: "Disconnected", description: "FordConnect telemetry has been revoked and recorded." });
+        console.log("[END: React.HandleDisconnect] Revocation complete.");
+      } else {
+        throw error;
       }
     } catch (error: any) {
       console.error("Error disconnecting Ford:", error);
@@ -189,113 +205,128 @@ const FordConnectionModal = ({
     }
   };
 
-  const handleConnect = useCallback(async () => {
-    if (!currentUserId) {
-      toast({ title: "Error", description: "Please log in to connect your Ford account.", variant: "destructive" });
-      return;
-    }
-
-    eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "connect_initiated", success: false });
-    setIsConnecting(true);
-
-    const sessionId = Math.random().toString(36).substring(7);
-    syncSessionIdRef.current = sessionId;
-
-    connectionTimeoutRef.current = setTimeout(() => {
-      if (syncSessionIdRef.current === sessionId && isMountedRef.current) {
-        toast({
-          title: "Timeout",
-          description: "Connection timed out at the biometric consent step. Please retry.",
-          variant: "destructive",
-        });
-        setIsConnecting(false);
-        clearAllTimers();
+  const handleConnect = useCallback(
+    async (e?: React.MouseEvent) => {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
       }
-    }, 45000);
-
-    try {
-      console.log(`[INFO: React.HandleConnect] Requesting Face ID for fresh ACA.`);
-      const { hash, payload } = await generateACAHash(currentUserId, "ford_connection_auth", [
-        "DATA_CONNECTION",
-        "VEHICLE_TELEMETRY",
-        "OAUTH_AUTHORIZATION",
-      ]);
-
-      const { data: urlData, error: urlError } = await supabase.functions.invoke("ford-auth-url", {
-        body: { userId: currentUserId },
-      });
-
-      if (urlError) throw new Error(`Edge function error: ${urlError.message || "Unknown error"}`);
-      if (!urlData?.oauthUrl) throw new Error("No OAuth URL received from server");
-
-      eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "oauth_url_retrieved", success: true });
-
-      await recordACA({
-        userId: currentUserId,
-        sourceId: "ford",
-        consentType: "data_connection_auth",
-        hash: hash,
-        payload: payload,
-      });
-
-      const { data: seedRow } = await supabase
-        .from("data_connections")
-        .select("id")
-        .eq("user_id", currentUserId)
-        .eq("connection_type", "ford")
-        .limit(1);
-
-      if (!seedRow || seedRow.length === 0) {
-        const { error: seedError } = await supabase.from("data_connections").insert({
-          user_id: currentUserId,
-          connection_type: "ford",
-          connection_name: "FordConnect",
-          is_active: false,
-        });
-        if (seedError) console.warn("🚨 [WARNING: React.HandleConnect] Seed insert failed:", seedError);
-      } else {
-        const { error: seedError } = await supabase
-          .from("data_connections")
-          .update({ is_active: false, connection_name: "FordConnect" })
-          .eq("id", seedRow[0].id);
-        if (seedError) console.warn("🚨 [WARNING: React.HandleConnect] Seed update failed:", seedError);
+      if (!currentUserId) {
+        toast({ title: "Error", description: "Please log in to connect your Ford account.", variant: "destructive" });
+        return;
       }
 
-      if (syncSessionIdRef.current !== sessionId) return;
+      eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "connect_initiated", success: false });
+      setIsConnecting(true);
 
-      clearAllTimers();
+      const sessionId = Math.random().toString(36).substring(7);
+      syncSessionIdRef.current = sessionId;
+
       connectionTimeoutRef.current = setTimeout(() => {
         if (syncSessionIdRef.current === sessionId && isMountedRef.current) {
           toast({
             title: "Timeout",
-            description: "Connection timed out during the Ford login process. Please retry.",
+            description: "Connection timed out at the biometric consent step. Please retry.",
             variant: "destructive",
           });
           setIsConnecting(false);
           clearAllTimers();
         }
-      }, 300000);
+      }, 45000);
 
-      setTimeout(() => {
-        window.location.href = urlData.oauthUrl;
-      }, 800);
-    } catch (error: any) {
-      console.error("Error connecting Ford:", error);
-      if (syncSessionIdRef.current !== sessionId) return;
-      clearAllTimers();
-      setIsConnecting(false);
+      try {
+        console.log(`[INFO: React.HandleConnect] Requesting Face ID for fresh ACA.`);
+        const { hash, payload } = await generateACAHash(currentUserId, "ford_connection_auth", [
+          "DATA_CONNECTION",
+          "VEHICLE_TELEMETRY",
+          "OAUTH_AUTHORIZATION",
+        ]);
 
-      if (error.message?.includes("cancelled") || error.message?.includes("aborted")) {
-        toast({ title: "Verification Cancelled", description: "Biometric authentication was cancelled." });
-      } else {
-        toast({
-          title: "Connection Failed",
-          description: `Failed to start Ford connection: ${error instanceof Error ? error.message : "Unknown error"}`,
-          variant: "destructive",
+        const { data: urlData, error: urlError } = await supabase.functions.invoke("ford-auth-url", {
+          body: { userId: currentUserId },
         });
+
+        if (urlError) throw new Error(`Edge function error: ${urlError.message || "Unknown error"}`);
+        if (!urlData?.oauthUrl) throw new Error("No OAuth URL received from server");
+
+        eventTracker.trackFeatureUsage({ feature: "ford_connection", action: "oauth_url_retrieved", success: true });
+
+        await recordACA({
+          userId: currentUserId,
+          sourceId: "ford",
+          consentType: "data_connection_auth",
+          hash: hash,
+          payload: payload,
+        });
+
+        // 🚨 FIX: Strict Select -> Insert/Update flow (No Upserts)
+        console.log(`[BEGIN: React.HandleConnect.Seed] Validating data_connections row for Ford.`);
+        const { data: seedRow, error: selectError } = await supabase
+          .from("data_connections")
+          .select("id")
+          .eq("user_id", currentUserId)
+          .eq("connection_type", "ford")
+          .limit(1);
+
+        if (selectError) {
+          console.error("🚨 [ERROR: React.HandleConnect.Seed] Select query failed:", selectError);
+        }
+
+        if (!seedRow || seedRow.length === 0) {
+          console.log(`[INFO: React.HandleConnect.Seed] No existing row found. Executing insert.`);
+          const { error: insertError } = await supabase.from("data_connections").insert({
+            user_id: currentUserId,
+            connection_type: "ford",
+            connection_name: "FordConnect",
+            is_active: false,
+          });
+          if (insertError) console.error("🚨 [ERROR: React.HandleConnect.Seed] Insert failed:", insertError);
+        } else {
+          console.log(`[INFO: React.HandleConnect.Seed] Existing row found. Setting to inactive pending auth.`);
+          const { error: updateError } = await supabase
+            .from("data_connections")
+            .update({ is_active: false, connection_name: "FordConnect" })
+            .eq("id", seedRow[0].id);
+          if (updateError) console.error("🚨 [ERROR: React.HandleConnect.Seed] Update failed:", updateError);
+        }
+
+        if (syncSessionIdRef.current !== sessionId) return;
+
+        clearAllTimers();
+        connectionTimeoutRef.current = setTimeout(() => {
+          if (syncSessionIdRef.current === sessionId && isMountedRef.current) {
+            toast({
+              title: "Timeout",
+              description: "Connection timed out during the Ford login process. Please retry.",
+              variant: "destructive",
+            });
+            setIsConnecting(false);
+            clearAllTimers();
+          }
+        }, 300000);
+
+        setTimeout(() => {
+          window.location.href = urlData.oauthUrl;
+        }, 800);
+      } catch (error: any) {
+        console.error("Error connecting Ford:", error);
+        if (syncSessionIdRef.current !== sessionId) return;
+        clearAllTimers();
+        setIsConnecting(false);
+
+        if (error.message?.includes("cancelled") || error.message?.includes("aborted")) {
+          toast({ title: "Verification Cancelled", description: "Biometric authentication was cancelled." });
+        } else {
+          toast({
+            title: "Connection Failed",
+            description: `Failed to start Ford connection: ${error instanceof Error ? error.message : "Unknown error"}`,
+            variant: "destructive",
+          });
+        }
       }
-    }
-  }, [currentUserId, clearAllTimers]);
+    },
+    [currentUserId, clearAllTimers, toast],
+  );
 
   const dataCategories = [
     { icon: MapPin, label: "Location & Movement" },
@@ -346,10 +377,10 @@ const FordConnectionModal = ({
               </div>
 
               <div className="flex space-x-2 pt-1">
-                <Button variant="outline" size="sm" className="flex-1" onClick={closeAndReset}>
+                <Button type="button" variant="outline" size="sm" className="flex-1" onClick={closeAndReset}>
                   Close
                 </Button>
-                <Button variant="destructive" size="sm" className="flex-1" onClick={handleDisconnect}>
+                <Button type="button" variant="destructive" size="sm" className="flex-1" onClick={handleDisconnect}>
                   <Fingerprint className="w-3.5 h-3.5 mr-1.5" /> Revoke
                 </Button>
               </div>
@@ -384,10 +415,17 @@ const FordConnectionModal = ({
               </p>
 
               <div className="flex space-x-2 pt-1">
-                <Button variant="outline" className="flex-1" onClick={closeAndReset} disabled={isConnecting}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={closeAndReset}
+                  disabled={isConnecting}
+                >
                   Cancel
                 </Button>
                 <Button
+                  type="button"
                   className="flex-1 bg-blue-600 hover:bg-blue-700"
                   onClick={handleConnect}
                   disabled={isConnecting}
