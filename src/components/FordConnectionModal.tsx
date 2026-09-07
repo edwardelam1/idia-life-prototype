@@ -2,12 +2,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { getCachedUser } from "@/lib/authUser";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Car, Zap, MapPin, Battery, Gauge, Shield, Fingerprint } from "lucide-react";
+import { CheckCircle, Zap, MapPin, Battery, Gauge, Shield, Fingerprint } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { eventTracker } from "@/utils/EventTracker";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { recordACA } from "@/utils/acaLedger";
+import fordLogo from "@/assets/ford-logo.png";
 
 interface FordConnectionModalProps {
   isOpen: boolean;
@@ -275,8 +276,6 @@ const FordConnectionModal = ({
         }
       }, 300000);
 
-      // Native shell or blocked popup: navigate in place
-      // Add a slight delay to allow Face ID modal to fully dismiss before ASWebAuthenticationSession slides up
       setTimeout(() => {
         window.location.href = urlData.oauthUrl;
       }, 800);
@@ -299,25 +298,21 @@ const FordConnectionModal = ({
   }, [currentUserId, clearAllTimers]);
 
   const dataCategories = [
-    { icon: MapPin, label: "Location & Movement", desc: "GPS, speed, heading" },
-    { icon: Gauge, label: "Driving Dynamics", desc: "Pedals, acceleration, RPM" },
-    { icon: Battery, label: "EV / Battery", desc: "SOC, charging, range" },
-    { icon: Car, label: "Vehicle Health", desc: "Odometer, tires, DTCs" },
-    { icon: Shield, label: "Security & Cabin", desc: "Doors, climate, alarm" },
+    { icon: MapPin, label: "Location & Movement" },
+    { icon: Gauge, label: "Driving Dynamics" },
+    { icon: Battery, label: "EV & Battery Level" },
+    { icon: Shield, label: "Vehicle Health & Security" },
   ];
 
   if (connected) {
     return (
       <Dialog open={isOpen} onOpenChange={closeAndReset}>
-        <DialogContent className="max-w-md">
-          <div className="text-center py-8">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-8 h-8 text-blue-600" />
-            </div>
-            <h3 className="text-xl font-bold text-foreground mb-2">FordConnect Linked!</h3>
-            <p className="text-muted-foreground mb-4">Your vehicle telemetry is now streaming into IDIA.</p>
-            <p className="text-sm text-blue-600 font-medium">Earning potential: $40-80/month from vehicle data</p>
+        <DialogContent className="max-w-sm text-center py-6">
+          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+            <CheckCircle className="w-6 h-6 text-blue-600" />
           </div>
+          <h3 className="text-lg font-bold text-foreground mb-1">FordConnect Linked!</h3>
+          <p className="text-xs text-muted-foreground">Your vehicle telemetry is now streaming into IDIA.</p>
         </DialogContent>
       </Dialog>
     );
@@ -325,85 +320,70 @@ const FordConnectionModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={closeAndReset}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Car className="w-5 h-5 text-white" />
-            </div>
+      <DialogContent className="max-w-sm">
+        <DialogHeader className="pb-1">
+          <DialogTitle className="flex items-center space-x-2.5">
+            <img src={fordLogo} alt="Ford" className="h-6 w-auto object-contain" />
             <span>{existingConnection ? "FordConnect" : "Connect FordConnect"}</span>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-3.5 pt-1">
           {existingConnection ? (
-            <div className="space-y-4">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <Car className="w-6 h-6 text-blue-600" />
-                </div>
-                <h3 className="font-medium text-blue-800">FordConnect Active</h3>
-                <p className="text-sm text-muted-foreground">Vehicle telemetry is streaming</p>
+            <div className="space-y-3">
+              <div className="text-center py-2">
+                <img src={fordLogo} alt="Ford" className="h-8 w-auto mx-auto mb-2 object-contain" />
+                <h3 className="font-medium text-sm text-blue-800">FordConnect Active</h3>
+                <p className="text-xs text-muted-foreground">Vehicle telemetry is streaming</p>
               </div>
 
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-blue-800">Live Telemetry</p>
-                    <p className="text-xs text-blue-600">Processing vehicle data automatically</p>
-                  </div>
-                  <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+              <div className="bg-blue-50/70 p-3 rounded-lg border border-blue-100 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-blue-900">Live Telemetry</p>
+                  <p className="text-[11px] text-blue-700">Processing vehicle data automatically</p>
                 </div>
+                <div className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse" />
               </div>
 
-              <div className="flex space-x-3">
-                <Button variant="outline" className="flex-1" onClick={closeAndReset}>
+              <div className="flex space-x-2 pt-1">
+                <Button variant="outline" size="sm" className="flex-1" onClick={closeAndReset}>
                   Close
                 </Button>
-                <Button variant="destructive" className="flex-1" onClick={handleDisconnect}>
-                  <Fingerprint className="w-4 h-4 mr-2" /> Revoke
+                <Button variant="destructive" size="sm" className="flex-1" onClick={handleDisconnect}>
+                  <Fingerprint className="w-3.5 h-3.5 mr-1.5" /> Revoke
                 </Button>
               </div>
             </div>
           ) : (
             <>
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <div className="flex items-start space-x-2">
-                  <Zap className="w-5 h-5 text-blue-600 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-blue-900 mb-1">Full Vehicle Telemetry</p>
-                    <p className="text-sm text-blue-800">
-                      Connect your Ford vehicle to stream real-time driving, location, EV, and diagnostic data — all
-                      anonymized and earning you USDC.
-                    </p>
-                  </div>
-                </div>
+              <div className="bg-blue-50/80 p-2.5 rounded-lg border border-blue-100 text-xs text-blue-950 flex items-start space-x-2">
+                <Zap className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <p className="leading-snug">Stream vehicle data anonymously into your vault.</p>
               </div>
 
               <div>
-                <h4 className="font-medium text-foreground mb-3">Data Categories</h4>
-                <div className="space-y-2">
-                  {dataCategories.map(({ icon: Icon, label, desc }) => (
-                    <div key={label} className="flex items-center space-x-3 p-2 rounded-lg bg-muted/50">
-                      <Icon className="w-4 h-4 text-blue-600 shrink-0" />
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{label}</p>
-                        <p className="text-xs text-muted-foreground">{desc}</p>
-                      </div>
+                <p className="text-[11px] text-muted-foreground mb-2 leading-tight">
+                  Available telemetry depends on the connectivity and data-sharing features enabled in your Ford vehicle
+                  and FordPass account settings:
+                </p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {dataCategories.map(({ icon: Icon, label }) => (
+                    <div
+                      key={label}
+                      className="flex items-center space-x-2 p-1.5 rounded-md bg-muted/40 text-[11px] font-medium text-foreground"
+                    >
+                      <Icon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span className="truncate">{label}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="bg-muted/50 p-4 rounded-lg">
-                <h5 className="font-medium text-foreground mb-2">Privacy & Anonymization</h5>
-                <p className="text-sm text-muted-foreground">
-                  All vehicle data is anonymized before marketplace bundling. GPS positions are zone-hashed, VINs are
-                  pseudonymized, and no personally identifiable information is ever shared.
-                </p>
-              </div>
+              <p className="text-[10.5px] text-muted-foreground leading-tight">
+                GPS data is zone-hashed, VINs are pseudonymized, and no personal identification is ever shared.
+              </p>
 
-              <div className="flex space-x-3">
+              <div className="flex space-x-2 pt-1">
                 <Button variant="outline" className="flex-1" onClick={closeAndReset} disabled={isConnecting}>
                   Cancel
                 </Button>
@@ -413,13 +393,13 @@ const FordConnectionModal = ({
                   disabled={isConnecting}
                 >
                   {isConnecting ? (
-                    <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <div className="flex items-center space-x-1.5">
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       <span>Connecting...</span>
                     </div>
                   ) : (
                     <>
-                      <Fingerprint className="w-4 h-4 mr-2" />
+                      <Fingerprint className="w-4 h-4 mr-1.5" />
                       Verify & Connect
                     </>
                   )}
