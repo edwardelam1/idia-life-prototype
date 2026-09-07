@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Activity, Car, CheckCircle, DollarSign, FileKey, Copy } from "lucide-react";
+import { Activity, CheckCircle, DollarSign, FileKey, Copy } from "lucide-react";
+import fordLogo from "@/assets/ford-logo.png";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase as typedSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -385,7 +386,7 @@ const DataDashboard = () => {
                   onClick={() => setShowFordModal(true)}
                 >
                   <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border border-border transition-all group-hover:scale-105 flex items-center justify-center">
-                    <Car className="w-8 h-8 text-blue-600" />
+                    <img src={fordLogo} alt="FordConnect" className="w-8 h-8 object-contain" />
                   </div>
                   <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground">
                     FordConnect
@@ -406,7 +407,7 @@ const DataDashboard = () => {
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">Active Streams</h2>
             {visibleConnections.length > 0 ? (
-              <div className="flex flex-wrap gap-6">
+              <div className="flex flex-wrap justify-center gap-6">
                 {visibleConnections.map((connection) => (
                   <div
                     key={connection.id}
@@ -429,7 +430,9 @@ const DataDashboard = () => {
                             className="w-8 h-8 object-contain"
                           />
                         )}
-                        {connection.connection_type === "ford" && <Car className="w-8 h-8 text-blue-600" />}
+                        {connection.connection_type === "ford" && (
+                          <img src={fordLogo} alt="FordConnect" className="w-8 h-8 object-contain" />
+                        )}
                       </div>
                       <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-background flex items-center justify-center">
                         <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
