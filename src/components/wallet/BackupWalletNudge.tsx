@@ -10,10 +10,23 @@ interface BackupWalletNudgeProps {
 const BackupWalletNudge = ({ isVisible, onDismiss, onBackUp }: BackupWalletNudgeProps) => {
   if (!isVisible) return null;
 
+  // 🚨 Seal the click events to prevent bubbling and default behaviors
+  const handleDismiss = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onDismiss();
+  };
+
+  const handleBackUp = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onBackUp();
+  };
+
   return (
     <div
       className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in"
-      onClick={onDismiss}
+      onClick={handleDismiss}
       role="dialog"
       aria-modal="true"
       aria-labelledby="backup-wallet-nudge-title"
@@ -23,7 +36,8 @@ const BackupWalletNudge = ({ isVisible, onDismiss, onBackUp }: BackupWalletNudge
         onClick={(e) => e.stopPropagation()}
       >
         <button
-          onClick={onDismiss}
+          type="button" // 🚨 Override default submit behavior
+          onClick={handleDismiss}
           className="absolute top-3 right-3 p-1.5 rounded-full hover:bg-muted transition-colors"
           aria-label="Dismiss"
         >
@@ -53,10 +67,19 @@ const BackupWalletNudge = ({ isVisible, onDismiss, onBackUp }: BackupWalletNudge
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" onClick={onDismiss} className="rounded-xl">
+            <Button
+              type="button" // 🚨 Override default submit behavior
+              variant="outline"
+              onClick={handleDismiss}
+              className="rounded-xl"
+            >
               Later
             </Button>
-            <Button onClick={onBackUp} className="rounded-xl">
+            <Button
+              type="button" // 🚨 Override default submit behavior
+              onClick={handleBackUp}
+              className="rounded-xl"
+            >
               Back Up Now
               <ArrowRight className="w-4 h-4 ml-1.5" />
             </Button>
