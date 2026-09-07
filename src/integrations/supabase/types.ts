@@ -7804,6 +7804,30 @@ export type Database = {
         }
         Relationships: []
       }
+      raw_ford_data: {
+        Row: {
+          aca_hash_key: string
+          id: string
+          ingested_at: string
+          raw_payload: Json
+          user_id: string
+        }
+        Insert: {
+          aca_hash_key: string
+          id?: string
+          ingested_at?: string
+          raw_payload: Json
+          user_id: string
+        }
+        Update: {
+          aca_hash_key?: string
+          id?: string
+          ingested_at?: string
+          raw_payload?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
       raw_health_data: {
         Row: {
           aca_hash: string | null
@@ -8684,6 +8708,42 @@ export type Database = {
           pseudo_business_id?: string
           seasonal_trends?: Json | null
           transaction_patterns?: Json | null
+        }
+        Relationships: []
+      }
+      staged_ford_data: {
+        Row: {
+          aca_hash_key: string
+          id: string
+          metric_json: Json | null
+          metric_type: string
+          metric_value: number | null
+          processed_at: string
+          recorded_at: string
+          user_id: string
+          vehicle_id: string | null
+        }
+        Insert: {
+          aca_hash_key: string
+          id?: string
+          metric_json?: Json | null
+          metric_type: string
+          metric_value?: number | null
+          processed_at?: string
+          recorded_at: string
+          user_id: string
+          vehicle_id?: string | null
+        }
+        Update: {
+          aca_hash_key?: string
+          id?: string
+          metric_json?: Json | null
+          metric_type?: string
+          metric_value?: number | null
+          processed_at?: string
+          recorded_at?: string
+          user_id?: string
+          vehicle_id?: string | null
         }
         Relationships: []
       }
