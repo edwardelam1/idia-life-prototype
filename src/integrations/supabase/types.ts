@@ -7899,23 +7899,59 @@ export type Database = {
       raw_ford_data: {
         Row: {
           aca_hash_key: string
+          acceleration_patterns: Json | null
+          braking_data: Json | null
+          charge_status: Json | null
+          diagnostics: Json | null
+          driver_assist_status: Json | null
+          gps_location: Json | null
           id: string
+          idling_metrics: Json | null
           ingested_at: string
+          odometer: number | null
+          pseudonymized_vin: string | null
           raw_payload: Json
+          security_and_safety: Json | null
+          speed_metrics: Json | null
+          trip_reports: Json | null
           user_id: string
         }
         Insert: {
           aca_hash_key: string
+          acceleration_patterns?: Json | null
+          braking_data?: Json | null
+          charge_status?: Json | null
+          diagnostics?: Json | null
+          driver_assist_status?: Json | null
+          gps_location?: Json | null
           id?: string
+          idling_metrics?: Json | null
           ingested_at?: string
+          odometer?: number | null
+          pseudonymized_vin?: string | null
           raw_payload: Json
+          security_and_safety?: Json | null
+          speed_metrics?: Json | null
+          trip_reports?: Json | null
           user_id: string
         }
         Update: {
           aca_hash_key?: string
+          acceleration_patterns?: Json | null
+          braking_data?: Json | null
+          charge_status?: Json | null
+          diagnostics?: Json | null
+          driver_assist_status?: Json | null
+          gps_location?: Json | null
           id?: string
+          idling_metrics?: Json | null
           ingested_at?: string
+          odometer?: number | null
+          pseudonymized_vin?: string | null
           raw_payload?: Json
+          security_and_safety?: Json | null
+          speed_metrics?: Json | null
+          trip_reports?: Json | null
           user_id?: string
         }
         Relationships: []
@@ -8806,34 +8842,70 @@ export type Database = {
       staged_ford_data: {
         Row: {
           aca_hash_key: string
+          acceleration_patterns: Json | null
+          braking_data: Json | null
+          charge_status: Json | null
+          diagnostics: Json | null
+          driver_assist_status: Json | null
+          gps_location: Json | null
           id: string
+          idling_metrics: Json | null
           metric_json: Json | null
           metric_type: string
           metric_value: number | null
+          odometer: number | null
           processed_at: string
+          pseudonymized_vin: string | null
           recorded_at: string
+          security_and_safety: Json | null
+          speed_metrics: Json | null
+          trip_reports: Json | null
           user_id: string
           vehicle_id: string | null
         }
         Insert: {
           aca_hash_key: string
+          acceleration_patterns?: Json | null
+          braking_data?: Json | null
+          charge_status?: Json | null
+          diagnostics?: Json | null
+          driver_assist_status?: Json | null
+          gps_location?: Json | null
           id?: string
+          idling_metrics?: Json | null
           metric_json?: Json | null
           metric_type: string
           metric_value?: number | null
+          odometer?: number | null
           processed_at?: string
+          pseudonymized_vin?: string | null
           recorded_at: string
+          security_and_safety?: Json | null
+          speed_metrics?: Json | null
+          trip_reports?: Json | null
           user_id: string
           vehicle_id?: string | null
         }
         Update: {
           aca_hash_key?: string
+          acceleration_patterns?: Json | null
+          braking_data?: Json | null
+          charge_status?: Json | null
+          diagnostics?: Json | null
+          driver_assist_status?: Json | null
+          gps_location?: Json | null
           id?: string
+          idling_metrics?: Json | null
           metric_json?: Json | null
           metric_type?: string
           metric_value?: number | null
+          odometer?: number | null
           processed_at?: string
+          pseudonymized_vin?: string | null
           recorded_at?: string
+          security_and_safety?: Json | null
+          speed_metrics?: Json | null
+          trip_reports?: Json | null
           user_id?: string
           vehicle_id?: string | null
         }
