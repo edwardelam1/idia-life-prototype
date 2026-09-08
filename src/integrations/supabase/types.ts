@@ -767,6 +767,65 @@ export type Database = {
           },
         ]
       }
+      best_friend_chats: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      best_friend_messages: {
+        Row: {
+          chat_id: string
+          content: string
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          chat_id: string
+          content: string
+          created_at?: string
+          id?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          chat_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "best_friend_messages_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "best_friend_chats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bin_assignments: {
         Row: {
           created_at: string | null
@@ -6420,6 +6479,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      mesh_telemetry_events: {
+        Row: {
+          created_at: string
+          data_quality_score: number
+          id: string
+          payload_data: Json
+          processed_at: string
+          pseudo_node_id: string
+          telemetry_category: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data_quality_score?: number
+          id?: string
+          payload_data?: Json
+          processed_at?: string
+          pseudo_node_id: string
+          telemetry_category?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data_quality_score?: number
+          id?: string
+          payload_data?: Json
+          processed_at?: string
+          pseudo_node_id?: string
+          telemetry_category?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       nano_bite_executions: {
         Row: {

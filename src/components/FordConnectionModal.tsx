@@ -337,7 +337,7 @@ const FordConnectionModal = ({
 
   if (connected) {
     return (
-      <Dialog open={isOpen} onOpenChange={closeAndReset}>
+      <Dialog open={isOpen} onOpenChange={(open) => { if (!open) closeAndReset(); }}>
         <DialogContent className="max-w-sm text-center py-6">
           <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
             <CheckCircle className="w-6 h-6 text-blue-600" />
@@ -350,7 +350,7 @@ const FordConnectionModal = ({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={closeAndReset}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) closeAndReset(); }}>
       <DialogContent className="max-w-sm">
         <DialogHeader className="pb-1">
           <DialogTitle className="flex items-center space-x-2.5">
