@@ -467,9 +467,9 @@ const EnhancedWalletDashboard: React.FC = () => {
       setSynapseCredits(runningTotal);
 
       setTransactions(
-        [...mappedTx, ...mappedSynapse].sort(
-          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-        ),
+        [...mappedTx, ...mappedSynapse]
+          .filter((tx) => !isHiddenHistoryItem(tx.description))
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
       );
     } catch (error: any) {
       console.error(`[FETCH_LEDGERS:FAILURE] ${error.message}`);
