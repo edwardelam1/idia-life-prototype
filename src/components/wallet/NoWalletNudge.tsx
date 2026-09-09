@@ -36,11 +36,11 @@ const NoWalletNudge = ({ isVisible, onDismiss, onCreateWallet }: NoWalletNudgePr
               <Wallet className="w-6 h-6 text-amber-300" />
             </div>
             <h2 id="no-wallet-nudge-title" className="text-lg font-black tracking-tight">
-              Sovereign Vault Required
+              Sovereign Wallet Required
             </h2>
           </div>
           <p className="text-xs text-teal-50/80 leading-relaxed">
-            You don't have a Sovereign Vault yet. Create one to start receiving ETH, IDIA, and USDC.
+            You don't have a Sovereign Wallet yet. Create one to start receiving ETH, IDIA, and USDC.
           </p>
         </div>
 
@@ -48,23 +48,16 @@ const NoWalletNudge = ({ isVisible, onDismiss, onCreateWallet }: NoWalletNudgePr
           <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
             <ShieldCheck className="w-4 h-4 text-teal-600 mt-0.5 shrink-0" />
             <p className="text-xs text-slate-600 leading-relaxed">
-              Your vault is generated locally on this device. Find it under{" "}
+              Your wallet is generated locally on this device. Find it under{" "}
               <span className="font-bold text-slate-800">Wallet → Security</span>.
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant="outline"
-              onClick={onDismiss}
-              className="rounded-xl"
-            >
+            <Button variant="outline" onClick={onDismiss} className="rounded-xl">
               Later
             </Button>
-            <Button
-              onClick={onCreateWallet}
-              className="rounded-xl bg-teal-600 hover:bg-teal-700 text-white"
-            >
+            <Button onClick={onCreateWallet} className="rounded-xl bg-teal-600 hover:bg-teal-700 text-white">
               Create Wallet
               <ArrowRight className="w-4 h-4 ml-1.5" />
             </Button>
