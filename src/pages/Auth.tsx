@@ -118,22 +118,20 @@ const Auth = () => {
 
         // Supabase returns a user with an EMPTY identities array when the email
         // is already registered (obfuscated "repeated signup"). Treat as existing account.
-        const alreadyRegistered =
-          !data.session && (!data.user || (data.user.identities?.length ?? 0) === 0);
+        const alreadyRegistered = !data.session && (!data.user || (data.user.identities?.length ?? 0) === 0);
 
         if (alreadyRegistered) {
           setIsLogin(true);
           setPassword("");
           toast({
-            title: "Account already exists",
-            description: "This email is already registered. Please sign in with your existing credentials.",
+            title: "Account may already exists",
+            description: "This account may already registered. Try signing in with your existing credentials.",
             variant: "destructive",
           });
           return;
         }
 
         toast({ title: "Account created!", description: "Please check your email to verify your account." });
-
       }
     } catch (error: any) {
       toast({ title: "Authentication failed", description: error.message, variant: "destructive" });
