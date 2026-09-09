@@ -108,14 +108,32 @@ const Auth = () => {
         supabase.functions.invoke("send-security-alert", { body: { event: "new_login" } }).catch(() => {});
         toast({ title: "Welcome back!", description: "You've been signed in successfully." });
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           // Surgical Fix: Land on root after email confirmation
           options: { emailRedirectTo: `${window.location.origin}/` },
         });
         if (error) throw error;
+
+        // Supabase returns a user with an EMPTY identities array when the email
+        // is already registered (obfuscated "repeated signup"). Treat as existing account.
+        const alreadyRegistered =
+          !data.session && (!data.user || (data.user.identities?.length ?? 0) === 0);
+
+        if (alreadyRegistered) {
+          setIsLogin(true);
+          setPassword("");
+          toast({
+            title: "Account already exists",
+            description: "This email is already registered. Please sign in with your existing credentials.",
+            variant: "destructive",
+          });
+          return;
+        }
+
         toast({ title: "Account created!", description: "Please check your email to verify your account." });
+
       }
     } catch (error: any) {
       toast({ title: "Authentication failed", description: error.message, variant: "destructive" });
