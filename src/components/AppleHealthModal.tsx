@@ -52,6 +52,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   const onCompleteRef = useRef(onComplete);
   const appleHealthIconRef = useRef<HTMLImageElement | null>(null);
   const burstTriggeredRef = useRef(false);
+  const confirmedRef = useRef(false);
+  const currentUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -88,7 +90,48 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     if ((window as any).onHealthDataSyncError) delete (window as any).onHealthDataSyncError;
   }, []);
 
+  // 🚨 Safely revert the connection row to inactive when the user bails,
+  // denies HealthKit access, or the flow times out before confirmation.
+  const deactivateConnection = useCallback(async () => {
+    const userId = currentUserIdRef.current;
+    if (!userId) return;
+    try {
+      console.log("[ACTION: React.DeactivateConnection] Reverting connection to inactive.");
+      await supabase
+        .from("data_connections")
+        .update({ is_active: false })
+        .eq("user_id", userId)
+        .eq("connection_type", "apple_health");
+    } catch (e) {
+      console.error("🚨 [ERROR: React.DeactivateConnection] Failed to revert state:", e);
+    }
+  }, []);
+
+  // Flip the seeded row to active — only ever called after the device proves a real read.
+  const activateConnection = useCallback(async () => {
+    const userId = currentUserIdRef.current;
+    if (!userId) return;
+    const { data: row } = await supabase
+      .from("data_connections")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("connection_type", "apple_health")
+      .limit(1);
+    if (row && row.length > 0) {
+      await supabase
+        .from("data_connections")
+        .update({ is_active: true, last_sync_at: new Date().toISOString() })
+        .eq("id", row[0].id);
+    }
+  }, []);
+
   const closeAndReset = useCallback(() => {
+    // If the modal is closed while an attempt is still in flight (never confirmed),
+    // leave no active Apple Health row behind.
+    if (syncSessionIdRef.current && !confirmedRef.current) {
+      deactivateConnection();
+    }
+    confirmedRef.current = false;
     clearAllTimers();
     syncSessionIdRef.current = null;
     detachNativeCallbacks();
