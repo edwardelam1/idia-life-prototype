@@ -404,14 +404,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     // 🚨 WATCHDOG: covers consent AND the native HealthKit permission sheet.
     connectionTimeoutRef.current = setTimeout(() => {
       if (syncSessionIdRef.current === sessionId && isMountedRef.current && !confirmedRef.current) {
-        console.error(`🚨 [FATAL: React.ConnectionTimeout] Routine stalled — no confirmation within 45s.`);
+        console.error(`🚨 [FATAL: React.ConnectionTimeout] Routine stalled — no confirmation within 20s.`);
         setErrorMessage("Connection timed out. The consent anchor, device fetch, or ingest step stalled.");
         setConnectionStatus("error");
         setIsConnecting(false);
         deactivateConnection();
         clearAllTimers();
       }
-    }, 45000);
+    }, 20000);
 
     try {
       const { data: profile } = await supabase
