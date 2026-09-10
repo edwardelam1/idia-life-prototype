@@ -71,6 +71,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user && isMountedRef.current) {
         setCurrentUserId(session.user.id);
+        currentUserIdRef.current = session.user.id;
         setAuthSession(session);
       }
     });
@@ -141,7 +142,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setSyncCount(0);
     setConnectedThisSession(false);
     onCloseRef.current?.();
-  }, [clearAllTimers, detachNativeCallbacks]);
+  }, [clearAllTimers, detachNativeCallbacks, deactivateConnection]);
 
   useEffect(() => {
     if (!isOpen) {
