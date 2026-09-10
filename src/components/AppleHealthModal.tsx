@@ -5,6 +5,7 @@ import { Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { fireAppleHealthDataBurst } from "@/components/psychometric/confetti";
+import { IDIAHealth } from "@/plugins/health";
 
 interface AppleHealthModalProps {
   isOpen: boolean;
@@ -46,6 +47,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   const bridgeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const autoCloseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const permPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const syncSessionIdRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
   const onCloseRef = useRef(onClose);
@@ -81,14 +83,17 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     if (bridgeTimeoutRef.current) clearTimeout(bridgeTimeoutRef.current);
     if (autoCloseTimeoutRef.current) clearTimeout(autoCloseTimeoutRef.current);
     if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
+    if (permPollRef.current) clearInterval(permPollRef.current);
     bridgeTimeoutRef.current = null;
     autoCloseTimeoutRef.current = null;
     connectionTimeoutRef.current = null;
+    permPollRef.current = null;
   }, []);
 
   const detachNativeCallbacks = useCallback(() => {
     if ((window as any).onHealthDataSyncComplete) delete (window as any).onHealthDataSyncComplete;
     if ((window as any).onHealthDataSyncError) delete (window as any).onHealthDataSyncError;
+    if ((window as any).onHealthPermissionsGranted) delete (window as any).onHealthPermissionsGranted;
   }, []);
 
   // 🚨 Safely revert the connection row to inactive when the user bails,
@@ -297,6 +302,41 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setIsConnecting(false);
       };
 
+      // ✅ PERMISSION-FIRST RESOLUTION: the modal's job ends the moment HealthKit
+      // access is granted. Data ingestion keeps running in the background.
+      const resolveOnPermissionGranted = async () => {
+        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+        if (confirmedRef.current) return;
+        confirmedRef.current = true;
+        clearAllTimers();
+        try {
+          await activateConnection();
+        } catch (e) {
+          console.warn("[WARN: React.PermissionGranted] Activation write failed:", e);
+        }
+        handleLedgerVerification();
+      };
+
+      // Native shell can call this directly the instant the permission sheet is accepted.
+      (window as any).onHealthPermissionsGranted = () => {
+        console.log("[BEGIN: React.NativeCallback.PermissionsGranted]");
+        resolveOnPermissionGranted();
+      };
+
+      // Fallback: poll the plugin so we never wait on the device fetch.
+      permPollRef.current = setInterval(async () => {
+        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current || confirmedRef.current) return;
+        try {
+          const { granted } = await IDIAHealth.checkPermissions();
+          if (granted) {
+            console.log("[INFO: React.PermissionPoll] HealthKit permissions granted — resolving modal.");
+            resolveOnPermissionGranted();
+          }
+        } catch {
+          /* plugin unavailable in this shell — rely on native callbacks */
+        }
+      }, 800);
+
       try {
         const requestedDataTypesMap: Record<string, boolean> = {};
         const requestedDataTypesArray: string[] = [];
@@ -364,14 +404,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     // 🚨 WATCHDOG: covers consent AND the native HealthKit permission sheet.
     connectionTimeoutRef.current = setTimeout(() => {
       if (syncSessionIdRef.current === sessionId && isMountedRef.current && !confirmedRef.current) {
-        console.error(`🚨 [FATAL: React.ConnectionTimeout] Routine stalled — no confirmation within 45s.`);
+        console.error(`🚨 [FATAL: React.ConnectionTimeout] Routine stalled — no confirmation within 20s.`);
         setErrorMessage("Connection timed out. The consent anchor, device fetch, or ingest step stalled.");
         setConnectionStatus("error");
         setIsConnecting(false);
         deactivateConnection();
         clearAllTimers();
       }
-    }, 45000);
+    }, 20000);
 
     try {
       const { data: profile } = await supabase
