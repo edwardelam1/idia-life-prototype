@@ -319,13 +319,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           requestedDataTypes: requestedDataTypesMap,
           requestedDataTypesArray: requestedDataTypesArray,
         });
-      } catch (postErr) {
-        console.error(`🚨 [FATAL: React.NativeDispatch] Dispatch failed:`, postErr);
-        clearAllTimers();
-        setErrorMessage(`Native bridge dispatch failed.`);
-        setConnectionStatus("error");
-        setIsConnecting(false);
-      }
+
         // 🚨 SILENT SUCCESS FALLBACK: Swift exits silently when 0 new rows exist.
         // If no error arrives within 25s (covers the user reading the HealthKit sheet),
         // treat as a clean exit and activate.
@@ -338,6 +332,27 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           }
         }, 25000);
       } catch (postErr) {
+        console.error(`🚨 [FATAL: React.NativeDispatch] Dispatch failed:`, postErr);
+        clearAllTimers();
+        deactivateConnection();
+        setErrorMessage(`Native bridge dispatch failed.`);
+        setConnectionStatus("error");
+        setIsConnecting(false);
+      }
+    },
+    [
+      currentUserId,
+      authSession,
+      connectionStatus,
+      connectedThisSession,
+      clearAllTimers,
+      selectedDataTypes,
+      activateConnection,
+      deactivateConnection,
+      handleLedgerVerification,
+    ],
+  );
+
 
   const handleConnect = useCallback(async () => {
     console.log(`[BEGIN: React.HandleConnect] Flow initiated.`);
