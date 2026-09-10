@@ -14,3 +14,4 @@
 - [x] Biometric prompt isolation in acaGenerator (per-request token; stale Ford prompt can no longer swallow a Face ID result)
 - [x] Ford path: canonical "ford" source id, pending row seeded, native shell navigates in place (no detached window / confirm())
 - [x] Protocol rule: no upserts anywhere — explicit UPDATE-then-INSERT only (modal, data source screen, ford-oauth-callback)
+- [x] Apple Health: activate only on confirmed native read; inactive seed, denial hard-fail, deactivation cleanup

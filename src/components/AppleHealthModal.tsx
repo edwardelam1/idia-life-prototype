@@ -52,6 +52,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   const onCompleteRef = useRef(onComplete);
   const appleHealthIconRef = useRef<HTMLImageElement | null>(null);
   const burstTriggeredRef = useRef(false);
+  const confirmedRef = useRef(false);
+  const currentUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -69,6 +71,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user && isMountedRef.current) {
         setCurrentUserId(session.user.id);
+        currentUserIdRef.current = session.user.id;
         setAuthSession(session);
       }
     });
@@ -88,7 +91,48 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     if ((window as any).onHealthDataSyncError) delete (window as any).onHealthDataSyncError;
   }, []);
 
+  // 🚨 Safely revert the connection row to inactive when the user bails,
+  // denies HealthKit access, or the flow times out before confirmation.
+  const deactivateConnection = useCallback(async () => {
+    const userId = currentUserIdRef.current;
+    if (!userId) return;
+    try {
+      console.log("[ACTION: React.DeactivateConnection] Reverting connection to inactive.");
+      await supabase
+        .from("data_connections")
+        .update({ is_active: false })
+        .eq("user_id", userId)
+        .eq("connection_type", "apple_health");
+    } catch (e) {
+      console.error("🚨 [ERROR: React.DeactivateConnection] Failed to revert state:", e);
+    }
+  }, []);
+
+  // Flip the seeded row to active — only ever called after the device proves a real read.
+  const activateConnection = useCallback(async () => {
+    const userId = currentUserIdRef.current;
+    if (!userId) return;
+    const { data: row } = await supabase
+      .from("data_connections")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("connection_type", "apple_health")
+      .limit(1);
+    if (row && row.length > 0) {
+      await supabase
+        .from("data_connections")
+        .update({ is_active: true, last_sync_at: new Date().toISOString() })
+        .eq("id", row[0].id);
+    }
+  }, []);
+
   const closeAndReset = useCallback(() => {
+    // If the modal is closed while an attempt is still in flight (never confirmed),
+    // leave no active Apple Health row behind.
+    if (syncSessionIdRef.current && !confirmedRef.current) {
+      deactivateConnection();
+    }
+    confirmedRef.current = false;
     clearAllTimers();
     syncSessionIdRef.current = null;
     detachNativeCallbacks();
@@ -98,7 +142,7 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     setSyncCount(0);
     setConnectedThisSession(false);
     onCloseRef.current?.();
-  }, [clearAllTimers, detachNativeCallbacks]);
+  }, [clearAllTimers, detachNativeCallbacks, deactivateConnection]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -127,7 +171,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, [connectionStatus]);
 
   const handleLedgerVerification = useCallback(() => {
-    console.log(`[ACTION: React.Verification] Hardware ingestion verified by ledger.`);
+    console.log(`[ACTION: React.Verification] Active connection verified.`);
+    confirmedRef.current = true;
     clearAllTimers();
     setConnectionStatus("connected");
     setConnectedThisSession(true);
@@ -211,25 +256,19 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       (window as any).onHealthDataSyncComplete = async (serverResponse: any) => {
         console.log(`[BEGIN: React.NativeCallback.Success] Native sync background process completed.`, serverResponse);
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+        clearAllTimers();
         setSyncCount(serverResponse?.processed_count || 1);
 
         try {
-          // Silently update the last_sync timestamp for the background payload completion
-          const { data: existingRow } = await supabase
-            .from("data_connections")
-            .select("id")
-            .eq("user_id", currentUserId)
-            .eq("connection_type", "apple_health")
-            .limit(1);
-
-          if (existingRow && existingRow.length > 0) {
-            await supabase
-              .from("data_connections")
-              .update({ last_sync_at: new Date().toISOString() })
-              .eq("id", existingRow[0].id);
-          }
+          // 🚨 ACTIVATION LAST: device proved a real read — now flip the ledger active.
+          await activateConnection();
+          handleLedgerVerification();
         } catch (err) {
           console.error(err);
+          deactivateConnection();
+          setErrorMessage("Failed to process sync response.");
+          setConnectionStatus("error");
+          setIsConnecting(false);
         }
       };
 
@@ -239,7 +278,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         if (connectionStatus === "connected" || connectedThisSession) return;
 
         clearAllTimers();
-        setErrorMessage(`Sync Error: ${errorMsg}`);
+        deactivateConnection();
+
+        // 🚨 DENIAL DETECTION: iOS permission refusals are a hard failure — never connect.
+        const lower = String(errorMsg).toLowerCase();
+        if (
+          lower.includes("denied") ||
+          lower.includes("not allowed") ||
+          lower.includes("authorization") ||
+          lower.includes("unauthorized")
+        ) {
+          console.warn(`🚨 [FATAL: React.NativeCallback.Error] HealthKit access denied by user.`);
+          setErrorMessage("Apple Health access was not allowed — no data can be synced.");
+        } else {
+          setErrorMessage(`Sync Error: ${errorMsg}`);
+        }
         setConnectionStatus("error");
         setIsConnecting(false);
       };
@@ -266,16 +319,40 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           requestedDataTypes: requestedDataTypesMap,
           requestedDataTypesArray: requestedDataTypesArray,
         });
+
+        // 🚨 SILENT SUCCESS FALLBACK: Swift exits silently when 0 new rows exist.
+        // If no error arrives within 25s (covers the user reading the HealthKit sheet),
+        // treat as a clean exit and activate.
+        bridgeTimeoutRef.current = setTimeout(async () => {
+          if (syncSessionIdRef.current === sessionId && isMountedRef.current && !confirmedRef.current) {
+            console.log("⏱️ [React.SilentSuccess] 25s elapsed without native error — assuming zero-data silent exit.");
+            clearAllTimers();
+            await activateConnection();
+            handleLedgerVerification();
+          }
+        }, 25000);
       } catch (postErr) {
         console.error(`🚨 [FATAL: React.NativeDispatch] Dispatch failed:`, postErr);
         clearAllTimers();
+        deactivateConnection();
         setErrorMessage(`Native bridge dispatch failed.`);
         setConnectionStatus("error");
         setIsConnecting(false);
       }
     },
-    [currentUserId, authSession, connectionStatus, connectedThisSession, clearAllTimers, selectedDataTypes],
+    [
+      currentUserId,
+      authSession,
+      connectionStatus,
+      connectedThisSession,
+      clearAllTimers,
+      selectedDataTypes,
+      activateConnection,
+      deactivateConnection,
+      handleLedgerVerification,
+    ],
   );
+
 
   const handleConnect = useCallback(async () => {
     console.log(`[BEGIN: React.HandleConnect] Flow initiated.`);
@@ -291,13 +368,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     const sessionId = Math.random().toString(36).substring(7);
     syncSessionIdRef.current = sessionId;
 
-    // 🚨 WATCHDOG: PHASE 1 (Consent)
+    // 🚨 WATCHDOG: covers consent AND the native HealthKit permission sheet.
     connectionTimeoutRef.current = setTimeout(() => {
-      if (syncSessionIdRef.current === sessionId && isMountedRef.current) {
-        console.error(`🚨 [FATAL: React.ConnectionTimeout] Stalled at Face ID / Consent.`);
-        setErrorMessage("Connection timed out at the Face ID consent step. Please retry.");
+      if (syncSessionIdRef.current === sessionId && isMountedRef.current && !confirmedRef.current) {
+        console.error(`🚨 [FATAL: React.ConnectionTimeout] Routine stalled — no confirmation within 45s.`);
+        setErrorMessage("Connection timed out. The consent anchor, device fetch, or ingest step stalled.");
         setConnectionStatus("error");
         setIsConnecting(false);
+        deactivateConnection();
         clearAllTimers();
       }
     }, 45000);
@@ -328,8 +406,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
       if (acaError) throw new Error(`Database rejected ACA record: ${acaError.message}`);
 
-      // Seed the data_connections row AFTER consent is acquired. UPDATE-then-INSERT, no upsert.
-      // We immediately set it to active here so the UI can resolve, as the data payload takes time in the background.
+      // 🚨 CONSENT FIRST, ACTIVATION LAST: seed the row INACTIVE.
+      // It only flips to active when the device proves a real read (native success,
+      // realtime watcher, or ledger poll). UPDATE-then-INSERT, no upsert.
       const { data: seedRow } = await supabase
         .from("data_connections")
         .select("id")
@@ -342,35 +421,31 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           user_id: currentUserId,
           connection_type: "apple_health",
           connection_name: "Apple Health",
-          is_active: true,
-          last_sync_at: new Date().toISOString(),
+          is_active: false,
         });
         if (seedError) console.warn("🚨 [WARNING: React.HandleConnect] Seed insert failed:", seedError);
       } else {
         const { error: seedError } = await supabase
           .from("data_connections")
-          .update({ is_active: true, connection_name: "Apple Health", last_sync_at: new Date().toISOString() })
+          .update({ is_active: false, connection_name: "Apple Health" })
           .eq("id", seedRow[0].id);
         if (seedError) console.warn("🚨 [WARNING: React.HandleConnect] Seed update failed:", seedError);
       }
 
       if (syncSessionIdRef.current !== sessionId) return;
 
-      clearAllTimers();
-
-      // Dispatch to native shell to begin async background transmission
+      // Dispatch to native shell — the watchdog stays armed; only a confirmed read
+      // (or the silent-success fallback) resolves the UI now.
       syncHealthDataViaNativeApp(activeHash, sessionId);
-
-      // Force UI resolution immediately instead of waiting for the massive background payload
-      handleLedgerVerification();
     } catch (error: any) {
       if (syncSessionIdRef.current !== sessionId) return;
       clearAllTimers();
+      deactivateConnection();
       setErrorMessage(error.message);
       setConnectionStatus("error");
       setIsConnecting(false);
     }
-  }, [currentUserId, syncHealthDataViaNativeApp, clearAllTimers, handleLedgerVerification, selectedDataTypes]);
+  }, [currentUserId, syncHealthDataViaNativeApp, clearAllTimers, deactivateConnection, selectedDataTypes]);
 
   const handleDisconnect = async () => {
     if (!currentUserId) return;
