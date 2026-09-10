@@ -326,9 +326,18 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setConnectionStatus("error");
         setIsConnecting(false);
       }
-    },
-    [currentUserId, authSession, connectionStatus, connectedThisSession, clearAllTimers, selectedDataTypes],
-  );
+        // 🚨 SILENT SUCCESS FALLBACK: Swift exits silently when 0 new rows exist.
+        // If no error arrives within 25s (covers the user reading the HealthKit sheet),
+        // treat as a clean exit and activate.
+        bridgeTimeoutRef.current = setTimeout(async () => {
+          if (syncSessionIdRef.current === sessionId && isMountedRef.current && !confirmedRef.current) {
+            console.log("⏱️ [React.SilentSuccess] 25s elapsed without native error — assuming zero-data silent exit.");
+            clearAllTimers();
+            await activateConnection();
+            handleLedgerVerification();
+          }
+        }, 25000);
+      } catch (postErr) {
 
   const handleConnect = useCallback(async () => {
     console.log(`[BEGIN: React.HandleConnect] Flow initiated.`);
