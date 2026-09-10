@@ -5,6 +5,7 @@ import { Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { fireAppleHealthDataBurst } from "@/components/psychometric/confetti";
+import { IDIAHealth } from "@/plugins/health";
 
 interface AppleHealthModalProps {
   isOpen: boolean;
