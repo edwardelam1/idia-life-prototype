@@ -368,13 +368,14 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     const sessionId = Math.random().toString(36).substring(7);
     syncSessionIdRef.current = sessionId;
 
-    // 🚨 WATCHDOG: PHASE 1 (Consent)
+    // 🚨 WATCHDOG: covers consent AND the native HealthKit permission sheet.
     connectionTimeoutRef.current = setTimeout(() => {
-      if (syncSessionIdRef.current === sessionId && isMountedRef.current) {
-        console.error(`🚨 [FATAL: React.ConnectionTimeout] Stalled at Face ID / Consent.`);
-        setErrorMessage("Connection timed out at the Face ID consent step. Please retry.");
+      if (syncSessionIdRef.current === sessionId && isMountedRef.current && !confirmedRef.current) {
+        console.error(`🚨 [FATAL: React.ConnectionTimeout] Routine stalled — no confirmation within 45s.`);
+        setErrorMessage("Connection timed out. The consent anchor, device fetch, or ingest step stalled.");
         setConnectionStatus("error");
         setIsConnecting(false);
+        deactivateConnection();
         clearAllTimers();
       }
     }, 45000);
@@ -405,8 +406,9 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
 
       if (acaError) throw new Error(`Database rejected ACA record: ${acaError.message}`);
 
-      // Seed the data_connections row AFTER consent is acquired. UPDATE-then-INSERT, no upsert.
-      // We immediately set it to active here so the UI can resolve, as the data payload takes time in the background.
+      // 🚨 CONSENT FIRST, ACTIVATION LAST: seed the row INACTIVE.
+      // It only flips to active when the device proves a real read (native success,
+      // realtime watcher, or ledger poll). UPDATE-then-INSERT, no upsert.
       const { data: seedRow } = await supabase
         .from("data_connections")
         .select("id")
@@ -419,35 +421,31 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           user_id: currentUserId,
           connection_type: "apple_health",
           connection_name: "Apple Health",
-          is_active: true,
-          last_sync_at: new Date().toISOString(),
+          is_active: false,
         });
         if (seedError) console.warn("🚨 [WARNING: React.HandleConnect] Seed insert failed:", seedError);
       } else {
         const { error: seedError } = await supabase
           .from("data_connections")
-          .update({ is_active: true, connection_name: "Apple Health", last_sync_at: new Date().toISOString() })
+          .update({ is_active: false, connection_name: "Apple Health" })
           .eq("id", seedRow[0].id);
         if (seedError) console.warn("🚨 [WARNING: React.HandleConnect] Seed update failed:", seedError);
       }
 
       if (syncSessionIdRef.current !== sessionId) return;
 
-      clearAllTimers();
-
-      // Dispatch to native shell to begin async background transmission
+      // Dispatch to native shell — the watchdog stays armed; only a confirmed read
+      // (or the silent-success fallback) resolves the UI now.
       syncHealthDataViaNativeApp(activeHash, sessionId);
-
-      // Force UI resolution immediately instead of waiting for the massive background payload
-      handleLedgerVerification();
     } catch (error: any) {
       if (syncSessionIdRef.current !== sessionId) return;
       clearAllTimers();
+      deactivateConnection();
       setErrorMessage(error.message);
       setConnectionStatus("error");
       setIsConnecting(false);
     }
-  }, [currentUserId, syncHealthDataViaNativeApp, clearAllTimers, handleLedgerVerification, selectedDataTypes]);
+  }, [currentUserId, syncHealthDataViaNativeApp, clearAllTimers, deactivateConnection, selectedDataTypes]);
 
   const handleDisconnect = async () => {
     if (!currentUserId) return;
