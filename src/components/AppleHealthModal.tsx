@@ -320,17 +320,10 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
           requestedDataTypesArray: requestedDataTypesArray,
         });
 
-        // 🚨 SILENT SUCCESS FALLBACK: Swift exits silently when 0 new rows exist.
-        // If no error arrives within 25s (covers the user reading the HealthKit sheet),
-        // treat as a clean exit and activate.
-        bridgeTimeoutRef.current = setTimeout(async () => {
-          if (syncSessionIdRef.current === sessionId && isMountedRef.current && !confirmedRef.current) {
-            console.log("⏱️ [React.SilentSuccess] 25s elapsed without native error — assuming zero-data silent exit.");
-            clearAllTimers();
-            await activateConnection();
-            handleLedgerVerification();
-          }
-        }, 25000);
+        // No artificial success timer: the modal resolves ONLY on the native
+        // success/error callback, or when the server-side sync flips the
+        // ledger row active (RecoveryNet realtime/poll). Data ingestion
+        // continues in the background regardless of modal state.
       } catch (postErr) {
         console.error(`🚨 [FATAL: React.NativeDispatch] Dispatch failed:`, postErr);
         clearAllTimers();
