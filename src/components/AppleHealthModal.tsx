@@ -171,7 +171,8 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
   }, [connectionStatus]);
 
   const handleLedgerVerification = useCallback(() => {
-    console.log(`[ACTION: React.Verification] Hardware ingestion verified by ledger.`);
+    console.log(`[ACTION: React.Verification] Active connection verified.`);
+    confirmedRef.current = true;
     clearAllTimers();
     setConnectionStatus("connected");
     setConnectedThisSession(true);
@@ -255,25 +256,19 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
       (window as any).onHealthDataSyncComplete = async (serverResponse: any) => {
         console.log(`[BEGIN: React.NativeCallback.Success] Native sync background process completed.`, serverResponse);
         if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+        clearAllTimers();
         setSyncCount(serverResponse?.processed_count || 1);
 
         try {
-          // Silently update the last_sync timestamp for the background payload completion
-          const { data: existingRow } = await supabase
-            .from("data_connections")
-            .select("id")
-            .eq("user_id", currentUserId)
-            .eq("connection_type", "apple_health")
-            .limit(1);
-
-          if (existingRow && existingRow.length > 0) {
-            await supabase
-              .from("data_connections")
-              .update({ last_sync_at: new Date().toISOString() })
-              .eq("id", existingRow[0].id);
-          }
+          // 🚨 ACTIVATION LAST: device proved a real read — now flip the ledger active.
+          await activateConnection();
+          handleLedgerVerification();
         } catch (err) {
           console.error(err);
+          deactivateConnection();
+          setErrorMessage("Failed to process sync response.");
+          setConnectionStatus("error");
+          setIsConnecting(false);
         }
       };
 
@@ -283,7 +278,21 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         if (connectionStatus === "connected" || connectedThisSession) return;
 
         clearAllTimers();
-        setErrorMessage(`Sync Error: ${errorMsg}`);
+        deactivateConnection();
+
+        // 🚨 DENIAL DETECTION: iOS permission refusals are a hard failure — never connect.
+        const lower = String(errorMsg).toLowerCase();
+        if (
+          lower.includes("denied") ||
+          lower.includes("not allowed") ||
+          lower.includes("authorization") ||
+          lower.includes("unauthorized")
+        ) {
+          console.warn(`🚨 [FATAL: React.NativeCallback.Error] HealthKit access denied by user.`);
+          setErrorMessage("Apple Health access was not allowed — no data can be synced.");
+        } else {
+          setErrorMessage(`Sync Error: ${errorMsg}`);
+        }
         setConnectionStatus("error");
         setIsConnecting(false);
       };
