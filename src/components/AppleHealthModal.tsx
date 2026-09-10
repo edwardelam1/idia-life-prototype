@@ -82,14 +82,17 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
     if (bridgeTimeoutRef.current) clearTimeout(bridgeTimeoutRef.current);
     if (autoCloseTimeoutRef.current) clearTimeout(autoCloseTimeoutRef.current);
     if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
+    if (permPollRef.current) clearInterval(permPollRef.current);
     bridgeTimeoutRef.current = null;
     autoCloseTimeoutRef.current = null;
     connectionTimeoutRef.current = null;
+    permPollRef.current = null;
   }, []);
 
   const detachNativeCallbacks = useCallback(() => {
     if ((window as any).onHealthDataSyncComplete) delete (window as any).onHealthDataSyncComplete;
     if ((window as any).onHealthDataSyncError) delete (window as any).onHealthDataSyncError;
+    if ((window as any).onHealthPermissionsGranted) delete (window as any).onHealthPermissionsGranted;
   }, []);
 
   // 🚨 Safely revert the connection row to inactive when the user bails,
