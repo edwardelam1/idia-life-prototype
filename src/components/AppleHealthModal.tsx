@@ -301,6 +301,41 @@ const AppleHealthModal = ({ isOpen, onClose, onComplete, existingConnection, onD
         setIsConnecting(false);
       };
 
+      // ✅ PERMISSION-FIRST RESOLUTION: the modal's job ends the moment HealthKit
+      // access is granted. Data ingestion keeps running in the background.
+      const resolveOnPermissionGranted = async () => {
+        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current) return;
+        if (confirmedRef.current) return;
+        confirmedRef.current = true;
+        clearAllTimers();
+        try {
+          await activateConnection();
+        } catch (e) {
+          console.warn("[WARN: React.PermissionGranted] Activation write failed:", e);
+        }
+        handleLedgerVerification();
+      };
+
+      // Native shell can call this directly the instant the permission sheet is accepted.
+      (window as any).onHealthPermissionsGranted = () => {
+        console.log("[BEGIN: React.NativeCallback.PermissionsGranted]");
+        resolveOnPermissionGranted();
+      };
+
+      // Fallback: poll the plugin so we never wait on the device fetch.
+      permPollRef.current = setInterval(async () => {
+        if (syncSessionIdRef.current !== sessionId || !isMountedRef.current || confirmedRef.current) return;
+        try {
+          const { granted } = await IDIAHealth.checkPermissions();
+          if (granted) {
+            console.log("[INFO: React.PermissionPoll] HealthKit permissions granted — resolving modal.");
+            resolveOnPermissionGranted();
+          }
+        } catch {
+          /* plugin unavailable in this shell — rely on native callbacks */
+        }
+      }, 800);
+
       try {
         const requestedDataTypesMap: Record<string, boolean> = {};
         const requestedDataTypesArray: string[] = [];
