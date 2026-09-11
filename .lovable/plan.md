@@ -11,7 +11,11 @@ Add an educational pop-up that appears the first time a user taps the bottom **D
 
 ## Implementation Plan
 
-### 1. Create `src/components/RoyaltyInfoModal.tsx`
+### 1. Upload the screen recording as a Lovable Asset
+- Use `lovable-assets create --file /mnt/user-uploads/ScreenRecording_09-09-2026_21-15-53_1.mov --filename royalty-demo.mov > src/assets/royalty-demo.mov.asset.json`.
+- Import the asset pointer in `RoyaltyInfoModal` and render it with a muted, looping `<video>` element.
+
+### 2. Create `src/components/RoyaltyInfoModal.tsx`
 - Use the existing `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle` from `@/components/ui/dialog`.
 - Use `Button` from `@/components/ui/button`.
 - Keep styling consistent with the app: semantic theme tokens (`bg-background`, `text-foreground`, `text-muted-foreground`, `border-border`), rounded-3xl corners, and the teal/orange accent palette already used in the Data tab.
