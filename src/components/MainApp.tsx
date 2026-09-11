@@ -56,7 +56,7 @@ const MainApp = () => {
   };
 
   useEffect(() => {
-    if (showWelcome) return;
+    if (showWelcome || profileLoading) return;
     if (activeTab === "data" && prevTabRef.current !== "data") {
       try {
         if (localStorage.getItem(royaltyInfoKey) !== "1") {
@@ -65,7 +65,7 @@ const MainApp = () => {
       } catch {}
     }
     prevTabRef.current = activeTab;
-  }, [activeTab, royaltyInfoKey, showWelcome]);
+  }, [activeTab, royaltyInfoKey, showWelcome, profileLoading]);
 
   useEffect(() => {
     const handleShowRoyaltyInfo = () => setShowRoyaltyInfo(true);
