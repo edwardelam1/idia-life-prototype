@@ -312,6 +312,7 @@ const MainApp = () => {
           }}
           onGoToWallet={() => setActiveTab("wallet")}
         />
+        <RoyaltyInfoModal isOpen={showRoyaltyInfo} onClose={markRoyaltyInfoSeen} />
       </div>
     </FriendAssistantProvider>
   );
