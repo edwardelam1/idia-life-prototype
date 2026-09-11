@@ -24,7 +24,7 @@ Add an educational pop-up that appears the first time a user taps the bottom **D
     3. Data flows automatically and securely.
     4. Earn USDC and IDIA Token royalties when your data is consumed from the IDIA Hub.
   - Primary CTA: "Got it" (dismisses and persists).
-  - Secondary link-style CTA: "Learn more" (optional, can dispatch `showFriend` event with trigger `data`).
+  - Looping video: the uploaded screen recording (`ScreenRecording_09-09-2026_21-15-53_1.mov`) plays muted on repeat while the modal is open; pauses when the modal closes.
 
 ### 2. Wire the modal into `src/components/MainApp.tsx`
 - Add state for `showRoyaltyInfo` and a `hasSeenRoyaltyInfo` check from localStorage keyed by user ID (`idia_royalty_info_seen_v1:<userId>`).
