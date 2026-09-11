@@ -15,6 +15,7 @@ import WelcomeSequence from "./life/WelcomeSequence";
 import NoWalletNudge from "./wallet/NoWalletNudge";
 import BackupWalletNudge from "./wallet/BackupWalletNudge";
 import SelfDelegateEducationModal from "./wallet/SelfDelegateEducationModal";
+import RoyaltyInfoModal from "./RoyaltyInfoModal";
 
 import { IDIA_PAY_RELEASE_DATE } from "@/config/release";
 
@@ -37,6 +38,40 @@ const MainApp = () => {
   const [localVaultExists, setLocalVaultExists] = useState<boolean | null>(null);
   const [showSelfDelegateEdu, setShowSelfDelegateEdu] = useState(false);
   const [selfDelegateEduAddress, setSelfDelegateEduAddress] = useState<string | null>(null);
+
+  // ── How to Generate Royalties info modal ──
+  const [showRoyaltyInfo, setShowRoyaltyInfo] = useState(false);
+  const prevTabRef = useRef(activeTab);
+
+  const royaltyInfoKey = useMemo(() => {
+    const uid = profile?.user_id || profile?.id || "anon";
+    return `idia_royalty_info_seen_v1:${uid}`;
+  }, [profile?.user_id, profile?.id]);
+
+  const markRoyaltyInfoSeen = () => {
+    setShowRoyaltyInfo(false);
+    try {
+      localStorage.setItem(royaltyInfoKey, "1");
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (showWelcome || profileLoading) return;
+    if (activeTab === "data" && prevTabRef.current !== "data") {
+      try {
+        if (localStorage.getItem(royaltyInfoKey) !== "1") {
+          setShowRoyaltyInfo(true);
+        }
+      } catch {}
+    }
+    prevTabRef.current = activeTab;
+  }, [activeTab, royaltyInfoKey, showWelcome, profileLoading]);
+
+  useEffect(() => {
+    const handleShowRoyaltyInfo = () => setShowRoyaltyInfo(true);
+    window.addEventListener("showRoyaltyInfo", handleShowRoyaltyInfo);
+    return () => window.removeEventListener("showRoyaltyInfo", handleShowRoyaltyInfo);
+  }, []);
 
   // 1. Calculate release status
   const isPayReady = useMemo(() => new Date() >= IDIA_PAY_RELEASE_DATE, []);
@@ -277,6 +312,7 @@ const MainApp = () => {
           }}
           onGoToWallet={() => setActiveTab("wallet")}
         />
+        <RoyaltyInfoModal isOpen={showRoyaltyInfo} onClose={markRoyaltyInfoSeen} />
       </div>
     </FriendAssistantProvider>
   );

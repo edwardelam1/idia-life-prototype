@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Activity, CheckCircle, DollarSign, FileKey, Copy } from "lucide-react";
+import { Activity, CheckCircle, DollarSign, FileKey, Copy, Info } from "lucide-react";
 import fordLogo from "@/assets/ford-logo.png";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase as typedSupabase } from "@/integrations/supabase/client";
@@ -350,7 +350,17 @@ const DataDashboard = () => {
 
         <TabsContent value="connections" className="space-y-4">
           <div className="space-y-4">
-            <h2 className="text-xl font-bold text-foreground">Available Data Sources</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-foreground">Available Data Sources</h2>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("showRoyaltyInfo"))}
+                className="p-2 rounded-full bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                aria-label="How to generate royalties"
+              >
+                <Info className="w-4 h-4" />
+              </button>
+            </div>
             <div className="flex flex-wrap justify-center gap-6">
               {/* Health App Connection */}
               {!hasHealth && (
