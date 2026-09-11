@@ -30,17 +30,17 @@ Add an educational pop-up that appears the first time a user taps the bottom **D
   - Primary CTA: "Got it" (dismisses and persists).
   - Looping video: the uploaded screen recording (`ScreenRecording_09-09-2026_21-15-53_1.mov`) plays muted on repeat while the modal is open; pauses when the modal closes.
 
-### 2. Wire the modal into `src/components/MainApp.tsx`
+### 3. Wire the modal into `src/components/MainApp.tsx`
 - Add state for `showRoyaltyInfo` and a `hasSeenRoyaltyInfo` check from localStorage keyed by user ID (`idia_royalty_info_seen_v1:<userId>`).
 - Track the previous active tab; when the user switches **to** the Data tab and they have not yet seen the info, open the modal.
 - Mark as seen when the modal is dismissed.
 
-### 3. Add a reopen affordance in `src/components/DataDashboard.tsx`
+### 4. Add a reopen affordance in `src/components/DataDashboard.tsx`
 - Add a small info/help icon button in the "Available Data Sources" section header.
 - Clicking it dispatches a custom event or calls a callback to reopen `RoyaltyInfoModal` from `MainApp`.
 - Prefer a window event (`showRoyaltyInfo`) so `DataDashboard` does not need to receive a prop through the tab router.
 
-### 4. Persist dismissal
+### 5. Persist dismissal
 - Store `idia_royalty_info_seen_v1:<userId>` in localStorage when the user taps "Got it".
 - Re-read the flag when the auth user becomes available so the modal does not reappear after refresh.
 
