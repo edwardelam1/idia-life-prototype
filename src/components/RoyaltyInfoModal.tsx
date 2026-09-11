@@ -12,22 +12,22 @@ interface RoyaltyInfoModalProps {
 const STEPS = [
   {
     icon: Database,
-    title: "Tap a data source",
+    title: "Tap a Data Source",
     description: "Choose Apple Health, Health Connect, or FordConnect from the available connections.",
   },
   {
     icon: Fingerprint,
-    title: "Grant access",
+    title: "Grant Access",
     description: "Allow permissions or sign in to the account linked to that source.",
   },
   {
     icon: Database,
-    title: "Data flows automatically",
+    title: "Data Flows Automatically",
     description: "Once connected, your data streams securely to the IDIA Hub.",
   },
   {
     icon: Coins,
-    title: "Earn royalties",
+    title: "Earn Royalties",
     description: "When your data is consumed, you automatically receive USDC and IDIA Token payouts.",
   },
 ];
