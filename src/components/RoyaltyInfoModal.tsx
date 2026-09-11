@@ -51,63 +51,51 @@ const RoyaltyInfoModal = ({ isOpen, onClose }: RoyaltyInfoModalProps) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md rounded-[2rem] bg-background border-border p-0 overflow-hidden gap-0">
-        <div className="relative aspect-[9/16] max-h-[320px] bg-black overflow-hidden">
+      <DialogContent className="max-w-sm max-h-[85vh] rounded-[2rem] bg-background border-border p-5 overflow-y-auto gap-0">
+        <DialogHeader className="text-center space-y-1 mb-3">
+          <DialogTitle className="text-xl font-black tracking-tight text-foreground text-center">
+            How to Generate Royalties
+          </DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground text-center">
+            Connect your data sources and start earning automatically when your data is consumed.
+          </DialogDescription>
+        </DialogHeader>
+
+        <ol className="space-y-1 text-center mb-4">
+          {STEPS.map((step, index) => {
+            const Icon = step.icon;
+            return (
+              <li key={index} className="text-xs text-muted-foreground leading-snug">
+                <span className="inline-flex items-center gap-1.5 text-foreground font-semibold">
+                  <Icon className="w-3.5 h-3.5 text-teal-600" />
+                  {step.title}:
+                </span>{" "}
+                {step.description}
+              </li>
+            );
+          })}
+        </ol>
+
+        <div className="relative w-full max-h-[180px] bg-black rounded-2xl overflow-hidden mb-4 mx-auto">
           <video
             ref={videoRef}
             src={royaltyDemo.url}
-            className="w-full h-full object-cover"
+            className="w-full h-full max-h-[180px] object-contain mx-auto"
             muted
             playsInline
             loop
             preload="auto"
             aria-label="How to generate royalties demo"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-background pointer-events-none" />
         </div>
 
-        <div className="p-6 -mt-8 relative z-10">
-          <DialogHeader className="text-center space-y-2 mb-4">
-            <DialogTitle className="text-2xl font-black tracking-tight text-foreground">
-              How to Generate Royalties
-            </DialogTitle>
-            <DialogDescription className="text-sm text-muted-foreground">
-              Connect your data sources and start earning automatically when your data is consumed.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 mb-6">
-            {STEPS.map((step, index) => {
-              const Icon = step.icon;
-              return (
-                <div
-                  key={index}
-                  className="flex items-start gap-3 p-3 rounded-2xl bg-muted/40 border border-border/50"
-                >
-                  <div className="shrink-0 w-9 h-9 rounded-full bg-teal-500/10 flex items-center justify-center">
-                    <Icon className="w-4 h-4 text-teal-600" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold uppercase tracking-wider text-foreground">
-                      {step.title}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground leading-snug">
-                      {step.description}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <Button
-            onClick={onClose}
-            className="w-full h-12 rounded-xl bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-400 text-white font-black tracking-wide"
-          >
-            <HandCoins className="w-4 h-4 mr-2" />
-            Got it
-          </Button>
-        </div>
+        <Button
+          onClick={onClose}
+          className="w-full h-11 rounded-xl bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-400 text-white font-black tracking-wide"
+        >
+          <HandCoins className="w-4 h-4 mr-2" />
+          Got it
+        </Button>
       </DialogContent>
     </Dialog>
   );
