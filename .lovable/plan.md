@@ -1,26 +1,50 @@
-# Apple Health: don't mark connected until HealthKit access is actually granted
+# How to Generate Royalties Pop-up
 
-## The problem
+## Goal
+Add an educational pop-up that appears the first time a user taps the bottom **Data** tab, explaining how data-source connections translate into royalty payouts. Include a way to reopen the pop-up from the Data page.
 
-Today, as soon as the Face ID consent artifact is created, the Apple Health screen writes the connection as **active** and flips the UI to "Connected" — before the iPhone's Health permission sheet has been answered. If you tap "Don't Allow", the source still shows as a live connection even though no data can ever flow.
+## Requirements
+- Trigger: bottom navigation **Data** tab.
+- Frequency: show once per user/device; persist dismissal in localStorage.
+- Reopen: small info/help button on the Data page reopens the modal.
+- Content: explain tapping a connection, granting permissions/signing in, data flowing, and automatic USDC + IDIA Token royalty payouts when data is consumed from the IDIA Hub.
 
-## What changes
+## Implementation Plan
 
-Only the Apple Health screen's own logic changes. No changes to the iOS native shell, the Health sync server function, or any other data source.
+### 1. Create `src/components/RoyaltyInfoModal.tsx`
+- Use the existing `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle` from `@/components/ui/dialog`.
+- Use `Button` from `@/components/ui/button`.
+- Keep styling consistent with the app: semantic theme tokens (`bg-background`, `text-foreground`, `text-muted-foreground`, `border-border`), rounded-3xl corners, and the teal/orange accent palette already used in the Data tab.
+- Content structure:
+  - Title: "How to Generate Royalties"
+  - Short intro sentence.
+  - Step cards (icon + text):
+    1. Tap a data source (Apple Health, Health Connect, FordConnect).
+    2. Grant permissions or sign in to the linked account.
+    3. Data flows automatically and securely.
+    4. Earn USDC and IDIA Token royalties when your data is consumed from the IDIA Hub.
+  - Primary CTA: "Got it" (dismisses and persists).
+  - Secondary link-style CTA: "Learn more" (optional, can dispatch `showFriend` event with trigger `data`).
 
-1. **Consent first, activation last.** The connection row is created/updated as **inactive** right after the consent step, and only flipped to active when the phone reports a real, successful read.
-2. **Denied access ends the flow immediately.** If the native layer reports an error or a permission refusal, the screen stops, sets the connection back to inactive, shows "Apple Health access was not allowed — no data can be synced", and closes the source out instead of leaving it listed as connected.
-3. **No premature success.** The instant "resolve the UI immediately" call is removed; the connected state now comes only from the existing confirmation paths — the native success callback, the realtime watcher, or the ledger poll, all of which require a real active row.
-4. **Bounded waiting.** If neither an approval nor a refusal arrives within the existing timeout window, the screen reports the stall and leaves the connection inactive rather than active.
-5. **Cancel/close cleanup.** Closing the screen while a never-confirmed attempt is in flight leaves no active Apple Health row behind.
+### 2. Wire the modal into `src/components/MainApp.tsx`
+- Add state for `showRoyaltyInfo` and a `hasSeenRoyaltyInfo` check from localStorage keyed by user ID (`idia_royalty_info_seen_v1:<userId>`).
+- Track the previous active tab; when the user switches **to** the Data tab and they have not yet seen the info, open the modal.
+- Mark as seen when the modal is dismissed.
 
-## Technical detail
+### 3. Add a reopen affordance in `src/components/DataDashboard.tsx`
+- Add a small info/help icon button in the "Available Data Sources" section header.
+- Clicking it dispatches a custom event or calls a callback to reopen `RoyaltyInfoModal` from `MainApp`.
+- Prefer a window event (`showRoyaltyInfo`) so `DataDashboard` does not need to receive a prop through the tab router.
 
-In `src/components/AppleHealthModal.tsx`:
+### 4. Persist dismissal
+- Store `idia_royalty_info_seen_v1:<userId>` in localStorage when the user taps "Got it".
+- Re-read the flag when the auth user becomes available so the modal does not reappear after refresh.
 
-- In `handleConnect`, change the `data_connections` seed (insert and update branches) to `is_active: false` and drop the premature `last_sync_at`; keep the existing select-then-insert/update pattern (no upsert).
-- Remove the direct `handleLedgerVerification()` call that fires right after `syncHealthDataViaNativeApp(...)`; keep the watchdog timer running through the native handoff instead of clearing it beforehand.
-- Add a `deactivateConnection()` helper that selects the user's `apple_health` row and updates `is_active: false`; call it from `onHealthDataSyncError`, from the watchdog timeout, and from `closeAndReset` when the session never reached `connected`.
-- In `onHealthDataSyncComplete`, flip the row to `is_active: true` with `last_sync_at`, then call `handleLedgerVerification()` so the confirmed state is the only route to "Connected".
-- Treat error text containing denial wording (`denied`, `not allowed`, `authorization`, `unauthorized`) as a hard refusal: message "Apple Health access was not allowed — no data can be synced", status `error`, connection deactivated, no retry loop.
-- The realtime channel and 3.5s poll already require `is_active === true`, so they now only fire after genuine confirmation; no change needed there.
+## Out of Scope
+- No backend changes.
+- No changes to connection logic, Apple Health, Ford, or Android Health Connect modals.
+- No changes to royalty calculation or payout pipelines.
+
+## Verification
+- Type-check passes (`npx tsgo --noEmit -p tsconfig.app.json`).
+- Preview: switching to the Data tab shows the modal once; dismissing it prevents reappearance; the info button reopens it.
