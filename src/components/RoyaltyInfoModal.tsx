@@ -93,7 +93,7 @@ const RoyaltyInfoModal = ({ isOpen, onClose }: RoyaltyInfoModalProps) => {
           </DialogDescription>
         </DialogHeader>
 
-        <ol className="space-y-1 text-center mb-4">
+        <ol className="space-y-1 text-left px-1 mb-4">
           {STEPS.map((step, index) => {
             const Icon = step.icon;
             return (
