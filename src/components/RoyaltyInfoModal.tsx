@@ -39,14 +39,46 @@ const RoyaltyInfoModal = ({ isOpen, onClose }: RoyaltyInfoModalProps) => {
     const video = videoRef.current;
     if (!video) return;
 
-    if (isOpen) {
-      video.currentTime = 0;
-      video.play().catch(() => {
-        // Autoplay may be blocked; silent failure is acceptable.
-      });
-    } else {
+    if (!isOpen) {
       video.pause();
+      return;
     }
+
+    // iOS only honours autoplay when these live on the element itself before the
+    // source starts loading, so set them imperatively rather than via props.
+    video.muted = true;
+    video.defaultMuted = true;
+    video.setAttribute("muted", "");
+    video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "");
+    video.setAttribute("autoplay", "");
+
+    const attempt = () => {
+      video.play().catch(() => {
+        // Autoplay may still be blocked (e.g. iOS Low Power Mode); stay silent.
+      });
+    };
+
+    try {
+      video.currentTime = 0;
+    } catch {
+      // currentTime may not be settable before metadata loads.
+    }
+    attempt();
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") attempt();
+    };
+
+    video.addEventListener("loadeddata", attempt);
+    video.addEventListener("canplay", attempt);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      video.removeEventListener("loadeddata", attempt);
+      video.removeEventListener("canplay", attempt);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [isOpen]);
 
   return (
