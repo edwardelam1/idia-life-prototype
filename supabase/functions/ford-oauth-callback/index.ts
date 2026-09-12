@@ -137,11 +137,20 @@ serve(async (req) => {
     }
 
     if (!code || !state) {
+      const allParams = Array.from(url.searchParams.entries())
+        .map(([k, v]) => `${k}=${v.substring(0, 80)}`)
+        .join("&");
+      console.error(
+        `[ERROR: Ford.Callback] Bounce with no code/state. params=${allParams || "(none)"} referer=${req.headers.get("referer") ?? "none"}`,
+      );
       return new Response(
         resultPage({
           ok: false,
-          title: "Ford link incomplete",
-          message: "Ford did not return an authorization code. Please try connecting again.",
+          autoReturn: false,
+          title: "Ford sign-in did not start",
+          message:
+            "Ford sent you back without showing its sign-in page, so nothing was linked. Tap Try again to restart the FordConnect connection.",
+          buttonLabel: "Try again",
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "text/html" } },
       );
