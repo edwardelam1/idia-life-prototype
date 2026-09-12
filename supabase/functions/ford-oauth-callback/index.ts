@@ -20,8 +20,16 @@ const TOKEN_ENDPOINTS = [
 const NATIVE_SCHEME = "idialife://ford-callback";
 const WEB_APP_URL = "https://idia-life-ui.lovable.app/";
 
-function resultPage(opts: { ok: boolean; title: string; message: string }) {
+function resultPage(opts: {
+  ok: boolean;
+  title: string;
+  message: string;
+  autoReturn?: boolean;
+  buttonLabel?: string;
+}) {
   const color = opts.ok ? "#1351d8" : "#b3261e";
+  const autoReturn = opts.autoReturn !== false;
+  const label = opts.buttonLabel ?? "Return to IDIA";
   return `<!DOCTYPE html>
 <html>
   <head>
@@ -39,8 +47,10 @@ function resultPage(opts: { ok: boolean; title: string; message: string }) {
     <div class="logo">🚙</div>
     <div class="title">${opts.title}</div>
     <div class="message">${opts.message}</div>
-    <a class="btn" href="${WEB_APP_URL}">Return to IDIA</a>
-    <script>
+    <a class="btn" href="${WEB_APP_URL}">${label}</a>
+    ${
+      autoReturn
+        ? `<script>
       (function () {
         try { window.location.href = ${JSON.stringify(NATIVE_SCHEME)}; } catch (e) {}
         setTimeout(function () {
@@ -48,7 +58,9 @@ function resultPage(opts: { ok: boolean; title: string; message: string }) {
           window.location.replace(${JSON.stringify(WEB_APP_URL)});
         }, 1800);
       })();
-    </script>
+    </script>`
+        : ""
+    }
   </body>
 </html>`;
 }
@@ -137,11 +149,20 @@ serve(async (req) => {
     }
 
     if (!code || !state) {
+      const allParams = Array.from(url.searchParams.entries())
+        .map(([k, v]) => `${k}=${v.substring(0, 80)}`)
+        .join("&");
+      console.error(
+        `[ERROR: Ford.Callback] Bounce with no code/state. params=${allParams || "(none)"} referer=${req.headers.get("referer") ?? "none"}`,
+      );
       return new Response(
         resultPage({
           ok: false,
-          title: "Ford link incomplete",
-          message: "Ford did not return an authorization code. Please try connecting again.",
+          autoReturn: false,
+          title: "Ford sign-in did not start",
+          message:
+            "Ford sent you back without showing its sign-in page, so nothing was linked. Tap Try again to restart the FordConnect connection.",
+          buttonLabel: "Try again",
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "text/html" } },
       );

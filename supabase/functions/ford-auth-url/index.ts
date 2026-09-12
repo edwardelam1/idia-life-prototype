@@ -34,8 +34,13 @@ serve(async (req) => {
     const scope = "access";
     const state = userId;
 
-    // Explicitly forcing response_mode=query so Azure AD B2C doesn't hide the payload in a POST body
-    const oauthUrl = `https://fordconnect.cv.ford.com/common/login?make=F&application_id=${clientId}&client_id=${clientId}&response_type=code&response_mode=query&state=${state}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}`;
+    // NOTE: Ford's /common/login entry point bounces straight back to the redirect URI
+    // when it receives unexpected params (e.g. response_mode). Keep this param set exact.
+    const oauthUrl = `https://fordconnect.cv.ford.com/common/login?make=F&application_id=${clientId}&client_id=${clientId}&response_type=code&state=${state}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}`;
+
+    console.log(
+      `[INFO: Ford.AuthUrl] Built login URL host=fordconnect.cv.ford.com state=${state} redirect_uri=${redirectUri} scope=${scope} client_id=***${clientId.slice(-4)}`,
+    );
 
     return new Response(JSON.stringify({ oauthUrl }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
