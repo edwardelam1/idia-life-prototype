@@ -20,8 +20,16 @@ const TOKEN_ENDPOINTS = [
 const NATIVE_SCHEME = "idialife://ford-callback";
 const WEB_APP_URL = "https://idia-life-ui.lovable.app/";
 
-function resultPage(opts: { ok: boolean; title: string; message: string }) {
+function resultPage(opts: {
+  ok: boolean;
+  title: string;
+  message: string;
+  autoReturn?: boolean;
+  buttonLabel?: string;
+}) {
   const color = opts.ok ? "#1351d8" : "#b3261e";
+  const autoReturn = opts.autoReturn !== false;
+  const label = opts.buttonLabel ?? "Return to IDIA";
   return `<!DOCTYPE html>
 <html>
   <head>
@@ -39,8 +47,10 @@ function resultPage(opts: { ok: boolean; title: string; message: string }) {
     <div class="logo">🚙</div>
     <div class="title">${opts.title}</div>
     <div class="message">${opts.message}</div>
-    <a class="btn" href="${WEB_APP_URL}">Return to IDIA</a>
-    <script>
+    <a class="btn" href="${WEB_APP_URL}">${label}</a>
+    ${
+      autoReturn
+        ? `<script>
       (function () {
         try { window.location.href = ${JSON.stringify(NATIVE_SCHEME)}; } catch (e) {}
         setTimeout(function () {
@@ -48,7 +58,9 @@ function resultPage(opts: { ok: boolean; title: string; message: string }) {
           window.location.replace(${JSON.stringify(WEB_APP_URL)});
         }, 1800);
       })();
-    </script>
+    </script>`
+        : ""
+    }
   </body>
 </html>`;
 }
