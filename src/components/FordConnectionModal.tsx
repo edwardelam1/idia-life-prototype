@@ -305,7 +305,20 @@ const FordConnectionModal = ({
           }
         }, 300000);
 
-        setTimeout(() => {
+        setTimeout(async () => {
+          // Ford's identity provider refuses embedded web views and bounces straight
+          // back without ever showing its sign-in page. On device we must hand the
+          // login off to the system browser (SFSafariViewController / Custom Tabs).
+          try {
+            const { Capacitor } = await import("@capacitor/core");
+            if (Capacitor.isNativePlatform()) {
+              const { Browser } = await import("@capacitor/browser");
+              await Browser.open({ url: urlData.oauthUrl, presentationStyle: "popover" });
+              return;
+            }
+          } catch (browserError) {
+            console.error("[ERROR: React.HandleConnect] System browser handoff failed:", browserError);
+          }
           window.location.href = urlData.oauthUrl;
         }, 800);
       } catch (error: any) {
