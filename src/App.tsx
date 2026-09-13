@@ -131,6 +131,19 @@ const App = () => {
             return;
           }
 
+          // ── Ford returns from the system browser: close it and notify the app ──
+          if (url.startsWith("idialife://ford-callback")) {
+            console.log("[DeepLink] Ford callback received, closing system browser");
+            try {
+              const { Browser } = await import("@capacitor/browser");
+              await Browser.close();
+            } catch (closeError) {
+              console.warn("[DeepLink] Browser.close failed", closeError);
+            }
+            window.dispatchEvent(new CustomEvent("ford:oauth-returned"));
+            return;
+          }
+
           const fragmentIndex = url.indexOf("#");
           if (fragmentIndex === -1) {
             console.log("[DeepLink] No URL fragment, ignoring");

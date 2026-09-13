@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { HandCoins, Fingerprint, Database, Coins } from "lucide-react";
-import royaltyDemo from "@/assets/royalty-demo.mov.asset.json";
+import royaltyDemo from "@/assets/royalty-demo.mp4.asset.json";
 
 interface RoyaltyInfoModalProps {
   isOpen: boolean;
