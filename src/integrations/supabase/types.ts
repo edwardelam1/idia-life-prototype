@@ -3767,6 +3767,27 @@ export type Database = {
         }
         Relationships: []
       }
+      ford_oauth_states: {
+        Row: {
+          created_at: string
+          expires_at: string
+          state: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          state: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          state?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       franchise_agreements: {
         Row: {
           agreement_end_date: string | null
