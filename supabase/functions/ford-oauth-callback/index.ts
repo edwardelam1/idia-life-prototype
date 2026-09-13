@@ -158,11 +158,8 @@ serve(async (req) => {
       return new Response(
         resultPage({
           ok: false,
-          autoReturn: false,
-          title: "Ford sign-in did not start",
-          message:
-            "Ford sent you back without showing its sign-in page, so nothing was linked. Tap Try again to restart the FordConnect connection.",
-          buttonLabel: "Try again",
+          title: "Returning to IDIA",
+          message: "Taking you back to IDIA…",
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "text/html" } },
       );
