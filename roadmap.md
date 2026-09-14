@@ -18,3 +18,5 @@
 - [x] Ford OAuth server flow: correct FordConnect Query authorization/token/data endpoints and one-time state validation
 - [x] Ford callback: remove all HTML fallback/return pages and redirect directly to the native app
 - [ ] Verify Ford sign-in and first telemetry pull on a real iPhone — needs your device attempt
+- [x] Gov: Basescan opens in an in-app panel with Done/close (no Capacitor dependency — works in iOS custom shell and Android)
+- [x] Gov: first visit auto-opens the read-only DUNA manual with confetti bursts on both sides

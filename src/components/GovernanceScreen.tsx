@@ -24,6 +24,9 @@ import ApplicationReviewQueue from "./governance/ApplicationReviewQueue";
 
 import AuditFeed from "./governance/AuditFeed";
 import WelcomeManualGate from "./governance/WelcomeManualGate";
+import ManualViewerModal from "./governance/ManualViewerModal";
+import BasescanSheet from "./governance/BasescanSheet";
+import { fireWelcomeConfetti } from "./psychometric/confetti";
 import CreateDaoProposalModal from "./governance/CreateDaoProposalModal";
 import { PROTOCOL, ACTIVE_DEPLOYMENT } from "@/config/contracts";
 import { ACTION_REQUIRED_LEVEL, getAscensionLevel, type AscensionLevel } from "@/utils/governanceGate";
@@ -68,7 +71,7 @@ class CommitteeWorkspaceBoundary extends React.Component<{}, { hasError: boolean
 // 2. MODULAR PORTALS
 // ==========================================
 
-const IdiaGovernanceCard: React.FC<{ idiaBalance: number; chainVerified: boolean }> = ({ idiaBalance, chainVerified }) => (
+const IdiaGovernanceCard: React.FC<{ idiaBalance: number; chainVerified: boolean; onOpenExplorer: () => void }> = ({ idiaBalance, chainVerified, onOpenExplorer }) => (
   <Card className="bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] text-white border-none shadow-xl rounded-[2.5rem] overflow-hidden shrink-0">
     <CardContent className="p-7">
       <div className="flex justify-between items-start">
@@ -83,18 +86,17 @@ const IdiaGovernanceCard: React.FC<{ idiaBalance: number; chainVerified: boolean
         </div>
         <ShieldCheck className="w-10 h-10 text-orange-400 drop-shadow-lg shrink-0" />
       </div>
-      <a
-        href={`https://basescan.org/token/${IDIA_CONTRACT}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-6 flex items-center gap-2 border-t border-white/10 pt-4 hover:opacity-80 transition-opacity"
+      <button
+        type="button"
+        onClick={onOpenExplorer}
+        className="mt-6 w-full flex items-center gap-2 border-t border-white/10 pt-4 hover:opacity-80 transition-opacity text-left"
       >
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${chainVerified ? "bg-emerald-400 animate-pulse" : "bg-orange-400"}`} />
         <span className="text-[9px] font-black uppercase tracking-widest text-teal-50 truncate">
           {IS_MAINNET ? "Live · Base Mainnet" : "Mainnet"} · {IDIA_CONTRACT.slice(0, 6)}…{IDIA_CONTRACT.slice(-4)}
         </span>
         <ExternalLink size={10} className="text-teal-100/60 ml-auto shrink-0" />
-      </a>
+      </button>
     </CardContent>
   </Card>
 );
@@ -219,6 +221,8 @@ const GovernanceScreen: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [ascensionLevel, setAscensionLevel] = useState<AscensionLevel>(0);
+  const [isExplorerOpen, setIsExplorerOpen] = useState(false);
+  const [isManualViewerOpen, setIsManualViewerOpen] = useState(false);
   const canSubmitProposal = ascensionLevel >= ACTION_REQUIRED_LEVEL.SUBMIT_PROPOSAL;
 
   useEffect(() => {
@@ -269,10 +273,30 @@ const GovernanceScreen: React.FC = () => {
     };
   }, []);
 
+  // First touch of the Gov tab (per account, per device): auto-open the read-only manual
+  // with a celebratory burst from both sides. Never competes with the acknowledgement gate.
+  useEffect(() => {
+    if (!userId || needsWelcomeAck || isManualViewerOpen) return;
+    const seenKey = `idia_gov_manual_seen_v1:${userId}`;
+    try {
+      if (localStorage.getItem(seenKey)) return;
+      localStorage.setItem(seenKey, new Date().toISOString());
+    } catch {
+      return;
+    }
+    console.log("[GOVERNANCE_SCREEN][MANUAL_AUTO_OPEN] First Gov visit — presenting manual.");
+    setIsManualViewerOpen(true);
+    window.setTimeout(() => fireWelcomeConfetti(), 350);
+  }, [userId, needsWelcomeAck, isManualViewerOpen]);
+
   return (
     <div className="flex flex-col space-y-5 bg-white dark:bg-background min-h-screen p-4 pb-24 overflow-x-hidden animate-in fade-in duration-700">
       
-      <IdiaGovernanceCard idiaBalance={idiaBalance} chainVerified={chainVerified} />
+      <IdiaGovernanceCard
+        idiaBalance={idiaBalance}
+        chainVerified={chainVerified}
+        onOpenExplorer={() => setIsExplorerOpen(true)}
+      />
 
       <SegmentedJurisdiction value={jurisdiction} onChange={setJurisdiction} />
 
@@ -299,6 +323,18 @@ const GovernanceScreen: React.FC = () => {
           onAcknowledged={() => setNeedsWelcomeAck(false)}
         />
       )}
+
+      <ManualViewerModal
+        open={isManualViewerOpen}
+        onClose={() => setIsManualViewerOpen(false)}
+      />
+
+      <BasescanSheet
+        open={isExplorerOpen}
+        onClose={() => setIsExplorerOpen(false)}
+        contract={IDIA_CONTRACT}
+      />
+
 
       <CreateDaoProposalModal
         isOpen={isCreateModalOpen}
