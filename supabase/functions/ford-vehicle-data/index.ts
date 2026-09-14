@@ -79,7 +79,7 @@ serve(async (req) => {
     }
 
     // Get Ford connection
-    const { data: connection, error: connError } = await supabase
+    const { data: connectionRows, error: connError } = await supabase
       .from('data_connections')
       .select('*')
       .eq('user_id', user_id)

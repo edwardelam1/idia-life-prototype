@@ -54,7 +54,7 @@ serve(async (req) => {
     const url = new URL(req.url);
 
     let code = url.searchParams.get("code");
-    let state = url.searchParams.get("state"); // user_id
+    let state = url.searchParams.get("state");
     let error = url.searchParams.get("error");
 
     if (req.method === "POST") {
@@ -157,7 +157,7 @@ serve(async (req) => {
       return redirectToApp("error", "connection_store_failed");
     }
 
-    console.log("[INFO: Ford.Callback] Connection activated. Triggering first telemetry pull.");
+    console.log("[INFO: Ford.Callback] Credentials stored. Triggering first telemetry pull.");
 
     // Pull the first telemetry batch immediately. A failure here must not undo
     // the successful link.
