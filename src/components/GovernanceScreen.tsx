@@ -221,6 +221,8 @@ const GovernanceScreen: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [ascensionLevel, setAscensionLevel] = useState<AscensionLevel>(0);
+  const [isExplorerOpen, setIsExplorerOpen] = useState(false);
+  const [isManualViewerOpen, setIsManualViewerOpen] = useState(false);
   const canSubmitProposal = ascensionLevel >= ACTION_REQUIRED_LEVEL.SUBMIT_PROPOSAL;
 
   useEffect(() => {
