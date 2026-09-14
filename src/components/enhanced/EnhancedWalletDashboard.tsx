@@ -21,6 +21,7 @@ import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { useSovereignWallet } from "@/hooks/useSovereignWallet";
 import { useWallet } from "@/hooks/useWallet";
 import { IS_TESTNET } from "@/config/contracts";
+import { USDC_CONFIG } from "@/config/usdc";
 import { NFCPayrollModal } from "../NFCPayrollModal";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -78,6 +79,28 @@ const HIDDEN_HISTORY_DESCRIPTIONS = [
 function isHiddenHistoryItem(description: string): boolean {
   const d = (description || "").toLowerCase();
   return HIDDEN_HISTORY_DESCRIPTIONS.some((pattern) => d.includes(pattern.toLowerCase()));
+}
+
+async function resolveBaseBlockNumber(transactionHash: string): Promise<number | null> {
+  try {
+    const response = await fetch(USDC_CONFIG.rpcUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "eth_getTransactionReceipt",
+        params: [transactionHash],
+      }),
+    });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    const blockHex = payload?.result?.blockNumber;
+    return typeof blockHex === "string" ? Number.parseInt(blockHex, 16) : null;
+  } catch (error) {
+    console.warn("[WALLET_HISTORY] Could not resolve Base block", error);
+    return null;
+  }
 }
 
 interface CreditSimulation {
@@ -434,29 +457,55 @@ const EnhancedWalletDashboard: React.FC = () => {
         })
         .filter(Boolean) as Transaction[];
 
-      const mappedSynapse = (synapseResult.data || [])
+      const mappedSynapseRows = (synapseResult.data || [])
         .map((syn: any) => {
           try {
+            const isPurchase =
+              syn.metadata?.class === "Synapse_Purchase" ||
+              syn.metadata?.product_class === "SAAS_UTILITY_PURCHASE";
             let sourceAsset = "CREDS";
             let atomicAmount = syn.amount_usdc ?? syn.amount_idia_usd ?? syn.amount ?? 0;
 
-            if (syn.amount_usdc !== null) sourceAsset = "USDC";
+            if (isPurchase) {
+              sourceAsset = "CR";
+              atomicAmount = Number(syn.amount ?? 0);
+            } else if (syn.amount_usdc !== null) sourceAsset = "USDC";
             else if (syn.amount_idia_usd !== null) sourceAsset = "IDIA";
 
             return {
               id: syn.id,
-              transaction_type: "synapse_ledger_event",
-              amount: atomicAmount > 0 ? -Math.abs(atomicAmount) : atomicAmount,
-              description: syn.description || "SYNAPSE_CREDIT_EVENT",
+              transaction_type: isPurchase ? "synapse_credit_purchase" : "synapse_ledger_event",
+              amount: isPurchase ? Math.abs(Number(atomicAmount)) : atomicAmount > 0 ? -Math.abs(atomicAmount) : atomicAmount,
+              description: isPurchase ? "Synapse Credits Purchase" : syn.description || "SYNAPSE_CREDIT_EVENT",
               source: sourceAsset,
               created_at: syn.created_at,
-              metadata: { type: "synapse_ledger_event", original_data: syn },
+              metadata: {
+                type: isPurchase ? "synapse_credit_purchase" : "synapse_ledger_event",
+                credits_purchased: isPurchase ? Number(syn.amount ?? 0) : undefined,
+                usdc_paid: isPurchase ? Number(syn.metadata?.usd_amount ?? 0) : undefined,
+                rate_usd_per_credit: isPurchase ? Number(syn.metadata?.rate_usd_per_cr ?? 0) : undefined,
+                wallet_address: isPurchase ? syn.metadata?.user_wallet : undefined,
+                transaction_hash: syn.blockchain_tx_hash || undefined,
+                original_data: syn,
+              },
             };
           } catch (err) {
             return null;
           }
         })
         .filter(Boolean) as Transaction[];
+
+      const mappedSynapse = await Promise.all(
+        mappedSynapseRows.map(async (transaction) => {
+          const transactionHash = transaction.metadata?.transaction_hash;
+          if (transaction.transaction_type !== "synapse_credit_purchase" || !transactionHash) return transaction;
+          const blockNumber = await resolveBaseBlockNumber(transactionHash);
+          return {
+            ...transaction,
+            metadata: { ...transaction.metadata, block_number: blockNumber },
+          };
+        }),
+      );
 
       // Authoritative Synapse Credits total = signed sum across the full ledger.
       // Matches the Hub UI; ignores the potentially-stale `balance_after` cache.
@@ -518,7 +567,7 @@ const EnhancedWalletDashboard: React.FC = () => {
 
   // ── Transaction display helpers ──
   const getTransactionIcon = (type: string, currency: string) => {
-    if (type === "synapse_ledger_event") return BrainCircuit;
+    if (type === "synapse_ledger_event" || type === "synapse_credit_purchase") return BrainCircuit;
     if (type === "chain_receive") return ArrowDownLeft;
     if (currency === "USDC") return Shield;
     switch (type) {
@@ -540,6 +589,8 @@ const EnhancedWalletDashboard: React.FC = () => {
 
   const formatAmount = (amount: number, currency: string) => {
     const prefix = amount > 0 ? "+" : "";
+    if (currency === "CR")
+      return `${prefix}${Math.abs(amount).toLocaleString(undefined, { maximumFractionDigits: 4 })} CR`;
     if (currency === "ETH") return `${prefix}${Math.abs(amount).toFixed(6)} ETH`;
     if (currency === "IDIA")
       return `${prefix}${Math.abs(amount).toLocaleString(undefined, { maximumFractionDigits: 4 })} IDIA`;
@@ -1140,6 +1191,53 @@ const EnhancedWalletDashboard: React.FC = () => {
                 <p className="text-sm font-bold text-slate-800">{selectedTransaction?.source}</p>
               </div>
             </div>
+            {selectedTransaction?.transaction_type === "synapse_credit_purchase" && (
+              <div className="space-y-3 border-t border-border pt-5">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">USDC Paid</p>
+                    <p className="text-sm font-bold text-foreground">
+                      {Number(selectedTransaction.metadata?.usdc_paid ?? 0).toFixed(2)} USDC
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Price per Credit</p>
+                    <p className="text-sm font-bold text-foreground">
+                      ${Number(selectedTransaction.metadata?.rate_usd_per_credit ?? 0).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+                {selectedTransaction.metadata?.wallet_address && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Purchasing Wallet</p>
+                    <p className="break-all font-mono text-xs text-foreground">
+                      {selectedTransaction.metadata.wallet_address}
+                    </p>
+                  </div>
+                )}
+                {selectedTransaction.metadata?.transaction_hash && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Base Transaction</p>
+                    <a
+                      href={`${USDC_CONFIG.blockExplorer}/tx/${selectedTransaction.metadata.transaction_hash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="break-all font-mono text-xs text-primary underline"
+                    >
+                      {selectedTransaction.metadata.transaction_hash}
+                    </a>
+                  </div>
+                )}
+                {selectedTransaction.metadata?.block_number && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Confirmed Base Block</p>
+                    <p className="font-mono text-sm font-bold text-foreground">
+                      #{Number(selectedTransaction.metadata.block_number).toLocaleString()}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

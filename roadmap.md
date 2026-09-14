@@ -21,3 +21,4 @@
 - [x] Gov: Basescan opens in the native in-app browser surface (custom iOS shell or Android Capacitor; no blocked iframe)
 - [x] Gov: first visit auto-opens the read-only DUNA manual with confetti bursts on both sides
 - [x] Gov: keep the Welcome Manual frame below the fixed header and iPhone safe area
+- [x] Wallet: show Synapse credit purchases with credits, USDC price, wallet, transaction hash, and Base block
