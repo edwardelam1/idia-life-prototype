@@ -71,7 +71,7 @@ const BasescanSheet: React.FC<BasescanSheetProps> = ({ open, onClose, contract }
             <iframe
               title="Basescan token explorer"
               src={url}
-              onLoad={() => setFrameFailed(false)}
+              onLoad={() => setFrameLoaded(true)}
               onError={() => setFrameFailed(true)}
               className="w-full h-full border-0 bg-white"
             />
