@@ -6,7 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const FORD_API_BASE = 'https://api.mps.ford.com/api/fordconnect/v3';
+const FORD_API_BASE = 'https://api.vehicle.ford.com/fcon-query/v1';
+const FORD_TOKEN_URL = 'https://api.vehicle.ford.com/dah2vb2cprod.onmicrosoft.com/oauth2/v2.0/token?p=B2C_1A_FCON_AUTHORIZE';
 
 async function refreshFordToken(supabase: any, connection: any) {
   const clientId = Deno.env.get('FORD_CLIENT_ID');
@@ -14,7 +15,7 @@ async function refreshFordToken(supabase: any, connection: any) {
 
   if (!clientId || !clientSecret || !connection.refresh_token) return null;
 
-  const tokenResponse = await fetch('https://dah2vb2cprod.b2clogin.com/914d88b1-3523-4bf6-9be4-1b96b4f6f919/oauth2/v2.0/token?p=B2C_1A_signup_signin_common', {
+  const tokenResponse = await fetch(FORD_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -46,7 +47,6 @@ async function fordApiCall(accessToken: string, endpoint: string) {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
-      'Application-Id': Deno.env.get('FORD_CLIENT_ID') || '',
     }
   });
 
@@ -84,8 +84,9 @@ serve(async (req) => {
       .select('*')
       .eq('user_id', user_id)
       .eq('connection_type', 'ford')
-      .eq('is_active', true)
-      .single();
+      .limit(1);
+
+    const connection = connectionRows?.[0];
 
     if (connError || !connection) {
       return new Response(
@@ -108,8 +109,8 @@ serve(async (req) => {
     }
 
     // Fetch vehicles list
-    const vehiclesData = await fordApiCall(accessToken, '/vehicles');
-    const vehicles = vehiclesData?.vehicles || [];
+    const garageData = await fordApiCall(accessToken, '/garage');
+    const vehicles = Array.isArray(garageData) ? garageData : garageData?.vehicles ? garageData.vehicles : garageData?.vin ? [garageData] : [];
 
     if (vehicles.length === 0) {
       return new Response(
@@ -121,18 +122,8 @@ serve(async (req) => {
     const allVehicleData = [];
 
     for (const vehicle of vehicles) {
-      const vehicleId = vehicle.vehicleId;
-
-      // Fetch all telemetry categories in parallel
-      const [
-        locationResult,
-        vehicleInfoResult,
-        statusResult,
-      ] = await Promise.allSettled([
-        fordApiCall(accessToken, `/vehicles/${vehicleId}/location`),
-        fordApiCall(accessToken, `/vehicles/${vehicleId}`),
-        fordApiCall(accessToken, `/vehicles/${vehicleId}/status`),
-      ]);
+      const vehicleId = vehicle.vin || vehicle.vehicleId;
+      const telemetry = await fordApiCall(accessToken, '/telemetry');
 
       const vehicleTelemetry: Record<string, any> = {
         vehicleId,
@@ -144,54 +135,7 @@ serve(async (req) => {
         nickName: vehicle.nickName,
       };
 
-      // Location & Movement
-      if (locationResult.status === 'fulfilled') {
-        vehicleTelemetry.location = locationResult.value;
-      }
-
-      // Vehicle info (includes EV data, fuel, etc.)
-      if (vehicleInfoResult.status === 'fulfilled') {
-        vehicleTelemetry.vehicleInfo = vehicleInfoResult.value;
-      }
-
-      // Full status (doors, tires, battery, diagnostics)
-      if (statusResult.status === 'fulfilled') {
-        const status = statusResult.value;
-        vehicleTelemetry.status = {
-          // Driving Dynamics
-          speed: status?.vehiclestatus?.speed,
-          gearLeverPosition: status?.vehiclestatus?.gearLeverPosition,
-          engineRpm: status?.vehiclestatus?.engineRpm,
-          acceleratorPedalPosition: status?.vehiclestatus?.acceleratorPedalPosition,
-
-          // EV / PHEV
-          batteryStateOfCharge: status?.vehiclestatus?.batteryStateOfCharge,
-          elVehChargeStatus: status?.vehiclestatus?.elVehChargeStatus,
-          plugStatus: status?.vehiclestatus?.plugStatus,
-          chargingVoltage: status?.vehiclestatus?.chargingVoltage,
-          estimatedRange: status?.vehiclestatus?.elVehDTE,
-
-          // Vehicle Health & Diagnostics
-          odometer: status?.vehiclestatus?.odometer,
-          battery12V: status?.vehiclestatus?.battery,
-          oilLifeRemaining: status?.vehiclestatus?.oilLifeRemaining,
-          tirePressure: status?.vehiclestatus?.tirePressure,
-          engineCoolantTemp: status?.vehiclestatus?.engineCoolantTemp,
-          diagnosticTroubleCodes: status?.vehiclestatus?.dtcs,
-          fuelLevel: status?.vehiclestatus?.fuel,
-
-          // Security & Cabin State
-          doors: status?.vehiclestatus?.doorStatus,
-          windows: status?.vehiclestatus?.windowStatus,
-          alarm: status?.vehiclestatus?.alarm,
-          ignitionStatus: status?.vehiclestatus?.ignitionStatus,
-          deepSleepMode: status?.vehiclestatus?.deepSleepInProgress,
-
-          // Climate
-          cabinTemperature: status?.vehiclestatus?.cabinTemperature,
-          exteriorTemperature: status?.vehiclestatus?.outsideTemperature,
-        };
-      }
+      vehicleTelemetry.telemetry = telemetry;
 
       // Store raw telemetry in raw_health_data for pipeline processing
       const { error: insertError } = await supabase
@@ -202,7 +146,6 @@ serve(async (req) => {
           activity_type: 'vehicle_telemetry',
           raw_payload: vehicleTelemetry,
           processing_status: 'pending',
-          step_count: Math.round(vehicleTelemetry.status?.odometer?.value || 0),
           recorded_at: new Date().toISOString(),
         });
 
@@ -216,7 +159,7 @@ serve(async (req) => {
     // Update last sync time
     await supabase
       .from('data_connections')
-      .update({ last_sync_at: new Date().toISOString() })
+       .update({ is_active: true, last_sync_at: new Date().toISOString(), last_successful_sync: new Date().toISOString(), sync_status: 'healthy' })
       .eq('id', connection.id);
 
     return new Response(

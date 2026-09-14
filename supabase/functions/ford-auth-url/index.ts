@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,18 +12,32 @@ serve(async (req) => {
   }
 
   try {
-    const { userId } = await req.json();
+    const authorization = req.headers.get("Authorization");
+    if (!authorization) {
+      return new Response(JSON.stringify({ error: "Authentication is required" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    if (!userId) {
-      return new Response(JSON.stringify({ error: "User ID is required" }), {
-        status: 400,
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const authClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authorization } },
+    });
+    const { data: { user }, error: authError } = await authClient.auth.getUser();
+
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Invalid session" }), {
+        status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const clientId = Deno.env.get("FORD_CLIENT_ID");
-    if (!clientId) {
-      return new Response(JSON.stringify({ error: "Ford client ID not configured" }), {
+    if (!clientId || !serviceRoleKey) {
+      return new Response(JSON.stringify({ error: "Ford server configuration is incomplete" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -30,16 +45,37 @@ serve(async (req) => {
 
     const redirectUri = `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/ford-oauth-callback`;
 
-    // FordConnect API scopes for full vehicle telemetry access
-    const scope = "access";
-    const state = userId;
+    const stateBytes = crypto.getRandomValues(new Uint8Array(8));
+    const state = Array.from(stateBytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // NOTE: Ford's /common/login entry point bounces straight back to the redirect URI
-    // when it receives unexpected params (e.g. response_mode). Keep this param set exact.
-    const oauthUrl = `https://fordconnect.cv.ford.com/common/login?make=F&application_id=${clientId}&client_id=${clientId}&response_type=code&state=${state}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}`;
+    await serviceClient.from("ford_oauth_states").delete().lt("expires_at", new Date().toISOString());
+    const { error: stateError } = await serviceClient.from("ford_oauth_states").insert({
+      state,
+      user_id: user.id,
+      expires_at: expiresAt,
+    });
+
+    if (stateError) {
+      console.error("[ERROR: Ford.AuthUrl] Failed to store OAuth state", stateError);
+      return new Response(JSON.stringify({ error: "Could not start Ford sign-in" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const authorizeUrl = new URL("https://api.vehicle.ford.com/fcon-public/v1/auth/init");
+    authorizeUrl.search = new URLSearchParams({
+      response_type: "code",
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      state,
+    }).toString();
+    const oauthUrl = authorizeUrl.toString();
 
     console.log(
-      `[INFO: Ford.AuthUrl] Built login URL host=fordconnect.cv.ford.com state=${state} redirect_uri=${redirectUri} scope=${scope} client_id=***${clientId.slice(-4)}`,
+      `[INFO: Ford.AuthUrl] Built login URL host=api.vehicle.ford.com state_length=${state.length} redirect_uri=${redirectUri} client_id=***${clientId.slice(-4)}`,
     );
 
     return new Response(JSON.stringify({ oauthUrl }), {

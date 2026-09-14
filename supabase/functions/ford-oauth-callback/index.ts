@@ -7,105 +7,37 @@ const corsHeaders = {
 };
 
 const REDIRECT_URI = "https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/ford-oauth-callback";
+const TOKEN_ENDPOINT = "https://api.vehicle.ford.com/dah2vb2cprod.onmicrosoft.com/oauth2/v2.0/token?p=B2C_1A_FCON_AUTHORIZE";
 
-// Ford has moved this endpoint before. Try the documented B2C endpoint first,
-// then the FordConnect public host, so a single Ford-side move cannot silently
-// break the link again.
-const TOKEN_ENDPOINTS = [
-  "https://dah2vb2cprod.b2clogin.com/914d88b1-3523-4bf6-9be4-1b96b4f6f919/oauth2/v2.0/token?p=B2C_1A_signup_signin_common",
-  "https://fordconnect.cv.ford.com/fcon-public/v1/oauth/token",
-  "https://fordconnect.cv.ford.com/fcon-public/v1/auth/token",
-];
-
-const NATIVE_SCHEME = "idialife://ford-callback";
-const WEB_APP_URL = "https://idia-life-ui.lovable.app/";
-
-function resultPage(opts: {
-  ok: boolean;
-  title: string;
-  message: string;
-  autoReturn?: boolean;
-  buttonLabel?: string;
-}) {
-  const color = opts.ok ? "#1351d8" : "#b3261e";
-  const autoReturn = opts.autoReturn !== false;
-  const label = opts.buttonLabel ?? "Return to IDIA";
-  return `<!DOCTYPE html>
-<html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${opts.title}</title>
-    <style>
-      body { font-family: -apple-system, Arial, sans-serif; text-align: center; padding: 48px 24px; background: #f8f9fa; }
-      .title { color: ${color}; font-size: 22px; font-weight: 700; margin-bottom: 12px; }
-      .message { color: #555; font-size: 15px; line-height: 1.4; }
-      .logo { font-size: 44px; margin-bottom: 14px; }
-      a.btn { display: inline-block; margin-top: 24px; padding: 12px 22px; border-radius: 10px; background: ${color}; color: #fff; text-decoration: none; font-weight: 600; }
-    </style>
-  </head>
-  <body>
-    <div class="logo">🚙</div>
-    <div class="title">${opts.title}</div>
-    <div class="message">${opts.message}</div>
-    <a class="btn" href="${WEB_APP_URL}">${label}</a>
-    ${
-      autoReturn
-        ? `<script>
-      (function () {
-        try { window.location.href = ${JSON.stringify(NATIVE_SCHEME)}; } catch (e) {}
-        setTimeout(function () {
-          try { if (window.opener) { window.close(); return; } } catch (e) {}
-          window.location.replace(${JSON.stringify(WEB_APP_URL)});
-        }, 1800);
-      })();
-    </script>`
-        : ""
-    }
-  </body>
-</html>`;
+function redirectToApp(status: "success" | "error", reason?: string) {
+  const destination = new URL("idialife://ford-callback");
+  destination.searchParams.set("status", status);
+  if (reason) destination.searchParams.set("reason", reason.substring(0, 120));
+  return new Response(null, { status: 302, headers: { ...corsHeaders, Location: destination.toString() } });
 }
 
 async function exchangeCodeForToken(clientId: string, clientSecret: string, code: string) {
-  const attempts: string[] = [];
-
-  for (const endpoint of TOKEN_ENDPOINTS) {
-    console.log(`[BEGIN: Ford.TokenExchange] endpoint=${endpoint}`);
-    try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          grant_type: "authorization_code",
-          client_id: clientId,
-          client_secret: clientSecret,
-          code,
-          redirect_uri: REDIRECT_URI,
-        }).toString(),
-      });
-
-      const bodyText = await response.text();
-      console.log(
-        `[END: Ford.TokenExchange] endpoint=${endpoint} status=${response.status} body=${bodyText.substring(0, 500)}`,
-      );
-
-      if (response.ok) {
-        try {
-          return { tokenData: JSON.parse(bodyText), endpoint, attempts };
-        } catch (parseError) {
-          attempts.push(`${endpoint} -> 200 but unparsable body`);
-          console.error(`[ERROR: Ford.TokenExchange] Unparsable body from ${endpoint}`, parseError);
-          continue;
-        }
-      }
-
-      attempts.push(`${endpoint} -> ${response.status}`);
-    } catch (error) {
-      attempts.push(`${endpoint} -> network error`);
-      console.error(`[ERROR: Ford.TokenExchange] Request failed for ${endpoint}`, error);
-    }
+  console.log(`[BEGIN: Ford.TokenExchange] endpoint=${TOKEN_ENDPOINT}`);
+  const response = await fetch(TOKEN_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+      redirect_uri: REDIRECT_URI,
+    }).toString(),
+  });
+  const bodyText = await response.text();
+  console.log(`[END: Ford.TokenExchange] status=${response.status} body=${bodyText.substring(0, 500)}`);
+  if (!response.ok) return null;
+  try {
+    return JSON.parse(bodyText);
+  } catch (parseError) {
+    console.error("[ERROR: Ford.TokenExchange] Unparsable token response", parseError);
+    return null;
   }
-
-  return { tokenData: null, endpoint: null, attempts };
 }
 
 serve(async (req) => {
@@ -142,10 +74,7 @@ serve(async (req) => {
 
     if (error) {
       console.error("[ERROR: Ford.Callback] Ford OAuth error:", error);
-      return new Response(
-        resultPage({ ok: false, title: "Ford sign-in failed", message: `Ford reported: ${error}` }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "text/html" } },
-      );
+      return redirectToApp("error", error);
     }
 
     if (!code || !state) {
@@ -155,52 +84,51 @@ serve(async (req) => {
       console.error(
         `[ERROR: Ford.Callback] Bounce with no code/state. params=${allParams || "(none)"} referer=${req.headers.get("referer") ?? "none"}`,
       );
-      return new Response(
-        resultPage({
-          ok: false,
-          title: "Returning to IDIA",
-          message: "Taking you back to IDIA…",
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "text/html" } },
-      );
+      return redirectToApp("error", "missing_oauth_response");
     }
+
+    const { data: stateRows, error: stateReadError } = await supabase
+      .from("ford_oauth_states")
+      .select("user_id, expires_at")
+      .eq("state", state)
+      .limit(1);
+    const oauthState = stateRows?.[0];
+
+    if (stateReadError || !oauthState || new Date(oauthState.expires_at) <= new Date()) {
+      console.error("[ERROR: Ford.Callback] Invalid or expired OAuth state", stateReadError ?? "state_not_found");
+      if (oauthState) await supabase.from("ford_oauth_states").delete().eq("state", state);
+      return redirectToApp("error", "invalid_oauth_state");
+    }
+
+    const { error: stateDeleteError } = await supabase.from("ford_oauth_states").delete().eq("state", state);
+    if (stateDeleteError) {
+      console.error("[ERROR: Ford.Callback] Could not consume OAuth state", stateDeleteError);
+      return redirectToApp("error", "oauth_state_not_consumed");
+    }
+    const userId = oauthState.user_id;
 
     const clientId = Deno.env.get("FORD_CLIENT_ID");
     const clientSecret = Deno.env.get("FORD_CLIENT_SECRET");
 
     if (!clientId || !clientSecret) {
       console.error("[ERROR: Ford.Callback] Missing FORD_CLIENT_ID / FORD_CLIENT_SECRET");
-      return new Response(
-        resultPage({
-          ok: false,
-          title: "Ford link failed",
-          message: "Ford API credentials are not configured on the server.",
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "text/html" } },
-      );
+      return redirectToApp("error", "server_configuration");
     }
 
-    const { tokenData, endpoint, attempts } = await exchangeCodeForToken(clientId, clientSecret, code);
+    const tokenData = await exchangeCodeForToken(clientId, clientSecret, code);
 
     if (!tokenData?.access_token) {
-      console.error(`[ERROR: Ford.Callback] All token endpoints failed: ${attempts.join(" | ")}`);
-      return new Response(
-        resultPage({
-          ok: false,
-          title: "Ford link failed",
-          message: `Ford accepted your sign-in but rejected the token request (${attempts.join(", ")}). Please try again.`,
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "text/html" } },
-      );
+      console.error("[ERROR: Ford.Callback] Ford token exchange failed");
+      return redirectToApp("error", "token_exchange_failed");
     }
 
-    console.log(`[INFO: Ford.Callback] Token obtained via ${endpoint}`);
+    console.log("[INFO: Ford.Callback] FordConnect Query token obtained");
 
     // Store the connection (UPDATE-then-INSERT, never upsert)
     const { data: existingRows, error: selectError } = await supabase
       .from("data_connections")
       .select("id")
-      .eq("user_id", state)
+      .eq("user_id", userId)
       .eq("connection_type", "ford")
       .limit(1);
 
@@ -213,28 +141,20 @@ serve(async (req) => {
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token ?? null,
       token_expires_at: new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString(),
-      is_active: true,
-      last_sync_at: new Date().toISOString(),
+      is_active: false,
     };
 
     const writeError = existingRows && existingRows.length > 0
       ? (await supabase.from("data_connections").update(connectionRow).eq("id", existingRows[0].id)).error
       : (await supabase.from("data_connections").insert({
-          user_id: state,
+          user_id: userId,
           connection_type: "ford",
           ...connectionRow,
         })).error;
 
     if (writeError) {
       console.error("[ERROR: Ford.Callback] Failed to store Ford connection:", writeError);
-      return new Response(
-        resultPage({
-          ok: false,
-          title: "Ford link failed",
-          message: "We could not save your Ford connection. Please try again.",
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "text/html" } },
-      );
+      return redirectToApp("error", "connection_store_failed");
     }
 
     console.log("[INFO: Ford.Callback] Connection activated. Triggering first telemetry pull.");
@@ -243,7 +163,7 @@ serve(async (req) => {
     // the successful link.
     try {
       const { data: pullData, error: pullError } = await supabase.functions.invoke("ford-vehicle-data", {
-        body: { user_id: state },
+        body: { user_id: userId },
       });
       if (pullError) {
         console.error("[ERROR: Ford.Callback] ford-vehicle-data invoke failed:", pullError);
@@ -256,23 +176,9 @@ serve(async (req) => {
 
     console.log("[END: Ford.Callback] Success.");
 
-    return new Response(
-      resultPage({
-        ok: true,
-        title: "FordConnect linked successfully",
-        message: "Vehicle telemetry is now streaming. Returning you to IDIA…",
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "text/html" } },
-    );
+    return redirectToApp("success");
   } catch (error) {
     console.error("[FATAL: Ford.Callback]", error, (error as Error)?.stack);
-    return new Response(
-      resultPage({
-        ok: false,
-        title: "Ford link failed",
-        message: "An unexpected error occurred. Please try connecting again.",
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "text/html" } },
-    );
+    return redirectToApp("error", "unexpected_error");
   }
 });
