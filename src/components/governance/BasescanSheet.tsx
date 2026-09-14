@@ -16,18 +16,23 @@ interface BasescanSheetProps {
  */
 const BasescanSheet: React.FC<BasescanSheetProps> = ({ open, onClose, contract }) => {
   const [frameFailed, setFrameFailed] = useState(false);
+  const [frameLoaded, setFrameLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
   const url = `https://basescan.org/token/${contract}`;
 
   useEffect(() => {
     if (!open) return;
     setFrameFailed(false);
+    setFrameLoaded(false);
     setCopied(false);
-
-    // If the embed is blocked, nothing ever loads — surface the fallback instead of a blank sheet.
-    const timer = window.setTimeout(() => setFrameFailed((prev) => prev || true), 6000);
-    return () => window.clearTimeout(timer);
   }, [open, contract]);
+
+  useEffect(() => {
+    if (!open || frameLoaded || frameFailed) return;
+    // If the embed is blocked, nothing ever loads — surface the fallback instead of a blank sheet.
+    const timer = window.setTimeout(() => setFrameFailed(true), 6000);
+    return () => window.clearTimeout(timer);
+  }, [open, frameLoaded, frameFailed]);
 
   if (!open) return null;
 
