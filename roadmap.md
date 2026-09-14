@@ -15,3 +15,6 @@
 - [x] Ford path: canonical "ford" source id, pending row seeded, native shell navigates in place (no detached window / confirm())
 - [x] Protocol rule: no upserts anywhere — explicit UPDATE-then-INSERT only (modal, data source screen, ford-oauth-callback)
 - [x] Apple Health: activate only on confirmed native read; inactive seed, denial hard-fail, deactivation cleanup
+- [x] Ford OAuth server flow: correct FordConnect Query authorization/token/data endpoints and one-time state validation
+- [x] Ford callback: remove all HTML fallback/return pages and redirect directly to the native app
+- [ ] Verify Ford sign-in and first telemetry pull on a real iPhone — needs your device attempt
