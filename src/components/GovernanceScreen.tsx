@@ -273,6 +273,22 @@ const GovernanceScreen: React.FC = () => {
     };
   }, []);
 
+  // First touch of the Gov tab (per account, per device): auto-open the read-only manual
+  // with a celebratory burst from both sides. Never competes with the acknowledgement gate.
+  useEffect(() => {
+    if (!userId || needsWelcomeAck || isManualViewerOpen) return;
+    const seenKey = `idia_gov_manual_seen_v1:${userId}`;
+    try {
+      if (localStorage.getItem(seenKey)) return;
+      localStorage.setItem(seenKey, new Date().toISOString());
+    } catch {
+      return;
+    }
+    console.log("[GOVERNANCE_SCREEN][MANUAL_AUTO_OPEN] First Gov visit — presenting manual.");
+    setIsManualViewerOpen(true);
+    window.setTimeout(() => fireWelcomeConfetti(), 350);
+  }, [userId, needsWelcomeAck, isManualViewerOpen]);
+
   return (
     <div className="flex flex-col space-y-5 bg-white dark:bg-background min-h-screen p-4 pb-24 overflow-x-hidden animate-in fade-in duration-700">
       
