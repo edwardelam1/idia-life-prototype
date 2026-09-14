@@ -324,6 +324,18 @@ const GovernanceScreen: React.FC = () => {
         />
       )}
 
+      <ManualViewerModal
+        open={isManualViewerOpen}
+        onClose={() => setIsManualViewerOpen(false)}
+      />
+
+      <BasescanSheet
+        open={isExplorerOpen}
+        onClose={() => setIsExplorerOpen(false)}
+        contract={IDIA_CONTRACT}
+      />
+
+
       <CreateDaoProposalModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
