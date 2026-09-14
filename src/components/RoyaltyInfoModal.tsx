@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { HandCoins, Fingerprint, Database, Coins } from "lucide-react";
@@ -34,52 +34,95 @@ const STEPS = [
 
 const RoyaltyInfoModal = ({ isOpen, onClose }: RoyaltyInfoModalProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const isOpenRef = useRef(isOpen);
+  const playPromiseRef = useRef<Promise<void> | null>(null);
+  const retryTimersRef = useRef<number[]>([]);
 
-  useEffect(() => {
+  isOpenRef.current = isOpen;
+
+  const clearRetries = useCallback(() => {
+    retryTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    retryTimersRef.current = [];
+  }, []);
+
+  const attemptPlayback = useCallback(() => {
     const video = videoRef.current;
+    if (!video || !isOpenRef.current || !video.paused || video.ended || playPromiseRef.current) return;
+
+    video.muted = true;
+    video.defaultMuted = true;
+    const playPromise = video.play();
+    playPromiseRef.current = playPromise;
+    playPromise
+      .catch(() => {
+        // A later media event or bounded retry may succeed once WebKit is ready.
+      })
+      .finally(() => {
+        if (playPromiseRef.current === playPromise) playPromiseRef.current = null;
+      });
+  }, []);
+
+  const setVideoRef = useCallback((video: HTMLVideoElement | null) => {
+    videoRef.current = video;
     if (!video) return;
 
-    if (!isOpen) {
-      video.pause();
-      return;
-    }
-
-    // iOS only honours autoplay when these live on the element itself before the
-    // source starts loading, so set them imperatively rather than via props.
+    // WebKit evaluates autoplay eligibility as soon as src is assigned. Apply
+    // every required muted/inline attribute before allowing the MP4 to load.
     video.muted = true;
     video.defaultMuted = true;
     video.setAttribute("muted", "");
     video.setAttribute("playsinline", "");
     video.setAttribute("webkit-playsinline", "");
     video.setAttribute("autoplay", "");
+    video.setAttribute("preload", "auto");
+    video.src = royaltyDemo.url;
 
-    const attempt = () => {
-      video.play().catch(() => {
-        // Autoplay may still be blocked (e.g. iOS Low Power Mode); stay silent.
-      });
-    };
+    if (isOpenRef.current) queueMicrotask(attemptPlayback);
+  }, [attemptPlayback]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (!isOpen) {
+      clearRetries();
+      video.pause();
+      try {
+        video.currentTime = 0;
+      } catch {
+        // currentTime may not be settable before metadata loads.
+      }
+      return;
+    }
 
     try {
       video.currentTime = 0;
     } catch {
       // currentTime may not be settable before metadata loads.
     }
-    attempt();
+    attemptPlayback();
+
+    [150, 450, 900].forEach((delay) => {
+      retryTimersRef.current.push(window.setTimeout(attemptPlayback, delay));
+    });
 
     const onVisibility = () => {
-      if (document.visibilityState === "visible") attempt();
+      if (document.visibilityState === "visible") attemptPlayback();
     };
 
-    video.addEventListener("loadeddata", attempt);
-    video.addEventListener("canplay", attempt);
+    video.addEventListener("loadedmetadata", attemptPlayback);
+    video.addEventListener("loadeddata", attemptPlayback);
+    video.addEventListener("canplay", attemptPlayback);
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      video.removeEventListener("loadeddata", attempt);
-      video.removeEventListener("canplay", attempt);
+      clearRetries();
+      video.removeEventListener("loadedmetadata", attemptPlayback);
+      video.removeEventListener("loadeddata", attemptPlayback);
+      video.removeEventListener("canplay", attemptPlayback);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [isOpen]);
+  }, [attemptPlayback, clearRetries, isOpen]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -110,9 +153,9 @@ const RoyaltyInfoModal = ({ isOpen, onClose }: RoyaltyInfoModalProps) => {
 
         <div className="relative w-full max-h-[180px] bg-black rounded-2xl overflow-hidden mb-4 mx-auto">
           <video
-            ref={videoRef}
-            src={royaltyDemo.url}
+            ref={setVideoRef}
             className="w-full h-full max-h-[180px] object-contain mx-auto"
+            autoPlay
             muted
             playsInline
             loop
