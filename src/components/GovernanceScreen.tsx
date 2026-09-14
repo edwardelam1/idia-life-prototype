@@ -25,7 +25,7 @@ import ApplicationReviewQueue from "./governance/ApplicationReviewQueue";
 import AuditFeed from "./governance/AuditFeed";
 import WelcomeManualGate from "./governance/WelcomeManualGate";
 import ManualViewerModal from "./governance/ManualViewerModal";
-import BasescanSheet from "./governance/BasescanSheet";
+import { openBasescan } from "./governance/BasescanSheet";
 import { fireWelcomeConfetti } from "./psychometric/confetti";
 import CreateDaoProposalModal from "./governance/CreateDaoProposalModal";
 import { PROTOCOL, ACTIVE_DEPLOYMENT } from "@/config/contracts";
@@ -221,7 +221,6 @@ const GovernanceScreen: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [ascensionLevel, setAscensionLevel] = useState<AscensionLevel>(0);
-  const [isExplorerOpen, setIsExplorerOpen] = useState(false);
   const [isManualViewerOpen, setIsManualViewerOpen] = useState(false);
   const canSubmitProposal = ascensionLevel >= ACTION_REQUIRED_LEVEL.SUBMIT_PROPOSAL;
 
@@ -295,7 +294,7 @@ const GovernanceScreen: React.FC = () => {
       <IdiaGovernanceCard
         idiaBalance={idiaBalance}
         chainVerified={chainVerified}
-        onOpenExplorer={() => setIsExplorerOpen(true)}
+        onOpenExplorer={() => openBasescan(IDIA_CONTRACT)}
       />
 
       <SegmentedJurisdiction value={jurisdiction} onChange={setJurisdiction} />
@@ -328,13 +327,6 @@ const GovernanceScreen: React.FC = () => {
         open={isManualViewerOpen}
         onClose={() => setIsManualViewerOpen(false)}
       />
-
-      <BasescanSheet
-        open={isExplorerOpen}
-        onClose={() => setIsExplorerOpen(false)}
-        contract={IDIA_CONTRACT}
-      />
-
 
       <CreateDaoProposalModal
         isOpen={isCreateModalOpen}

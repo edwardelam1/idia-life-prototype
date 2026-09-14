@@ -12,9 +12,9 @@ const ManualViewerModal: React.FC<ManualViewerModalProps> = ({ open, onClose }) 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[200] bg-background/95 backdrop-blur-xl flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
-      <div className="w-full max-w-2xl h-full max-h-[90vh] flex flex-col rounded-[2rem] border border-border bg-card shadow-2xl overflow-hidden">
-        <div className="p-6 border-b border-border bg-gradient-to-br from-[hsl(178,42%,32%)]/10 to-transparent flex items-center gap-3">
+    <div className="fixed inset-x-0 bottom-0 top-[calc(3.5rem+env(safe-area-inset-top))] z-[200] bg-background/95 backdrop-blur-xl flex items-center justify-center px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div className="w-full max-w-2xl h-full max-h-full flex flex-col rounded-[2rem] border border-border bg-card shadow-2xl overflow-hidden">
+        <div className="p-4 sm:p-6 border-b border-border bg-gradient-to-br from-[hsl(178,42%,32%)]/10 to-transparent flex items-center gap-3 shrink-0">
           <div className="p-2 bg-[hsl(178,42%,32%)]/10 rounded-lg">
             <ScrollText className="w-6 h-6 text-[hsl(178,42%,32%)]" />
           </div>
