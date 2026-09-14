@@ -292,7 +292,11 @@ const GovernanceScreen: React.FC = () => {
   return (
     <div className="flex flex-col space-y-5 bg-white dark:bg-background min-h-screen p-4 pb-24 overflow-x-hidden animate-in fade-in duration-700">
       
-      <IdiaGovernanceCard idiaBalance={idiaBalance} chainVerified={chainVerified} />
+      <IdiaGovernanceCard
+        idiaBalance={idiaBalance}
+        chainVerified={chainVerified}
+        onOpenExplorer={() => setIsExplorerOpen(true)}
+      />
 
       <SegmentedJurisdiction value={jurisdiction} onChange={setJurisdiction} />
 
