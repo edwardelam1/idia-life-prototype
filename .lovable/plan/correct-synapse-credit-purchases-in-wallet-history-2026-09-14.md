@@ -5,8 +5,9 @@
 Today’s ledger entry is a real Synapse credit purchase, but Wallet history selects its `amount_idia_usd` value of `0` before the actual credit amount. That makes the row appear as a zero-value generic credit event.
 
 The verified purchase contains:
+
 - **Credits purchased:** 2.6667 Synapse Credits
-- **Purchase price:** $2.00
+- **Purchase price:** $2.00 USDC
 - **Rate:** $0.75 per credit
 - **Wallet:** `0x429F7fd3CCd6514Cedef76DB12f7bA2151355A40`
 - **Transaction:** `0x7865427a6de424d249dc9ff6bc9db884015b104e10303ea13554c4a4915d977b`
@@ -19,7 +20,7 @@ The verified purchase contains:
 - Keep debit/usage entries signed correctly and avoid changing the authoritative Synapse Credits balance calculation.
 - Expand the receipt for purchases to show:
   - credits purchased
-  - USD paid
+  - USDC paid
   - price per credit
   - purchasing wallet address
   - transaction hash
