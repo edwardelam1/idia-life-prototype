@@ -1,24 +1,19 @@
-# Governance page: in-app Basescan view + auto-opening manual
+# Fix the Gov manual position and Basescan opening
 
-Two changes on the Gov page.
+## What will change
 
-## 1. Basescan link opens inside the app
+- Move the Welcome Manual below the fixed app header and iPhone safe area, so its frame and title remain fully visible.
+- Keep the manual’s Close control visible while the pages scroll within the available screen height.
+- Remove the embedded Basescan frame entirely; Basescan blocks embedded display and the current load event can incorrectly leave a blank panel.
+- Open Basescan in the device’s native in-app browser surface:
+  - iPhone custom ContentView: use the same top-level external navigation handoff already used by the shell for authentication, producing a Safari-style sheet with its own Done/Close control.
+  - Android Capacitor: use the existing Capacitor Browser sheet.
+  - Regular web browsers: open a normal new browser tab.
+- If the native handoff cannot start, keep the user on the Gov page and show a clear error instead of a blank window.
 
-Today the token link at the bottom of the teal IDIA card jumps to Basescan with no way back.
+## Technical details
 
-New behavior:
-- On iPhone/Android, tapping it opens Basescan in an in-app browser sheet that slides over the app with a built-in Done button, returning straight to Governance.
-- On the web preview, it opens a framed panel inside the app with a clear X / Close button and the Basescan page loaded in it. If Basescan refuses to display inside the frame, the panel shows the token contract address with a copy button and a single "Open Basescan in a new tab" link, so the user is never stranded.
-
-## 2. Manual opens automatically on first touch of the Gov page
-
-- The first time a user opens the Gov page (per account, remembered on the device), the read-only manual window opens by itself — no acknowledgement required, just the pages and a Close button.
-- Existing behavior is preserved: the one-time "I Understand" acknowledgement gate still takes priority for accounts that have never acknowledged; the read-only auto-open only applies afterwards.
-- A celebration burst — the same confetti used when a data connection succeeds — fires from the left and right edges of the manual window as it appears.
-
-## Technical notes
-
-- New `BasescanSheet` component in `src/components/governance/`. Native path uses `@capacitor/browser` (already installed, `presentationStyle: "popover"`); web path renders a full-screen overlay matching the existing modal styling (`rounded-[2rem]`, teal `hsl(178,42%,32%)` header) with an iframe plus a load-failure fallback card. `IdiaGovernanceCard` in `GovernanceScreen.tsx` swaps its `<a>` for a button that triggers the sheet.
-- Auto-open uses the existing `ManualViewerModal`, mounted in `GovernanceScreen` with a `localStorage` key scoped by user id (e.g. `idia_gov_manual_seen_v1:<userId>`), gated so it does not fire while `needsWelcomeAck` is true.
-- Confetti reuses `fireAppleHealthDataBurst` from `src/components/psychometric/confetti.ts`, fired once on open at two origins (`x: 0.08` and `x: 0.92`, `y: 0.6`).
-- No changes to governance data, RLS, or edge functions.
+- Replace `BasescanSheet` state and rendering with one platform-aware `openBasescan` action; no iframe or simulated explorer content.
+- Preserve the current token contract URL and the Gov card interaction.
+- Size the manual against the fixed header plus `env(safe-area-inset-top)` and available dynamic viewport height; retain bottom safe-area clearance.
+- Verify the manual title/Close control at mobile and desktop sizes, and verify the web fallback opens the exact Basescan token URL.
