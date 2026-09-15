@@ -25,6 +25,7 @@ import { USDC_CONFIG } from "@/config/usdc";
 import { NFCPayrollModal } from "../NFCPayrollModal";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { AUTHORIZE_STAGE_LABEL } from "@/lib/authorizeStages";
 import SendRequestModal from "../SendRequestModal";
 import PaymentTrigger from "../PaymentTrigger";
 import { fireFinaleConfetti } from "../psychometric/confetti";
