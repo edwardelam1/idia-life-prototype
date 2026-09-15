@@ -274,6 +274,40 @@ export function useWallet(): UseWalletReturn {
     return result;
   }, []);
 
+  // --- Hub / Synapse Credit authorization ---
+  const refreshAuthorization = useCallback(async () => {
+    if (!walletService.getAddress()) return;
+    setAuthorizationLoading(true);
+    setAuthorizationError(null);
+    try {
+      const status = await walletService.getAuthorizationStatus();
+      setAuthorizationStatus(status);
+    } catch (e: any) {
+      console.error('[useWallet] authorization status failed:', e);
+      setAuthorizationError(e?.message ?? 'Could not read authorization status');
+    } finally {
+      setAuthorizationLoading(false);
+    }
+  }, []);
+
+  const authorizeWallet = useCallback(async () => {
+    setAuthorizationError(null);
+    setProvisioningStage('idle');
+    try {
+      await walletService.authorizeExistingWallet((stage) => setProvisioningStage(stage));
+      await refreshAuthorization();
+      return true;
+    } catch (e: any) {
+      const msg = e?.message ?? 'Authorization failed';
+      setAuthorizationError(msg.replace('NO_GAS: ', ''));
+      return false;
+    }
+  }, [refreshAuthorization]);
+
+  useEffect(() => {
+    if (wallet) refreshAuthorization();
+  }, [wallet, refreshAuthorization]);
+
   return {
     // --- Unified Return Object ---
     wallet,
@@ -286,6 +320,13 @@ export function useWallet(): UseWalletReturn {
     error,
     clearError,
     provisioningStage,
+
+    // Authorization
+    authorizationStatus,
+    authorizationLoading,
+    authorizationError,
+    refreshAuthorization,
+    authorizeWallet,
 
     // Network data
     activeNetwork,
