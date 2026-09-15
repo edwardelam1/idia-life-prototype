@@ -747,8 +747,12 @@ class WalletService {
       selfDelegated: String(delegatee).toLowerCase() === address.toLowerCase(),
       hasGas: (ethBalance as bigint) > 0n,
       dripAvailable,
+      indeterminate: !relayerAddress,
     };
-    status.authorized = status.relayerApproved && status.vaultApproved;
+    // Hub purchases are settled by the relayer pulling USDC via transferFrom,
+    // so the relayer allowance is the only requirement. Vault approval is an
+    // optional extra path and must not mark a working wallet unauthorized.
+    status.authorized = status.relayerApproved;
     console.log(`${TAG}[STATUS]`, status);
     return status;
   }
