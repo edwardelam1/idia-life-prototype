@@ -159,7 +159,40 @@ const EnhancedWalletDashboard: React.FC = () => {
     refreshBalances,
     delegateVotes,
     provisioningStage,
+    authorizationStatus,
+    authorizationLoading,
+    authorizationError,
+    refreshAuthorization,
+    authorizeWallet,
   } = useWallet();
+
+  const [isAuthorizing, setIsAuthorizing] = useState(false);
+
+  const AUTHORIZE_STAGE_LABEL: Record<string, string> = {
+    idle: "Preparing…",
+    requesting_drip: "Checking gas…",
+    awaiting_gas: "Waiting for gas…",
+    approving_usdc: "Authorizing relayer…",
+    approving_vault: "Authorizing credits vault…",
+    delegating_self: "Enabling voting power…",
+    done: "Done",
+    failed: "Failed",
+  };
+
+  const handleAuthorizeWallet = async () => {
+    setIsAuthorizing(true);
+    try {
+      const ok = await authorizeWallet();
+      if (ok) {
+        toast({
+          title: "Wallet authorized",
+          description: "This wallet can now purchase Synapse Credits on the Hub.",
+        });
+      }
+    } finally {
+      setIsAuthorizing(false);
+    }
+  };
 
   const hasWallet = wallet !== null;
   const localAddress = wallet?.address;
