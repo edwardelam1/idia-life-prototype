@@ -496,8 +496,7 @@ const EnhancedWalletDashboard: React.FC = () => {
         .map((syn: any) => {
           try {
             const isPurchase =
-              syn.metadata?.class === "Synapse_Purchase" ||
-              syn.metadata?.product_class === "SAAS_UTILITY_PURCHASE";
+              syn.metadata?.class === "Synapse_Purchase" || syn.metadata?.product_class === "SAAS_UTILITY_PURCHASE";
             let sourceAsset = "CREDS";
             let atomicAmount = syn.amount_usdc ?? syn.amount_idia_usd ?? syn.amount ?? 0;
 
@@ -510,7 +509,11 @@ const EnhancedWalletDashboard: React.FC = () => {
             return {
               id: syn.id,
               transaction_type: isPurchase ? "synapse_credit_purchase" : "synapse_ledger_event",
-              amount: isPurchase ? Math.abs(Number(atomicAmount)) : atomicAmount > 0 ? -Math.abs(atomicAmount) : atomicAmount,
+              amount: isPurchase
+                ? Math.abs(Number(atomicAmount))
+                : atomicAmount > 0
+                  ? -Math.abs(atomicAmount)
+                  : atomicAmount,
               description: isPurchase ? "Synapse Credits Purchase" : syn.description || "SYNAPSE_CREDIT_EVENT",
               source: sourceAsset,
               created_at: syn.created_at,
@@ -1016,8 +1019,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                     {/* ── Hub Authorization ── */}
                     {(() => {
                       const mismatch =
-                        !!globalWalletAddress &&
-                        globalWalletAddress.toLowerCase() !== wallet.address.toLowerCase();
+                        !!globalWalletAddress && globalWalletAddress.toLowerCase() !== wallet.address.toLowerCase();
                       const authorized = authorizationStatus?.authorized === true;
                       const checking = authorizationLoading && !authorizationStatus;
 
@@ -1031,7 +1033,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                               <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                               <div className="text-xs text-emerald-900 dark:text-emerald-100">
                                 <p className="font-semibold mb-0.5">Wallet Authorized</p>
-                                <p>This wallet can purchase Synapse Credits on the Hub.</p>
+                                <p>This wallet can operate in The IDIA Hub.</p>
                               </div>
                             </div>
                           </div>
@@ -1048,18 +1050,16 @@ const EnhancedWalletDashboard: React.FC = () => {
                                 <p>Checking this wallet's authorization…</p>
                               ) : mismatch ? (
                                 <p>
-                                  Your account is linked to a different wallet. Tap “Use IDIA Wallet for My
-                                  Account” above first, then authorize.
+                                  Your account is linked to a different wallet. Tap “Use IDIA Wallet for My Account”
+                                  above first, then authorize.
                                 </p>
                               ) : (
                                 <p>
-                                  This wallet hasn't been authorized yet, so Synapse Credit purchases on the Hub
-                                  will be declined.
+                                  This wallet hasn't been authorized yet, so Synapse Credit purchases on the Hub will be
+                                  declined.
                                 </p>
                               )}
-                              {authorizationError && (
-                                <p className="mt-1 font-medium">{authorizationError}</p>
-                              )}
+                              {authorizationError && <p className="mt-1 font-medium">{authorizationError}</p>}
                               {!checking &&
                                 !mismatch &&
                                 authorizationStatus &&
