@@ -42,6 +42,8 @@ export interface WalletAuthorizationStatus {
   hasGas: boolean;
   /** False once this wallet has already consumed its one-time gas drip. */
   dripAvailable: boolean;
+  /** True when the relayer address could not be resolved — status is unknown. */
+  indeterminate?: boolean;
   authorized?: boolean;
 }
 
