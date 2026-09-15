@@ -1013,6 +1013,91 @@ const EnhancedWalletDashboard: React.FC = () => {
                       <p className="font-mono text-xs break-all text-muted-foreground mb-2">{wallet.address}</p>
                     </div>
 
+                    {/* ── Hub Authorization ── */}
+                    {(() => {
+                      const mismatch =
+                        !!globalWalletAddress &&
+                        globalWalletAddress.toLowerCase() !== wallet.address.toLowerCase();
+                      const authorized = authorizationStatus?.authorized === true;
+                      const checking = authorizationLoading && !authorizationStatus;
+
+                      if (authorized) {
+                        return (
+                          <div className="p-3 rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40">
+                            <div className="flex items-start gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                              <div className="text-xs text-emerald-900 dark:text-emerald-100">
+                                <p className="font-semibold mb-0.5">Wallet Authorized</p>
+                                <p>This wallet can purchase Synapse Credits on the Hub.</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/40 space-y-2">
+                          <div className="flex items-start gap-2">
+                            <ShieldCheck className="w-4 h-4 text-amber-700 dark:text-amber-300 mt-0.5 shrink-0" />
+                            <div className="flex-1 text-xs text-amber-900 dark:text-amber-100">
+                              <p className="font-semibold mb-0.5">Wallet Authorization</p>
+                              {checking ? (
+                                <p>Checking this wallet's authorization…</p>
+                              ) : mismatch ? (
+                                <p>
+                                  Your account is linked to a different wallet. Tap “Use IDIA Wallet for My
+                                  Account” above first, then authorize.
+                                </p>
+                              ) : (
+                                <p>
+                                  This wallet hasn't been authorized yet, so Synapse Credit purchases on the Hub
+                                  will be declined.
+                                </p>
+                              )}
+                              {authorizationError && (
+                                <p className="mt-1 font-medium">{authorizationError}</p>
+                              )}
+                              {!checking &&
+                                !mismatch &&
+                                authorizationStatus &&
+                                !authorizationStatus.hasGas &&
+                                !authorizationStatus.dripAvailable && (
+                                  <p className="mt-1">
+                                    This wallet needs a small amount of ETH on Base to complete authorization.
+                                  </p>
+                                )}
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                            disabled={mismatch || checking || isAuthorizing}
+                            onClick={handleAuthorizeWallet}
+                          >
+                            {isAuthorizing ? (
+                              <>
+                                <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                                {AUTHORIZE_STAGE_LABEL[provisioningStage] ?? "Authorizing…"}
+                              </>
+                            ) : (
+                              <>
+                                <ShieldCheck className="w-3 h-3 mr-2" />
+                                {authorizationError ? "Retry Authorization" : "Authorize Wallet"}
+                              </>
+                            )}
+                          </Button>
+                          {!isAuthorizing && !checking && (
+                            <button
+                              className="w-full text-[11px] text-amber-800 dark:text-amber-200 underline"
+                              onClick={() => refreshAuthorization()}
+                            >
+                              Re-check status
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                     {/* Network selector — only visible in test builds */}
                     {IS_TESTNET && (
                       <div>
