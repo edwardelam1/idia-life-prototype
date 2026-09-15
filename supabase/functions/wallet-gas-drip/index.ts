@@ -17,7 +17,7 @@ Deno.serve(async (req: Request) => {
   console.log("[BOOT: wallet-gas-drip] Sovereign Drip Protocol Online.");
 
   try {
-    const { target_address } = await req.json();
+    const { target_address, probe } = await req.json();
 
     if (!target_address || typeof target_address !== "string" || !target_address.startsWith("0x") || target_address.length !== 42) {
       throw new Error("Invalid target wallet address.");
@@ -77,6 +77,29 @@ Deno.serve(async (req: Request) => {
       .select("id, tx_hash")
       .eq("wallet_address", normalized)
       .maybeSingle();
+
+    // PROBE MODE — read-only: report the relayer address and drip eligibility
+    // without broadcasting anything. Used by the wallet authorization card.
+    if (probe === true) {
+      const probeKey = Deno.env.get("TREASURY_PRIVATE_KEY");
+      if (!probeKey) throw new Error("Server configuration error: Missing Treasury Key.");
+      const probeAccount = privateKeyToAccount(`0x${probeKey.replace(/^0x/, "")}` as `0x${string}`);
+      const { data: probeDrip } = await supabase
+        .from("wallet_provisioning_logs")
+        .select("id")
+        .eq("wallet_address", normalized)
+        .maybeSingle();
+      return new Response(
+        JSON.stringify({
+          success: true,
+          probe: true,
+          relayer_address: probeAccount.address,
+          already_funded: Boolean(probeDrip),
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
+      );
+    }
+
 
     if (checkError) {
       console.error("[DRIP] guard read error", checkError);

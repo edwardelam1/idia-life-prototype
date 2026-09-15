@@ -13,6 +13,7 @@ import {
   WalletBalances,
   NetworkConfig,
   type ProvisioningStage,
+  type WalletAuthorizationStatus,
 } from '../services/walletService';
 
 // --- Backwards Compatibility Aliases ---
@@ -32,6 +33,13 @@ interface UseWalletReturn {
   error: string | null;
   clearError: () => void;
   provisioningStage: ProvisioningStage;
+
+  // --- AUTHORIZATION API (Hub / Synapse Credit purchases) ---
+  authorizationStatus: WalletAuthorizationStatus | null;
+  authorizationLoading: boolean;
+  authorizationError: string | null;
+  refreshAuthorization: () => Promise<void>;
+  authorizeWallet: () => Promise<boolean>;
 
   // --- NETWORK API ---
   activeNetwork: string; // Legacy string format
@@ -70,6 +78,9 @@ export function useWallet(): UseWalletReturn {
   const [balancesLoading, setBalancesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [provisioningStage, setProvisioningStage] = useState<ProvisioningStage>('idle');
+  const [authorizationStatus, setAuthorizationStatus] = useState<WalletAuthorizationStatus | null>(null);
+  const [authorizationLoading, setAuthorizationLoading] = useState(false);
+  const [authorizationError, setAuthorizationError] = useState<string | null>(null);
 
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
   const [isBalanceLoading, setIsBalanceLoading] = useState(false);
@@ -263,6 +274,40 @@ export function useWallet(): UseWalletReturn {
     return result;
   }, []);
 
+  // --- Hub / Synapse Credit authorization ---
+  const refreshAuthorization = useCallback(async () => {
+    if (!walletService.getAddress()) return;
+    setAuthorizationLoading(true);
+    setAuthorizationError(null);
+    try {
+      const status = await walletService.getAuthorizationStatus();
+      setAuthorizationStatus(status);
+    } catch (e: any) {
+      console.error('[useWallet] authorization status failed:', e);
+      setAuthorizationError(e?.message ?? 'Could not read authorization status');
+    } finally {
+      setAuthorizationLoading(false);
+    }
+  }, []);
+
+  const authorizeWallet = useCallback(async () => {
+    setAuthorizationError(null);
+    setProvisioningStage('idle');
+    try {
+      await walletService.authorizeExistingWallet((stage) => setProvisioningStage(stage));
+      await refreshAuthorization();
+      return true;
+    } catch (e: any) {
+      const msg = e?.message ?? 'Authorization failed';
+      setAuthorizationError(msg.replace('NO_GAS: ', ''));
+      return false;
+    }
+  }, [refreshAuthorization]);
+
+  useEffect(() => {
+    if (wallet) refreshAuthorization();
+  }, [wallet, refreshAuthorization]);
+
   return {
     // --- Unified Return Object ---
     wallet,
@@ -275,6 +320,13 @@ export function useWallet(): UseWalletReturn {
     error,
     clearError,
     provisioningStage,
+
+    // Authorization
+    authorizationStatus,
+    authorizationLoading,
+    authorizationError,
+    refreshAuthorization,
+    authorizeWallet,
 
     // Network data
     activeNetwork,
