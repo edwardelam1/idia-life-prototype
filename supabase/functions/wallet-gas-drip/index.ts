@@ -17,7 +17,7 @@ Deno.serve(async (req: Request) => {
   console.log("[BOOT: wallet-gas-drip] Sovereign Drip Protocol Online.");
 
   try {
-    const { target_address } = await req.json();
+    const { target_address, probe } = await req.json();
 
     if (!target_address || typeof target_address !== "string" || !target_address.startsWith("0x") || target_address.length !== 42) {
       throw new Error("Invalid target wallet address.");
