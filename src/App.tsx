@@ -226,6 +226,9 @@ const App = () => {
             </Routes>
           </BrowserRouter>
 
+          {/* ── Hub → Life wallet authorization hand-off ── */}
+          <HubAuthorizationGate />
+
           {/* ── NFC Payment Modal (root level — catches deep links regardless of route) ── */}
           <NfcPaymentModal
             isOpen={showNfcPaymentModal}
