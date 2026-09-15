@@ -13,6 +13,7 @@ import {
   WalletBalances,
   NetworkConfig,
   type ProvisioningStage,
+  type WalletAuthorizationStatus,
 } from '../services/walletService';
 
 // --- Backwards Compatibility Aliases ---
