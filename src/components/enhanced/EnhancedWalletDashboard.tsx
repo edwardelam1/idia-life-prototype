@@ -54,6 +54,8 @@ import {
   ExternalLink,
   Lock,
   Upload,
+  ShieldCheck,
+  CheckCircle2,
 } from "lucide-react";
 import idiaHubLogo from "@/assets/idia-hub-logo.png.asset.json";
 
