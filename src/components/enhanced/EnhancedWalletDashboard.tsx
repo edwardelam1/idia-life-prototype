@@ -25,6 +25,7 @@ import { USDC_CONFIG } from "@/config/usdc";
 import { NFCPayrollModal } from "../NFCPayrollModal";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { AUTHORIZE_STAGE_LABEL } from "@/lib/authorizeStages";
 import SendRequestModal from "../SendRequestModal";
 import PaymentTrigger from "../PaymentTrigger";
 import { fireFinaleConfetti } from "../psychometric/confetti";
@@ -168,16 +169,7 @@ const EnhancedWalletDashboard: React.FC = () => {
 
   const [isAuthorizing, setIsAuthorizing] = useState(false);
 
-  const AUTHORIZE_STAGE_LABEL: Record<string, string> = {
-    idle: "Preparing…",
-    requesting_drip: "Checking gas…",
-    awaiting_gas: "Waiting for gas…",
-    approving_usdc: "Authorizing relayer…",
-    approving_vault: "Authorizing credits vault…",
-    delegating_self: "Enabling voting power…",
-    done: "Done",
-    failed: "Failed",
-  };
+  // Stage labels are shared with the Hub authorization hand-off screen.
 
   const handleAuthorizeWallet = async () => {
     setIsAuthorizing(true);

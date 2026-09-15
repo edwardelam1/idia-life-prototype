@@ -25,6 +25,7 @@ import AgeVerification from "./pages/AgeVerification";
 // NFC PAYMENT IMPORTS
 import { usePaymentDeepLink } from "@/hooks/usePaymentDeepLink";
 import NfcPaymentModal from "@/components/NfcPaymentModal";
+import HubAuthorizationGate from "@/components/wallet/HubAuthorizationGate";
 import { startPushBootstrap } from "@/utils/pushBootstrap";
 import ConsentGate from "@/components/ConsentGate";
 import { useSessionSentinel } from "@/hooks/useSessionSentinel";
@@ -132,6 +133,16 @@ const App = () => {
           }
 
           // ── Ford returns from the system browser: close it and notify the app ──
+          // ── The IDIA Hub asks Life to authorize the wallet for credit purchases ──
+          if (url.startsWith("idialife://authorize-relayer")) {
+            console.log("[DeepLink] Hub authorization request received");
+            window.dispatchEvent(
+              new CustomEvent("idia:authorize-relayer", { detail: { url } }),
+            );
+            return;
+          }
+
+          // ── Ford returns from the system browser: close it and notify the app ──
           if (url.startsWith("idialife://ford-callback")) {
             console.log("[DeepLink] Ford callback received, closing system browser");
             try {
@@ -214,6 +225,9 @@ const App = () => {
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
+
+          {/* ── Hub → Life wallet authorization hand-off ── */}
+          <HubAuthorizationGate />
 
           {/* ── NFC Payment Modal (root level — catches deep links regardless of route) ── */}
           <NfcPaymentModal
