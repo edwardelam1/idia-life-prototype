@@ -31,6 +31,20 @@ export interface ProvisionResult {
   relayerAddress: string;
 }
 
+export interface WalletAuthorizationStatus {
+  address: string;
+  networkName: string;
+  relayerAddress: string;
+  vaultAddress: string;
+  relayerApproved: boolean;
+  vaultApproved: boolean;
+  selfDelegated: boolean;
+  hasGas: boolean;
+  /** False once this wallet has already consumed its one-time gas drip. */
+  dripAvailable: boolean;
+  authorized?: boolean;
+}
+
 // -- Network Configuration ------------------------------------------------
 
 const getBaseRpcUrl = (): string => {
