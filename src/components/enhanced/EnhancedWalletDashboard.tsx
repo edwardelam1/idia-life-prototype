@@ -1021,6 +1021,9 @@ const EnhancedWalletDashboard: React.FC = () => {
                       const authorized = authorizationStatus?.authorized === true;
                       const checking = authorizationLoading && !authorizationStatus;
 
+                      // Status couldn't be determined — never accuse a working wallet.
+                      if (authorizationStatus?.indeterminate) return null;
+
                       if (authorized) {
                         return (
                           <div className="p-3 rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40">
