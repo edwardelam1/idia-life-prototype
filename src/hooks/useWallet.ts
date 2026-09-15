@@ -34,6 +34,13 @@ interface UseWalletReturn {
   clearError: () => void;
   provisioningStage: ProvisioningStage;
 
+  // --- AUTHORIZATION API (Hub / Synapse Credit purchases) ---
+  authorizationStatus: WalletAuthorizationStatus | null;
+  authorizationLoading: boolean;
+  authorizationError: string | null;
+  refreshAuthorization: () => Promise<void>;
+  authorizeWallet: () => Promise<boolean>;
+
   // --- NETWORK API ---
   activeNetwork: string; // Legacy string format
   activeNetworkConfig: NetworkConfig | null; // New config object format
