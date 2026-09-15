@@ -25,6 +25,7 @@ import AgeVerification from "./pages/AgeVerification";
 // NFC PAYMENT IMPORTS
 import { usePaymentDeepLink } from "@/hooks/usePaymentDeepLink";
 import NfcPaymentModal from "@/components/NfcPaymentModal";
+import HubAuthorizationGate from "@/components/wallet/HubAuthorizationGate";
 import { startPushBootstrap } from "@/utils/pushBootstrap";
 import ConsentGate from "@/components/ConsentGate";
 import { useSessionSentinel } from "@/hooks/useSessionSentinel";
