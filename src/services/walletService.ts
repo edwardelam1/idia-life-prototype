@@ -680,6 +680,154 @@ class WalletService {
       throw err;
     }
   }
+
+  /**
+   * Read-only authorization status for the loaded wallet.
+   *
+   * A wallet can only buy Synapse Credits on the Hub once it has approved
+   * USDC spending for the relayer and for the Synapse Vault. Wallets created
+   * in-app get this from provisionNewWallet(); imported wallets never did.
+   */
+  async getAuthorizationStatus(): Promise<WalletAuthorizationStatus> {
+    const TAG = "[WALLET_AUTHZ]";
+    if (!this.wallet) throw new Error("No wallet loaded");
+    const address = this.wallet.address;
+    const network = this.getActiveNetwork();
+    const { idiaToken, usdc } = this.getTokenAddresses();
+    const provider = this.getProvider();
+
+    const vaultAddress = SYNAPSE_VAULT_ADDRESSES[this.activeNetwork] || "";
+    let relayerAddress = "";
+    let dripAvailable = true;
+    try {
+      const { data, error } = await supabase.functions.invoke("wallet-gas-drip", {
+        body: { target_address: address, probe: true },
+      });
+      if (error) throw error;
+      relayerAddress = data?.relayer_address || "";
+      dripAvailable = !data?.already_funded;
+    } catch (e: any) {
+      console.warn(`${TAG}[PROBE_FAILED] ${e?.message ?? e}`);
+    }
+
+    const usdcContract = new ethers.Contract(usdc, ERC20_ABI, provider);
+    const idia = new ethers.Contract(idiaToken, IDIA_TOKEN_ABI, provider);
+    const THRESHOLD = ethers.parseUnits("1000000", 6); // treat >=1M USDC allowance as approved
+
+    const [ethBalance, relayerAllowance, vaultAllowance, delegatee] = await Promise.all([
+      provider.getBalance(address),
+      relayerAddress ? usdcContract.allowance(address, relayerAddress).catch(() => 0n) : Promise.resolve(0n),
+      vaultAddress ? usdcContract.allowance(address, vaultAddress).catch(() => 0n) : Promise.resolve(0n),
+      idia.delegates(address).catch(() => ethers.ZeroAddress),
+    ]);
+
+    const status: WalletAuthorizationStatus = {
+      address,
+      networkName: network.name,
+      relayerAddress,
+      vaultAddress,
+      relayerApproved: relayerAddress ? (relayerAllowance as bigint) >= THRESHOLD : false,
+      vaultApproved: vaultAddress ? (vaultAllowance as bigint) >= THRESHOLD : true,
+      selfDelegated: String(delegatee).toLowerCase() === address.toLowerCase(),
+      hasGas: (ethBalance as bigint) > 0n,
+      dripAvailable,
+    };
+    status.authorized = status.relayerApproved && status.vaultApproved;
+    console.log(`${TAG}[STATUS]`, status);
+    return status;
+  }
+
+  /**
+   * Bring an existing (usually imported) wallet up to the same authorized
+   * state a freshly created wallet gets. Every step already satisfied is
+   * skipped — nothing is re-broadcast.
+   */
+  async authorizeExistingWallet(onStage?: (stage: ProvisioningStage) => void): Promise<void> {
+    const TAG = "[WALLET_PROVISION]";
+    const setStage = (s: ProvisioningStage) => {
+      console.log(`${TAG}[STAGE] ${s}`);
+      onStage?.(s);
+    };
+
+    if (!this.wallet) throw new Error("No wallet loaded");
+    const address = this.wallet.address;
+    const network = this.getActiveNetwork();
+    const { idiaToken, usdc } = this.getTokenAddresses();
+
+    if (network.chainId !== 8453 && network.chainId !== 84532) {
+      throw new Error(`Authorization is only supported on Base (got chainId ${network.chainId})`);
+    }
+
+    try {
+      let status = await this.getAuthorizationStatus();
+
+      // -- 1. Gas ---------------------------------------------------------
+      if (!status.hasGas) {
+        setStage("requesting_drip");
+        const { data: dripData, error: dripError } = await supabase.functions.invoke("wallet-gas-drip", {
+          body: { target_address: address },
+        });
+        if (dripError && !dripData?.hash) {
+          const msg = (dripError as any)?.message || String(dripError);
+          console.warn(`${TAG}[DRIP_REQUEST] ${msg}`);
+        }
+        if (dripData?.relayer_address) status.relayerAddress = dripData.relayer_address;
+
+        setStage("awaiting_gas");
+        const provider = this.getProvider();
+        let funded = false;
+        for (let i = 0; i < 15; i++) {
+          const bal = await provider.getBalance(address);
+          if (bal > 0n) { funded = true; break; }
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+        if (!funded) {
+          throw new Error("NO_GAS: This wallet needs a small amount of ETH on Base to complete authorization.");
+        }
+      }
+
+      const signer = this.getSigner();
+      const usdcContract = new ethers.Contract(usdc, ERC20_ABI, signer);
+
+      // -- 2. USDC.approve(relayer) ---------------------------------------
+      if (!status.relayerApproved) {
+        if (!status.relayerAddress || !ethers.isAddress(status.relayerAddress)) {
+          throw new Error("Relayer address unavailable — please try again in a moment.");
+        }
+        setStage("approving_usdc");
+        const tx = await usdcContract.approve(status.relayerAddress, ethers.MaxUint256);
+        console.log(`${TAG}[APPROVE_USDC][BROADCAST] hash=${tx.hash}`);
+        await tx.wait();
+      }
+
+      // -- 3. USDC.approve(SynapseVault) ----------------------------------
+      if (!status.vaultApproved && status.vaultAddress && ethers.isAddress(status.vaultAddress)) {
+        setStage("approving_vault");
+        const tx = await usdcContract.approve(status.vaultAddress, ethers.MaxUint256);
+        console.log(`${TAG}[APPROVE_VAULT][BROADCAST] hash=${tx.hash}`);
+        await tx.wait();
+      }
+
+      // -- 4. IDIA.delegate(self) -----------------------------------------
+      if (!status.selfDelegated) {
+        setStage("delegating_self");
+        const idia = new ethers.Contract(idiaToken, IDIA_TOKEN_ABI, signer);
+        const tx = await idia.delegate(address);
+        console.log(`${TAG}[DELEGATE_SELF][BROADCAST] hash=${tx.hash}`);
+        await tx.wait();
+        try {
+          localStorage.setItem(`idia_self_delegate_edu_seen_v1:${address.toLowerCase()}`, "1");
+        } catch {}
+      }
+
+      setStage("done");
+      console.log(`${TAG}[AUTHORIZE][END:OK] ${address}`);
+    } catch (err: any) {
+      console.error(`${TAG}[AUTHORIZE][END:FAIL] ${err?.message ?? err}`);
+      setStage("failed");
+      throw err;
+    }
+  }
 }
 
 export const walletService = new WalletService();
