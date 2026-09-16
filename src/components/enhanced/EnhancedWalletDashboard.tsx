@@ -73,12 +73,11 @@ interface Transaction {
 // Internal allocation / distribution line items that should not surface in the
 // wallet history list. These are accounting artifacts, not user-facing transactions.
 const HIDDEN_HISTORY_DESCRIPTIONS = [
-  "1:1 IDIA royalty",
-  "Pro-rata USDC yield",
   "regional/war chest",
   "Corp revenue Syn",
   "60% Corporate Revenue",
 ];
+
 
 function isHiddenHistoryItem(description: string): boolean {
   const d = (description || "").toLowerCase();
