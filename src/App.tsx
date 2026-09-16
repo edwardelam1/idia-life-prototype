@@ -155,6 +155,19 @@ const App = () => {
             return;
           }
 
+          // ── Strava returns from the system browser: close it and notify the app ──
+          if (url.startsWith("idialife://strava-callback")) {
+            console.log("[DeepLink] Strava callback received, closing system browser");
+            try {
+              const { Browser } = await import("@capacitor/browser");
+              await Browser.close();
+            } catch (closeError) {
+              console.warn("[DeepLink] Browser.close failed", closeError);
+            }
+            window.dispatchEvent(new CustomEvent("strava:oauth-returned"));
+            return;
+          }
+
           const fragmentIndex = url.indexOf("#");
           if (fragmentIndex === -1) {
             console.log("[DeepLink] No URL fragment, ignoring");

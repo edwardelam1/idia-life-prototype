@@ -591,6 +591,21 @@ const DataDashboard = () => {
           setShowFordModal(false);
         }}
       />
+
+      <StravaConnectionModal
+        isOpen={showStravaModal}
+        onClose={() => setShowStravaModal(false)}
+        onComplete={async () => {
+          await fetchConnections();
+          await fetchAcaRecords();
+          setShowStravaModal(false);
+        }}
+        existingConnection={getConnectionStatus("strava")}
+        onDisconnect={async () => {
+          await fetchConnections();
+          setShowStravaModal(false);
+        }}
+      />
     </div>
   );
 };
