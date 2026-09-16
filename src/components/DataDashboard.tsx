@@ -412,7 +412,21 @@ const DataDashboard = () => {
                 </div>
               )}
 
-              {hasHealth && hasFord && (
+              {/* Strava Connection */}
+              {!hasStrava && (
+                <div
+                  className="flex flex-col items-center cursor-pointer group"
+                  onClick={() => setShowStravaModal(true)}
+                >
+                  <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border border-border transition-all group-hover:scale-105 flex items-center justify-center">
+                    <img src={stravaLogo} alt="Strava" className="w-8 h-8 object-contain" />
+                  </div>
+                  <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground">Strava</p>
+                  <p className="text-[9px] text-muted-foreground/70 mt-0.5">Activity & Routes</p>
+                </div>
+              )}
+
+              {hasHealth && hasFord && hasStrava && (
                 <div className="w-full text-center py-6 text-muted-foreground">
                   <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50 text-teal-600" />
                   <p className="text-sm">All available sources connected</p>
@@ -433,6 +447,7 @@ const DataDashboard = () => {
                       if (connection.connection_type === "apple_health") setShowAppleHealthModal(true);
                       else if (connection.connection_type === "health_connect") setShowAndroidHealthModal(true);
                       else if (connection.connection_type === "ford") setShowFordModal(true);
+                      else if (connection.connection_type === "strava") setShowStravaModal(true);
                     }}
                   >
                     <div className="relative">
@@ -449,6 +464,9 @@ const DataDashboard = () => {
                         )}
                         {connection.connection_type === "ford" && (
                           <img src={fordLogo} alt="FordConnect" className="w-8 h-8 object-contain" />
+                        )}
+                        {connection.connection_type === "strava" && (
+                          <img src={stravaLogo} alt="Strava" className="w-8 h-8 object-contain" />
                         )}
                       </div>
                       <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-background flex items-center justify-center">
