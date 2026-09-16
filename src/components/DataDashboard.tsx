@@ -303,6 +303,7 @@ const DataDashboard = () => {
     if (c.connection_type === "apple_health") return isIOS() || isWeb();
     if (c.connection_type === "health_connect") return isAndroid();
     if (c.connection_type === "ford") return true;
+    if (c.connection_type === "strava") return true;
     return false;
   });
 
@@ -320,6 +321,7 @@ const DataDashboard = () => {
   const healthType = isAndroid() ? "health_connect" : "apple_health";
   const hasHealth = getConnectionStatus(healthType);
   const hasFord = getConnectionStatus("ford");
+  const hasStrava = getConnectionStatus("strava");
 
   return (
     <div className="space-y-4">
