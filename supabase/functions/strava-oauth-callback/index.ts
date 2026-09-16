@@ -12,9 +12,40 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-function redirectToApp(status: "success" | "error", reason?: string) {
-  const destination = new URL("idialife://strava-callback");
-  destination.searchParams.set("status", status);
+const ALLOWED_RETURN_HOSTS = ["thebigidia.com", "lovable.app", "lovableproject.com", "localhost"];
+
+function sanitizeReturnUrl(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "https:" && parsed.hostname !== "localhost") return null;
+    const host = parsed.hostname.toLowerCase();
+    const ok = ALLOWED_RETURN_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
+    return ok ? `${parsed.origin}${parsed.pathname}` : null;
+  } catch {
+    return null;
+  }
+}
+
+/** state is either a bare user id (native deep-link flow) or `b64.<payload>` carrying a return URL. */
+function decodeState(state: string | null): { userId: string | null; returnUrl: string | null } {
+  if (!state) return { userId: null, returnUrl: null };
+  if (!state.startsWith("b64.")) return { userId: state, returnUrl: null };
+  try {
+    const b64 = state.slice(4).replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    const parsed = JSON.parse(atob(padded));
+    return { userId: parsed?.u ?? null, returnUrl: sanitizeReturnUrl(parsed?.r ?? null) };
+  } catch {
+    return { userId: null, returnUrl: null };
+  }
+}
+
+function buildRedirect(returnUrl: string | null, status: "success" | "error", reason?: string) {
+  const destination = returnUrl
+    ? new URL(returnUrl)
+    : new URL("idialife://strava-callback");
+  destination.searchParams.set(returnUrl ? "strava" : "status", status);
   if (reason) destination.searchParams.set("reason", reason.substring(0, 120));
   return new Response(null, { status: 302, headers: { ...corsHeaders, Location: destination.toString() } });
 }
