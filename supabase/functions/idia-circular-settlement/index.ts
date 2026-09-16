@@ -761,8 +761,27 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
           throw new Error(`Max transient-error retries exhausted for ${label}.`);
         };
 
-        for (let i = 0; i < contributing_users.length; i++) {
-          const contributor = contributing_users[i];
+        for (let i = 0; i < settlementContributors.length; i++) {
+          const contributor = settlementContributors[i];
+          // Per-iteration allocation — scoped to this loop body ONLY. The pool
+          // total never reaches a transfer call; each owner receives exactly
+          // their integer share (base + one micro-unit of remainder).
+          const remainingMicro = poolMicro - allocatedMicro;
+          const shareMicro = baseMicro + (i < remainderMicro ? 1 : 0);
+          console.info(
+            `[BEGIN: Batch.Item.Allocate] ${i + 1}/${settlementContributors.length} owner=${contributor.user_id} shareMicro=${shareMicro} remainingMicro=${remainingMicro} allocatedMicro=${allocatedMicro}`,
+          );
+          assertPayable(shareMicro, remainingMicro, `contributor[${i}] ${contributor.user_id}`);
+          allocatedMicro += shareMicro;
+          const perContributorYield = shareMicro / 1_000_000;
+          const yieldAmountWei = BigInt(shareMicro);
+          // 1:1 IDIA award mirrors the USDC share (18-decimal IDIA vs 6-decimal USDC).
+          const idiaAwardAmount = BigInt(shareMicro) * 10n ** 12n;
+          console.info(
+            `[END: Batch.Item.Allocate] owner=${contributor.user_id} usdc=${perContributorYield} idiaWei=${idiaAwardAmount}`,
+          );
+
+          console.info(`[BEGIN: Batch.Item.WalletLookup] owner=${contributor.user_id}`);
           const { data: profile } = await supabase
             .from("profiles")
             .select("wallet_address")
@@ -770,6 +789,8 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
             .maybeSingle();
 
           const lifeWallet = profile?.wallet_address;
+          console.info(`[END: Batch.Item.WalletLookup] owner=${contributor.user_id} wallet=${lifeWallet ?? "none"}`);
+
           if (!lifeWallet) {
             console.warn(
               `[SKIP: Batch.Item] contributor ${contributor.user_id} has no wallet_address — recording pending_wallet rows for recovery.`,
