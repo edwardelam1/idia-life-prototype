@@ -54,8 +54,12 @@ The sale record only listed 2 consent records even though the answer summarised 
 - Migration: `DROP TRIGGER trigger_circular_settlement ON public.settlement_queue` (keeps `trg_dispatch_settlement_queue`).
 - `supabase/functions/idia-circular-settlement/index.ts`:
   - New `IDEMPOTENCY_CHECK` step after the queue stamp — `settlement_queue.status = 'completed'` or any `synapse_credit_ledger` row whose description contains the reference → return early.
-  - New `RESOLVE_CONTRIBUTORS` step replacing the payload list: select `aca_record_references` from `egress_logs` where `user_id = buyer_id` and `settlement_status = 'PENDING'` and `created_at` within ±120s of the queue row, newest first; join `user_aca_records.aca_hash_key` → `platform_guid`; distinct owners drive `perContributorYield = total * 0.3 / owners.length`.
-  - `contributing_users` from the payload is kept only for logging the discrepancy.
+  - New `RESOLVE_CONTRIBUTORS` step replacing the payload list: select `aca_record_references` from `egress_logs` where `user_id = buyer_id` and `settlement_status = 'PENDING'` and `created_at` within ±120s of the queue row, newest first; join `user_aca_records.aca_hash_key` → `platform_guid`; distinct owners only.
+  - Pool arithmetic moves to integers: `poolMicro = Math.floor(total * 0.3 * 1e6)`, `baseMicro = Math.floor(poolMicro / n)`, `remainder = poolMicro % n`; iteration `i` gets `shareMicro = baseMicro + (i < remainder ? 1 : 0)`, declared `const` inside the loop body. `parseUnits` is replaced by `BigInt(shareMicro)` for USDC and `BigInt(shareMicro) * 10n ** 12n` for the 18-decimal IDIA award, so rounding can never re-inflate a share.
+  - `assertPayable(shareMicro, remainingMicro, label)` helper throws on `<= 0`, non-finite, or `> remainingMicro`; called before each `writeContract` including the corporate and war-chest legs.
+  - Running `allocatedMicro` tracked across the loop and reconciled against `poolMicro` in a final `[END: Phase_3_Contributor.Reconcile]` log line; drift written to `settlement_queue.last_error`.
+  - `contributing_users` from the payload is kept only for logging the discrepancy against the resolved owner set.
   - Egress row updated to `SETTLED` after the contributor loop, alongside the existing queue completion write.
+  - Logging pass across every step: `[BEGIN:]`/`[END:]` with run id, reference, counts, amounts in micro-USDC, wallet, nonce, tx hash, block number; guard failures log their inputs before throwing.
 - No change to the split percentages, the escrow/IDIA award path, or the pending-wallet recovery job.
 - Existing double payments from today are not reversed; this only stops it happening again.
