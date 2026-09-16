@@ -560,9 +560,16 @@ const EnhancedWalletDashboard: React.FC = () => {
       );
       setSynapseCredits(runningTotal);
 
+      // Drop any row that displays as a zero total (e.g. "0 IDIA") — those are
+      // accounting artifacts, not this user's movement of value.
+      const ZERO_DISPLAY_EPSILON = 0.00005;
       setTransactions(
         [...mappedTx, ...mappedSynapse]
           .filter((tx) => !isHiddenHistoryItem(tx.description))
+          .filter((tx) => {
+            const value = Number(tx.amount);
+            return Number.isFinite(value) && Math.abs(value) >= ZERO_DISPLAY_EPSILON;
+          })
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
       );
     } catch (error: any) {

@@ -12908,6 +12908,15 @@ export type Database = {
         Args: { _application_id: string; _sponsor_aca_hash: string }
         Returns: Json
       }
+      staged_aca_hashes: {
+        Args: never
+        Returns: {
+          aca_hash_key: string
+          vault: string
+        }[]
+      }
+      staged_marketplace_aggregates: { Args: never; Returns: Json }
+      staged_user_aggregates: { Args: { _pseudo_id: string }; Returns: Json }
       submit_variance_correction: {
         Args: {
           _corrective_action: string
@@ -12982,6 +12991,13 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      verify_aca_hashes: {
+        Args: { _hashes: string[] }
+        Returns: {
+          aca_hash_key: string
+          vault: string
+        }[]
       }
     }
     Enums: {
