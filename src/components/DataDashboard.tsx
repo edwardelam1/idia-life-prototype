@@ -15,8 +15,11 @@ import AppleHealthModal from "./AppleHealthModal";
 import AndroidHealthModal from "./AndroidHealthModal";
 import FordConnectionModal from "./FordConnectionModal";
 import StravaConnectionModal from "./StravaConnectionModal";
+import NestConnectionModal from "./NestConnectionModal";
+import nestLogoAsset from "@/assets/nest-logo.png.asset.json";
 
 const stravaLogo = stravaLogoAsset.url;
+const nestLogo = nestLogoAsset.url;
 import { isAndroid, isIOS, isWeb } from "@/services/platform";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 
@@ -44,6 +47,7 @@ const DataDashboard = () => {
   const [showAndroidHealthModal, setShowAndroidHealthModal] = useState(false);
   const [showFordModal, setShowFordModal] = useState(false);
   const [showStravaModal, setShowStravaModal] = useState(false);
+  const [showNestModal, setShowNestModal] = useState(false);
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [acaRecords, setAcaRecords] = useState<any[]>([]);
@@ -87,6 +91,32 @@ const DataDashboard = () => {
     } else {
       toast({
         title: "Strava connection failed",
+        description: reason ? reason.replace(/_/g, " ") : "Please try connecting again.",
+        variant: "destructive",
+      });
+    }
+    fetchConnections();
+  }, []);
+
+  // Nest returns the person to this page with ?nest=success|error
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const nestStatus = params.get("nest");
+    if (!nestStatus) return;
+
+    const reason = params.get("reason");
+    params.delete("nest");
+    params.delete("reason");
+    const cleaned = `${window.location.pathname}${params.toString() ? `?${params}` : ""}`;
+    window.history.replaceState({}, "", cleaned);
+
+    window.dispatchEvent(new CustomEvent("nest:oauth-returned"));
+
+    if (nestStatus === "success") {
+      toast({ title: "Nest Linked!", description: "Your home data stream is now active." });
+    } else {
+      toast({
+        title: "Nest connection failed",
         description: reason ? reason.replace(/_/g, " ") : "Please try connecting again.",
         variant: "destructive",
       });
