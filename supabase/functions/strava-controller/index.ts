@@ -17,7 +17,11 @@ async function getAuthUrl(userId: string) {
   const clientId = Deno.env.get("STRAVA_CLIENT_ID");
   if (!clientId) return json({ error: "Strava client ID not configured" }, 500);
 
-  const redirectUri = `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/strava-oauth-callback`;
+  // Must exactly match the "Authorization Callback Domain" configured on the Strava API app.
+  const redirectUri =
+    Deno.env.get("STRAVA_REDIRECT_URI") ||
+    `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/strava-oauth-callback`;
+  console.log(`[STRAVA_CONTROLLER] redirect_uri=${redirectUri} client_id=***${clientId.slice(-4)}`);
   const scope = "read,activity:read_all";
   const oauthUrl =
     `https://www.strava.com/oauth/authorize?client_id=${clientId}` +
