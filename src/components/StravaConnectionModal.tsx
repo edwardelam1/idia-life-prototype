@@ -251,8 +251,21 @@ const StravaConnectionModal = ({
           "OAUTH_AUTHORIZATION",
         ]);
 
+        // Where Strava should send the person back to. Capacitor native uses the
+        // idialife:// deep link; every other surface (web, custom iOS shell)
+        // returns straight to the page they started from.
+        let returnUrl: string | null = null;
+        try {
+          const { Capacitor } = await import("@capacitor/core");
+          if (!Capacitor.isNativePlatform()) {
+            returnUrl = `${window.location.origin}${window.location.pathname}`;
+          }
+        } catch {
+          returnUrl = `${window.location.origin}${window.location.pathname}`;
+        }
+
         const { data: urlData, error: urlError } = await supabase.functions.invoke("strava-controller", {
-          body: { action: "get-auth-url", userId: currentUserId },
+          body: { action: "get-auth-url", userId: currentUserId, returnUrl },
         });
 
         if (urlError) throw new Error(`Edge function error: ${urlError.message || "Unknown error"}`);
