@@ -168,6 +168,19 @@ const App = () => {
             return;
           }
 
+          // ── Nest returns from the system browser: close it and notify the app ──
+          if (url.startsWith("idialife://nest-callback")) {
+            console.log("[DeepLink] Nest callback received, closing system browser");
+            try {
+              const { Browser } = await import("@capacitor/browser");
+              await Browser.close();
+            } catch (closeError) {
+              console.warn("[DeepLink] Browser.close failed", closeError);
+            }
+            window.dispatchEvent(new CustomEvent("nest:oauth-returned"));
+            return;
+          }
+
           const fragmentIndex = url.indexOf("#");
           if (fragmentIndex === -1) {
             console.log("[DeepLink] No URL fragment, ignoring");
