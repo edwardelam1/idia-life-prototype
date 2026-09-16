@@ -7,12 +7,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Activity, CheckCircle, DollarSign, FileKey, Copy, Info } from "lucide-react";
 import fordLogo from "@/assets/ford-logo.png";
+import stravaLogoAsset from "@/assets/strava-logo.png.asset.json";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase as typedSupabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AppleHealthModal from "./AppleHealthModal";
 import AndroidHealthModal from "./AndroidHealthModal";
 import FordConnectionModal from "./FordConnectionModal";
+import StravaConnectionModal from "./StravaConnectionModal";
+
+const stravaLogo = stravaLogoAsset.url;
 import { isAndroid, isIOS, isWeb } from "@/services/platform";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 
