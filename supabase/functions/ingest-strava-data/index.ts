@@ -63,6 +63,170 @@ serve(async (req) => {
           }
         );
       }
+
+      // ── Scheduled pull: live Strava REST read for one user ───────────
+      // Never fabricates data. An empty activity list is recorded as an empty sync.
+      if (requestBody.pull === true) {
+        const started = Date.now();
+        const userId = requestBody.user_id;
+        console.info(`[BEGIN: strava-pull] user=${userId ?? "none"}`);
+
+        if (!userId) {
+          console.error('[ERROR: strava-pull] user_id is required. Silent stall prevented.');
+          return new Response(JSON.stringify({ error: 'user_id is required' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const { data: rows, error: connErr } = await supabase
+          .from('data_connections')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('connection_type', 'strava')
+          .eq('is_active', true)
+          .limit(1);
+
+        const connection = rows?.[0];
+        if (connErr || !connection) {
+          console.error(`[ERROR: strava-pull] no active connection (${connErr?.message ?? 'none found'})`);
+          return new Response(JSON.stringify({ error: 'no_active_connection' }), {
+            status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        // ── Token refresh (Strava access tokens expire every 6 hours) ──
+        let accessToken = connection.access_token as string | null;
+        const expiresAt = connection.token_expires_at ? new Date(connection.token_expires_at).getTime() : 0;
+        if (!accessToken || expiresAt - Date.now() < 5 * 60 * 1000) {
+          console.info('[BEGIN: strava-pull.RefreshToken]');
+          const clientId = Deno.env.get('STRAVA_CLIENT_ID');
+          const clientSecret = Deno.env.get('STRAVA_CLIENT_SECRET');
+          if (!clientId || !clientSecret || !connection.refresh_token) {
+            console.error('[ERROR-HALT: strava-pull.RefreshToken] missing credentials or refresh token.');
+            await supabase.from('data_connections').update({
+              sync_status: 'error',
+              sync_failure_count: (connection.sync_failure_count ?? 0) + 1,
+            }).eq('id', connection.id);
+            return new Response(JSON.stringify({ error: 'missing_refresh_credentials' }), {
+              status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          const refreshRes = await fetch('https://www.strava.com/oauth/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              client_id: clientId,
+              client_secret: clientSecret,
+              grant_type: 'refresh_token',
+              refresh_token: connection.refresh_token,
+            }).toString(),
+          });
+
+          if (!refreshRes.ok) {
+            const detail = await refreshRes.text().catch(() => '');
+            console.error(`[ERROR-API: strava-pull.RefreshToken] status=${refreshRes.status} body=${detail}`);
+            await supabase.from('data_connections').update({
+              sync_status: 'error',
+              sync_failure_count: (connection.sync_failure_count ?? 0) + 1,
+            }).eq('id', connection.id);
+            return new Response(JSON.stringify({ error: 'token_refresh_failed', status: refreshRes.status }), {
+              status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          const tok = await refreshRes.json();
+          accessToken = tok.access_token;
+          await supabase.from('data_connections').update({
+            access_token: tok.access_token,
+            refresh_token: tok.refresh_token ?? connection.refresh_token,
+            token_expires_at: new Date((tok.expires_at ?? Math.floor(Date.now() / 1000) + 21600) * 1000).toISOString(),
+          }).eq('id', connection.id);
+          console.info('[END: strava-pull.RefreshToken] token renewed');
+        }
+
+        // ── Activities recorded since the last successful sync ─────────
+        const sinceMs = connection.last_successful_sync
+          ? new Date(connection.last_successful_sync).getTime()
+          : Date.now() - 7 * 24 * 60 * 60 * 1000;
+        const after = Math.floor(sinceMs / 1000);
+        console.info(`[BEGIN: strava-pull.FetchActivities] after=${after}`);
+
+        const listRes = await fetch(
+          `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=100`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+
+        if (!listRes.ok) {
+          const detail = await listRes.text().catch(() => '');
+          console.error(`[ERROR-API: strava-pull.FetchActivities] status=${listRes.status} body=${detail}`);
+          await supabase.from('data_connections').update({
+            sync_status: 'error',
+            sync_failure_count: (connection.sync_failure_count ?? 0) + 1,
+          }).eq('id', connection.id);
+          return new Response(JSON.stringify({ error: 'strava_fetch_failed', status: listRes.status }), {
+            status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const activities = await listRes.json();
+        const list = Array.isArray(activities) ? activities : [];
+        console.info(`[END: strava-pull.FetchActivities] activities=${list.length}`);
+
+        let ingested = 0;
+        for (const activity of list) {
+          const activityId = activity?.id;
+          if (!activityId) continue;
+
+          const { data: existing } = await supabase
+            .from('raw_strava_data')
+            .select('id')
+            .eq('user_id', connection.user_id)
+            .eq('activity_id', activityId)
+            .limit(1);
+
+          if (existing && existing.length > 0) {
+            console.info(`[INFO: strava-pull.Ingest] activity=${activityId} already stored, skipping`);
+            continue;
+          }
+
+          const { error: insErr } = await supabase.from('raw_strava_data').insert({
+            user_id: connection.user_id,
+            connection_id: connection.id,
+            activity_id: activityId,
+            raw_data: activity,
+          });
+
+          if (insErr) {
+            console.error(`[ERROR: strava-pull.Ingest] activity=${activityId} ${insErr.message}`);
+            continue;
+          }
+
+          const anon = await supabase.functions.invoke('anonymize-and-stage-data', {
+            body: { raw_data_id: null, activity_id: activityId },
+          });
+          if (anon.error) {
+            console.error(`[ERROR: strava-pull.Stage] activity=${activityId} ${anon.error.message}`);
+          }
+          ingested += 1;
+        }
+
+        const nowIso = new Date().toISOString();
+        await supabase.from('data_connections').update({
+          sync_status: 'ok',
+          last_sync_at: nowIso,
+          last_successful_sync: nowIso,
+          sync_failure_count: 0,
+        }).eq('id', connection.id);
+
+        console.info(`[END: strava-pull] activities=${list.length} ingested=${ingested} ms=${Date.now() - started}`);
+        return new Response(
+          JSON.stringify({ success: true, activities: list.length, ingested }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+
       
       const payload: StravaWebhookPayload = requestBody;
       
