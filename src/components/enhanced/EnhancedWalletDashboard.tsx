@@ -491,6 +491,8 @@ const EnhancedWalletDashboard: React.FC = () => {
               syn.metadata?.class === "Synapse_Purchase" || syn.metadata?.product_class === "SAAS_UTILITY_PURCHASE";
             const entryType = String(syn.entry_type ?? "").toLowerCase();
             const isConsumption = ["usage", "debit", "consumption"].includes(entryType);
+            const metadataAsset = String(syn.metadata?.asset ?? "").toUpperCase();
+            const isRoyalty = !isPurchase && !isConsumption && (metadataAsset === "USDC" || metadataAsset === "IDIA");
             let sourceAsset = "CREDS";
             let atomicAmount = syn.amount_usdc ?? syn.amount_idia_usd ?? syn.amount ?? 0;
 
@@ -500,6 +502,9 @@ const EnhancedWalletDashboard: React.FC = () => {
             } else if (isConsumption) {
               sourceAsset = "CR";
               atomicAmount = -Math.abs(Number(syn.amount ?? 0));
+            } else if (isRoyalty) {
+              sourceAsset = metadataAsset;
+              atomicAmount = Math.abs(Number(syn.amount ?? syn.amount_usdc ?? syn.amount_idia_usd ?? 0));
             } else if (syn.amount_usdc !== null) sourceAsset = "USDC";
             else if (syn.amount_idia_usd !== null) sourceAsset = "IDIA";
 
@@ -508,11 +513,14 @@ const EnhancedWalletDashboard: React.FC = () => {
               transaction_type: isPurchase ? "synapse_credit_purchase" : "synapse_ledger_event",
               amount: isPurchase
                 ? Math.abs(Number(atomicAmount))
+                : isRoyalty
+                  ? Math.abs(Number(atomicAmount))
                 : isConsumption
                   ? atomicAmount
                 : atomicAmount > 0
                   ? -Math.abs(atomicAmount)
                   : atomicAmount,
+
               description: isPurchase ? "Synapse Credits Purchase" : syn.description || "SYNAPSE_CREDIT_EVENT",
               source: sourceAsset,
               created_at: syn.created_at,
