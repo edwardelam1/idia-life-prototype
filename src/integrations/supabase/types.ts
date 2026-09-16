@@ -207,6 +207,78 @@ export type Database = {
           },
         ]
       }
+      activity_history: {
+        Row: {
+          action: string
+          created_at: string
+          egress_log_id: string | null
+          id: string
+          idempotency_key: string
+          input_payload: Json
+          records_consumed: number
+          reference_id: string | null
+          result_payload: Json
+          source: string
+          status: string
+          synapse_credit_cost: number
+          synapse_ledger_entry_id: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          egress_log_id?: string | null
+          id?: string
+          idempotency_key: string
+          input_payload?: Json
+          records_consumed?: number
+          reference_id?: string | null
+          result_payload?: Json
+          source: string
+          status?: string
+          synapse_credit_cost?: number
+          synapse_ledger_entry_id?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          egress_log_id?: string | null
+          id?: string
+          idempotency_key?: string
+          input_payload?: Json
+          records_consumed?: number
+          reference_id?: string | null
+          result_payload?: Json
+          source?: string
+          status?: string
+          synapse_credit_cost?: number
+          synapse_ledger_entry_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_history_egress_log_id_fkey"
+            columns: ["egress_log_id"]
+            isOneToOne: false
+            referencedRelation: "egress_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_history_synapse_ledger_entry_id_fkey"
+            columns: ["synapse_ledger_entry_id"]
+            isOneToOne: false
+            referencedRelation: "synapse_credit_ledger"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       affiliate_campaigns: {
         Row: {
           budget: number | null
@@ -2965,6 +3037,8 @@ export type Database = {
           metadata: Json | null
           nft_mint_note: string | null
           nft_minted: boolean | null
+          nft_minted_at: string | null
+          nft_token_id: string | null
           on_chain_status: string | null
           on_chain_tx_hash: string | null
           pseudo_user_id: string | null
@@ -3001,6 +3075,8 @@ export type Database = {
           metadata?: Json | null
           nft_mint_note?: string | null
           nft_minted?: boolean | null
+          nft_minted_at?: string | null
+          nft_token_id?: string | null
           on_chain_status?: string | null
           on_chain_tx_hash?: string | null
           pseudo_user_id?: string | null
@@ -3037,6 +3113,8 @@ export type Database = {
           metadata?: Json | null
           nft_mint_note?: string | null
           nft_minted?: boolean | null
+          nft_minted_at?: string | null
+          nft_token_id?: string | null
           on_chain_status?: string | null
           on_chain_tx_hash?: string | null
           pseudo_user_id?: string | null
@@ -5762,6 +5840,44 @@ export type Database = {
           },
         ]
       }
+      lidd_extraction_events: {
+        Row: {
+          citizen_guid: string
+          created_at: string
+          extraction_timestamp: string
+          extractor_id: string
+          id: string
+          payment_status: string
+          synapse_credit_cost: number
+        }
+        Insert: {
+          citizen_guid: string
+          created_at?: string
+          extraction_timestamp: string
+          extractor_id: string
+          id?: string
+          payment_status?: string
+          synapse_credit_cost?: number
+        }
+        Update: {
+          citizen_guid?: string
+          created_at?: string
+          extraction_timestamp?: string
+          extractor_id?: string
+          id?: string
+          payment_status?: string
+          synapse_credit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lidd_extraction_events_citizen_guid_fkey"
+            columns: ["citizen_guid"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["platform_guid"]
+          },
+        ]
+      }
       lifestyle_processing_queue: {
         Row: {
           created_at: string | null
@@ -6500,6 +6616,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      mesh_gateway_state: {
+        Row: {
+          created_at: string
+          id: string
+          is_open: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_open?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_open?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       mesh_telemetry_events: {
         Row: {
@@ -7284,8 +7424,17 @@ export type Database = {
           available_credit_line: number | null
           avatar_url: string | null
           bio: string | null
+          buyer_jurisdiction: string | null
+          buyer_latency: string | null
+          buyer_role: string | null
+          buyer_weights: Json | null
           compliance_rail: string | null
           created_at: string | null
+          diagnostic_level0_completed_at: string | null
+          diagnostic_level1_battery: string | null
+          diagnostic_level1_completed_at: string | null
+          diagnostic_raw_answers: Json | null
+          diagnostic_tier_at_completion: string | null
           document_type: string | null
           ein: string | null
           fbo_account_id: string | null
@@ -7328,8 +7477,17 @@ export type Database = {
           available_credit_line?: number | null
           avatar_url?: string | null
           bio?: string | null
+          buyer_jurisdiction?: string | null
+          buyer_latency?: string | null
+          buyer_role?: string | null
+          buyer_weights?: Json | null
           compliance_rail?: string | null
           created_at?: string | null
+          diagnostic_level0_completed_at?: string | null
+          diagnostic_level1_battery?: string | null
+          diagnostic_level1_completed_at?: string | null
+          diagnostic_raw_answers?: Json | null
+          diagnostic_tier_at_completion?: string | null
           document_type?: string | null
           ein?: string | null
           fbo_account_id?: string | null
@@ -7372,8 +7530,17 @@ export type Database = {
           available_credit_line?: number | null
           avatar_url?: string | null
           bio?: string | null
+          buyer_jurisdiction?: string | null
+          buyer_latency?: string | null
+          buyer_role?: string | null
+          buyer_weights?: Json | null
           compliance_rail?: string | null
           created_at?: string | null
+          diagnostic_level0_completed_at?: string | null
+          diagnostic_level1_battery?: string | null
+          diagnostic_level1_completed_at?: string | null
+          diagnostic_raw_answers?: Json | null
+          diagnostic_tier_at_completion?: string | null
           document_type?: string | null
           ein?: string | null
           fbo_account_id?: string | null
