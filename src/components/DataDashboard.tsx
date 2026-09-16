@@ -43,6 +43,7 @@ const DataDashboard = () => {
   const [showAppleHealthModal, setShowAppleHealthModal] = useState(false);
   const [showAndroidHealthModal, setShowAndroidHealthModal] = useState(false);
   const [showFordModal, setShowFordModal] = useState(false);
+  const [showStravaModal, setShowStravaModal] = useState(false);
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [acaRecords, setAcaRecords] = useState<any[]>([]);
