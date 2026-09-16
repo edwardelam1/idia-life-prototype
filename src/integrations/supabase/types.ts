@@ -3036,6 +3036,7 @@ export type Database = {
           manifest_hashes: string[] | null
           metadata: Json | null
           nft_mint_note: string | null
+          nft_mint_tx_hash: string | null
           nft_minted: boolean | null
           nft_minted_at: string | null
           nft_token_id: string | null
@@ -3074,6 +3075,7 @@ export type Database = {
           manifest_hashes?: string[] | null
           metadata?: Json | null
           nft_mint_note?: string | null
+          nft_mint_tx_hash?: string | null
           nft_minted?: boolean | null
           nft_minted_at?: string | null
           nft_token_id?: string | null
@@ -3112,6 +3114,7 @@ export type Database = {
           manifest_hashes?: string[] | null
           metadata?: Json | null
           nft_mint_note?: string | null
+          nft_mint_tx_hash?: string | null
           nft_minted?: boolean | null
           nft_minted_at?: string | null
           nft_token_id?: string | null
