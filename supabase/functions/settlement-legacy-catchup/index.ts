@@ -209,7 +209,8 @@ serve(async (req) => {
 
     if (mode !== "execute" || !confirmed) {
       console.info(`[END: legacy-catchup] audit-only. ms=${Date.now() - started}`);
-      return new Response(JSON.stringify({ ...report, details }, null, 2), {
+      const payload = body.details === true ? { ...report, details } : report;
+      return new Response(JSON.stringify(payload, null, 2), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
