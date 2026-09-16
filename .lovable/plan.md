@@ -1,50 +1,54 @@
-# Add Strava as a data source on the Data screen
+# Add Nest as a data source
+
+Nest joins Apple Health, FordConnect and Strava on the Data screen. It follows the Strava pattern exactly for the connection experience, and routes its data through the **lifestyle** tables (not the health tables — nothing in the health pipeline is touched).
 
 ## What you'll see
 
-A Strava circle appears on the Data screen next to Apple Health and FordConnect, using the Strava mark. Tapping it opens a small modal that looks and behaves exactly like the FordConnect one: a one-line summary, the data categories Strava provides, a privacy line, and Cancel / Connect buttons.
+- A Nest circle in "Available Data Sources", using the Nest logo you uploaded.
+- Tapping it opens a compact modal matching the other three: a short explanation, four data categories (Thermostat & Climate, Home Occupancy, Device Activity, Energy Patterns), Cancel / "Verify & Connect".
+- "Verify & Connect" asks for your biometric consent, records the consent artifact, then hands off to Google's account chooser to pick the home/devices you want to share.
+- On return, the modal shows "Nest Linked!" and closes itself; Nest appears under Active Streams with the others.
+- Revoke from the same modal marks the connection inactive and records a revoke consent artifact.
 
-Connect sends the person to Strava's own sign-in page. When they approve, they land back in the app, the modal flips to a short "Strava Linked!" confirmation and closes itself, and Strava shows up under Active Streams with the live green ring.
+## Consent (ACA)
 
-## Two things I need from you
+Every touchpoint generates and records an Auditable Consent Artifact, same as Strava:
 
-1. **The Strava logo image.** Strava's mark is trademarked, so I can't generate it. Upload the PNG/SVG you want used and I'll store it beside the Ford logo.
-2. **Strava API credentials.** The project currently has no Strava client ID or secret saved. After you approve, I'll open the secure form to collect `STRAVA_CLIENT_ID` and `STRAVA_CLIENT_SECRET` from your Strava API application page. In that same Strava application, the Authorization Callback Domain must be set to your Supabase functions domain.
+- `nest_connection_auth` — scopes `DATA_CONNECTION`, `HOME_TELEMETRY`, `OAUTH_AUTHORIZATION`
+- `nest_connection_revoke` — scopes `DATA_CONNECTION_REVOKE`, `HOME_TELEMETRY`
+- Every ingested batch carries the active connection's ACA hash into `raw_app_data.aca_hash_key` and forward into `staged_lifestyle_data.aca_hash_key`. No batch is written without a resolvable ACA hash — if none exists the ingest fails loudly rather than storing unconsented data.
 
-## The work
+## Data pipeline (lifestyle, mirrors the health logic)
 
-**Modal rewrite — `src/components/StravaConnectionModal.tsx`**
+```text
+Nest SDM API
+   -> raw_app_data            (pseudo_user_id, raw_source='nest', anonymized_payload, aca_hash_key)
+   -> lifestyle_processing_queue  (pending -> processing -> completed/failed, retry_count)
+   -> staged_lifestyle_data   (user_id, aca_hash_key, event_type, event_category,
+                               data_quality_score, synapse_weight_coefficient,
+                               reward_amount, reward_calculated)
+```
 
-The existing modal is the old oversized style with a popup window, hardcoded dollar figures, and a generic key icon. It gets rebuilt from the FordConnect modal as the template:
+Same staged→reward flow the health pipeline uses: quality score computed on ingest, reward left uncalculated for the existing settlement path to pick up. Health tables, functions and triggers are untouched.
 
-- `max-w-sm` dialog, Strava mark in the header, compact spacing, same section rhythm.
-- Data categories shown as a 2-column grid: Activities & Workouts, Route & Distance, Pace & Heart Rate, Elevation & Effort.
-- Same biometric consent step Ford uses (ACA hash generated and recorded before the hand-off), so Strava follows the same consent protocol as every other source.
-- Connected state: Strava active card with Close / Revoke, revoke marking the connection inactive rather than deleting it.
-- Connect uses the system browser hand-off Ford uses (Capacitor Browser on Android, full-page navigation on the custom iOS shell and web) — no popup window, which is what breaks today.
+## Technical detail
 
-**Guaranteed close after a successful token**
+New edge functions, modelled on the Strava trio:
 
-Same proven recovery net as Ford: on connect the modal arms a Realtime subscription on the person's `data_connections` rows plus a polling fallback. The moment the Strava row reads active, the modal shows the success state, refreshes the Data screen, and closes after 2 seconds. Timers are cleared on unmount so nothing lingers.
+- `nest-controller` — `get-auth-url`; builds the SDM PCM consent URL
+  `https://nestservices.google.com/partnerconnections/<PROJECT_ID>/auth` with `access_type=offline`, `prompt=consent`, scope `https://www.googleapis.com/auth/sdm.service`, and the same base64 state encoding (user id + sanitized return URL, allow-listed hosts).
+- `nest-oauth-callback` — exchanges the code at `https://www.googleapis.com/token`, stores `access_token` / `refresh_token` / `token_expires_at` on `data_connections` (`connection_type = 'nest'`) via strict select-then-insert/update (no upserts), then redirects: `idialife://nest-callback?status=…` on the phone app, back to the originating page on web.
+- `nest-sync` — refreshes the token when expired, calls SDM `enterprises/<PROJECT_ID>/devices` and each device's traits, writes `raw_app_data`, enqueues `lifestyle_processing_queue`, promotes to `staged_lifestyle_data`, stamps `last_sync_at` / `last_successful_sync`. Granular begin/end log lines on every stage. No simulated data — an empty SDM response records an empty sync, never fabricated readings.
 
-**Callback — `supabase/functions/strava-oauth-callback/index.ts`**
+Client changes:
 
-Today it returns an HTML "you can close this window" page, which strands the person on a dead page in the app. It gets changed to redirect to `idialife://strava-callback?status=…` exactly like Ford, so the app is brought back to the foreground. Replace the `upsert` with the select-then-insert/update flow used everywhere else in this codebase. Failures redirect back with a reason instead of printing a server error.
+- `src/components/NestConnectionModal.tsx` — new, cloned from `StravaConnectionModal` (Realtime + 3s poll + `nest:oauth-returned` event + visibilitychange recovery net, timers cleared on unmount, 2s auto-close on confirmation).
+- `src/components/DataDashboard.tsx` — `hasNest`, the Available card, the visible-connections filter, the Active Streams icon map and click handler, and the all-sources-connected condition.
+- `src/App.tsx` — `nest-callback` branch beside the Ford and Strava ones.
+- `src/assets/nest-logo.png.asset.json` — asset pointer for the uploaded logo (third-party mark, so no favicon change).
 
-**Auth URL — `supabase/functions/strava-controller/index.ts`**
+Secrets to save: `NEST_CLIENT_ID`, `NEST_CLIENT_SECRET`, `NEST_PROJECT_ID` (the Device Access project id), `NEST_REDIRECT_URI` = `https://auth.thebigidia.com/functions/v1/nest-oauth-callback` — which must also be listed as an authorized redirect URI on the Google Cloud OAuth client.
 
-Kept as the single entry point (the modal already calls it). Add proper validation and a clear error when the client ID is missing, so a missing secret reports plainly instead of producing a broken Strava URL.
+## Open item
 
-**Data screen — `src/components/DataDashboard.tsx`**
-
-Add `hasStrava` alongside `hasFord`, render the Strava circle in Available Data Sources when not connected, include `strava` in the visible-connections filter and in the Active Streams icon map and click handler, and extend the "all sources connected" condition to cover all three.
-
-**App deep link — `src/App.tsx`**
-
-Add a `strava-callback` branch to the existing `appUrlOpen` listener beside the Ford one, so returning from Strava lands on the Data screen.
-
-## Notes
-
-- `ingest-strava-data` and `strava-webhook-subscription` are untouched; once the connection stores real tokens they work as written.
-- `strava-auth-url` is a duplicate of the controller's auth-url branch and stays unused; I'd leave it alone unless you want it removed.
-- No change to Apple Health, Health Connect, or Ford behaviour.
+Periodic pulls (Nest has no webhook without Pub/Sub) are not scheduled in this pass — `nest-sync` runs on connect and on demand. A scheduled pull or Pub/Sub subscription can follow once the flow is verified on a real device.
