@@ -27,8 +27,23 @@ Both problems are confirmed from the database, not inferred.
 - If no egress record can be matched, the run does **not** silently fall back to the Hub's list: it stops, marks the queue row `failed` with the reason, and nothing is paid. No guessing, no synthetic contributors.
 - Owners without a wallet keep the existing `pending_wallet` rows so the recovery job pays them later.
 
-**3. Close the loop on the sale record**
+**3. Allocate the pool safely inside the loop**
+- The 30% pool is converted once to integer micro-USDC (`floor(total * 0.3 * 1_000_000)`) and divided by the resolved owner count, with any remainder handed out one unit at a time to the earliest owners. No floating-point division reaches the chain.
+- Each iteration computes and logs its own share, adds it to a running allocated total, and refuses to continue if the running total would exceed the pool — a single wallet can never receive the whole pool.
+- The share is read only from the per-iteration variable; the pool total is never passed to a transfer call.
+
+**4. Zero-value and over-allocation hard stops**
+- Before every USDC transfer and every IDIA award: if the share is `<= 0`, not finite, or larger than the remaining pool, the run throws immediately, marks the queue row `failed` with the reason, and broadcasts nothing.
+- The same check guards the corporate (60%) and war-chest (10%) legs, so a $0 sale can never produce zero-value transactions.
+- After the loop, the sum of allocated shares is reconciled against the pool and logged; any drift is recorded on the queue row.
+
+**5. Absolute log granularity**
+- Every stage gets explicit `[BEGIN: …]` / `[END: …]` pairs with the run id and sale reference: idempotency check (and its two queries), egress-record resolution, consent-record → owner lookup, owner de-duplication, pool arithmetic, and per-contributor iteration (`i+1/n`, owner, wallet, share in micro-USDC, remaining pool, nonce, tx hash, block, ledger write).
+- Guards log the evaluated numbers before they throw, so a stall or refusal is always attributable to a named step rather than silence.
+
+**6. Close the loop on the sale record**
 - Once settled, stamp the matched egress row `settlement_status = 'SETTLED'` with the sale reference, so a later run can never re-match and re-pay the same sale.
+
 
 ## Note for the Hub team (no change here)
 
