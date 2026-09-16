@@ -606,12 +606,13 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
         `[STATUS: Phase_1_Corporate.Transfer] TX Broadcasted. Hash: ${corporateHash}. Awaiting network confirmation...`,
       );
       const corporateReceipt = await client.waitForTransactionReceipt({ hash: corporateHash, confirmations: 1 });
-      if (corporateReceipt.status === "success") {
-        console.info(`[END: Phase_1_Corporate.Transfer] Transfer successful. Block: ${corporateReceipt.blockNumber}`);
-        await forceSequencerDelay();
-      } else {
+      if (corporateReceipt.status !== "success") {
         console.error(`[ERROR: Phase_1_Corporate.Transfer] Transaction reverted on-chain. Hash: ${corporateHash}`);
+        throw new Error(`Phase_1_Corporate reverted on-chain (${corporateHash}).`);
       }
+      assertTransferLanded(corporateReceipt, USDC_ADDRESS, SYSTEM_CASH_REGISTER, corporateMicro, "Phase_1_Corporate");
+      console.info(`[END: Phase_1_Corporate.Transfer] Transfer successful. Block: ${corporateReceipt.blockNumber}`);
+      await forceSequencerDelay();
 
       // PHASE 2: REGIONAL ROUTING (10%) — Wallet-as-Source-of-Truth
       currentStep = "PHASE_2_REGIONAL_ROUTING";
@@ -710,12 +711,13 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
         `[STATUS: Phase_2_Regional.Transfer] TX Broadcasted. Hash: ${regionalHash}. Awaiting network confirmation...`,
       );
       const regionalReceipt = await client.waitForTransactionReceipt({ hash: regionalHash, confirmations: 1 });
-      if (regionalReceipt.status === "success") {
-        console.info(`[END: Phase_2_Regional.Transfer] Transfer successful. Block: ${regionalReceipt.blockNumber}`);
-        await forceSequencerDelay();
-      } else {
+      if (regionalReceipt.status !== "success") {
         console.error(`[ERROR: Phase_2_Regional.Transfer] Transaction reverted on-chain. Hash: ${regionalHash}`);
+        throw new Error(`Phase_2_Regional reverted on-chain (${regionalHash}).`);
       }
+      assertTransferLanded(regionalReceipt, USDC_ADDRESS, finalRegionalAddress, regionalMicro, "Phase_2_Regional");
+      console.info(`[END: Phase_2_Regional.Transfer] Transfer successful. Block: ${regionalReceipt.blockNumber}`);
+      await forceSequencerDelay();
 
       // LEDGER HYDRATION (with retry + repair-queue fallback)
       await Promise.all([
@@ -933,16 +935,23 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
               "yield",
             );
             console.info(`[STATUS: Batch.Item] Yield TX Broadcasted. Hash: ${yieldHash}. Confirmed.`);
-            if (yieldReceipt.status === "success") {
-              console.info(`[END: Batch.Item] Yield transfer successful. Block: ${yieldReceipt.blockNumber}`);
-            } else {
+            let yieldVerified = yieldReceipt.status === "success";
+            if (!yieldVerified) {
               console.error(`[ERROR: Batch.Item] Yield transaction reverted on-chain. Hash: ${yieldHash}`);
+            } else {
+              try {
+                assertTransferLanded(yieldReceipt, USDC_ADDRESS, lifeWallet, yieldAmountWei, "Batch.Item.Yield");
+                console.info(`[END: Batch.Item] Yield transfer successful. Block: ${yieldReceipt.blockNumber}`);
+              } catch (proofError: any) {
+                yieldVerified = false;
+                console.error(`[ERROR: Batch.Item] ${proofError.message}`);
+              }
             }
 
             // Ledger insert for the USDC yield row FIRST — once it lands (or
             // is queued for repair), we mark yieldSettled so a subsequent
             // IDIA failure cannot cause a duplicate data_sale_payout row.
-            const yieldStatus = yieldReceipt.status === "success" ? "completed" : "failed";
+            const yieldStatus = yieldVerified ? "completed" : "failed";
             await insertLedgerWithRepair(supabase, {
               reference_id: ingestionReference,
               user_id: contributor.user_id,
