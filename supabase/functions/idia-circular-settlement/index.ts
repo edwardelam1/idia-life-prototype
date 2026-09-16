@@ -834,7 +834,7 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
             continue;
           }
           console.info(
-            `[BEGIN: Batch.Item] Processing transfer ${i + 1}/${contributing_users.length} to ${lifeWallet}`,
+            `[BEGIN: Batch.Item] Processing transfer ${i + 1}/${settlementContributors.length} to ${lifeWallet}`,
           );
 
           // Per-phase progress flags — used by the catch block to route the
@@ -851,7 +851,7 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
                   address: USDC_ADDRESS,
                   abi: ERC20_ABI,
                   functionName: "transfer",
-                  args: [lifeWallet as `0x${string}`, parseUnits(perContributorYield.toFixed(6), 6)],
+                  args: [lifeWallet as `0x${string}`, yieldAmountWei],
                   account,
                   nonce,
                 }),
@@ -1002,7 +1002,7 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
         `[COMPLETE: circular-settlement] runId=${runCorrelationId} corporateHash=${corporateHash} regionalHash=${regionalHash} regionalTarget=${finalRegionalAddress} mode=${routingMode} payouts=${contributorPayouts.length}`,
       );
 
-      if (contributorPayouts.length === 0 && contributing_users.length > 0) {
+      if (contributorPayouts.length === 0 && settlementContributors.length > 0) {
         queueFinalStatus = "failed";
       } else if (skippedContributors.length > 0) {
         queueFinalStatus = "partial";
