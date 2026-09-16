@@ -77,6 +77,7 @@ const HIDDEN_HISTORY_DESCRIPTIONS = [
   "Pro-rata USDC yield",
   "regional/war chest",
   "Corp revenue Syn",
+  "60% Corporate Revenue",
 ];
 
 function isHiddenHistoryItem(description: string): boolean {
@@ -489,12 +490,17 @@ const EnhancedWalletDashboard: React.FC = () => {
           try {
             const isPurchase =
               syn.metadata?.class === "Synapse_Purchase" || syn.metadata?.product_class === "SAAS_UTILITY_PURCHASE";
+            const entryType = String(syn.entry_type ?? "").toLowerCase();
+            const isConsumption = ["usage", "debit", "consumption"].includes(entryType);
             let sourceAsset = "CREDS";
             let atomicAmount = syn.amount_usdc ?? syn.amount_idia_usd ?? syn.amount ?? 0;
 
             if (isPurchase) {
               sourceAsset = "CR";
               atomicAmount = Number(syn.amount ?? 0);
+            } else if (isConsumption) {
+              sourceAsset = "CR";
+              atomicAmount = -Math.abs(Number(syn.amount ?? 0));
             } else if (syn.amount_usdc !== null) sourceAsset = "USDC";
             else if (syn.amount_idia_usd !== null) sourceAsset = "IDIA";
 
@@ -503,6 +509,8 @@ const EnhancedWalletDashboard: React.FC = () => {
               transaction_type: isPurchase ? "synapse_credit_purchase" : "synapse_ledger_event",
               amount: isPurchase
                 ? Math.abs(Number(atomicAmount))
+                : isConsumption
+                  ? atomicAmount
                 : atomicAmount > 0
                   ? -Math.abs(atomicAmount)
                   : atomicAmount,

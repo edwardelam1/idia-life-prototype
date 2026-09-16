@@ -24,3 +24,4 @@
 - [x] Wallet: show Synapse credit purchases with credits, USDC price, wallet, transaction hash, and Base block
 - [x] Wallet: authorization card only requires the relayer approval (vault approval optional); hidden when status is unknown
 - [x] Hub hand-off: Life answers idialife://authorize-relayer, authorizes the existing wallet, returns to the Hub with a status
+- [x] Wallet history: hide 60% corporate allocations and show Synapse consumption as signed CR deductions
