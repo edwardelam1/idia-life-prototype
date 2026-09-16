@@ -993,6 +993,32 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
           }
         }
         console.info("[END: Phase_3_Contributor.BatchExecution] Pipeline cleared.");
+
+        // Reconcile the allocation against the pool.
+        console.info(`[BEGIN: Phase_3_Contributor.Reconcile] poolMicro=${poolMicro} allocatedMicro=${allocatedMicro}`);
+        const driftMicro = poolMicro - allocatedMicro;
+        if (driftMicro !== 0) {
+          console.error(`[ERROR: Phase_3_Contributor.Reconcile] allocation drift ${driftMicro} micro-USDC`);
+          queueFinalError = `allocation_drift:${driftMicro}`;
+        }
+        console.info(`[END: Phase_3_Contributor.Reconcile] driftMicro=${driftMicro}`);
+
+        // Stamp the sale's egress record so it can never be re-matched.
+        if (matchedEgressId) {
+          console.info(`[BEGIN: Egress.MarkSettled] egress=${matchedEgressId}`);
+          try {
+            const { error: stampErr } = await supabase
+              .from("egress_logs")
+              .update({ settlement_status: "SETTLED", settled_at: new Date().toISOString() })
+              .eq("id", matchedEgressId);
+            if (stampErr) throw new Error(stampErr.message);
+            console.info(`[END: Egress.MarkSettled] egress=${matchedEgressId} marked SETTLED.`);
+          } catch (egressStampErr: any) {
+            console.error(
+              `[ERROR: Egress.MarkSettled] egress=${matchedEgressId} could not be stamped: ${egressStampErr?.message ?? egressStampErr}`,
+            );
+          }
+        }
       } catch (globalError: any) {
         console.error(`[FATAL STALL: Phase_3_Contributor.Global] ${globalError.message}`);
         queueFinalError = globalError?.message ?? String(globalError);
