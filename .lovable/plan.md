@@ -1,61 +1,50 @@
-# War chest and community pool routing: what the trace found
+# Add Strava as a data source on the Data screen
 
-## Verified findings
+## What you'll see
 
-All checks below were run against the live ledger and Base mainnet today.
+A Strava circle appears on the Data screen next to Apple Health and FordConnect, using the Strava mark. Tapping it opens a small modal that looks and behaves exactly like the FordConnect one: a one-line summary, the data categories Strava provides, a privacy line, and Cancel / Connect buttons.
 
-**1. The community pools have never hydrated. Not once.**
+Connect sends the person to Strava's own sign-in page. When they approve, they land back in the app, the modal flips to a short "Strava Linked!" confirmation and closes itself, and Strava shows up under Active Streams with the live green ring.
 
-Every single regional payout since May — all 64 rows, 4.95 USDC total — landed in the global war chest `0x0910…5d59`. The ledger records two reasons:
+## Two things I need from you
 
-- `war_chest_null` — the sale arrived with no location at all (44 of 64 sales).
-- `war_chest_fallback` — the sale had a location, pool creation was attempted, and it failed (20 of 64).
+1. **The Strava logo image.** Strava's mark is trademarked, so I can't generate it. Upload the PNG/SVG you want used and I'll store it beside the Ford logo.
+2. **Strava API credentials.** The project currently has no Strava client ID or secret saved. After you approve, I'll open the secure form to collect `STRAVA_CLIENT_ID` and `STRAVA_CLIENT_SECRET` from your Strava API application page. In that same Strava application, the Authorization Callback Domain must be set to your Supabase functions domain.
 
-**2. Why creation fails: the relayer was never authorized on the Safe.**
+## The work
 
-Two locations have ever been sent: `Louisville-KY-US` (10 sales) and `Frankfort-KY-US` (10 sales). On chain, neither has a pool in the Registry or the Factory — both resolve to the zero address.
+**Modal rewrite — `src/components/StravaConnectionModal.tsx`**
 
-The pool-deployer module is enabled on the treasury Safe, and it is not paused, but `authorizedOperators(relayer)` reads **false**. So every deploy attempt reverts `NotAuthorized`, and the money falls back to the war chest. This is the exact "ACTIVATION REQUIRED" one-time Safe transaction noted in the settlement code, which has never been executed.
+The existing modal is the old oversized style with a popup window, hardcoded dollar figures, and a generic key icon. It gets rebuilt from the FordConnect modal as the template:
 
-**3. "Kicked back" is literally true.**
+- `max-w-sm` dialog, Strava mark in the header, compact spacing, same section rhythm.
+- Data categories shown as a 2-column grid: Activities & Workouts, Route & Distance, Pace & Heart Rate, Elevation & Effort.
+- Same biometric consent step Ford uses (ACA hash generated and recorded before the hand-off), so Strava follows the same consent protocol as every other source.
+- Connected state: Strava active card with Close / Revoke, revoke marking the connection inactive rather than deleting it.
+- Connect uses the system browser hand-off Ford uses (Capacitor Browser on Android, full-page navigation on the custom iOS shell and web) — no popup window, which is what breaks today.
 
-The war chest address `0x0910…5d59` *is* the treasury Safe — the same Safe that owns the pool factory and would own every pool. So regional funds intended for a jurisdiction return to the central treasury. That is the behaviour you are seeing.
+**Guaranteed close after a successful token**
 
-**4. A second, worse problem sits behind the first.**
+Same proven recovery net as Ford: on connect the modal arms a Realtime subscription on the person's `data_connections` rows plus a polling fallback. The moment the Strava row reads active, the modal shows the success state, refreshes the Data screen, and closes after 2 seconds. Timers are cleared on unmount so nothing lingers.
 
-`IDIA_LocalizedPool` is hard-wired to the **IDIA token only**. Its spend function, balance view, and emergency withdrawal all operate on `idiaToken`. Settlement sends the regional leg in **USDC**. If the operator were authorized today, pools would deploy and USDC would be transferred into contracts that have **no way to ever move USDC out** — not even the emergency valve. Every regional payout would be permanently locked.
+**Callback — `supabase/functions/strava-oauth-callback/index.ts`**
 
-So authorizing the operator without fixing the token mismatch would turn a recoverable problem into an unrecoverable one.
+Today it returns an HTML "you can close this window" page, which strands the person on a dead page in the app. It gets changed to redirect to `idialife://strava-callback?status=…` exactly like Ford, so the app is brought back to the foreground. Replace the `upsert` with the select-then-insert/update flow used everywhere else in this codebase. Failures redirect back with a reason instead of printing a server error.
 
-**5. The corporate/war-chest transfer fix from earlier is confirmed working.** Cash register rose 3.075 → 3.975 USDC and the war chest 8.075 → 8.225 USDC on the 13:16 sale. Real transfers now land.
+**Auth URL — `supabase/functions/strava-controller/index.ts`**
 
-## What I propose
+Kept as the single entry point (the modal already calls it). Add proper validation and a clear error when the client ID is missing, so a missing secret reports plainly instead of producing a broken Strava URL.
 
-**Step 1 — Freeze regional pool routing (immediate, code only).**
+**Data screen — `src/components/DataDashboard.tsx`**
 
-Until pools can hold USDC, force the regional leg to the war chest deliberately rather than by accident: skip the deploy attempt, record routing mode `pool_routing_disabled`, and log the location that *would* have received it. This keeps funds recoverable and makes the backlog auditable. No behavioural change to where money goes today — it removes wasted gas on reverting deploys and stops the silent fallback.
+Add `hasStrava` alongside `hasFord`, render the Strava circle in Available Data Sources when not connected, include `strava` in the visible-connections filter and in the Active Streams icon map and click handler, and extend the "all sources connected" condition to cover all three.
 
-**Step 2 — Decide the pool's asset, then make it real.**
+**App deep link — `src/App.tsx`**
 
-Two options, your call:
+Add a `strava-callback` branch to the existing `appUrlOpen` listener beside the Ford one, so returning from Strava lands on the Data screen.
 
-- **A. USDC pools.** Deploy a revised pool contract that holds USDC (or any ERC-20, with the asset set at construction). Requires a new contract, a new factory deployment, and the Registry pointed at it.
-- **B. IDIA pools.** Keep the existing contract and convert the regional 10% from USDC to IDIA before it is sent, the same way contributor IDIA royalties are already awarded through the escrow. No new contract.
+## Notes
 
-**Step 3 — Authorize the operator (one Safe transaction, by you).**
-
-Once Step 2 lands: execute `authorizeOperator(0xd816…31a7)` on the pool-deployer module from the Safe. I cannot do this — it needs the multisig. After that, located sales deploy and hydrate their own pool automatically.
-
-**Step 4 — Backfill the jurisdictions.**
-
-Of the 4.95 USDC of regional funds in the war chest, 1.50 USDC belongs to Louisville and Frankfort (20 located sales); the rest had no location and correctly belongs to the global chest. Once pools exist, move that 1.50 USDC from the Safe to the two pools, recorded as catch-up ledger rows. This is a Safe transaction, not an automated one.
-
-**Step 5 — Chase the missing location data.**
-
-44 of 64 sales carried no location, so their regional share can never reach a jurisdiction. That is a Hub-side payload question: whether the Hub should always attach a location to a sale. Flagging it, not fixing it here.
-
-## Technical detail
-
-- Edge function: `supabase/functions/idia-circular-settlement/index.ts`, Phase 2 regional block (lines ~619-760). Step 1 touches only the routing branch; the split percentages, contributor resolution, corporate leg and proof-of-payment assertions stay untouched.
-- On-chain reads used: module `0x8AF7C97B56282DF3Af8f9472a9938b0D6b33Bf09` (`authorizedOperators` false, `paused` false, `safe` = `0x0910…5d59`, `poolFactory` = `0x0188fcB0…67bB`), Safe `isModuleEnabled(module)` true, Registry `0x137D913d…5387B` and factory `deployedPools` both zero for the two locations.
-- No contract, key, or split changes in Step 1. Steps 2-4 require either a contract deployment or Safe transactions.
+- `ingest-strava-data` and `strava-webhook-subscription` are untouched; once the connection stores real tokens they work as written.
+- `strava-auth-url` is a duplicate of the controller's auth-url branch and stays unused; I'd leave it alone unless you want it removed.
+- No change to Apple Health, Health Connect, or Ford behaviour.
