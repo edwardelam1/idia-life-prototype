@@ -682,13 +682,24 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
 
       // PHASE 3 & 5: ON-CHAIN ROYALTY & AUTONOMOUS IDIA PROPOSAL
       currentStep = "PHASE_3_AND_5_CONTRIBUTOR_DISTRIBUTION";
-      const totalRoyaltyPool = total_fiat_amount * REVENUE_SPLIT.DATA_YIELD;
-      const perContributorYield = totalRoyaltyPool / contributing_users.length;
+      const ownerCount = settlementContributors.length;
+      const poolMicro = Math.floor(total_fiat_amount * REVENUE_SPLIT.DATA_YIELD * 1_000_000);
+      const baseMicro = Math.floor(poolMicro / ownerCount);
+      const remainderMicro = poolMicro % ownerCount;
+      let allocatedMicro = 0;
       const contributorPayouts = [];
-      // 1:1 IDIA award mirrors each contributor's USDC yield (18-decimal IDIA vs 6-decimal USDC).
-      const idiaAwardAmount = parseUnits(perContributorYield.toFixed(6), 18);
+      console.info(
+        `[BEGIN: Phase_3_Contributor.PoolArithmetic] poolMicro=${poolMicro} owners=${ownerCount} baseMicro=${baseMicro} remainderMicro=${remainderMicro}`,
+      );
+      if (poolMicro <= 0 || baseMicro <= 0) {
+        throw new Error(
+          `ZERO_VALUE_GUARD: contributor pool not divisible — poolMicro=${poolMicro}, owners=${ownerCount}, baseMicro=${baseMicro}`,
+        );
+      }
+      console.info(`[END: Phase_3_Contributor.PoolArithmetic] allocation plan validated.`);
 
       console.info("[BEGIN: Phase_3_Contributor.BatchExecution] Initializing sequential transaction pipeline.");
+
       try {
         // Concurrency-safe helper: refetches pending nonce every attempt and retries on
         // nonce/underpriced/in-flight collisions caused by parallel Edge Function containers.
