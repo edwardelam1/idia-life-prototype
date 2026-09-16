@@ -80,10 +80,6 @@ export function InfiniteCarousel({ children, direction, ariaLabel }: InfiniteCar
       aria-label={ariaLabel}
       tabIndex={0}
       className="no-scrollbar w-full overflow-x-auto overscroll-x-contain py-1 touch-pan-x cursor-grab focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => {
-        if (!draggingRef.current) setPaused(false);
-      }}
       onFocus={() => setPaused(true)}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) setPaused(false);
@@ -110,7 +106,7 @@ export function InfiniteCarousel({ children, direction, ariaLabel }: InfiniteCar
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
           event.currentTarget.releasePointerCapture(event.pointerId);
         }
-        if (!event.currentTarget.matches(":hover") && !event.currentTarget.contains(document.activeElement)) {
+        if (!event.currentTarget.contains(document.activeElement)) {
           setPaused(false);
         }
       }}
