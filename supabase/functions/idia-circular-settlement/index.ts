@@ -628,7 +628,7 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
         USDC_ADDRESS,
         ERC20_ABI,
         "transfer",
-        [finalRegionalAddress as `0x${string}`, parseUnits(regionalRevenue.toFixed(6), 6)],
+        [finalRegionalAddress as `0x${string}`, BigInt(regionalMicro)],
         "Phase_2_Regional",
       );
       console.info(
