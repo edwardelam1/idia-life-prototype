@@ -6,6 +6,7 @@ Sale `SYN-D97A6466` (and its twin `SYN-371E8458`, both at 01:20-01:22 UTC today)
 
 - Paid the 60% company share, the 10% war-chest share and every contributor share **twice** — two separate on-chain transfers per person, about 35 seconds apart (e.g. `0x0f4a3a…` then `0xd1a225…` to the same person). Each $0.75 sale actually moved $1.50 worth of splits.
 - Split the contributor share evenly across a fixed list of **9 people** supplied by the Hub, while the sale record itself lists only **2 consent records**, owned by 2 people. 22 people in Life have consent records at all.
+- Allocated the contributor pool with unguarded floating-point division and a share variable held outside the loop body, which is how a single wallet can end up taking the whole ~0.23 USDC pool on the first iteration and leave the rest with nothing.
 
 Both problems are confirmed from the database, not inferred.
 
