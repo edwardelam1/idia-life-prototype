@@ -11,7 +11,33 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-async function getAuthUrl(userId: string) {
+const ALLOWED_RETURN_HOSTS = [
+  "thebigidia.com",
+  "lovable.app",
+  "lovableproject.com",
+  "localhost",
+];
+
+function sanitizeReturnUrl(raw: unknown): string | null {
+  if (typeof raw !== "string" || !raw) return null;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "https:" && parsed.hostname !== "localhost") return null;
+    const host = parsed.hostname.toLowerCase();
+    const allowed = ALLOWED_RETURN_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
+    return allowed ? `${parsed.origin}${parsed.pathname}` : null;
+  } catch {
+    return null;
+  }
+}
+
+function encodeState(userId: string, returnUrl: string | null) {
+  if (!returnUrl) return userId;
+  const payload = JSON.stringify({ u: userId, r: returnUrl });
+  return `b64.${btoa(payload).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}`;
+}
+
+async function getAuthUrl(userId: string, returnUrlRaw: unknown) {
   if (!userId) return json({ error: "User ID is required" }, 400);
 
   const clientId = Deno.env.get("STRAVA_CLIENT_ID");
@@ -21,12 +47,15 @@ async function getAuthUrl(userId: string) {
   const redirectUri =
     Deno.env.get("STRAVA_REDIRECT_URI") ||
     `https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/strava-oauth-callback`;
-  console.log(`[STRAVA_CONTROLLER] redirect_uri=${redirectUri} client_id=***${clientId.slice(-4)}`);
+  const returnUrl = sanitizeReturnUrl(returnUrlRaw);
+  console.log(
+    `[STRAVA_CONTROLLER] redirect_uri=${redirectUri} client_id=***${clientId.slice(-4)} return=${returnUrl ?? "deeplink"}`,
+  );
   const scope = "read,activity:read_all";
   const oauthUrl =
     `https://www.strava.com/oauth/authorize?client_id=${clientId}` +
     `&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}` +
-    `&approval_prompt=force&scope=${scope}&state=${userId}`;
+    `&approval_prompt=force&scope=${scope}&state=${encodeURIComponent(encodeState(userId, returnUrl))}`;
 
   return json({ oauthUrl });
 }
@@ -36,13 +65,13 @@ serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { action, userId } = body ?? {};
+    const { action, userId, returnUrl } = body ?? {};
 
     console.log(`[STRAVA_CONTROLLER] action=${action} userId=${userId ? "present" : "missing"}`);
 
     switch (action) {
       case "get-auth-url":
-        return await getAuthUrl(userId);
+        return await getAuthUrl(userId, returnUrl);
       default:
         return json({ error: `Unknown action: ${action ?? "(none)"}` }, 400);
     }
