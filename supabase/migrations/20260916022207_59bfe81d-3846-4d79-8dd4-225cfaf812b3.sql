@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS trigger_circular_settlement ON public.settlement_queue;
