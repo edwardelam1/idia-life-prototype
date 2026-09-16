@@ -304,12 +304,16 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
     queueRefId = ingestionReference;
 
     // Stamp attempt counter on the settlement_queue row BEFORE any chain work.
+    let queueCreatedAt: string | null = null;
+    let queueAlreadyCompleted = false;
     try {
       const { data: existing } = await supabase
         .from("settlement_queue")
-        .select("attempts")
+        .select("attempts, status, created_at")
         .eq("reference_id", ingestionReference)
         .maybeSingle();
+      queueCreatedAt = (existing?.created_at as string | undefined) ?? null;
+      queueAlreadyCompleted = existing?.status === "completed";
       const nextAttempts = ((existing?.attempts as number | undefined) ?? 0) + 1;
       await supabase
         .from("settlement_queue")
@@ -322,6 +326,136 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
     } catch (stampErr: any) {
       console.error(`[WARNING: QueueStamp] Could not stamp queue row for ${ingestionReference}: ${stampErr?.message}`);
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // IDEMPOTENCY_CHECK — a sale is settled exactly once, ever.
+    // Two independent reads: the queue row's terminal status, and the
+    // presence of contributor ledger rows for this reference.
+    // ═══════════════════════════════════════════════════════════════════
+    currentStep = "IDEMPOTENCY_CHECK";
+    console.info(`[BEGIN: IDEMPOTENCY_CHECK] runId=${runCorrelationId} ref=${ingestionReference}`);
+    console.info(`[IDEMPOTENCY_CHECK.Query1] queue status completed=${queueAlreadyCompleted}`);
+    let priorLedgerRows = 0;
+    try {
+      const { data: priorRows, error: priorErr } = await supabase
+        .from("synapse_credit_ledger")
+        .select("id")
+        .eq("transaction_type", "data_sale_payout")
+        .ilike("description", `%${ingestionReference}%`)
+        .limit(1);
+      if (priorErr) {
+        console.error(`[ERROR: IDEMPOTENCY_CHECK.Query2] ledger probe failed: ${priorErr.message}`);
+      }
+      priorLedgerRows = priorRows?.length ?? 0;
+      console.info(`[IDEMPOTENCY_CHECK.Query2] prior contributor ledger rows=${priorLedgerRows}`);
+    } catch (idemErr: any) {
+      console.error(`[ERROR: IDEMPOTENCY_CHECK.Query2] ${idemErr?.message ?? idemErr}`);
+    }
+    if (queueAlreadyCompleted || priorLedgerRows > 0) {
+      console.warn(
+        `[HALT: IDEMPOTENCY_CHECK] ref=${ingestionReference} already settled (queueCompleted=${queueAlreadyCompleted}, ledgerRows=${priorLedgerRows}). No chain work performed.`,
+      );
+      console.info(`[END: IDEMPOTENCY_CHECK] duplicate dispatch suppressed.`);
+      return;
+    }
+    console.info(`[END: IDEMPOTENCY_CHECK] ref=${ingestionReference} is unsettled — proceeding.`);
+
+    // ═══════════════════════════════════════════════════════════════════
+    // RESOLVE_CONTRIBUTORS — pay the owners of the consent records that
+    // this sale actually consumed. The Hub-supplied contributing_users
+    // list is NEVER trusted for payment; it is logged for discrepancy.
+    // ═══════════════════════════════════════════════════════════════════
+    currentStep = "RESOLVE_CONTRIBUTORS";
+    console.info(
+      `[BEGIN: RESOLVE_CONTRIBUTORS] runId=${runCorrelationId} ref=${ingestionReference} buyer=${buyer_id} payloadCount=${contributing_users?.length ?? 0}`,
+    );
+    let matchedEgressId: string | null = null;
+    const resolvedOwners: string[] = [];
+    try {
+      const anchor = queueCreatedAt ? new Date(queueCreatedAt) : new Date();
+      const windowStart = new Date(anchor.getTime() - 120_000).toISOString();
+      const windowEnd = new Date(anchor.getTime() + 120_000).toISOString();
+      console.info(`[RESOLVE_CONTRIBUTORS.Query1] egress window ${windowStart} → ${windowEnd}`);
+      const { data: egressRows, error: egressErr } = await supabase
+        .from("egress_logs")
+        .select("id, aca_record_references, aca_record_ids, created_at, settlement_status")
+        .eq("user_id", buyer_id)
+        .gte("created_at", windowStart)
+        .lte("created_at", windowEnd)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (egressErr) throw new Error(`egress_logs query failed: ${egressErr.message}`);
+      console.info(`[RESOLVE_CONTRIBUTORS.Query1] matched ${egressRows?.length ?? 0} egress row(s)`);
+
+      const egressRow = (egressRows ?? []).find(
+        (r: any) => (r.settlement_status ?? "PENDING") !== "SETTLED",
+      );
+      if (!egressRow) throw new Error("no unsettled egress record matched this sale window");
+      matchedEgressId = egressRow.id as string;
+      const refs: string[] = [
+        ...((egressRow.aca_record_references as string[] | null) ?? []),
+        ...((egressRow.aca_record_ids as string[] | null) ?? []),
+      ].filter(Boolean);
+      console.info(`[RESOLVE_CONTRIBUTORS.Query1] egress=${matchedEgressId} consentRefs=${refs.length}`);
+      if (refs.length === 0) throw new Error(`egress record ${matchedEgressId} lists no consent references`);
+
+      console.info(`[BEGIN: RESOLVE_CONTRIBUTORS.Query2] consent-record → owner lookup`);
+      const { data: acaRows, error: acaErr } = await supabase
+        .from("user_aca_records")
+        .select("platform_guid, aca_hash_key")
+        .in("aca_hash_key", refs);
+      if (acaErr) throw new Error(`user_aca_records query failed: ${acaErr.message}`);
+      console.info(`[END: RESOLVE_CONTRIBUTORS.Query2] rows=${acaRows?.length ?? 0}`);
+
+      console.info(`[BEGIN: RESOLVE_CONTRIBUTORS.Dedupe]`);
+      for (const row of acaRows ?? []) {
+        const owner = row.platform_guid as string | null;
+        if (owner && !resolvedOwners.includes(owner)) resolvedOwners.push(owner);
+      }
+      console.info(`[END: RESOLVE_CONTRIBUTORS.Dedupe] distinctOwners=${resolvedOwners.length}`);
+      if (resolvedOwners.length === 0) throw new Error("consent references resolved to zero known owners");
+    } catch (resolveErr: any) {
+      const reason = resolveErr?.message ?? String(resolveErr);
+      console.error(`[FATAL STALL: RESOLVE_CONTRIBUTORS] ${reason} — refusing to pay a guessed contributor set.`);
+      try {
+        await supabase
+          .from("settlement_queue")
+          .update({ status: "failed", last_error: `RESOLVE_CONTRIBUTORS: ${reason}` })
+          .eq("reference_id", ingestionReference);
+      } catch (_) {
+        /* queue write failure already logged upstream */
+      }
+      console.info(`[END: RESOLVE_CONTRIBUTORS] halted.`);
+      return;
+    }
+    const settlementContributors = resolvedOwners.map((user_id) => ({ user_id }));
+    const payloadOwnerCount = contributing_users?.length ?? 0;
+    if (payloadOwnerCount !== settlementContributors.length) {
+      console.warn(
+        `[DISCREPANCY: RESOLVE_CONTRIBUTORS] Hub payload listed ${payloadOwnerCount} contributor(s); consent records resolve to ${settlementContributors.length}. Paying the resolved set.`,
+      );
+    }
+    console.info(
+      `[END: RESOLVE_CONTRIBUTORS] payable owners=${settlementContributors.length} egress=${matchedEgressId}`,
+    );
+
+    // Integer allocation guard — every EVM amount is validated before broadcast.
+    const assertPayable = (amountMicro: number, remainingMicro: number, label: string) => {
+      console.info(`[BEGIN: Guard.assertPayable] label=${label} amountMicro=${amountMicro} remainingMicro=${remainingMicro}`);
+      if (!Number.isFinite(amountMicro) || !Number.isInteger(amountMicro)) {
+        throw new Error(`ZERO_VALUE_GUARD: ${label} amount is not a finite integer (${amountMicro})`);
+      }
+      if (amountMicro <= 0) {
+        throw new Error(`ZERO_VALUE_GUARD: ${label} amount <= 0 (${amountMicro}) — refusing to broadcast`);
+      }
+      if (amountMicro > remainingMicro) {
+        throw new Error(
+          `OVER_ALLOCATION_GUARD: ${label} amount ${amountMicro} exceeds remaining pool ${remainingMicro}`,
+        );
+      }
+      console.info(`[END: Guard.assertPayable] label=${label} approved.`);
+    };
+
 
     // ═══════════════════════════════════════════════════════════════════
     // RELAYER SINGLE-WRITER MUTEX
