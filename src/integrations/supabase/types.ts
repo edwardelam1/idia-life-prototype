@@ -5885,34 +5885,40 @@ export type Database = {
         Row: {
           created_at: string | null
           data_category: string | null
-          device_event_id: number
+          device_event_id: number | null
           error_details: Json | null
           id: string
           processing_stage: string | null
           processing_status: string | null
+          raw_app_data_id: string | null
           retry_count: number | null
+          source: string | null
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
           data_category?: string | null
-          device_event_id: number
+          device_event_id?: number | null
           error_details?: Json | null
           id?: string
           processing_stage?: string | null
           processing_status?: string | null
+          raw_app_data_id?: string | null
           retry_count?: number | null
+          source?: string | null
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
           data_category?: string | null
-          device_event_id?: number
+          device_event_id?: number | null
           error_details?: Json | null
           id?: string
           processing_stage?: string | null
           processing_status?: string | null
+          raw_app_data_id?: string | null
           retry_count?: number | null
+          source?: string | null
           updated_at?: string | null
         }
         Relationships: []
