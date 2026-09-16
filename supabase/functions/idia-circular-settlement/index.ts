@@ -2,7 +2,15 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.7";
 import { privateKeyToAccount } from "https://esm.sh/viem@2.9.20/accounts";
 import { base } from "https://esm.sh/viem@2.9.20/chains";
-import { createWalletClient, http, parseUnits, publicActions } from "https://esm.sh/viem@2.9.20";
+import {
+  createWalletClient,
+  encodeFunctionData,
+  http,
+  keccak256,
+  parseUnits,
+  publicActions,
+  toHex,
+} from "https://esm.sh/viem@2.9.20";
 
 // 🚨 BIGINT SERIALIZATION PATCH 🚨
 // Teaches JSON.stringify how to natively parse blockchain BigInt values into strings
