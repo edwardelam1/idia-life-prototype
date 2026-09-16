@@ -68,6 +68,32 @@ const DataDashboard = () => {
     }
   }, [currentUserId]);
 
+  // Strava returns the person to this page with ?strava=success|error
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const stravaStatus = params.get("strava");
+    if (!stravaStatus) return;
+
+    const reason = params.get("reason");
+    params.delete("strava");
+    params.delete("reason");
+    const cleaned = `${window.location.pathname}${params.toString() ? `?${params}` : ""}`;
+    window.history.replaceState({}, "", cleaned);
+
+    window.dispatchEvent(new CustomEvent("strava:oauth-returned"));
+
+    if (stravaStatus === "success") {
+      toast({ title: "Strava Linked!", description: "Your Strava activity stream is now active." });
+    } else {
+      toast({
+        title: "Strava connection failed",
+        description: reason ? reason.replace(/_/g, " ") : "Please try connecting again.",
+        variant: "destructive",
+      });
+    }
+    fetchConnections();
+  }, []);
+
   const fetchAcaRecords = async () => {
     if (!currentUserId) return;
     setAcaLoading(true);
