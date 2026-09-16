@@ -17,6 +17,7 @@ import FordConnectionModal from "./FordConnectionModal";
 import StravaConnectionModal from "./StravaConnectionModal";
 import NestConnectionModal from "./NestConnectionModal";
 import nestLogoAsset from "@/assets/nest-logo.png.asset.json";
+import { InfiniteCarousel } from "@/components/ui/infinite-carousel";
 
 const stravaLogo = stravaLogoAsset.url;
 const nestLogo = nestLogoAsset.url;
@@ -381,6 +382,86 @@ const DataDashboard = () => {
   const hasStrava = getConnectionStatus("strava");
   const hasNest = getConnectionStatus("nest");
 
+  const availableSources = [
+    !hasHealth && {
+      name: isAndroid() ? "Health Connect" : "Apple Health",
+      content: (
+        <div
+          className="flex flex-col items-center cursor-pointer group"
+          role="button"
+          tabIndex={0}
+          aria-label={`Connect ${isAndroid() ? "Health Connect" : "Apple Health"}`}
+          onClick={() => {
+            if (isAndroid()) setShowAndroidHealthModal(true);
+            else setShowAppleHealthModal(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            if (isAndroid()) setShowAndroidHealthModal(true);
+            else setShowAppleHealthModal(true);
+          }}
+        >
+          <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border border-border transition-all group-hover:scale-105 flex items-center justify-center">
+            {isAndroid() ? (
+              <Activity className="w-8 h-8 text-green-600" />
+            ) : (
+              <img
+                src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
+                alt="Apple Health"
+                className="w-8 h-8 object-contain"
+              />
+            )}
+          </div>
+          <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground text-center">
+            {isAndroid() ? "Health Connect" : "Apple Health"}
+          </p>
+          <p className="text-[9px] text-muted-foreground/70 mt-0.5 text-center">Biometrics</p>
+        </div>
+      ),
+    },
+    !hasFord && {
+      name: "FordConnect",
+      content: (
+        <div className="flex flex-col items-center cursor-pointer group" role="button" tabIndex={0} aria-label="Connect FordConnect" onClick={() => setShowFordModal(true)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setShowFordModal(true); } }}>
+          <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border border-border transition-all group-hover:scale-105 flex items-center justify-center">
+            <img src={fordLogo} alt="FordConnect" className="w-8 h-8 object-contain" />
+          </div>
+          <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground text-center">FordConnect</p>
+          <p className="text-[9px] text-muted-foreground/70 mt-0.5 text-center">Vehicle Telemetry</p>
+        </div>
+      ),
+    },
+    !hasNest && {
+      name: "Nest",
+      content: (
+        <div className="flex flex-col items-center cursor-pointer group" role="button" tabIndex={0} aria-label="Connect Nest" onClick={() => setShowNestModal(true)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setShowNestModal(true); } }}>
+          <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border border-border transition-all group-hover:scale-105 flex items-center justify-center">
+            <img src={nestLogo} alt="Nest" className="w-8 h-8 object-contain" />
+          </div>
+          <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground text-center">Nest</p>
+          <p className="text-[9px] text-muted-foreground/70 mt-0.5 text-center">Home & Climate</p>
+        </div>
+      ),
+    },
+    !hasStrava && {
+      name: "Strava",
+      content: (
+        <div className="flex flex-col items-center cursor-pointer group" role="button" tabIndex={0} aria-label="Connect Strava" onClick={() => setShowStravaModal(true)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setShowStravaModal(true); } }}>
+          <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border border-border transition-all group-hover:scale-105 flex items-center justify-center">
+            <img src={stravaLogo} alt="Strava" className="w-8 h-8 object-contain" />
+          </div>
+          <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground text-center">Strava</p>
+          <p className="text-[9px] text-muted-foreground/70 mt-0.5 text-center">Activity & Routes</p>
+        </div>
+      ),
+    },
+  ].filter((source): source is { name: string; content: JSX.Element } => Boolean(source)).sort((a, b) => a.name.localeCompare(b.name));
+
+  const sortedVisibleConnections = [...visibleConnections].sort((a, b) =>
+    formatSourceName(a.connection_type).localeCompare(formatSourceName(b.connection_type)),
+  );
+
   return (
     <div className="space-y-4">
       <Tabs defaultValue="connections" className="w-full">
@@ -426,96 +507,39 @@ const DataDashboard = () => {
                 <Info className="w-4 h-4" />
               </button>
             </div>
-            <div className="flex flex-wrap justify-center gap-6">
-              {/* Health App Connection */}
-              {!hasHealth && (
-                <div
-                  className="flex flex-col items-center cursor-pointer group"
-                  onClick={() => {
-                    if (isAndroid()) setShowAndroidHealthModal(true);
-                    else setShowAppleHealthModal(true);
-                  }}
-                >
-                  <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border border-border transition-all group-hover:scale-105 flex items-center justify-center">
-                    {isAndroid() ? (
-                      <Activity className="w-8 h-8 text-green-600" />
-                    ) : (
-                      <img
-                        src="/lovable-uploads/8f82179a-e516-4c98-8c9f-aae3ee45c242.png"
-                        alt="Apple Health"
-                        className="w-8 h-8 object-contain"
-                      />
-                    )}
-                  </div>
-                  <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground">
-                    {isAndroid() ? "Health Connect" : "Apple Health"}
-                  </p>
-                  <p className="text-[9px] text-muted-foreground/70 mt-0.5">Biometrics</p>
-                </div>
-              )}
-
-              {/* FordConnect Connection */}
-              {!hasFord && (
-                <div
-                  className="flex flex-col items-center cursor-pointer group"
-                  onClick={() => setShowFordModal(true)}
-                >
-                  <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border border-border transition-all group-hover:scale-105 flex items-center justify-center">
-                    <img src={fordLogo} alt="FordConnect" className="w-8 h-8 object-contain" />
-                  </div>
-                  <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground">
-                    FordConnect
-                  </p>
-                  <p className="text-[9px] text-muted-foreground/70 mt-0.5">Vehicle Telemetry</p>
-                </div>
-              )}
-
-              {/* Strava Connection */}
-              {!hasStrava && (
-                <div
-                  className="flex flex-col items-center cursor-pointer group"
-                  onClick={() => setShowStravaModal(true)}
-                >
-                  <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border border-border transition-all group-hover:scale-105 flex items-center justify-center">
-                    <img src={stravaLogo} alt="Strava" className="w-8 h-8 object-contain" />
-                  </div>
-                  <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground">Strava</p>
-                  <p className="text-[9px] text-muted-foreground/70 mt-0.5">Activity & Routes</p>
-                </div>
-              )}
-
-              {/* Nest Connection */}
-              {!hasNest && (
-                <div
-                  className="flex flex-col items-center cursor-pointer group"
-                  onClick={() => setShowNestModal(true)}
-                >
-                  <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border border-border transition-all group-hover:scale-105 flex items-center justify-center">
-                    <img src={nestLogo} alt="Nest" className="w-8 h-8 object-contain" />
-                  </div>
-                  <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground">Nest</p>
-                  <p className="text-[9px] text-muted-foreground/70 mt-0.5">Home & Climate</p>
-                </div>
-              )}
-
-              {hasHealth && hasFord && hasStrava && hasNest && (
+            {availableSources.length > 0 ? (
+              <InfiniteCarousel direction="left" ariaLabel="Available data sources">
+                {availableSources.map((source) => <div key={source.name}>{source.content}</div>)}
+              </InfiniteCarousel>
+            ) : (
                 <div className="w-full text-center py-6 text-muted-foreground">
                   <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50 text-teal-600" />
                   <p className="text-sm">All available sources connected</p>
                 </div>
-              )}
-            </div>
+            )}
           </div>
 
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">Active Streams</h2>
-            {visibleConnections.length > 0 ? (
-              <div className="flex flex-wrap justify-center gap-6">
-                {visibleConnections.map((connection) => (
+            {sortedVisibleConnections.length > 0 ? (
+              <InfiniteCarousel direction="right" ariaLabel="Active data streams">
+                {sortedVisibleConnections.map((connection) => (
                   <div
                     key={connection.id}
                     className="flex flex-col items-center cursor-pointer group"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Manage ${formatSourceName(connection.connection_type)}`}
                     onClick={() => {
+                      if (connection.connection_type === "apple_health") setShowAppleHealthModal(true);
+                      else if (connection.connection_type === "health_connect") setShowAndroidHealthModal(true);
+                      else if (connection.connection_type === "ford") setShowFordModal(true);
+                      else if (connection.connection_type === "strava") setShowStravaModal(true);
+                      else if (connection.connection_type === "nest") setShowNestModal(true);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
                       if (connection.connection_type === "apple_health") setShowAppleHealthModal(true);
                       else if (connection.connection_type === "health_connect") setShowAndroidHealthModal(true);
                       else if (connection.connection_type === "ford") setShowFordModal(true);
@@ -555,7 +579,7 @@ const DataDashboard = () => {
                     <div className="mt-1">{renderSyncBadgeFor(connection)}</div>
                   </div>
                 ))}
-              </div>
+              </InfiniteCarousel>
             ) : (
               <div className="text-center py-8 text-muted-foreground bg-slate-50 dark:bg-muted/20 rounded-2xl border border-dashed">
                 <Activity className="w-6 h-6 mx-auto mb-2 opacity-30" />

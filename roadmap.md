@@ -25,3 +25,4 @@
 - [x] Wallet: authorization card only requires the relayer approval (vault approval optional); hidden when status is unknown
 - [x] Hub hand-off: Life answers idialife://authorize-relayer, authorizes the existing wallet, returns to the Hub with a status
 - [x] Wallet history: hide 60% corporate allocations and show Synapse consumption as signed CR deductions
+- [x] Data screen: frameless infinite carousels for alphabetized available sources and active streams
