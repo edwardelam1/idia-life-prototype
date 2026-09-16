@@ -14,8 +14,13 @@ export function InfiniteCarousel({ children, direction, ariaLabel }: InfiniteCar
   const pausedRef = useRef(false);
   const draggingRef = useRef(false);
   const suppressClickRef = useRef(false);
+  const pointerTypeRef = useRef("");
   const pointerStartRef = useRef({ x: 0, scrollLeft: 0 });
   const items = Children.toArray(children);
+  const repetitions = Math.max(1, Math.ceil(8 / Math.max(items.length, 1)));
+  const repeatedItems = Array.from({ length: repetitions }, (_, repetitionIndex) =>
+    items.map((item, itemIndex) => ({ item, key: `${repetitionIndex}-${itemIndex}` })),
+  ).flat();
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -87,19 +92,24 @@ export function InfiniteCarousel({ children, direction, ariaLabel }: InfiniteCar
         if (event.pointerType === "mouse" && event.button !== 0) return;
         draggingRef.current = true;
         suppressClickRef.current = false;
+        pointerTypeRef.current = event.pointerType;
         pointerStartRef.current = { x: event.clientX, scrollLeft: event.currentTarget.scrollLeft };
         setPaused(true);
-        event.currentTarget.setPointerCapture(event.pointerId);
+        if (event.pointerType === "mouse") event.currentTarget.setPointerCapture(event.pointerId);
       }}
       onPointerMove={(event) => {
         if (!draggingRef.current) return;
         const distance = event.clientX - pointerStartRef.current.x;
         if (Math.abs(distance) > 6) suppressClickRef.current = true;
-        event.currentTarget.scrollLeft = pointerStartRef.current.scrollLeft - distance;
+        if (pointerTypeRef.current === "mouse") {
+          event.currentTarget.scrollLeft = pointerStartRef.current.scrollLeft - distance;
+        }
       }}
       onPointerUp={(event) => {
         draggingRef.current = false;
-        event.currentTarget.releasePointerCapture(event.pointerId);
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
         if (!event.currentTarget.matches(":hover") && !event.currentTarget.contains(document.activeElement)) {
           setPaused(false);
         }
@@ -124,8 +134,8 @@ export function InfiniteCarousel({ children, direction, ariaLabel }: InfiniteCar
             aria-hidden={copyIndex === 1 ? undefined : true}
             className="flex shrink-0 items-start gap-6 pr-6"
           >
-            {items.map((item, itemIndex) => (
-              <div key={itemIndex} className="w-24 shrink-0">
+            {repeatedItems.map(({ item, key }) => (
+              <div key={key} className="w-24 shrink-0">
                 {item}
               </div>
             ))}
