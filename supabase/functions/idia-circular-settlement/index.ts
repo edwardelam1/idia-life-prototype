@@ -541,6 +541,8 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
       // PHASE 2: REGIONAL ROUTING (10%) — Wallet-as-Source-of-Truth
       currentStep = "PHASE_2_REGIONAL_ROUTING";
       const regionalRevenue = total_fiat_amount * REVENUE_SPLIT.WAR_CHEST;
+      const regionalMicro = Math.floor(regionalRevenue * 1_000_000);
+      assertPayable(regionalMicro, regionalMicro, "Phase_2_Regional");
 
       let finalRegionalAddress: string = GLOBAL_WAR_CHEST;
       let routingMode: "war_chest_null" | "existing_pool" | "deployed_pool" | "war_chest_fallback" = "war_chest_null";
