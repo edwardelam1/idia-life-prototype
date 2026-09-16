@@ -360,6 +360,7 @@ const DataDashboard = () => {
     if (c.connection_type === "health_connect") return isAndroid();
     if (c.connection_type === "ford") return true;
     if (c.connection_type === "strava") return true;
+    if (c.connection_type === "nest") return true;
     return false;
   });
 
@@ -378,6 +379,7 @@ const DataDashboard = () => {
   const hasHealth = getConnectionStatus(healthType);
   const hasFord = getConnectionStatus("ford");
   const hasStrava = getConnectionStatus("strava");
+  const hasNest = getConnectionStatus("nest");
 
   return (
     <div className="space-y-4">
@@ -482,7 +484,21 @@ const DataDashboard = () => {
                 </div>
               )}
 
-              {hasHealth && hasFord && hasStrava && (
+              {/* Nest Connection */}
+              {!hasNest && (
+                <div
+                  className="flex flex-col items-center cursor-pointer group"
+                  onClick={() => setShowNestModal(true)}
+                >
+                  <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border border-border transition-all group-hover:scale-105 flex items-center justify-center">
+                    <img src={nestLogo} alt="Nest" className="w-8 h-8 object-contain" />
+                  </div>
+                  <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground">Nest</p>
+                  <p className="text-[9px] text-muted-foreground/70 mt-0.5">Home & Climate</p>
+                </div>
+              )}
+
+              {hasHealth && hasFord && hasStrava && hasNest && (
                 <div className="w-full text-center py-6 text-muted-foreground">
                   <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50 text-teal-600" />
                   <p className="text-sm">All available sources connected</p>
@@ -504,6 +520,7 @@ const DataDashboard = () => {
                       else if (connection.connection_type === "health_connect") setShowAndroidHealthModal(true);
                       else if (connection.connection_type === "ford") setShowFordModal(true);
                       else if (connection.connection_type === "strava") setShowStravaModal(true);
+                      else if (connection.connection_type === "nest") setShowNestModal(true);
                     }}
                   >
                     <div className="relative">
@@ -523,6 +540,9 @@ const DataDashboard = () => {
                         )}
                         {connection.connection_type === "strava" && (
                           <img src={stravaLogo} alt="Strava" className="w-8 h-8 object-contain" />
+                        )}
+                        {connection.connection_type === "nest" && (
+                          <img src={nestLogo} alt="Nest" className="w-8 h-8 object-contain" />
                         )}
                       </div>
                       <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-background flex items-center justify-center">
@@ -660,6 +680,21 @@ const DataDashboard = () => {
         onDisconnect={async () => {
           await fetchConnections();
           setShowStravaModal(false);
+        }}
+      />
+
+      <NestConnectionModal
+        isOpen={showNestModal}
+        onClose={() => setShowNestModal(false)}
+        onComplete={async () => {
+          await fetchConnections();
+          await fetchAcaRecords();
+          setShowNestModal(false);
+        }}
+        existingConnection={getConnectionStatus("nest")}
+        onDisconnect={async () => {
+          await fetchConnections();
+          setShowNestModal(false);
         }}
       />
     </div>
