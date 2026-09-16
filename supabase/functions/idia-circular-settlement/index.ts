@@ -2,7 +2,15 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.7";
 import { privateKeyToAccount } from "https://esm.sh/viem@2.9.20/accounts";
 import { base } from "https://esm.sh/viem@2.9.20/chains";
-import { createWalletClient, http, parseUnits, publicActions } from "https://esm.sh/viem@2.9.20";
+import {
+  createWalletClient,
+  encodeFunctionData,
+  http,
+  keccak256,
+  parseUnits,
+  publicActions,
+  toHex,
+} from "https://esm.sh/viem@2.9.20";
 
 // 🚨 BIGINT SERIALIZATION PATCH 🚨
 // Teaches JSON.stringify how to natively parse blockchain BigInt values into strings
@@ -145,8 +153,16 @@ const corsHeaders = {
 
 // ══════════════════════════════════════════════════════════════════════
 // PLANCK-SCALE ATOMIC EXECUTOR
-// Replaces viem's writeContract wrapper to expose every micro-op
-// (Nonce → Simulate → Prepare → Sign → Broadcast) for sequencer diagnostics.
+// Exposes every micro-op (Nonce → Simulate → Encode → Prepare → Sign →
+// Broadcast) for sequencer diagnostics.
+//
+// 🚨 REGRESSION GUARD (2026-09-16): this helper previously handed the
+// simulateContract `request` (address/abi/functionName/args) straight to
+// prepareTransactionRequest. That preparer does NOT encode contract calls,
+// so `to` and `data` were dropped and the relayer broadcast BARE, EMPTY
+// transactions — mined successfully, zero logs, zero USDC moved. Corporate
+// and war-chest revenue silently stayed in the relayer for months.
+// The call MUST be encoded to raw calldata and `to` set explicitly.
 // ══════════════════════════════════════════════════════════════════════
 async function executePlanckScaleTransaction(
   client: any,
@@ -162,7 +178,7 @@ async function executePlanckScaleTransaction(
   console.info(`[END: ${stepName}.Planck.NonceCheck] Sequencer assigned Nonce: ${nextNonce}`);
 
   console.info(`[BEGIN: ${stepName}.Planck.Simulate] Executing dry-run simulation on EVM...`);
-  const { request } = await client.simulateContract({
+  await client.simulateContract({
     account,
     address: contractAddress as `0x${string}`,
     abi,
@@ -171,12 +187,30 @@ async function executePlanckScaleTransaction(
   });
   console.info(`[END: ${stepName}.Planck.Simulate] Simulation successful. No reverts detected.`);
 
+  console.info(`[BEGIN: ${stepName}.Planck.Encode] Encoding ${funcName} calldata...`);
+  const callData = encodeFunctionData({ abi, functionName: funcName, args });
+  if (!callData || callData === "0x") {
+    throw new Error(`ENCODE_GUARD: ${stepName} produced empty calldata for ${funcName} — refusing to broadcast.`);
+  }
+  console.info(`[END: ${stepName}.Planck.Encode] calldata=${callData.slice(0, 10)} len=${callData.length}`);
+
   console.info(`[BEGIN: ${stepName}.Planck.Prepare] Constructing raw transaction payload...`);
   const preparedTx = await client.prepareTransactionRequest({
-    ...request,
+    account,
+    chain: base,
+    to: contractAddress as `0x${string}`,
+    data: callData,
+    value: 0n,
     nonce: nextNonce,
   });
-  console.info(`[END: ${stepName}.Planck.Prepare] Payload constructed. Gas Limit: ${preparedTx.gas}`);
+  if (!preparedTx.to || !preparedTx.data || preparedTx.data === "0x") {
+    throw new Error(
+      `PAYLOAD_GUARD: ${stepName} prepared an empty transaction (to=${preparedTx.to} data=${preparedTx.data}) — refusing to broadcast.`,
+    );
+  }
+  console.info(
+    `[END: ${stepName}.Planck.Prepare] Payload constructed. to=${preparedTx.to} gas=${preparedTx.gas} dataLen=${String(preparedTx.data).length}`,
+  );
 
   console.info(`[BEGIN: ${stepName}.Planck.Sign] Applying cryptographic signature...`);
   const signedTx = await account.signTransaction(preparedTx);
@@ -197,6 +231,47 @@ async function executePlanckScaleTransaction(
     console.error(`[END: ${stepName}.Planck.FatalDump]`);
     throw broadcastError;
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// PROOF-OF-PAYMENT ASSERTION
+// A success receipt is NOT proof of payment. Every USDC leg must be
+// confirmed by an actual ERC-20 Transfer event to the intended address for
+// at least the intended amount. Anything else throws.
+// ══════════════════════════════════════════════════════════════════════
+const TRANSFER_TOPIC = keccak256(toHex("Transfer(address,address,uint256)"));
+
+function assertTransferLanded(
+  receipt: any,
+  token: string,
+  to: string,
+  amountMicro: number | bigint,
+  label: string,
+): void {
+  console.info(`[BEGIN: ${label}.ProofOfPayment] Verifying Transfer event → ${to} amount=${amountMicro}`);
+  const expected = BigInt(amountMicro);
+  const logs = Array.isArray(receipt?.logs) ? receipt.logs : [];
+  const match = logs.find((log: any) => {
+    if (String(log.address).toLowerCase() !== token.toLowerCase()) return false;
+    if (!log.topics || log.topics.length < 3) return false;
+    if (String(log.topics[0]).toLowerCase() !== TRANSFER_TOPIC.toLowerCase()) return false;
+    const recipient = "0x" + String(log.topics[2]).slice(-40);
+    if (recipient.toLowerCase() !== to.toLowerCase()) return false;
+    try {
+      return BigInt(log.data) >= expected;
+    } catch {
+      return false;
+    }
+  });
+  if (!match) {
+    console.error(
+      `[END: ${label}.ProofOfPayment] FAILED — no Transfer event of ${expected} to ${to} in tx ${receipt?.transactionHash}. logs=${logs.length}`,
+    );
+    throw new Error(
+      `PROOF_OF_PAYMENT_FAILED: ${label} — receipt ${receipt?.transactionHash} contains no USDC Transfer of ${expected} to ${to}.`,
+    );
+  }
+  console.info(`[END: ${label}.ProofOfPayment] Verified in tx ${receipt?.transactionHash}.`);
 }
 
 // Brief mempool clear between sequential transactions in the same execution.
@@ -531,12 +606,13 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
         `[STATUS: Phase_1_Corporate.Transfer] TX Broadcasted. Hash: ${corporateHash}. Awaiting network confirmation...`,
       );
       const corporateReceipt = await client.waitForTransactionReceipt({ hash: corporateHash, confirmations: 1 });
-      if (corporateReceipt.status === "success") {
-        console.info(`[END: Phase_1_Corporate.Transfer] Transfer successful. Block: ${corporateReceipt.blockNumber}`);
-        await forceSequencerDelay();
-      } else {
+      if (corporateReceipt.status !== "success") {
         console.error(`[ERROR: Phase_1_Corporate.Transfer] Transaction reverted on-chain. Hash: ${corporateHash}`);
+        throw new Error(`Phase_1_Corporate reverted on-chain (${corporateHash}).`);
       }
+      assertTransferLanded(corporateReceipt, USDC_ADDRESS, SYSTEM_CASH_REGISTER, corporateMicro, "Phase_1_Corporate");
+      console.info(`[END: Phase_1_Corporate.Transfer] Transfer successful. Block: ${corporateReceipt.blockNumber}`);
+      await forceSequencerDelay();
 
       // PHASE 2: REGIONAL ROUTING (10%) — Wallet-as-Source-of-Truth
       currentStep = "PHASE_2_REGIONAL_ROUTING";
@@ -635,12 +711,13 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
         `[STATUS: Phase_2_Regional.Transfer] TX Broadcasted. Hash: ${regionalHash}. Awaiting network confirmation...`,
       );
       const regionalReceipt = await client.waitForTransactionReceipt({ hash: regionalHash, confirmations: 1 });
-      if (regionalReceipt.status === "success") {
-        console.info(`[END: Phase_2_Regional.Transfer] Transfer successful. Block: ${regionalReceipt.blockNumber}`);
-        await forceSequencerDelay();
-      } else {
+      if (regionalReceipt.status !== "success") {
         console.error(`[ERROR: Phase_2_Regional.Transfer] Transaction reverted on-chain. Hash: ${regionalHash}`);
+        throw new Error(`Phase_2_Regional reverted on-chain (${regionalHash}).`);
       }
+      assertTransferLanded(regionalReceipt, USDC_ADDRESS, finalRegionalAddress, regionalMicro, "Phase_2_Regional");
+      console.info(`[END: Phase_2_Regional.Transfer] Transfer successful. Block: ${regionalReceipt.blockNumber}`);
+      await forceSequencerDelay();
 
       // LEDGER HYDRATION (with retry + repair-queue fallback)
       await Promise.all([
@@ -858,16 +935,23 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
               "yield",
             );
             console.info(`[STATUS: Batch.Item] Yield TX Broadcasted. Hash: ${yieldHash}. Confirmed.`);
-            if (yieldReceipt.status === "success") {
-              console.info(`[END: Batch.Item] Yield transfer successful. Block: ${yieldReceipt.blockNumber}`);
-            } else {
+            let yieldVerified = yieldReceipt.status === "success";
+            if (!yieldVerified) {
               console.error(`[ERROR: Batch.Item] Yield transaction reverted on-chain. Hash: ${yieldHash}`);
+            } else {
+              try {
+                assertTransferLanded(yieldReceipt, USDC_ADDRESS, lifeWallet, yieldAmountWei, "Batch.Item.Yield");
+                console.info(`[END: Batch.Item] Yield transfer successful. Block: ${yieldReceipt.blockNumber}`);
+              } catch (proofError: any) {
+                yieldVerified = false;
+                console.error(`[ERROR: Batch.Item] ${proofError.message}`);
+              }
             }
 
             // Ledger insert for the USDC yield row FIRST — once it lands (or
             // is queued for repair), we mark yieldSettled so a subsequent
             // IDIA failure cannot cause a duplicate data_sale_payout row.
-            const yieldStatus = yieldReceipt.status === "success" ? "completed" : "failed";
+            const yieldStatus = yieldVerified ? "completed" : "failed";
             await insertLedgerWithRepair(supabase, {
               reference_id: ingestionReference,
               user_id: contributor.user_id,
