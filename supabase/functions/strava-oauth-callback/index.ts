@@ -56,6 +56,12 @@ serve(async (req) => {
   const started = Date.now();
   console.info(`[BEGIN: strava-callback] invoked`);
 
+  const url = new URL(req.url);
+  const { userId: state, returnUrl } = decodeState(url.searchParams.get("state"));
+  const redirectToApp = (status: "success" | "error", reason?: string) =>
+    buildRedirect(returnUrl, status, reason);
+  console.info(`[STATE] user=${state ? "present" : "missing"} return=${returnUrl ?? "deeplink"}`);
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -65,9 +71,7 @@ serve(async (req) => {
     }
     const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
-    const url = new URL(req.url);
     const code = url.searchParams.get("code");
-    const state = url.searchParams.get("state"); // user id
     const oauthError = url.searchParams.get("error");
 
     if (oauthError) {
