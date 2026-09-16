@@ -513,15 +513,18 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
       // PHASE 1: CORPORATE SETTLEMENT (60%)
       currentStep = "PHASE_1_CORPORATE_SETTLEMENT";
       const corporateRevenue = total_fiat_amount * REVENUE_SPLIT.CORPORATE;
+      const corporateMicro = Math.floor(corporateRevenue * 1_000_000);
+      assertPayable(corporateMicro, corporateMicro, "Phase_1_Corporate");
 
-      console.info(`[BEGIN: Phase_1_Corporate.Transfer] amount=${corporateRevenue}`);
+      console.info(`[BEGIN: Phase_1_Corporate.Transfer] amount=${corporateRevenue} micro=${corporateMicro}`);
       const { txHash: corporateHash } = await executePlanckScaleTransaction(
         client,
         account,
         USDC_ADDRESS,
         ERC20_ABI,
         "transfer",
-        [SYSTEM_CASH_REGISTER, parseUnits(corporateRevenue.toFixed(6), 6)],
+        [SYSTEM_CASH_REGISTER, BigInt(corporateMicro)],
+
         "Phase_1_Corporate",
       );
       console.info(
