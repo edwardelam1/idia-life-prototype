@@ -58,7 +58,7 @@ const DataDashboard = () => {
 
   // Refresh every connected source when the app wakes (mount, tab visible,
   // iOS `app:foreground`, Android Capacitor appStateChange) with a 5-min cooldown.
-  const { isRefreshing, triggerManualRefresh } = useSourceWakeRefresh({
+  useSourceWakeRefresh({
     onRefreshComplete: () => { fetchConnections(); },
   });
 
