@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Activity, CheckCircle, DollarSign, FileKey, Copy, Info } from "lucide-react";
+import { Activity, CheckCircle, DollarSign, FileKey, Copy, Info, RefreshCw } from "lucide-react";
 import fordLogo from "@/assets/ford-logo.png";
 import stravaLogoAsset from "@/assets/strava-logo.png.asset.json";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -23,6 +23,7 @@ const stravaLogo = stravaLogoAsset.url;
 const nestLogo = nestLogoAsset.url;
 import { isAndroid, isIOS, isWeb } from "@/services/platform";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
+import { useSourceWakeRefresh } from "@/hooks/useSourceWakeRefresh";
 
 const supabase: any = typedSupabase;
 
@@ -520,7 +521,19 @@ const DataDashboard = () => {
           </div>
 
           <div className="space-y-4">
-            <h2 className="text-xl font-bold text-foreground">Active Streams</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-foreground">Active Streams</h2>
+              <button
+                type="button"
+                onClick={() => triggerManualRefresh()}
+                disabled={isRefreshing}
+                className="flex items-center gap-1.5 text-[11px] uppercase tracking-widest font-bold text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+                aria-label="Refresh connected data sources"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+                {isRefreshing ? "Refreshing" : "Refresh"}
+              </button>
+            </div>
             {sortedVisibleConnections.length > 0 ? (
               <InfiniteCarousel direction="right" ariaLabel="Active data streams">
                 {sortedVisibleConnections.map((connection) => (
