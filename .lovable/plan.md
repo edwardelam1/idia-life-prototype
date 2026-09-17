@@ -1,28 +1,35 @@
-# Refresh connected sources when you open the app
+# Wire HealthKit listeners into the React UI + lift throttles for testing
 
-Today nothing pulls fresh data when you wake the app. The 6-hour sweep runs on a server timer only, and the Data screen just re-reads whatever is already stored — so reopening the app shows the same stale timestamps. Only Apple Health / Health Connect has a wake check, and it is native-only and silent.
+The Swift shell now emits `health:sync-start`, `health:sync-complete` and `health:sync-error` window events from its background HealthKit process. The React side does not listen for them yet, and the local throttles (5-minute wake cooldown + server 6-hour freshness window) block rapid back-to-back sync testing.
 
-## What changes
+## Changes
 
-- Opening the app (or switching back to it) asks your connected sources for fresh data, for your account only.
-- It runs when the Data screen mounts and whenever the app returns to the foreground, with a cooldown so quickly switching in and out does not hammer the services.
-- Only sources that are actually due (last successful pull older than the freshness window) are refreshed; fresh ones are left alone.
-- While a refresh is running, the Data screen shows a subtle "Refreshing…" state; when it finishes, the timestamps and Active Streams update themselves.
-- A pull-to-refresh style manual trigger: tapping the existing refresh affordance on the Data screen forces a refresh of every connected source, ignoring the cooldown.
-- Apple Health / Health Connect keeps its existing on-device path untouched — it is simply included in the same wake check so its timestamp moves too.
-- Failures are quiet: the screen shows the source's last-known state and its status, no error popups on a routine wake.
+### 1. New hook — `src/hooks/useAppleHealthBridge.ts`
+Create exactly per the spec:
 
-## Technical detail
+- Listens on `window` for `health:sync-start`, `health:sync-complete`, `health:sync-error`.
+- `health:sync-start` → `healthStatus = 'Refreshing...'`.
+- `health:sync-complete` → `event.detail?.status === 'throttled' ? 'Idle (Throttled)' : 'Up to Date'`.
+- `health:sync-error` → `'Error'`.
+- Initial state `'Idle'`, `[HEALTH_BRIDGE_LOG]` console lines on mount and on each event.
+- Returns `{ healthStatus }`; all three listeners removed on unmount.
 
-- `data-source-refresh` gains a user-scoped invocation path: it already accepts `user_id`, but it runs under service role and is not safe to call from the client with a user id in the body. Add JWT verification for client calls — when an `Authorization` bearer user token is present, resolve the caller with `auth.getUser()` and ignore any `user_id` in the body, so a client can only ever refresh its own connections. Scheduled cron calls keep using the service-role key and the all-connections path. Register the function in `supabase/config.toml` with `verify_jwt = false` (the function does its own auth branch).
-- Add a `respect_freshness` flag (default true for wake calls, false for the manual button) so a wake only pulls connections whose `last_successful_sync` is older than the 6-hour window.
-- New hook `src/hooks/useSourceWakeRefresh.ts`: on mount and on `visibilitychange` → visible (plus Capacitor `appStateChange` when available), if the last client-side trigger is older than the cooldown (5 minutes, stored in `localStorage` per user), invoke `data-source-refresh` with the user session, then re-read connections.
-- `DataDashboard.tsx` consumes the hook: exposes `isRefreshing`, calls `fetchConnections()` on completion, and wires the manual force-refresh. No changes to connection logic, OAuth flows, consent artifacts, lifestyle tables, or the health pipeline.
+No data pipeline, edge function, or Swift code is touched.
+
+### 2. Apply `healthStatus` to the Apple Health row — `src/components/DataDashboard.tsx`
+- Import and call `useAppleHealthBridge()`.
+- In the Active Streams carousel, when the connection is `apple_health` (iOS path) and `healthStatus` is not `Idle`, the sync badge under the Apple Health icon shows the live bridge state instead of the database status: label = `healthStatus` ("Refreshing…", "Up to Date", "Idle (Throttled)", "Error").
+  - Colors: Refreshing → blue/amber pulsing, Up to Date → green, Idle (Throttled) → amber, Error → red.
+  - When `healthStatus` is `Idle`, the existing `renderSyncBadgeFor` database badge is shown unchanged.
+- The popover, click-through-to-modal behavior, and all other sources' badges are untouched.
+
+### 3. Disable local throttles for testing — `src/hooks/useSourceWakeRefresh.ts`
+- Default `cooldownMs` changes from `5 * 60 * 1000` to `10 * 1000` (10 seconds), with a `// TEMP: testing throttle removed — restore to 5 min` comment so it is easy to find and revert.
+- `body: { respect_freshness: false }` is already in place from the previous change — verified, no edit needed; the plan only confirms it stays strictly `false`.
+
+Both throttle lifts are explicitly temporary test settings; the comment marks the cooldown for restoration after device testing.
 
 ## Verification
-
-- Open the app with Strava connected and a stale timestamp: the Strava row's "last synced" moves and new activities appear.
-- Background the app, wait past the cooldown, foreground it: the refresh runs again.
-- Foreground twice within the cooldown: only one refresh is dispatched.
-- Signed-in user A cannot refresh user B's connections (body `user_id` is ignored).
-- Cron run at `0 */6 * * *` still sweeps all users unchanged.
+- Type check passes; build OK.
+- Playwright: Data screen renders, Apple Health badge falls back to the database status in the browser (no native events on web), no console errors from the new listeners.
+- Real device: opening the app twice within 10 seconds triggers two full refreshes; a Swift background sync flips the Apple Health badge through Refreshing → Up to Date.
