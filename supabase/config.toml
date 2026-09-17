@@ -74,3 +74,6 @@ verify_jwt = false
 
 [functions.ford-vehicle-data]
 verify_jwt = false
+
+[functions.data-source-refresh]
+verify_jwt = false

@@ -30,3 +30,4 @@
 - [x] Strava: real scheduled pull (token refresh + activities since last sync) instead of webhook-only
 - [ ] Push delivery for Apple Health / Health Connect wake-ups — needs an FCM service account secret and registered device tokens
 
+- [x] Connected sources refresh on app wake (mount, foreground, iOS/Android shells) with a 5-minute cooldown and a manual Refresh control
