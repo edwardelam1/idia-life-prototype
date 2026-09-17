@@ -56,6 +56,12 @@ const DataDashboard = () => {
   const [acaLoading, setAcaLoading] = useState(false);
   const { toast } = useToast();
 
+  // Refresh every connected source when the app wakes (mount, tab visible,
+  // iOS `app:foreground`, Android Capacitor appStateChange) with a 5-min cooldown.
+  const { isRefreshing, triggerManualRefresh } = useSourceWakeRefresh({
+    onRefreshComplete: () => { fetchConnections(); },
+  });
+
   useEffect(() => {
     const getUser = async () => {
       const {
