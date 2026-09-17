@@ -26,3 +26,7 @@
 - [x] Hub hand-off: Life answers idialife://authorize-relayer, authorizes the existing wallet, returns to the Hub with a status
 - [x] Wallet history: hide 60% corporate allocations and show Synapse consumption as signed CR deductions
 - [x] Data screen: frameless infinite carousels for alphabetized available sources and active streams
+- [x] All data sources refresh every 6 hours: `data-source-refresh` sweep + `data-source-refresh-6h` cron (Nest, Ford, Strava pulled server-side; phone sources asked to wake)
+- [x] Strava: real scheduled pull (token refresh + activities since last sync) instead of webhook-only
+- [ ] Push delivery for Apple Health / Health Connect wake-ups — needs an FCM service account secret and registered device tokens
+
