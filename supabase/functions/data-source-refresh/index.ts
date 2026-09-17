@@ -240,15 +240,41 @@ serve(async (req) => {
     try { body = await req.json(); } catch { /* scheduled call may have no body */ }
 
     const filterType = typeof body.connection_type === "string" ? body.connection_type : null;
-    const filterUser = typeof body.user_id === "string" ? body.user_id : null;
+    const respectFreshness = body.respect_freshness === undefined ? true : body.respect_freshness !== false;
 
-    console.info(`[BEGIN: refresh.LoadConnections] type=${filterType ?? "all"} user=${filterUser ?? "all"}`);
+    // ── Caller identity: scheduled cron (service role) vs signed-in client ──
+    const token = req.headers.get("Authorization")?.replace("Bearer ", "").trim() ?? "";
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const isServiceRole = !!serviceRoleKey && token === serviceRoleKey;
+
+    let filterUser: string | null = null;
+    if (isServiceRole) {
+      console.info("[TRACE: refresh.Auth] service role invocation (cron/batch)");
+      filterUser = typeof body.user_id === "string" ? body.user_id : null;
+    } else {
+      console.info("[TRACE: refresh.Auth] validating client bearer token");
+      const { data: userData, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !userData?.user) {
+        console.error(`[ERROR-HALT: refresh.Auth] unauthorized: ${authError?.message ?? "no user"}`);
+        return json({ error: "unauthorized" }, 401);
+      }
+      // Strict isolation: a client can only ever refresh its own connections.
+      filterUser = userData.user.id;
+      console.info(`[TRACE: refresh.Auth] verified client request for user=${filterUser}`);
+    }
+
+    console.info(`[BEGIN: refresh.LoadConnections] type=${filterType ?? "all"} user=${filterUser ?? "all"} respect_freshness=${respectFreshness}`);
     let query = supabase
       .from("data_connections")
       .select("id, user_id, connection_type, last_successful_sync, sync_failure_count")
       .eq("is_active", true);
     if (filterType) query = query.eq("connection_type", filterType);
     if (filterUser) query = query.eq("user_id", filterUser);
+    if (respectFreshness) {
+      const cutoff = new Date(Date.now() - SIX_HOURS_MS).toISOString();
+      console.info(`[TRACE: refresh.LoadConnections] freshness cutoff=${cutoff}`);
+      query = query.or(`last_successful_sync.is.null,last_successful_sync.lt.${cutoff}`);
+    }
 
     const { data: connections, error } = await query;
     if (error) {
