@@ -24,6 +24,7 @@ const nestLogo = nestLogoAsset.url;
 import { isAndroid, isIOS, isWeb } from "@/services/platform";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { useSourceWakeRefresh } from "@/hooks/useSourceWakeRefresh";
+import { useAppleHealthBridge } from "@/hooks/useAppleHealthBridge";
 
 const supabase: any = typedSupabase;
 
