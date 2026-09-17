@@ -57,8 +57,11 @@ const DataDashboard = () => {
   const [acaLoading, setAcaLoading] = useState(false);
   const { toast } = useToast();
 
+  // Live HealthKit bridge state from the native Swift background sync.
+  const { healthStatus } = useAppleHealthBridge();
+
   // Refresh every connected source when the app wakes (mount, tab visible,
-  // iOS `app:foreground`, Android Capacitor appStateChange) with a 5-min cooldown.
+  // iOS `app:foreground`, Android Capacitor appStateChange).
   useSourceWakeRefresh({
     onRefreshComplete: () => { fetchConnections(); },
   });
@@ -261,7 +264,28 @@ const DataDashboard = () => {
     return sourceId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   };
 
+  // Live badge fed by the native Swift HealthKit bridge; falls back to the
+  // database status when no sync event has fired (bridge state "Idle").
+  const BRIDGE_BADGE_META: Record<string, { className: string }> = {
+    "Refreshing...": { className: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 animate-pulse" },
+    "Up to Date": { className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" },
+    "Idle (Throttled)": { className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
+    "Error": { className: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" },
+  };
+
   const renderSyncBadgeFor = (connection: DataBlocker) => {
+    const bridgeMeta = connection.connection_type === "apple_health" ? BRIDGE_BADGE_META[healthStatus] : undefined;
+    if (bridgeMeta) {
+      return (
+        <Badge
+          variant="secondary"
+          className={`border-none px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider cursor-default transition-colors ${bridgeMeta.className}`}
+        >
+          {healthStatus}
+        </Badge>
+      );
+    }
+
     const status = connection.status || "unknown";
     const meta = STATUS_META[status] || STATUS_META["unknown"];
     const order = ["recent", "delayed", "stale", "no_data", "unknown"];
