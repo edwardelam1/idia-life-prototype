@@ -3,7 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface UseSourceWakeRefreshOptions {
   onRefreshComplete?: () => void;
-  cooldownMs?: number; // Defaults to 5 minutes (300,000 ms)
+  // TEMP: testing throttle removed — restore to 5 minutes (5 * 60 * 1000) after device testing.
+  cooldownMs?: number;
 }
 
 /**
