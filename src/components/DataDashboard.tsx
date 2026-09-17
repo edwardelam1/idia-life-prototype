@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Activity, CheckCircle, DollarSign, FileKey, Copy, Info, RefreshCw } from "lucide-react";
+import { Activity, CheckCircle, DollarSign, FileKey, Copy, Info } from "lucide-react";
 import fordLogo from "@/assets/ford-logo.png";
 import stravaLogoAsset from "@/assets/strava-logo.png.asset.json";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
