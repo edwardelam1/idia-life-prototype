@@ -527,19 +527,7 @@ const DataDashboard = () => {
           </div>
 
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-foreground">Active Streams</h2>
-              <button
-                type="button"
-                onClick={() => triggerManualRefresh()}
-                disabled={isRefreshing}
-                className="flex items-center gap-1.5 text-[11px] uppercase tracking-widest font-bold text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
-                aria-label="Refresh connected data sources"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-                {isRefreshing ? "Refreshing" : "Refresh"}
-              </button>
-            </div>
+            <h2 className="text-xl font-bold text-foreground">Active Streams</h2>
             {sortedVisibleConnections.length > 0 ? (
               <InfiniteCarousel direction="right" ariaLabel="Active data streams">
                 {sortedVisibleConnections.map((connection) => (
