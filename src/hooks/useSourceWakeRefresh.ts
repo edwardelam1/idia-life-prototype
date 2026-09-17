@@ -17,7 +17,8 @@ interface UseSourceWakeRefreshOptions {
  */
 export function useSourceWakeRefresh({
   onRefreshComplete,
-  cooldownMs = 5 * 60 * 1000,
+  // TEMP: testing throttle removed — 10 seconds instead of 5 minutes.
+  cooldownMs = 10 * 1000,
 }: UseSourceWakeRefreshOptions = {}) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isExecutingRef = useRef(false);
