@@ -66,7 +66,8 @@ export function useSourceWakeRefresh({
 
       const { data, error } = await supabase.functions.invoke('data-source-refresh', {
         headers: { Authorization: `Bearer ${session.access_token}` },
-        body: { respect_freshness: !force },
+        // Always pull fresh data regardless of the 6-hour server freshness window
+        body: { respect_freshness: false },
       });
 
       if (error) {
