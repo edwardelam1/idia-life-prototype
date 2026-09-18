@@ -337,6 +337,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [isCopying, setIsCopying] = useState(false);
   const [synapseCredits, setSynapseCredits] = useState<number>(0);
   const [pendingExtractions, setPendingExtractions] = useState<any[]>([]);
+  const [showTestModal, setShowTestModal] = useState(false);
 
   useEffect(() => {
     console.log("[IDENTITY_SYNC:START] Evaluating profile hydration state...");
@@ -550,7 +551,6 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [showSendRequestModal, setShowSendRequestModal] = useState(false);
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
   const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
-  const [showTestModal, setShowTestModal] = useState(false);
   const [backupModalMode, setBackupModalMode] = useState<"backup" | "restore">("backup");
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [seedBackedUp, setSeedBackedUp] = useState<boolean>(false);
@@ -900,23 +900,6 @@ const EnhancedWalletDashboard: React.FC = () => {
     return `${prefix}$${value}`;
   };
 
-  const renderTestModalButton = () => (
-    <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
-      <DialogTrigger asChild>
-        <Button className="w-full font-bold shadow-lg shadow-orange-500/30 bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white">
-          {isCalculating ? "Calculating..." : "Need an advance? Take our Tests"} <ArrowRight className="w-4 h-4 ml-2" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-background p-0 border-none">
-        <DialogHeader className="sr-only">
-          <DialogTitle>Psychometric Validation</DialogTitle>
-          <DialogDescription>Establish Trust Score via telemetry modules.</DialogDescription>
-        </DialogHeader>
-        <PsychometricTestingCenter onCompleteAll={handleCalculateScore} onCancel={() => setShowTestModal(false)} />
-      </DialogContent>
-    </Dialog>
-  );
-
   if (loading || balanceLoading || isHydrating || walletLoading) {
     return (
       <div className="p-4 space-y-4 animate-pulse">
@@ -956,7 +939,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                 </h3>
                 {pendingExtractions.map((extraction) => (
                   <div
-                    key={extraction.id}
+                    key={extraction.id || Math.random().toString()}
                     onClick={() => setSelectedPendingExtraction(extraction)}
                     className="flex items-center space-x-3 p-3 border border-amber-200 rounded-xl bg-amber-50/50 transition-all active:scale-[0.98] hover:bg-amber-50 cursor-pointer shadow-sm relative overflow-hidden"
                   >
@@ -968,7 +951,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                       <p className="font-bold text-sm truncate text-amber-900">Data Monetization Request</p>
                       <div className="flex items-center gap-2">
                         <p className="text-[10px] font-medium text-amber-700/70">
-                          {new Date(extraction.created_at).toLocaleDateString()}
+                          {extraction.created_at ? new Date(extraction.created_at).toLocaleDateString() : "Pending"}
                         </p>
                         <Badge
                           variant="outline"
@@ -1234,7 +1217,26 @@ const EnhancedWalletDashboard: React.FC = () => {
                       <p className="text-xl font-bold text-green-600">{creditSimulation.simulated_score}</p>
                     </div>
                   </div>
-                  <div className="pt-4">{renderTestModalButton()}</div>
+                  <div className="pt-4">
+                    <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
+                      <DialogTrigger asChild>
+                        <Button className="w-full font-bold shadow-lg shadow-orange-500/30 bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white">
+                          {isCalculating ? "Calculating..." : "Need an advance? Take our Tests"}{" "}
+                          <ArrowRight className="w-4 h-4 ml-2" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-background p-0 border-none">
+                        <DialogHeader className="sr-only">
+                          <DialogTitle>Psychometric Validation</DialogTitle>
+                          <DialogDescription>Establish Trust Score via telemetry modules.</DialogDescription>
+                        </DialogHeader>
+                        <PsychometricTestingCenter
+                          onCompleteAll={handleCalculateScore}
+                          onCancel={() => setShowTestModal(false)}
+                        />
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-8 flex flex-col items-center">
@@ -1242,7 +1244,24 @@ const EnhancedWalletDashboard: React.FC = () => {
                   <p className="text-sm text-muted-foreground max-w-xs mb-6">
                     Limits are calculated via verifiable behavioral telemetry.
                   </p>
-                  {renderTestModalButton()}
+                  <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
+                    <DialogTrigger asChild>
+                      <Button className="w-full font-bold shadow-lg shadow-orange-500/30 bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white">
+                        {isCalculating ? "Calculating..." : "Need an advance? Take our Tests"}{" "}
+                        <ArrowRight className="w-4 h-4 ml-2" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-background p-0 border-none">
+                      <DialogHeader className="sr-only">
+                        <DialogTitle>Psychometric Validation</DialogTitle>
+                        <DialogDescription>Establish Trust Score via telemetry modules.</DialogDescription>
+                      </DialogHeader>
+                      <PsychometricTestingCenter
+                        onCompleteAll={handleCalculateScore}
+                        onCancel={() => setShowTestModal(false)}
+                      />
+                    </DialogContent>
+                  </Dialog>
                 </div>
               )}
             </CardContent>
