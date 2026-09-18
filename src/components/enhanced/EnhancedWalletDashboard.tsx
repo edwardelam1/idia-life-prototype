@@ -30,6 +30,7 @@ import SendRequestModal from "../SendRequestModal";
 import PaymentTrigger from "../PaymentTrigger";
 import { fireFinaleConfetti } from "../psychometric/confetti";
 import { useChainReceiveWatcher, type ChainReceipt } from "@/hooks/useChainReceiveWatcher";
+import { SovereignConsentReceipt } from "../notifications/SovereignConsentReceipt";
 import {
   Wallet,
   CreditCard,
@@ -72,12 +73,7 @@ interface Transaction {
 
 // Internal allocation / distribution line items that should not surface in the
 // wallet history list. These are accounting artifacts, not user-facing transactions.
-const HIDDEN_HISTORY_DESCRIPTIONS = [
-  "regional/war chest",
-  "Corp revenue Syn",
-  "60% Corporate Revenue",
-];
-
+const HIDDEN_HISTORY_DESCRIPTIONS = ["regional/war chest", "Corp revenue Syn", "60% Corporate Revenue"];
 
 function isHiddenHistoryItem(description: string): boolean {
   const d = (description || "").toLowerCase();
@@ -127,6 +123,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isCopying, setIsCopying] = useState(false);
   const [synapseCredits, setSynapseCredits] = useState<number>(0);
+  const [pendingExtractions, setPendingExtractions] = useState<any[]>([]);
 
   useEffect(() => {
     console.log("[IDENTITY_SYNC:START] Evaluating profile hydration state...");
@@ -170,7 +167,6 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [isAuthorizing, setIsAuthorizing] = useState(false);
 
   // Stage labels are shared with the Hub authorization hand-off screen.
-
   const handleAuthorizeWallet = async () => {
     setIsAuthorizing(true);
     try {
@@ -245,7 +241,6 @@ const EnhancedWalletDashboard: React.FC = () => {
   };
 
   const handleDelegateVotes = async () => {
-    // If the device doesn't hold the signing keys, prompt for recovery-phrase import.
     if (!wallet?.address) {
       toast({
         title: "Recovery phrase needed",
@@ -256,7 +251,7 @@ const EnhancedWalletDashboard: React.FC = () => {
       return;
     }
     try {
-      await delegateVotes(); // Self-delegate by default
+      await delegateVotes();
       toast({ title: "Voting power activated", description: "Self-delegation submitted on-chain." });
     } catch (e: any) {
       console.error("Delegation failed:", e);
@@ -303,7 +298,6 @@ const EnhancedWalletDashboard: React.FC = () => {
       }
 
       if (session) {
-        // Safely evaluate if running inside iOS native shell wrapper
         if (
           (window as any).webkit &&
           (window as any).webkit.messageHandlers &&
@@ -328,7 +322,6 @@ const EnhancedWalletDashboard: React.FC = () => {
         console.warn(
           "🚨 [HUB_BRIDGE_LOG][FATAL: React.HubBridge.SessionMissing] No active session found locally to execute handover.",
         );
-        // Fallback: Just open the hub normally
         window.location.href = "https://hub.thebigidia.com/dashboard";
       }
     } catch (err: any) {
@@ -445,7 +438,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   const fetchTransactions = async () => {
     if (!stableUserId) return;
     try {
-      const [txResult, synapseResult, synapseTotalResult] = await Promise.all([
+      const [txResult, synapseResult, synapseTotalResult, pendingResult] = await Promise.all([
         supabase
           .from("transactions")
           .select("*")
@@ -458,11 +451,18 @@ const EnhancedWalletDashboard: React.FC = () => {
           .eq("user_id", stableUserId)
           .order("created_at", { ascending: false })
           .limit(30),
-        // Authoritative live balance — sum of ALL signed amounts across the
-        // full ledger. Matches Hub's calculation and avoids drift in the
-        // cached `balance_after` column.
         supabase.from("synapse_credit_ledger").select("amount").eq("user_id", stableUserId),
+        supabase
+          .from("lidd_extraction_events")
+          .select("*")
+          .eq("citizen_guid", stableUserId)
+          .eq("payment_status", "pending_consent")
+          .order("created_at", { ascending: false }),
       ]);
+
+      if (pendingResult.data) {
+        setPendingExtractions(pendingResult.data);
+      }
 
       const mappedTx = (txResult.data || [])
         .map((tx: any) => {
@@ -515,11 +515,11 @@ const EnhancedWalletDashboard: React.FC = () => {
                 ? Math.abs(Number(atomicAmount))
                 : isRoyalty
                   ? Math.abs(Number(atomicAmount))
-                : isConsumption
-                  ? atomicAmount
-                : atomicAmount > 0
-                  ? -Math.abs(atomicAmount)
-                  : atomicAmount,
+                  : isConsumption
+                    ? atomicAmount
+                    : atomicAmount > 0
+                      ? -Math.abs(atomicAmount)
+                      : atomicAmount,
 
               description: isPurchase ? "Synapse Credits Purchase" : syn.description || "SYNAPSE_CREDIT_EVENT",
               source: sourceAsset,
@@ -552,16 +552,12 @@ const EnhancedWalletDashboard: React.FC = () => {
         }),
       );
 
-      // Authoritative Synapse Credits total = signed sum across the full ledger.
-      // Matches the Hub UI; ignores the potentially-stale `balance_after` cache.
       const runningTotal = (synapseTotalResult.data || []).reduce(
         (acc: number, r: any) => acc + Number(r.amount ?? 0),
         0,
       );
       setSynapseCredits(runningTotal);
 
-      // Drop any row that displays as a zero total (e.g. "0 IDIA") — those are
-      // accounting artifacts, not this user's movement of value.
       const ZERO_DISPLAY_EPSILON = 0.00005;
       setTransactions(
         [...mappedTx, ...mappedSynapse]
@@ -700,6 +696,23 @@ const EnhancedWalletDashboard: React.FC = () => {
             className="h-full overflow-y-auto no-scrollbar pr-1 space-y-4 pb-24"
             style={{ WebkitOverflowScrolling: "touch" }}
           >
+            {pendingExtractions.length > 0 && (
+              <div className="space-y-4 mb-4">
+                {pendingExtractions.map((extraction) => (
+                  <SovereignConsentReceipt
+                    key={extraction.id}
+                    eventId={extraction.id}
+                    extractorName="Commercial Extractor (Verified)"
+                    licensePlate={extraction.license_plate || "UNKNOWN"}
+                    timestamp={extraction.created_at || new Date().toISOString()}
+                    dividendAmount={0.75}
+                    userId={stableUserId!}
+                    onAuthorized={() => fetchTransactions()}
+                  />
+                ))}
+              </div>
+            )}
+
             <Card className="bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] text-white border-none shadow-xl rounded-[2.5rem] overflow-hidden">
               <CardContent className="p-7">
                 <div className="flex justify-between items-start">
