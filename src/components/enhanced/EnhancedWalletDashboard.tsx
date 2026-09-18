@@ -30,7 +30,6 @@ import SendRequestModal from "../SendRequestModal";
 import PaymentTrigger from "../PaymentTrigger";
 import { fireFinaleConfetti } from "../psychometric/confetti";
 import { useChainReceiveWatcher, type ChainReceipt } from "@/hooks/useChainReceiveWatcher";
-import { acaGenerator } from "@/utils/acaGenerator";
 import {
   Wallet,
   CreditCard,
@@ -64,6 +63,7 @@ import {
 } from "lucide-react";
 import idiaHubLogo from "@/assets/idia-hub-logo.png.asset.json";
 
+// --- INLINE SOVEREIGN CONSENT RECEIPT COMPONENT ---
 interface SovereignConsentReceiptProps {
   eventId: string;
   extractorName: string;
@@ -90,9 +90,12 @@ function SovereignConsentReceipt({
   const handleAuthorize = async () => {
     setIsAuthorizing(true);
     try {
-      // 1. MINT LOCALLY: The device generates the true sovereign signature
+      // 1. MINT LOCALLY: The device generates the true sovereign signature natively
       const rawString = `${userId}|LIDD_ALPR_MONETIZATION|${eventId}|${new Date().toISOString()}`;
-      const deviceGeneratedHash = await acaGenerator.mint(rawString);
+      const hashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rawString));
+      const deviceGeneratedHash = Array.from(new Uint8Array(hashBuffer))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
 
       // 2. TRANSMIT TO LEDGER: Send the signed mandate to the cloud to unlock the event
       const { data, error } = await supabase.functions.invoke("verify-idia-life-tap", {
@@ -208,6 +211,7 @@ function SovereignConsentReceipt({
     </Card>
   );
 }
+// --------------------------------------------------------
 
 interface Transaction {
   id: string;
@@ -605,7 +609,8 @@ const EnhancedWalletDashboard: React.FC = () => {
           .select("*")
           .eq("citizen_guid", stableUserId)
           .eq("payment_status", "pending_consent")
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .limit(10), // Required Limit: Prevents UI thread freeze if hundreds of pending tests exist
       ]);
 
       if (pendingResult.data) {
