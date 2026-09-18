@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -30,7 +30,7 @@ import SendRequestModal from "../SendRequestModal";
 import PaymentTrigger from "../PaymentTrigger";
 import { fireFinaleConfetti } from "../psychometric/confetti";
 import { useChainReceiveWatcher, type ChainReceipt } from "@/hooks/useChainReceiveWatcher";
-import { SovereignConsentReceipt } from "../notifications/SovereignConsentReceipt";
+import { acaGenerator } from "@/utils/acaGenerator";
 import {
   Wallet,
   CreditCard,
@@ -58,8 +58,156 @@ import {
   Upload,
   ShieldCheck,
   CheckCircle2,
+  Fingerprint,
+  Car,
+  AlertCircle,
 } from "lucide-react";
 import idiaHubLogo from "@/assets/idia-hub-logo.png.asset.json";
+
+interface SovereignConsentReceiptProps {
+  eventId: string;
+  extractorName: string;
+  licensePlate: string;
+  timestamp: string;
+  dividendAmount: number;
+  userId: string;
+  onAuthorized?: () => void;
+}
+
+function SovereignConsentReceipt({
+  eventId,
+  extractorName,
+  licensePlate,
+  timestamp,
+  dividendAmount,
+  userId,
+  onAuthorized,
+}: SovereignConsentReceiptProps) {
+  const [isAuthorizing, setIsAuthorizing] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
+  const [acaHash, setAcaHash] = useState<string | null>(null);
+
+  const handleAuthorize = async () => {
+    setIsAuthorizing(true);
+    try {
+      // 1. MINT LOCALLY: The device generates the true sovereign signature
+      const rawString = `${userId}|LIDD_ALPR_MONETIZATION|${eventId}|${new Date().toISOString()}`;
+      const deviceGeneratedHash = await acaGenerator.mint(rawString);
+
+      // 2. TRANSMIT TO LEDGER: Send the signed mandate to the cloud to unlock the event
+      const { data, error } = await supabase.functions.invoke("verify-idia-life-tap", {
+        body: {
+          event_id: eventId,
+          aca_hash_key: deviceGeneratedHash,
+        },
+      });
+
+      if (error) throw new Error(error.message);
+      if (data.error) throw new Error(data.error);
+
+      setAcaHash(deviceGeneratedHash);
+      setIsComplete(true);
+      toast({
+        title: "Identity Verified",
+        description: "Consent cryptographically signed.",
+      });
+
+      if (onAuthorized) onAuthorized();
+    } catch (err: any) {
+      toast({
+        title: "Authorization Failed",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsAuthorizing(false);
+    }
+  };
+
+  if (isComplete) {
+    return (
+      <Card className="w-full border-green-500/30 bg-green-500/5 shadow-sm">
+        <CardContent className="pt-6 flex flex-col items-center justify-center space-y-3">
+          <div className="h-12 w-12 rounded-full bg-green-500/20 flex items-center justify-center">
+            <CheckCircle2 className="h-6 w-6 text-green-500" />
+          </div>
+          <h3 className="text-lg font-semibold text-green-700 dark:text-green-400">Consent Verified</h3>
+          <p className="text-sm text-center text-muted-foreground px-4">
+            Your device has securely signed the ACA Mandate. You will receive{" "}
+            <span className="font-bold">${dividendAmount.toFixed(2)}</span> when {extractorName} settles their balance.
+          </p>
+          <div className="text-xs font-mono text-muted-foreground bg-black/5 p-2 rounded w-full text-center truncate">
+            {acaHash}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="w-full border-brand-blue/20 shadow-sm relative overflow-hidden">
+      <div className="absolute top-0 left-0 w-1 h-full bg-brand-blue" />
+      <CardHeader className="pb-3">
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-brand-blue" />
+              Pending Extraction
+            </CardTitle>
+            <CardDescription className="mt-1">A commercial entity has requested to monetize your data.</CardDescription>
+          </div>
+          <div className="bg-brand-blue/10 text-brand-blue px-3 py-1 rounded-full text-sm font-semibold">
+            +${dividendAmount.toFixed(2)} CR
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        <div className="rounded-lg bg-secondary/50 p-4 space-y-3">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Requesting Entity</span>
+            <span className="font-medium">{extractorName}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Asset Scanned</span>
+            <span className="font-medium flex items-center gap-2">
+              <Car className="h-4 w-4" /> {licensePlate}
+            </span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Timestamp</span>
+            <span className="font-medium">{new Date(timestamp).toLocaleString()}</span>
+          </div>
+        </div>
+
+        <div className="flex gap-2 items-start text-xs text-muted-foreground bg-blue-500/10 p-3 rounded text-blue-700 dark:text-blue-400">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <p>
+            By tapping Authorize, your device will cryptographically sign a CDLA mandate allowing this specific data
+            point to be monetized on the Synapse Ledger.
+          </p>
+        </div>
+      </CardContent>
+
+      <CardFooter>
+        <Button
+          onClick={handleAuthorize}
+          disabled={isAuthorizing}
+          className="w-full bg-brand-blue hover:bg-brand-blue/90 h-12 text-base"
+        >
+          {isAuthorizing ? (
+            <span className="animate-pulse flex items-center gap-2">Signing via Secure Enclave...</span>
+          ) : (
+            <span className="flex items-center gap-2">
+              <Fingerprint className="h-5 w-5" />
+              Authorize & Claim
+            </span>
+          )}
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
 
 interface Transaction {
   id: string;
