@@ -17,21 +17,20 @@
  *   B. Supabase database webhook on profiles.wallet_address update
  *   C. Manual invocation after a user adds their wallet
  */
- // pg_cron setup:
- //   SELECT cron.schedule('pending-wallet-recovery', '*/5 * * * *', $$
- //     SELECT net.http_post(
- //       url := 'https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/pending-wallet-recovery',
- //      headers := '{"Content-Type": "application/json"}'::jsonb,
- //      body := '{}'::jsonb
- //     );
- //   $$);
- 
+// pg_cron setup:
+//   SELECT cron.schedule('pending-wallet-recovery', '*/5 * * * *', $$
+//     SELECT net.http_post(
+//       url := 'https://zxyngqciipcvveigrzqt.supabase.co/functions/v1/pending-wallet-recovery',
+//      headers := '{"Content-Type": "application/json"}'::jsonb,
+//      body := '{}'::jsonb
+//     );
+//   $$);
+
 //  Requires env vars:/
 //    SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (or IDIA_SECRET_KEY)
 //    RELAYER_PRIVATE_KEY
 //    LIABILITY_RECEIPT_ADDRESS
 //    BASE_RPC_URL (optional)
- 
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -55,15 +54,22 @@ const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
 const USDC_ABI = [
   {
-    name: "transfer", type: "function", stateMutability: "nonpayable",
-    inputs: [{ name: "to", type: "address" }, { name: "value", type: "uint256" }],
+    name: "transfer",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "value", type: "uint256" },
+    ],
     outputs: [{ name: "", type: "bool" }],
   },
 ] as const;
 
 const RECEIPT_ABI = [
   {
-    name: "mintReceipt", type: "function", stateMutability: "nonpayable",
+    name: "mintReceipt",
+    type: "function",
+    stateMutability: "nonpayable",
     inputs: [
       { name: "dataBuyer", type: "address" },
       { name: "acaHashes", type: "bytes32[]" },
@@ -106,7 +112,7 @@ serve(async (req: Request) => {
       .from("synapse_credit_ledger")
       .select("id, user_id, amount, description")
       .eq("status", "pending_wallet")
-      .eq("transaction_type", "DATA_SALE_PAYOUT")
+      .eq("transaction_type", "data_sale_payout")
       .limit(20);
 
     if (pendingPayouts && pendingPayouts.length > 0) {
@@ -122,29 +128,31 @@ serve(async (req: Request) => {
 
         if (!profile?.wallet_address) continue; // Still no wallet
 
-        console.info(`[recovery] User ${payout.user_id} now has wallet ${profile.wallet_address} — sending ${payout.amount} USDC`);
+        console.info(
+          `[recovery] User ${payout.user_id} now has wallet ${profile.wallet_address} — sending ${payout.amount} USDC`,
+        );
 
         try {
           const hash = await walletClient.writeContract({
             address: USDC_ADDRESS as `0x${string}`,
             abi: USDC_ABI,
             functionName: "transfer",
-            args: [
-              profile.wallet_address as `0x${string}`,
-              parseUnits(Math.abs(payout.amount).toFixed(6), 6),
-            ],
+            args: [profile.wallet_address as `0x${string}`, parseUnits(Math.abs(payout.amount).toFixed(6), 6)],
           });
 
           const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
 
           if (receipt.status === "success") {
-            await supabase.from("synapse_credit_ledger").update({
-              status: "completed",
-              blockchain_tx_hash: hash,
-              is_settled: true,
-              settled_at: new Date().toISOString(),
-              description: payout.description + ` [recovered: wallet added]`,
-            }).eq("id", payout.id);
+            await supabase
+              .from("synapse_credit_ledger")
+              .update({
+                status: "completed",
+                blockchain_tx_hash: hash,
+                is_settled: true,
+                settled_at: new Date().toISOString(),
+                description: payout.description + ` [recovered: wallet added]`,
+              })
+              .eq("id", payout.id);
 
             usdcRecovered++;
             console.info(`[recovery] USDC payout completed: ${hash}`);
@@ -202,11 +210,14 @@ serve(async (req: Request) => {
             const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
 
             if (receipt.status === "success") {
-              await supabase.from("pending_nft_mints").update({
-                status: "minted",
-                tx_hash: hash,
-                minted_at: new Date().toISOString(),
-              }).eq("id", mint.id);
+              await supabase
+                .from("pending_nft_mints")
+                .update({
+                  status: "minted",
+                  tx_hash: hash,
+                  minted_at: new Date().toISOString(),
+                })
+                .eq("id", mint.id);
 
               nftsRecovered++;
               console.info(`[recovery] NFT minted: ${hash}`);
@@ -228,12 +239,14 @@ serve(async (req: Request) => {
     console.info(`[recovery] Complete:`, result);
 
     return new Response(JSON.stringify(result), {
-      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
     console.error(`[recovery] Fatal: ${err.message}`);
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
