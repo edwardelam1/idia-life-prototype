@@ -30,7 +30,6 @@ import SendRequestModal from "../SendRequestModal";
 import PaymentTrigger from "../PaymentTrigger";
 import { fireFinaleConfetti } from "../psychometric/confetti";
 import { useChainReceiveWatcher, type ChainReceipt } from "@/hooks/useChainReceiveWatcher";
-import { acaGenerator } from "@/utils/acaGenerator";
 import {
   Wallet,
   CreditCard,
@@ -73,7 +72,7 @@ function SovereignConsentModal({
   onClose,
 }: {
   extraction: any | null;
-  userId: string;
+  userId: string | null;
   onAuthorized: () => void;
   onClose: () => void;
 }) {
@@ -83,19 +82,21 @@ function SovereignConsentModal({
 
   // Reset internal state when a new extraction is selected
   useEffect(() => {
-    setIsComplete(false);
-    setAcaHash(null);
+    if (extraction) {
+      setIsComplete(false);
+      setAcaHash(null);
+    }
   }, [extraction]);
 
-  if (!extraction) return null;
-
-  const eventId = extraction.id;
+  const isOpen = !!extraction;
+  const eventId = extraction?.id || "";
   const extractorName = "Commercial Extractor (Verified)";
-  const licensePlate = extraction.license_plate || "UNKNOWN";
-  const timestamp = extraction.created_at || new Date().toISOString();
+  const licensePlate = extraction?.license_plate || "UNKNOWN";
+  const timestamp = extraction?.created_at || new Date().toISOString();
   const dividendAmount = 0.75;
 
   const handleAuthorize = async () => {
+    if (!userId || !eventId) return;
     setIsAuthorizing(true);
     try {
       // 1. MINT LOCALLY: The device generates the true sovereign signature natively
@@ -114,7 +115,7 @@ function SovereignConsentModal({
       });
 
       if (error) throw new Error(error.message);
-      if (data.error) throw new Error(data.error);
+      if (data?.error) throw new Error(data.error);
 
       setAcaHash(deviceGeneratedHash);
       setIsComplete(true);
@@ -133,12 +134,11 @@ function SovereignConsentModal({
     }
   };
 
-  const handleDeny = async () => {
+  const handleDeny = () => {
     toast({
       title: "Consent Denied",
       description: "You have rejected the data monetization request.",
     });
-    // In a production environment, you could ping a rejection endpoint here.
     onClose();
   };
 
@@ -151,7 +151,7 @@ function SovereignConsentModal({
   };
 
   return (
-    <Dialog open={!!extraction} onOpenChange={(open) => !open && handleExit()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleExit()}>
       <DialogContent className="max-w-md p-0 overflow-hidden border-none rounded-3xl shadow-2xl bg-white">
         <DialogHeader className="p-0">
           <div
@@ -159,10 +159,10 @@ function SovereignConsentModal({
           >
             <div className="flex justify-between items-start mb-6">
               <div className="space-y-1">
-                <DialogTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 m-0">
+                <DialogTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 m-0 text-left">
                   {isComplete ? "Sovereign Receipt" : "Consent Action Required"}
                 </DialogTitle>
-                <DialogDescription className="font-mono text-[9px] opacity-40 text-white">
+                <DialogDescription className="font-mono text-[9px] opacity-40 text-white text-left">
                   ID: {eventId}
                 </DialogDescription>
               </div>
@@ -546,6 +546,16 @@ const EnhancedWalletDashboard: React.FC = () => {
 
   // ── Refs and state ──
 
+  const [showNFCModal, setShowNFCModal] = useState(false);
+  const [showSendRequestModal, setShowSendRequestModal] = useState(false);
+  const [showAddFundsModal, setShowAddFundsModal] = useState(false);
+  const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
+  const [showTestModal, setShowTestModal] = useState(false);
+  const [backupModalMode, setBackupModalMode] = useState<"backup" | "restore">("backup");
+  const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+  const [seedBackedUp, setSeedBackedUp] = useState<boolean>(false);
+  const [isCalculating, setIsCalculating] = useState(false);
+
   const displayAddress = globalWalletAddress || localAddress;
   const isProvisioned = !!displayAddress;
 
@@ -890,17 +900,7 @@ const EnhancedWalletDashboard: React.FC = () => {
     return `${prefix}$${value}`;
   };
 
-  if (loading || balanceLoading || isHydrating || walletLoading) {
-    return (
-      <div className="p-4 space-y-4 animate-pulse">
-        <div className="h-8 bg-muted rounded w-1/3"></div>
-        <div className="h-32 bg-muted rounded"></div>
-        <div className="h-64 bg-muted rounded"></div>
-      </div>
-    );
-  }
-
-  const TestModal = () => (
+  const renderTestModalButton = () => (
     <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
       <DialogTrigger asChild>
         <Button className="w-full font-bold shadow-lg shadow-orange-500/30 bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white">
@@ -916,6 +916,16 @@ const EnhancedWalletDashboard: React.FC = () => {
       </DialogContent>
     </Dialog>
   );
+
+  if (loading || balanceLoading || isHydrating || walletLoading) {
+    return (
+      <div className="p-4 space-y-4 animate-pulse">
+        <div className="h-8 bg-muted rounded w-1/3"></div>
+        <div className="h-32 bg-muted rounded"></div>
+        <div className="h-64 bg-muted rounded"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden">
@@ -1224,9 +1234,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                       <p className="text-xl font-bold text-green-600">{creditSimulation.simulated_score}</p>
                     </div>
                   </div>
-                  <div className="pt-4">
-                    <TestModal />
-                  </div>
+                  <div className="pt-4">{renderTestModalButton()}</div>
                 </div>
               ) : (
                 <div className="text-center py-8 flex flex-col items-center">
@@ -1234,7 +1242,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                   <p className="text-sm text-muted-foreground max-w-xs mb-6">
                     Limits are calculated via verifiable behavioral telemetry.
                   </p>
-                  <TestModal />
+                  {renderTestModalButton()}
                 </div>
               )}
             </CardContent>
@@ -1656,7 +1664,7 @@ const EnhancedWalletDashboard: React.FC = () => {
       {/* ── SOVEREIGN CONSENT ACTION MODAL ── */}
       <SovereignConsentModal
         extraction={selectedPendingExtraction}
-        userId={stableUserId!}
+        userId={stableUserId}
         onClose={() => setSelectedPendingExtraction(null)}
         onAuthorized={() => {
           setSelectedPendingExtraction(null);
