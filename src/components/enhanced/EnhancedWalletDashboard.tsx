@@ -587,6 +587,47 @@ const EnhancedWalletDashboard: React.FC = () => {
     if (stableUserId) fetchTransactions();
   }, [stableUserId]);
 
+  // ── Live Extraction Listener (Realtime) ──
+  useEffect(() => {
+    if (!stableUserId) return;
+
+    console.log(`[REALTIME_LINK] Subscribing to extraction events for citizen: ${stableUserId}`);
+
+    const extractionChannel = supabase
+      .channel("lidd-extractions-listener")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "lidd_extraction_events",
+          filter: `citizen_guid=eq.${stableUserId}`,
+        },
+        (payload) => {
+          console.log("[REALTIME_EVENT] New extraction detected:", payload);
+
+          // Trigger the notification
+          toast({
+            title: "Data Monetization Request",
+            description: "A commercial entity has scanned your asset. Tap to authorize the CDLA mandate.",
+            duration: 8000,
+          });
+
+          // Refresh the UI to display the new SovereignConsentReceipt
+          fetchTransactions();
+        },
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          console.log("[REALTIME_LINK] Connected to extraction ledger.");
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(extractionChannel);
+    };
+  }, [stableUserId]);
+
   const fetchTransactions = async () => {
     if (!stableUserId) return;
     try {
@@ -610,7 +651,7 @@ const EnhancedWalletDashboard: React.FC = () => {
           .eq("citizen_guid", stableUserId)
           .eq("payment_status", "pending_consent")
           .order("created_at", { ascending: false })
-          .limit(10), // Required Limit: Prevents UI thread freeze if hundreds of pending tests exist
+          .limit(10),
       ]);
 
       if (pendingResult.data) {
