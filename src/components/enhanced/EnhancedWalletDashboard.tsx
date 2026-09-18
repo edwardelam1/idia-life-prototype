@@ -30,6 +30,7 @@ import SendRequestModal from "../SendRequestModal";
 import PaymentTrigger from "../PaymentTrigger";
 import { fireFinaleConfetti } from "../psychometric/confetti";
 import { useChainReceiveWatcher, type ChainReceipt } from "@/hooks/useChainReceiveWatcher";
+import { acaGenerator } from "@/utils/acaGenerator";
 import {
   Wallet,
   CreditCard,
@@ -60,32 +61,39 @@ import {
   Fingerprint,
   Car,
   AlertCircle,
+  XCircle,
 } from "lucide-react";
 import idiaHubLogo from "@/assets/idia-hub-logo.png.asset.json";
 
-// --- INLINE SOVEREIGN CONSENT RECEIPT COMPONENT ---
-interface SovereignConsentReceiptProps {
-  eventId: string;
-  extractorName: string;
-  licensePlate: string;
-  timestamp: string;
-  dividendAmount: number;
-  userId: string;
-  onAuthorized?: () => void;
-}
-
-function SovereignConsentReceipt({
-  eventId,
-  extractorName,
-  licensePlate,
-  timestamp,
-  dividendAmount,
+// --- SOVEREIGN CONSENT MODAL ---
+function SovereignConsentModal({
+  extraction,
   userId,
   onAuthorized,
-}: SovereignConsentReceiptProps) {
+  onClose,
+}: {
+  extraction: any | null;
+  userId: string;
+  onAuthorized: () => void;
+  onClose: () => void;
+}) {
   const [isAuthorizing, setIsAuthorizing] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [acaHash, setAcaHash] = useState<string | null>(null);
+
+  // Reset internal state when a new extraction is selected
+  useEffect(() => {
+    setIsComplete(false);
+    setAcaHash(null);
+  }, [extraction]);
+
+  if (!extraction) return null;
+
+  const eventId = extraction.id;
+  const extractorName = "Commercial Extractor (Verified)";
+  const licensePlate = extraction.license_plate || "UNKNOWN";
+  const timestamp = extraction.created_at || new Date().toISOString();
+  const dividendAmount = 0.75;
 
   const handleAuthorize = async () => {
     setIsAuthorizing(true);
@@ -114,8 +122,6 @@ function SovereignConsentReceipt({
         title: "Identity Verified",
         description: "Consent cryptographically signed.",
       });
-
-      if (onAuthorized) onAuthorized();
     } catch (err: any) {
       toast({
         title: "Authorization Failed",
@@ -127,90 +133,144 @@ function SovereignConsentReceipt({
     }
   };
 
-  if (isComplete) {
-    return (
-      <Card className="w-full border-green-500/30 bg-green-500/5 shadow-sm">
-        <CardContent className="pt-6 flex flex-col items-center justify-center space-y-3">
-          <div className="h-12 w-12 rounded-full bg-green-500/20 flex items-center justify-center">
-            <CheckCircle2 className="h-6 w-6 text-green-500" />
-          </div>
-          <h3 className="text-lg font-semibold text-green-700 dark:text-green-400">Consent Verified</h3>
-          <p className="text-sm text-center text-muted-foreground px-4">
-            Your device has securely signed the ACA Mandate. You will receive{" "}
-            <span className="font-bold">${dividendAmount.toFixed(2)}</span> when {extractorName} settles their balance.
-          </p>
-          <div className="text-xs font-mono text-muted-foreground bg-black/5 p-2 rounded w-full text-center truncate">
-            {acaHash}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const handleDeny = async () => {
+    toast({
+      title: "Consent Denied",
+      description: "You have rejected the data monetization request.",
+    });
+    // In a production environment, you could ping a rejection endpoint here.
+    onClose();
+  };
+
+  const handleExit = () => {
+    if (isComplete && onAuthorized) {
+      onAuthorized();
+    } else {
+      onClose();
+    }
+  };
 
   return (
-    <Card className="w-full border-brand-blue/20 shadow-sm relative overflow-hidden">
-      <div className="absolute top-0 left-0 w-1 h-full bg-brand-blue" />
-      <CardHeader className="pb-3">
-        <div className="flex justify-between items-start">
-          <div>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-brand-blue" />
-              Pending Extraction
-            </CardTitle>
-            <CardDescription className="mt-1">A commercial entity has requested to monetize your data.</CardDescription>
+    <Dialog open={!!extraction} onOpenChange={(open) => !open && handleExit()}>
+      <DialogContent className="max-w-md p-0 overflow-hidden border-none rounded-3xl shadow-2xl bg-white">
+        <DialogHeader className="p-0">
+          <div
+            className={`p-8 text-white relative transition-colors duration-500 ${isComplete ? "bg-teal-700" : "bg-indigo-700"}`}
+          >
+            <div className="flex justify-between items-start mb-6">
+              <div className="space-y-1">
+                <DialogTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 m-0">
+                  {isComplete ? "Sovereign Receipt" : "Consent Action Required"}
+                </DialogTitle>
+                <DialogDescription className="font-mono text-[9px] opacity-40 text-white">
+                  ID: {eventId}
+                </DialogDescription>
+              </div>
+              {isComplete ? (
+                <CheckCircle2 className="w-8 h-8 opacity-20" />
+              ) : (
+                <ShieldCheck className="w-8 h-8 opacity-20" />
+              )}
+            </div>
+            <div className="text-center py-4">
+              <p className="text-[11px] font-bold uppercase tracking-widest opacity-60 mb-1">Monetization Dividend</p>
+              <h2 className="text-4xl font-black tracking-tight">+${dividendAmount.toFixed(2)}</h2>
+              <Badge className="mt-4 bg-white/10 hover:bg-white/20 border-white/20 text-[10px] font-black uppercase tracking-widest px-3 py-1">
+                ALPR DATA INGESTION
+              </Badge>
+            </div>
           </div>
-          <div className="bg-brand-blue/10 text-brand-blue px-3 py-1 rounded-full text-sm font-semibold">
-            +${dividendAmount.toFixed(2)} CR
-          </div>
-        </div>
-      </CardHeader>
+        </DialogHeader>
 
-      <CardContent className="space-y-4">
-        <div className="rounded-lg bg-secondary/50 p-4 space-y-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Requesting Entity</span>
-            <span className="font-medium">{extractorName}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Asset Scanned</span>
-            <span className="font-medium flex items-center gap-2">
-              <Car className="h-4 w-4" /> {licensePlate}
-            </span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Timestamp</span>
-            <span className="font-medium">{new Date(timestamp).toLocaleString()}</span>
-          </div>
-        </div>
-
-        <div className="flex gap-2 items-start text-xs text-muted-foreground bg-blue-500/10 p-3 rounded text-blue-700 dark:text-blue-400">
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          <p>
-            By tapping Authorize, your device will cryptographically sign a CDLA mandate allowing this specific data
-            point to be monetized on the Synapse Ledger.
-          </p>
-        </div>
-      </CardContent>
-
-      <CardFooter>
-        <Button
-          onClick={handleAuthorize}
-          disabled={isAuthorizing}
-          className="w-full bg-brand-blue hover:bg-brand-blue/90 h-12 text-base"
-        >
-          {isAuthorizing ? (
-            <span className="animate-pulse flex items-center gap-2">Signing via Secure Enclave...</span>
+        <div className="p-6 space-y-6">
+          {isComplete ? (
+            <div className="flex flex-col items-center justify-center space-y-3 py-4">
+              <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center mb-2">
+                <Fingerprint className="h-8 w-8 text-green-600" />
+              </div>
+              <p className="text-sm text-center text-slate-600 px-4 font-medium">
+                Your device has securely signed the ACA Mandate via Secure Enclave.
+              </p>
+              <div className="text-xs font-mono text-slate-500 bg-slate-50 p-3 rounded-lg w-full text-center break-all border border-slate-100 mt-2">
+                {acaHash}
+              </div>
+              <Button onClick={handleExit} className="w-full mt-6 bg-slate-900 hover:bg-slate-800 text-white h-12">
+                Close Receipt
+              </Button>
+            </div>
           ) : (
-            <span className="flex items-center gap-2">
-              <Fingerprint className="h-5 w-5" />
-              Authorize & Claim
-            </span>
+            <>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                    <Clock size={12} /> Scan Time
+                  </div>
+                  <p className="text-sm font-bold text-slate-800">{new Date(timestamp).toLocaleString()}</p>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                    <Car size={12} /> Asset
+                  </div>
+                  <p className="text-sm font-bold text-slate-800">{licensePlate}</p>
+                </div>
+              </div>
+
+              <div className="space-y-3 border-t border-border pt-5">
+                <div>
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Requesting Entity</p>
+                  <p className="text-sm font-bold text-slate-800">{extractorName}</p>
+                </div>
+
+                <div className="bg-amber-50 p-3 rounded-lg border border-amber-100 flex items-start gap-3 mt-4">
+                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    By authorizing, your device's Secure Enclave will cryptographically sign a CDLA mandate, unlocking
+                    this data point for monetization on the Synapse Ledger.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border mt-6">
+                <Button
+                  variant="outline"
+                  onClick={handleDeny}
+                  className="h-12 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Deny
+                </Button>
+                <Button
+                  onClick={handleAuthorize}
+                  disabled={isAuthorizing}
+                  className="h-12 bg-slate-900 hover:bg-slate-800 text-white shadow-lg"
+                >
+                  {isAuthorizing ? (
+                    <span className="animate-pulse flex items-center gap-2">Signing...</span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <Fingerprint className="h-5 w-5" />
+                      Biometric Auth
+                    </span>
+                  )}
+                </Button>
+              </div>
+              <div className="mt-2">
+                <Button
+                  variant="ghost"
+                  onClick={handleExit}
+                  className="w-full text-slate-400 hover:text-slate-600 h-10"
+                >
+                  Exit
+                </Button>
+              </div>
+            </>
           )}
-        </Button>
-      </CardFooter>
-    </Card>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
+
 // --------------------------------------------------------
 
 interface Transaction {
@@ -273,6 +333,7 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [stableUserId, setStableUserId] = useState<string | null>(null);
   const [setupMode, setSetupMode] = useState<"create" | "import" | "view-seed">("create");
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [selectedPendingExtraction, setSelectedPendingExtraction] = useState<any | null>(null);
   const [isCopying, setIsCopying] = useState(false);
   const [synapseCredits, setSynapseCredits] = useState<number>(0);
   const [pendingExtractions, setPendingExtractions] = useState<any[]>([]);
@@ -485,19 +546,6 @@ const EnhancedWalletDashboard: React.FC = () => {
 
   // ── Refs and state ──
 
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [creditSimulation, setCreditSimulation] = useState<CreditSimulation | null>(null);
-  const [activeTab, setActiveTab] = useState("overview");
-  const [showNFCModal, setShowNFCModal] = useState(false);
-  const [showSendRequestModal, setShowSendRequestModal] = useState(false);
-  const [showAddFundsModal, setShowAddFundsModal] = useState(false);
-  const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
-  const [showTestModal, setShowTestModal] = useState(false);
-  const [backupModalMode, setBackupModalMode] = useState<"backup" | "restore">("backup");
-  const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
-  const [seedBackedUp, setSeedBackedUp] = useState<boolean>(false);
-  const [isCalculating, setIsCalculating] = useState(false);
-
   const displayAddress = globalWalletAddress || localAddress;
   const isProvisioned = !!displayAddress;
 
@@ -613,7 +661,7 @@ const EnhancedWalletDashboard: React.FC = () => {
             duration: 8000,
           });
 
-          // Refresh the UI to display the new SovereignConsentReceipt
+          // Refresh the UI to display the new Pending Extraction request
           fetchTransactions();
         },
       )
@@ -890,19 +938,38 @@ const EnhancedWalletDashboard: React.FC = () => {
             className="h-full overflow-y-auto no-scrollbar pr-1 space-y-4 pb-24"
             style={{ WebkitOverflowScrolling: "touch" }}
           >
+            {/* ── Pending Consents List ── */}
             {pendingExtractions.length > 0 && (
-              <div className="space-y-4 mb-4">
+              <div className="space-y-3 mb-6">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">
+                  Pending Actions
+                </h3>
                 {pendingExtractions.map((extraction) => (
-                  <SovereignConsentReceipt
+                  <div
                     key={extraction.id}
-                    eventId={extraction.id}
-                    extractorName="Commercial Extractor (Verified)"
-                    licensePlate={extraction.license_plate || "UNKNOWN"}
-                    timestamp={extraction.created_at || new Date().toISOString()}
-                    dividendAmount={0.75}
-                    userId={stableUserId!}
-                    onAuthorized={() => fetchTransactions()}
-                  />
+                    onClick={() => setSelectedPendingExtraction(extraction)}
+                    className="flex items-center space-x-3 p-3 border border-amber-200 rounded-xl bg-amber-50/50 transition-all active:scale-[0.98] hover:bg-amber-50 cursor-pointer shadow-sm relative overflow-hidden"
+                  >
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400" />
+                    <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                      <ShieldCheck size={18} className="text-amber-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm truncate text-amber-900">Data Monetization Request</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[10px] font-medium text-amber-700/70">
+                          {new Date(extraction.created_at).toLocaleDateString()}
+                        </p>
+                        <Badge
+                          variant="outline"
+                          className="text-[8px] h-3.5 px-1 uppercase font-black tracking-tighter opacity-60 border-amber-300 text-amber-800"
+                        >
+                          REQUIRES CONSENT
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="font-semibold text-amber-700">+$0.75</div>
+                  </div>
                 ))}
               </div>
             )}
@@ -1585,6 +1652,17 @@ const EnhancedWalletDashboard: React.FC = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── SOVEREIGN CONSENT ACTION MODAL ── */}
+      <SovereignConsentModal
+        extraction={selectedPendingExtraction}
+        userId={stableUserId!}
+        onClose={() => setSelectedPendingExtraction(null)}
+        onAuthorized={() => {
+          setSelectedPendingExtraction(null);
+          fetchTransactions();
+        }}
+      />
 
       {/* ═══ MODALS ═══ */}
       <NFCPayrollModal isOpen={showNFCModal} onClose={() => setShowNFCModal(false)} />
