@@ -356,7 +356,6 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [selectedPendingExtraction, setSelectedPendingExtraction] = useState<any | null>(null);
   const [isCopying, setIsCopying] = useState(false);
   const [synapseCredits, setSynapseCredits] = useState<number>(0);
-  const [pendingExtractions, setPendingExtractions] = useState<any[]>([]);
   const [showTestModal, setShowTestModal] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("overview");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
