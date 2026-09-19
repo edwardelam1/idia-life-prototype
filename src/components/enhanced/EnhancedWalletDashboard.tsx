@@ -99,31 +99,45 @@ function SovereignConsentModal({
     if (!userId || !eventId) return;
     setIsAuthorizing(true);
     try {
-      // 1. MINT LOCALLY: The device generates the true sovereign signature natively
-      const rawString = `${userId}|LIDD_ALPR_MONETIZATION|${eventId}|${new Date().toISOString()}`;
-      const hashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rawString));
-      const deviceGeneratedHash = Array.from(new Uint8Array(hashBuffer))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
+      // 1. HARDWARE-ANCHORED CONSENT: identical path to Strava / Ford / Nest.
+      console.log(`[BEGIN: LIDD_CONSENT] Requesting biological binding for event ${eventId}`);
+      const { hash, payload } = await generateACAHash(userId, "lidd_consent_authorize", [
+        "DATA_MONETIZATION",
+        "ALPR_INGESTION",
+      ]);
 
-      // 2. TRANSMIT TO LEDGER: Send the signed mandate to the cloud to unlock the event
+      // 2. MIRROR TO THE ACA LEDGER
+      await recordACA({
+        userId,
+        sourceId: "lidd_consent_authorize",
+        consentType: "DATA_MONETIZATION_V1",
+        hash,
+        payload,
+      });
+
+      // 3. TRANSMIT TO LEDGER: Send the signed mandate to the cloud to unlock the event
       const { data, error } = await supabase.functions.invoke("verify-idia-life-tap", {
         body: {
           event_id: eventId,
-          aca_hash_key: deviceGeneratedHash,
+          aca_hash_key: hash,
         },
       });
 
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
+      if (!data?.success || !data?.event) {
+        throw new Error("Ledger did not confirm the consent update.");
+      }
 
-      setAcaHash(deviceGeneratedHash);
+      console.log(`[END: LIDD_CONSENT] Event ${eventId} status → ${data.event.payment_status}`);
+      setAcaHash(hash);
       setIsComplete(true);
       toast({
         title: "Identity Verified",
         description: "Consent cryptographically signed.",
       });
     } catch (err: any) {
+      console.error(`[FAIL: LIDD_CONSENT] ${err?.message}`);
       toast({
         title: "Authorization Failed",
         description: err.message,
