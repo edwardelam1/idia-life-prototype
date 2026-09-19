@@ -974,41 +974,8 @@ const EnhancedWalletDashboard: React.FC = () => {
             className="h-full overflow-y-auto no-scrollbar pr-1 space-y-4 pb-24"
             style={{ WebkitOverflowScrolling: "touch" }}
           >
-            {/* ── Pending Consents List ── */}
-            {pendingExtractions.length > 0 && (
-              <div className="space-y-3 mb-6">
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">
-                  Pending Actions
-                </h3>
-                {pendingExtractions.map((extraction) => (
-                  <div
-                    key={extraction.id || Math.random().toString()}
-                    onClick={() => setSelectedPendingExtraction(extraction)}
-                    className="flex items-center space-x-3 p-3 border border-amber-200 rounded-xl bg-amber-50/50 transition-all active:scale-[0.98] hover:bg-amber-50 cursor-pointer shadow-sm relative overflow-hidden"
-                  >
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400" />
-                    <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                      <ShieldCheck size={18} className="text-amber-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-sm truncate text-amber-900">Data Monetization Request</p>
-                      <div className="flex items-center gap-2">
-                        <p className="text-[10px] font-medium text-amber-700/70">
-                          {extraction.created_at ? new Date(extraction.created_at).toLocaleDateString() : "Pending"}
-                        </p>
-                        <Badge
-                          variant="outline"
-                          className="text-[8px] h-3.5 px-1 uppercase font-black tracking-tighter opacity-60 border-amber-300 text-amber-800"
-                        >
-                          REQUIRES CONSENT
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="font-semibold text-amber-700">+$0.75</div>
-                  </div>
-                ))}
-              </div>
-            )}
+            {/* Pending consent requests now live inside the History tab. */}
+
 
             <Card className="bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] text-white border-none shadow-xl rounded-[2.5rem] overflow-hidden">
               <CardContent className="p-7">
