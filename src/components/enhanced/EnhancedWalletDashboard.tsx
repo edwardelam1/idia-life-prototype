@@ -739,9 +739,7 @@ const EnhancedWalletDashboard: React.FC = () => {
           .limit(10),
       ]);
 
-      if (pendingResult.data) {
-        setPendingExtractions(pendingResult.data);
-      }
+      console.log(`[FETCH_LEDGERS] Pending consent events: ${(pendingResult.data || []).length}`);
 
       const mappedTx = (txResult.data || [])
         .map((tx: any) => {
