@@ -297,6 +297,10 @@ interface Transaction {
   source: string;
   created_at: string;
   metadata?: any;
+  /** True for lidd_extraction_events rows still awaiting sovereign consent. */
+  pending?: boolean;
+  /** Raw extraction row, present only on pending entries. */
+  extraction?: any;
 }
 
 // Internal allocation / distribution line items that should not surface in the
