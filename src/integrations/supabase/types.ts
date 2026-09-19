@@ -2470,6 +2470,7 @@ export type Database = {
           credits_spent: number
           id: string
           proposal_id: string
+          proposal_ref: string | null
           snapshot_block: number | null
           snapshot_voting_power: number | null
           user_id: string | null
@@ -2483,6 +2484,7 @@ export type Database = {
           credits_spent: number
           id?: string
           proposal_id: string
+          proposal_ref?: string | null
           snapshot_block?: number | null
           snapshot_voting_power?: number | null
           user_id?: string | null
@@ -2496,6 +2498,7 @@ export type Database = {
           credits_spent?: number
           id?: string
           proposal_id?: string
+          proposal_ref?: string | null
           snapshot_block?: number | null
           snapshot_voting_power?: number | null
           user_id?: string | null
@@ -5845,6 +5848,7 @@ export type Database = {
       }
       lidd_extraction_events: {
         Row: {
+          aca_hash_key: string | null
           citizen_guid: string
           created_at: string
           extraction_timestamp: string
@@ -5854,6 +5858,7 @@ export type Database = {
           synapse_credit_cost: number
         }
         Insert: {
+          aca_hash_key?: string | null
           citizen_guid: string
           created_at?: string
           extraction_timestamp: string
@@ -5863,6 +5868,7 @@ export type Database = {
           synapse_credit_cost?: number
         }
         Update: {
+          aca_hash_key?: string | null
           citizen_guid?: string
           created_at?: string
           extraction_timestamp?: string
