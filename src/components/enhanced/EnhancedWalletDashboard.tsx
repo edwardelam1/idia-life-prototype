@@ -63,6 +63,8 @@ import {
   XCircle,
 } from "lucide-react";
 import idiaHubLogo from "@/assets/idia-hub-logo.png.asset.json";
+import { generateACAHash } from "@/utils/acaGenerator";
+import { recordACA } from "@/utils/acaLedger";
 
 // --- SOVEREIGN CONSENT MODAL ---
 function SovereignConsentModal({
