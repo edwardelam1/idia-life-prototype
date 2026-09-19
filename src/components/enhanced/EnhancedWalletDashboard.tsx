@@ -1203,35 +1203,61 @@ const EnhancedWalletDashboard: React.FC = () => {
             ) : (
               <div className="space-y-3 pb-24">
                 {transactions.map((tx) => {
-                  const Icon = getTransactionIcon(tx.transaction_type, tx.source);
+                  const Icon = tx.pending ? ShieldCheck : getTransactionIcon(tx.transaction_type, tx.source);
                   return (
                     <div
                       key={tx.id}
                       onClick={() => {
+                        if (tx.pending) {
+                          console.log(`[LEDGER_AUDIT] Opening pending consent: ${tx.id}`);
+                          setSelectedPendingExtraction(tx.extraction);
+                          return;
+                        }
                         console.log(`[LEDGER_AUDIT] Opening receipt for: ${tx.id}`);
                         setSelectedTransaction(tx);
                       }}
-                      className="flex items-center space-x-3 p-3 border rounded-xl bg-card transition-all active:scale-[0.98] hover:bg-slate-50 border-slate-100 cursor-pointer shadow-sm"
+                      className={`flex items-center space-x-3 p-3 border rounded-xl transition-all active:scale-[0.98] cursor-pointer shadow-sm relative overflow-hidden ${
+                        tx.pending
+                          ? "border-amber-200 bg-amber-50/50 hover:bg-amber-50"
+                          : "bg-card hover:bg-slate-50 border-slate-100"
+                      }`}
                     >
-                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-                        <Icon size={18} className="text-muted-foreground" />
+                      {tx.pending && <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400" />}
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                          tx.pending ? "bg-amber-100" : "bg-muted"
+                        }`}
+                      >
+                        <Icon size={18} className={tx.pending ? "text-amber-600" : "text-muted-foreground"} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm truncate text-slate-800">{tx.description}</p>
+                        <p
+                          className={`font-bold text-sm truncate ${tx.pending ? "text-amber-900" : "text-slate-800"}`}
+                        >
+                          {tx.description}
+                        </p>
                         <div className="flex items-center gap-2">
-                          <p className="text-[10px] font-medium text-muted-foreground">
+                          <p
+                            className={`text-[10px] font-medium ${
+                              tx.pending ? "text-amber-700/70" : "text-muted-foreground"
+                            }`}
+                          >
                             {new Date(tx.created_at).toLocaleDateString()}
                           </p>
                           <Badge
                             variant="outline"
-                            className="text-[8px] h-3.5 px-1 uppercase font-black tracking-tighter opacity-60"
+                            className={`text-[8px] h-3.5 px-1 uppercase font-black tracking-tighter opacity-60 ${
+                              tx.pending ? "border-amber-300 text-amber-800" : ""
+                            }`}
                           >
-                            {tx.source}
+                            {tx.pending ? "REQUIRES CONSENT" : tx.source}
                           </Badge>
                         </div>
                       </div>
-                      <div className={`font-semibold ${getTransactionColor(tx.amount)}`}>
-                        {formatAmount(tx.amount, tx.source)}
+                      <div
+                        className={`font-semibold ${tx.pending ? "text-amber-700" : getTransactionColor(tx.amount)}`}
+                      >
+                        {tx.pending ? "+$0.75" : formatAmount(tx.amount, tx.source)}
                       </div>
                     </div>
                   );
