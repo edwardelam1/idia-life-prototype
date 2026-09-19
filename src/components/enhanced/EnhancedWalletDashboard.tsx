@@ -833,15 +833,31 @@ const EnhancedWalletDashboard: React.FC = () => {
       );
       setSynapseCredits(runningTotal);
 
+      // Pending consent requests live in the same history list — they are the
+      // same ledger events, awaiting a signature.
+      const mappedPending: Transaction[] = (pendingResult.data || []).map((e: any) => ({
+        id: e.id,
+        transaction_type: "pending_consent",
+        amount: 0.75,
+        description: "Data Monetization Request",
+        source: "USDC",
+        created_at: e.created_at || e.extraction_timestamp || new Date().toISOString(),
+        metadata: {},
+        pending: true,
+        extraction: e,
+      }));
+
       const ZERO_DISPLAY_EPSILON = 0.00005;
       setTransactions(
-        [...mappedTx, ...mappedSynapse]
-          .filter((tx) => !isHiddenHistoryItem(tx.description))
-          .filter((tx) => {
-            const value = Number(tx.amount);
-            return Number.isFinite(value) && Math.abs(value) >= ZERO_DISPLAY_EPSILON;
-          })
-          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+        [
+          ...[...mappedTx, ...mappedSynapse]
+            .filter((tx) => !isHiddenHistoryItem(tx.description))
+            .filter((tx) => {
+              const value = Number(tx.amount);
+              return Number.isFinite(value) && Math.abs(value) >= ZERO_DISPLAY_EPSILON;
+            }),
+          ...mappedPending,
+        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
       );
     } catch (error: any) {
       console.error(`[FETCH_LEDGERS:FAILURE] ${error.message}`);
