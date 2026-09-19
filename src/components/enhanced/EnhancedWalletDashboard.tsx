@@ -338,6 +338,13 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [synapseCredits, setSynapseCredits] = useState<number>(0);
   const [pendingExtractions, setPendingExtractions] = useState<any[]>([]);
   const [showTestModal, setShowTestModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("overview");
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [creditSimulation, setCreditSimulation] = useState<{
+    current_score: number | string;
+    simulated_score: number | string;
+    actions: string[];
+  } | null>(null);
 
   useEffect(() => {
     console.log("[IDENTITY_SYNC:START] Evaluating profile hydration state...");
