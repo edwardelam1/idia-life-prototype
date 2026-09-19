@@ -63,6 +63,8 @@ import {
   XCircle,
 } from "lucide-react";
 import idiaHubLogo from "@/assets/idia-hub-logo.png.asset.json";
+import { generateACAHash } from "@/utils/acaGenerator";
+import { recordACA } from "@/utils/acaLedger";
 
 // --- SOVEREIGN CONSENT MODAL ---
 function SovereignConsentModal({
@@ -99,31 +101,45 @@ function SovereignConsentModal({
     if (!userId || !eventId) return;
     setIsAuthorizing(true);
     try {
-      // 1. MINT LOCALLY: The device generates the true sovereign signature natively
-      const rawString = `${userId}|LIDD_ALPR_MONETIZATION|${eventId}|${new Date().toISOString()}`;
-      const hashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rawString));
-      const deviceGeneratedHash = Array.from(new Uint8Array(hashBuffer))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
+      // 1. HARDWARE-ANCHORED CONSENT: identical path to Strava / Ford / Nest.
+      console.log(`[BEGIN: LIDD_CONSENT] Requesting biological binding for event ${eventId}`);
+      const { hash, payload } = await generateACAHash(userId, "lidd_consent_authorize", [
+        "DATA_MONETIZATION",
+        "ALPR_INGESTION",
+      ]);
 
-      // 2. TRANSMIT TO LEDGER: Send the signed mandate to the cloud to unlock the event
+      // 2. MIRROR TO THE ACA LEDGER
+      await recordACA({
+        userId,
+        sourceId: "lidd_consent_authorize",
+        consentType: "DATA_MONETIZATION_V1",
+        hash,
+        payload,
+      });
+
+      // 3. TRANSMIT TO LEDGER: Send the signed mandate to the cloud to unlock the event
       const { data, error } = await supabase.functions.invoke("verify-idia-life-tap", {
         body: {
           event_id: eventId,
-          aca_hash_key: deviceGeneratedHash,
+          aca_hash_key: hash,
         },
       });
 
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
+      if (!data?.success || !data?.event) {
+        throw new Error("Ledger did not confirm the consent update.");
+      }
 
-      setAcaHash(deviceGeneratedHash);
+      console.log(`[END: LIDD_CONSENT] Event ${eventId} status → ${data.event.payment_status}`);
+      setAcaHash(hash);
       setIsComplete(true);
       toast({
         title: "Identity Verified",
         description: "Consent cryptographically signed.",
       });
     } catch (err: any) {
+      console.error(`[FAIL: LIDD_CONSENT] ${err?.message}`);
       toast({
         title: "Authorization Failed",
         description: err.message,
@@ -281,6 +297,10 @@ interface Transaction {
   source: string;
   created_at: string;
   metadata?: any;
+  /** True for lidd_extraction_events rows still awaiting sovereign consent. */
+  pending?: boolean;
+  /** Raw extraction row, present only on pending entries. */
+  extraction?: any;
 }
 
 // Internal allocation / distribution line items that should not surface in the
@@ -336,7 +356,6 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [selectedPendingExtraction, setSelectedPendingExtraction] = useState<any | null>(null);
   const [isCopying, setIsCopying] = useState(false);
   const [synapseCredits, setSynapseCredits] = useState<number>(0);
-  const [pendingExtractions, setPendingExtractions] = useState<any[]>([]);
   const [showTestModal, setShowTestModal] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("overview");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -719,9 +738,7 @@ const EnhancedWalletDashboard: React.FC = () => {
           .limit(10),
       ]);
 
-      if (pendingResult.data) {
-        setPendingExtractions(pendingResult.data);
-      }
+      console.log(`[FETCH_LEDGERS] Pending consent events: ${(pendingResult.data || []).length}`);
 
       const mappedTx = (txResult.data || [])
         .map((tx: any) => {
@@ -817,15 +834,31 @@ const EnhancedWalletDashboard: React.FC = () => {
       );
       setSynapseCredits(runningTotal);
 
+      // Pending consent requests live in the same history list — they are the
+      // same ledger events, awaiting a signature.
+      const mappedPending: Transaction[] = (pendingResult.data || []).map((e: any) => ({
+        id: e.id,
+        transaction_type: "pending_consent",
+        amount: 0.75,
+        description: "Data Monetization Request",
+        source: "USDC",
+        created_at: e.created_at || e.extraction_timestamp || new Date().toISOString(),
+        metadata: {},
+        pending: true,
+        extraction: e,
+      }));
+
       const ZERO_DISPLAY_EPSILON = 0.00005;
       setTransactions(
-        [...mappedTx, ...mappedSynapse]
-          .filter((tx) => !isHiddenHistoryItem(tx.description))
-          .filter((tx) => {
-            const value = Number(tx.amount);
-            return Number.isFinite(value) && Math.abs(value) >= ZERO_DISPLAY_EPSILON;
-          })
-          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+        [
+          ...[...mappedTx, ...mappedSynapse]
+            .filter((tx) => !isHiddenHistoryItem(tx.description))
+            .filter((tx) => {
+              const value = Number(tx.amount);
+              return Number.isFinite(value) && Math.abs(value) >= ZERO_DISPLAY_EPSILON;
+            }),
+          ...mappedPending,
+        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
       );
     } catch (error: any) {
       console.error(`[FETCH_LEDGERS:FAILURE] ${error.message}`);
@@ -938,41 +971,8 @@ const EnhancedWalletDashboard: React.FC = () => {
             className="h-full overflow-y-auto no-scrollbar pr-1 space-y-4 pb-24"
             style={{ WebkitOverflowScrolling: "touch" }}
           >
-            {/* ── Pending Consents List ── */}
-            {pendingExtractions.length > 0 && (
-              <div className="space-y-3 mb-6">
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">
-                  Pending Actions
-                </h3>
-                {pendingExtractions.map((extraction) => (
-                  <div
-                    key={extraction.id || Math.random().toString()}
-                    onClick={() => setSelectedPendingExtraction(extraction)}
-                    className="flex items-center space-x-3 p-3 border border-amber-200 rounded-xl bg-amber-50/50 transition-all active:scale-[0.98] hover:bg-amber-50 cursor-pointer shadow-sm relative overflow-hidden"
-                  >
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400" />
-                    <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                      <ShieldCheck size={18} className="text-amber-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-sm truncate text-amber-900">Data Monetization Request</p>
-                      <div className="flex items-center gap-2">
-                        <p className="text-[10px] font-medium text-amber-700/70">
-                          {extraction.created_at ? new Date(extraction.created_at).toLocaleDateString() : "Pending"}
-                        </p>
-                        <Badge
-                          variant="outline"
-                          className="text-[8px] h-3.5 px-1 uppercase font-black tracking-tighter opacity-60 border-amber-300 text-amber-800"
-                        >
-                          REQUIRES CONSENT
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="font-semibold text-amber-700">+$0.75</div>
-                  </div>
-                ))}
-              </div>
-            )}
+            {/* Pending consent requests now live inside the History tab. */}
+
 
             <Card className="bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] text-white border-none shadow-xl rounded-[2.5rem] overflow-hidden">
               <CardContent className="p-7">
@@ -1167,35 +1167,61 @@ const EnhancedWalletDashboard: React.FC = () => {
             ) : (
               <div className="space-y-3 pb-24">
                 {transactions.map((tx) => {
-                  const Icon = getTransactionIcon(tx.transaction_type, tx.source);
+                  const Icon = tx.pending ? ShieldCheck : getTransactionIcon(tx.transaction_type, tx.source);
                   return (
                     <div
                       key={tx.id}
                       onClick={() => {
+                        if (tx.pending) {
+                          console.log(`[LEDGER_AUDIT] Opening pending consent: ${tx.id}`);
+                          setSelectedPendingExtraction(tx.extraction);
+                          return;
+                        }
                         console.log(`[LEDGER_AUDIT] Opening receipt for: ${tx.id}`);
                         setSelectedTransaction(tx);
                       }}
-                      className="flex items-center space-x-3 p-3 border rounded-xl bg-card transition-all active:scale-[0.98] hover:bg-slate-50 border-slate-100 cursor-pointer shadow-sm"
+                      className={`flex items-center space-x-3 p-3 border rounded-xl transition-all active:scale-[0.98] cursor-pointer shadow-sm relative overflow-hidden ${
+                        tx.pending
+                          ? "border-amber-200 bg-amber-50/50 hover:bg-amber-50"
+                          : "bg-card hover:bg-slate-50 border-slate-100"
+                      }`}
                     >
-                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-                        <Icon size={18} className="text-muted-foreground" />
+                      {tx.pending && <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400" />}
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                          tx.pending ? "bg-amber-100" : "bg-muted"
+                        }`}
+                      >
+                        <Icon size={18} className={tx.pending ? "text-amber-600" : "text-muted-foreground"} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm truncate text-slate-800">{tx.description}</p>
+                        <p
+                          className={`font-bold text-sm truncate ${tx.pending ? "text-amber-900" : "text-slate-800"}`}
+                        >
+                          {tx.description}
+                        </p>
                         <div className="flex items-center gap-2">
-                          <p className="text-[10px] font-medium text-muted-foreground">
+                          <p
+                            className={`text-[10px] font-medium ${
+                              tx.pending ? "text-amber-700/70" : "text-muted-foreground"
+                            }`}
+                          >
                             {new Date(tx.created_at).toLocaleDateString()}
                           </p>
                           <Badge
                             variant="outline"
-                            className="text-[8px] h-3.5 px-1 uppercase font-black tracking-tighter opacity-60"
+                            className={`text-[8px] h-3.5 px-1 uppercase font-black tracking-tighter opacity-60 ${
+                              tx.pending ? "border-amber-300 text-amber-800" : ""
+                            }`}
                           >
-                            {tx.source}
+                            {tx.pending ? "REQUIRES CONSENT" : tx.source}
                           </Badge>
                         </div>
                       </div>
-                      <div className={`font-semibold ${getTransactionColor(tx.amount)}`}>
-                        {formatAmount(tx.amount, tx.source)}
+                      <div
+                        className={`font-semibold ${tx.pending ? "text-amber-700" : getTransactionColor(tx.amount)}`}
+                      >
+                        {tx.pending ? "+$0.75" : formatAmount(tx.amount, tx.source)}
                       </div>
                     </div>
                   );
