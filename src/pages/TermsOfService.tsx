@@ -145,7 +145,28 @@ const TermsOfService = () => {
       navigate("/authority-of-record");
     } catch (error: any) {
       console.error(`🚨 [FATAL: TOS_FLOW.Execution] Pipeline stalled:`, error);
-      toast.error(`Compliance capture failed. System entry denied. Error: ${error.message || "Unknown error"}`);
+
+      const errorMsg = (error.message || "").toLowerCase();
+
+      // 🚨 HARDWARE ENFORCEMENT: Actionable directive to iOS Settings
+      if (
+        errorMsg.includes("not enrolled") ||
+        errorMsg.includes("biometry") ||
+        errorMsg.includes("biometric") ||
+        errorMsg.includes("rejected") ||
+        errorMsg.includes("missing or disabled")
+      ) {
+        toast.error("Hardware Security Requirement", {
+          description:
+            "IDIA strictly requires Face ID or Touch ID to generate your cryptographic signature. Please go to Settings > Face ID & Passcode > Other Apps > Life by IDIA to enable, then return here.",
+          duration: 15000,
+        });
+      } else {
+        toast.error(`Compliance capture failed. System entry denied.`, {
+          description: error.message || "Unknown error",
+          duration: 8000,
+        });
+      }
     } finally {
       setIsLoading(false);
       console.log("[END: TOS_FLOW] Flow attempt finalized.");
