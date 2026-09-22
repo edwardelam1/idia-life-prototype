@@ -17,12 +17,31 @@ export const generateACAHash = async (
   console.log(`🪪 [BEGIN: generateACAHash] Initializing verification sequence for touchpoint: ${sourceId}`);
 
   // Detect pure native shell via our custom WKWebView bridge instead of Capacitor
-  const isNative = typeof window !== "undefined" && !!(window as any).webkit?.messageHandlers?.triggerBiologicalCapture;
+  const isIOSNative = typeof window !== "undefined" && !!(window as any).webkit?.messageHandlers?.triggerBiologicalCapture;
+  // Android shell exposes the Capacitor biometric plugin instead.
+  const androidBiometric =
+    typeof window !== "undefined" ? (window as any).Capacitor?.Plugins?.IDIABiometric : undefined;
+  const isAndroidNative = !!androidBiometric;
+  const isNative = isIOSNative || isAndroidNative;
 
   try {
     let hardwareAttestationId: string;
 
-    if (isNative) {
+    if (isAndroidNative) {
+      console.log(`🪪 [BEGIN: performBiologicalBinding] Triggering Android BiometricPrompt`);
+      try {
+        const result = await androidBiometric.authenticate({
+          title: "Confirm your identity",
+          subtitle: "IDIA Sovereign Consent",
+        });
+        if (!result?.verified) throw new Error("BIOMETRIC_REJECTED");
+        console.log(`🪪 [END: performBiologicalBinding] SUCCESS: Android biometric verified.`);
+        hardwareAttestationId = `${crypto.randomUUID()}:${Date.now()}:ANDROID_KEYSTORE_VERIFIED`;
+      } catch (androidErr: any) {
+        console.error(`🚨 [FAIL: performBiologicalBinding] Android biometric rejected: ${androidErr?.message}`);
+        throw new Error(`BIOMETRIC_REJECTED:${androidErr?.message || "unknown"}`);
+      }
+    } else if (isIOSNative) {
       console.log(`🪪 [PROCESS: generateACAHash] Environment: Pure Native Shell. Requesting localized hardware lock.`);
 
       try {
