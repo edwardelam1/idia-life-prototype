@@ -40,24 +40,37 @@ const TermsOfService = () => {
     }
   };
 
-  const handleAcceptance = async () => {
+  const handleAcceptance = async (e?: React.MouseEvent) => {
+    // 🚨 SEAL THE EVENT: Prevent phantom form submissions/reloads
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
     setIsLoading(true);
-    console.log("[TOS_FLOW] START: Processing biometric-linked consent.");
+    console.log("[BEGIN: TOS_FLOW] Processing biometric-linked consent.");
 
     try {
+      console.log("[BEGIN: TOS_FLOW.GetUser] Fetching cached identity.");
       const {
         data: { user },
         error: userError,
       } = await getCachedUser();
-      if (userError || !user) throw new Error("Identity verification failed.");
-      console.log(`[TOS_FLOW] Identity Confirmed: ${user.id}`);
 
+      if (userError || !user) {
+        console.error("🚨 [ERROR: TOS_FLOW.GetUser] Identity verification failed:", userError);
+        throw new Error("Identity verification failed.");
+      }
+      console.log(`[END: TOS_FLOW.GetUser] Identity Confirmed: ${user.id}`);
+
+      console.log("[BEGIN: TOS_FLOW.GenerateACA] Generating cryptographic consent signature.");
       const { payload } = await generateACAHash(user.id, `TERMS_OF_SERVICE_${REQUIRED_TOS_VERSION.toUpperCase()}`, [
         "TOS_ACCEPTANCE",
         "LEGAL_BINDING",
       ]);
-      console.log("[TOS_FLOW] ACA Hash Generated.");
+      console.log(`[END: TOS_FLOW.GenerateACA] Signature generated: ${payload.aca_hash_key.substring(0, 8)}...`);
 
+      console.log("[BEGIN: TOS_FLOW.LogDeviceEvent] Writing to device_events ledger.");
       const { error: deviceError } = await (supabase as any).from("device_events").insert({
         user_id: user.id,
         event_type: "tos_acceptance_ack",
@@ -70,45 +83,72 @@ const TermsOfService = () => {
           aca: payload,
         },
       });
-      if (deviceError) throw deviceError;
-      console.log("[TOS_FLOW] Device Event Logged.");
+      if (deviceError) {
+        console.error("🚨 [ERROR: TOS_FLOW.LogDeviceEvent] Ledger write rejected:", deviceError);
+        throw new Error(`Device event rejected: ${deviceError.message}`);
+      }
+      console.log("[END: TOS_FLOW.LogDeviceEvent] Event securely logged.");
 
-      const { error: acaError } = await (supabase as any).from("user_aca_records").insert({
-        platform_guid: user.id,
-        consent_type: `TOS_ACCEPTANCE_${REQUIRED_TOS_VERSION.toUpperCase()}`,
-        aca_hash_key: payload.aca_hash_key,
-      });
-      if (acaError) throw acaError;
-      console.log("[TOS_FLOW] ACA Record Mirrored.");
+      console.log("[BEGIN: TOS_FLOW.UpsertACA] Upserting to user_aca_records.");
+      // 🚨 LEDGER HARDENING: Use Upsert to prevent unique constraint failures
+      const { error: acaError } = await (supabase as any).from("user_aca_records").upsert(
+        {
+          platform_guid: user.id,
+          source_id: "idia_tos",
+          consent_scope: ["TOS_ACCEPTANCE", "LEGAL_BINDING"],
+          consent_type: `TOS_ACCEPTANCE_${REQUIRED_TOS_VERSION.toUpperCase()}`,
+          aca_hash_key: payload.aca_hash_key,
+        },
+        { onConflict: "aca_hash_key" },
+      );
 
+      if (acaError) {
+        console.error("🚨 [ERROR: TOS_FLOW.UpsertACA] ACA write rejected:", acaError);
+        throw new Error(`ACA record rejected: ${acaError.message}`);
+      }
+      console.log("[END: TOS_FLOW.UpsertACA] ACA Record mirrored.");
+
+      console.log("[BEGIN: TOS_FLOW.UpdateAuth] Stamping user metadata.");
       const { error: authError } = await supabase.auth.updateUser({
         data: { tos_accepted_at: new Date().toISOString(), tos_version: REQUIRED_TOS_VERSION },
       });
-      if (authError) throw authError;
-      console.log("[TOS_FLOW] Auth Metadata Updated.");
-
-      // Mirror ToS into consent_registry (best-effort, idempotent via unique index)
-      try {
-        await (supabase as any).from("consent_registry").insert({
-          user_id: user.id,
-          consent_type: `TOS_${REQUIRED_TOS_VERSION.toUpperCase()}`,
-          decision: "accepted",
-          document_version: REQUIRED_TOS_VERSION,
-          aca_hash_key: payload.aca_hash_key,
-          payload,
-        });
-      } catch (e) {
-        console.warn("[TOS_FLOW] consent_registry mirror skipped:", e);
+      if (authError) {
+        console.error("🚨 [ERROR: TOS_FLOW.UpdateAuth] Metadata update rejected:", authError);
+        throw new Error(`Auth metadata rejected: ${authError.message}`);
       }
+      console.log("[END: TOS_FLOW.UpdateAuth] Auth Metadata Updated.");
+
+      console.log("[BEGIN: TOS_FLOW.MirrorRegistry] Upserting to consent_registry.");
+      // Mirror ToS into consent_registry (best-effort, idempotent via upsert)
+      try {
+        const { error: registryError } = await (supabase as any).from("consent_registry").upsert(
+          {
+            user_id: user.id,
+            consent_type: `TOS_${REQUIRED_TOS_VERSION.toUpperCase()}`,
+            decision: "accepted",
+            document_version: REQUIRED_TOS_VERSION,
+            aca_hash_key: payload.aca_hash_key,
+            payload,
+          },
+          { onConflict: "user_id,consent_type" },
+        );
+
+        if (registryError) {
+          console.warn("⚠️ [WARNING: TOS_FLOW.MirrorRegistry] Registry mirror failed (Non-fatal):", registryError);
+        }
+      } catch (e) {
+        console.warn("⚠️ [WARNING: TOS_FLOW.MirrorRegistry] Registry mirror exception (Non-fatal):", e);
+      }
+      console.log("[END: TOS_FLOW.MirrorRegistry] Registry step cleared.");
 
       toast.success("Identity Ledger Updated: ToS Accepted");
       navigate("/authority-of-record");
     } catch (error: any) {
-      console.error(`[TOS_FLOW] CRITICAL STALL: ${error.message}`);
-      toast.error("Compliance capture failed. System entry denied.");
+      console.error(`🚨 [FATAL: TOS_FLOW.Execution] Pipeline stalled:`, error);
+      toast.error(`Compliance capture failed. System entry denied. Error: ${error.message || "Unknown error"}`);
     } finally {
       setIsLoading(false);
-      console.log("[TOS_FLOW] END: Flow attempt finalized.");
+      console.log("[END: TOS_FLOW] Flow attempt finalized.");
     }
   };
 
@@ -135,13 +175,8 @@ const TermsOfService = () => {
           </div>
         )}
 
-
         {/* Scrollable Document View */}
-        <div
-          ref={scrollContainerRef}
-          onScroll={handleScroll}
-          className="flex-1 overflow-y-auto bg-muted/20"
-        >
+        <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto bg-muted/20">
           <div className="flex flex-col items-center gap-4 py-4 px-3 bg-muted/20">
             {Array.from({ length: 11 }, (_, i) => {
               const n = String(i + 1).padStart(2, "0");
@@ -157,9 +192,7 @@ const TermsOfService = () => {
             })}
           </div>
           <div className="px-6 py-4 text-center bg-white border-t border-border">
-            <p className="text-xs text-muted-foreground mb-2">
-              Prefer the original PDF?
-            </p>
+            <p className="text-xs text-muted-foreground mb-2">Prefer the original PDF?</p>
             <a
               href={TOS_PDF_URL}
               target="_blank"
@@ -175,6 +208,7 @@ const TermsOfService = () => {
         {/* Action Footer */}
         <div className="p-6 border-t border-border bg-background/60 flex flex-col items-center gap-3">
           <Button
+            type="button" // 🚨 Override default submit behavior
             onClick={handleAcceptance}
             disabled={!hasScrolledToBottom || isLoading}
             className="w-full max-w-sm h-12 text-base font-semibold transition-all duration-300 disabled:opacity-30"
