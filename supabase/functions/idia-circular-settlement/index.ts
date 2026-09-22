@@ -39,8 +39,8 @@ if (!ALCHEMY_BASE_RPC_URL) {
 }
 
 // Protocol contracts — Base Mainnet (mirrors src/config/contracts.ts)
-const REGISTRY_ADDRESS = "0x137D913d89d0D6a5b2d1Db76173770C94d25387B";
-const POOL_FACTORY_ADDRESS = "0x0188FCB027D834E03DD0288D360937ceC4d267bb";
+const REGISTRY_ADDRESS = "0x45BC46e0C52f2d1d2c22BC267Eb5D27c42B8E5f8";
+const POOL_FACTORY_ADDRESS = "0x18306e920946FA7e42990C5D6F9402750407bF4B";
 const ESCROW_ECOSYSTEM = Deno.env.get("ESCROW_ECOSYSTEM") ?? "0xd052C6F3846b4Fe56E579880Ec9ea2764ABDe708";
 // Wallet-as-Source-of-Truth: when location is null/blank, route to the DAO Safe
 // (Global War Chest). Funds remain in cryptographically-verifiable governance custody
@@ -65,7 +65,7 @@ const IDIA_TOKEN_ADDRESS = "0x6526F939D257E67896821c25B6C24Daa404a01FB";
 // pool-theft path). ACTIVATION REQUIRED: one-time Safe tx
 // PoolDeployerModule.authorizeOperator(relayer) — until executed, module calls
 // revert NotAuthorized() and regional funds fall back to GLOBAL_WAR_CHEST.
-const POOL_DEPLOYER_MODULE = "0x8AF7C97B56282DF3Af8f9472a9938b0D6b33Bf09";
+const POOL_DEPLOYER_MODULE = "0xc91f062d37f178b766F4424df544c3CA1AC3D7FD";
 
 // System wallets
 const SYSTEM_CASH_REGISTER = "0x649436db4d9352240d1132d9372293e5cc6af0e3";
@@ -462,9 +462,7 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
       if (egressErr) throw new Error(`egress_logs query failed: ${egressErr.message}`);
       console.info(`[RESOLVE_CONTRIBUTORS.Query1] matched ${egressRows?.length ?? 0} egress row(s)`);
 
-      const egressRow = (egressRows ?? []).find(
-        (r: any) => (r.settlement_status ?? "PENDING") !== "SETTLED",
-      );
+      const egressRow = (egressRows ?? []).find((r: any) => (r.settlement_status ?? "PENDING") !== "SETTLED");
       if (!egressRow) throw new Error("no unsettled egress record matched this sale window");
       matchedEgressId = egressRow.id as string;
       const refs: string[] = [
@@ -516,7 +514,9 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
 
     // Integer allocation guard — every EVM amount is validated before broadcast.
     const assertPayable = (amountMicro: number, remainingMicro: number, label: string) => {
-      console.info(`[BEGIN: Guard.assertPayable] label=${label} amountMicro=${amountMicro} remainingMicro=${remainingMicro}`);
+      console.info(
+        `[BEGIN: Guard.assertPayable] label=${label} amountMicro=${amountMicro} remainingMicro=${remainingMicro}`,
+      );
       if (!Number.isFinite(amountMicro) || !Number.isInteger(amountMicro)) {
         throw new Error(`ZERO_VALUE_GUARD: ${label} amount is not a finite integer (${amountMicro})`);
       }
@@ -530,7 +530,6 @@ async function executeSettlement(payoutData: any, runCorrelationId: string): Pro
       }
       console.info(`[END: Guard.assertPayable] label=${label} approved.`);
     };
-
 
     // ═══════════════════════════════════════════════════════════════════
     // RELAYER SINGLE-WRITER MUTEX
