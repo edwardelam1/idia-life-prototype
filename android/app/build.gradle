@@ -52,6 +52,8 @@ dependencies {
  // Health Connect
     implementation "androidx.health.connect:connect-client:1.1.0-alpha10"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
+ // Biometric consent prompt (Sovereign ACA)
+    implementation "androidx.biometric:biometric:1.1.0"
 }
 
 apply from: 'capacitor.build.gradle'
