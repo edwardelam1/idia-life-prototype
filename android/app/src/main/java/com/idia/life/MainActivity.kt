@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import com.getcapacitor.BridgeActivity
+import com.idia.life.plugins.biometric.IDIABiometricPlugin
 import com.idia.life.plugins.health.IDIAHealthPlugin
 import com.idia.life.plugins.nfc.IDIANFCPlugin
 
@@ -15,6 +16,7 @@ class MainActivity : BridgeActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         registerPlugin(IDIAHealthPlugin::class.java)
         registerPlugin(IDIANFCPlugin::class.java)
+        registerPlugin(IDIABiometricPlugin::class.java)
         super.onCreate(savedInstanceState)
     }
 
