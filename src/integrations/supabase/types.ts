@@ -5962,6 +5962,42 @@ export type Database = {
         }
         Relationships: []
       }
+      localized_pools: {
+        Row: {
+          balance_usdc: number | null
+          city: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          last_funded_at: string | null
+          location_string: string
+          pool_address: string
+          state: string | null
+        }
+        Insert: {
+          balance_usdc?: number | null
+          city: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          last_funded_at?: string | null
+          location_string: string
+          pool_address: string
+          state?: string | null
+        }
+        Update: {
+          balance_usdc?: number | null
+          city?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          last_funded_at?: string | null
+          location_string?: string
+          pool_address?: string
+          state?: string | null
+        }
+        Relationships: []
+      }
       location_inventory: {
         Row: {
           cost_per_unit: number | null
@@ -12846,6 +12882,10 @@ export type Database = {
       }
       increment_life_cash: {
         Args: { amount_to_add: number; target_user_id: string }
+        Returns: undefined
+      }
+      increment_pool_balance: {
+        Args: { p_amount: number; p_location: string }
         Returns: undefined
       }
       increment_wallet_balance: {
