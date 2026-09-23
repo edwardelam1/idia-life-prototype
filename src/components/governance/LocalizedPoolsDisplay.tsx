@@ -59,7 +59,9 @@ const LocalizedPoolsDisplay: React.FC = () => {
         try {
           const registry = new ethers.Contract(REGISTRY_ADDRESS, REGISTRY_ABI, provider);
           const locations: string[] = await registry.getAllLocations();
-          console.log(`[PROCESS: React.GrantPools.DynamicDiscovery] Registry reports ${locations.length} registered locations.`);
+          console.log(
+            `[PROCESS: React.GrantPools.DynamicDiscovery] Registry reports ${locations.length} registered locations.`,
+          );
 
           for (const location of locations) {
             console.log(`[BEGIN: React.GrantPools.RegistryRead] Resolving pool for "${location}".`);
@@ -77,11 +79,16 @@ const LocalizedPoolsDisplay: React.FC = () => {
           }
           console.log("[END: React.GrantPools.DynamicDiscovery] Registry scan complete.");
         } catch (regErr) {
-          console.warn("🚨 [WARNING: React.GrantPools.DynamicDiscovery] Registry read failed. Relying on pre-seeded addresses.", regErr);
+          console.warn(
+            "🚨 [WARNING: React.GrantPools.DynamicDiscovery] Registry read failed. Relying on pre-seeded addresses.",
+            regErr,
+          );
           console.log("[END: React.GrantPools.DynamicDiscovery] Handled limitation fallback.");
         }
 
-        console.log(`[BEGIN: React.GrantPools.BalanceResolution] Querying USDC balances for ${poolMap.size} locations.`);
+        console.log(
+          `[BEGIN: React.GrantPools.BalanceResolution] Querying USDC balances for ${poolMap.size} locations.`,
+        );
         const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, provider);
         const poolData: GrantPool[] = [];
 
@@ -133,7 +140,7 @@ const LocalizedPoolsDisplay: React.FC = () => {
   return (
     <section className="space-y-3 animate-in fade-in duration-500">
       <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
-        <MapPin size={14} className="text-teal-600" /> Community Grant Pools · Base Mainnet
+        <MapPin size={14} className="text-teal-600" /> Decentralized Community Grant Pools
       </h2>
       <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 snap-x snap-mandatory scrollbar-none">
         {pools.map((pool) => {
