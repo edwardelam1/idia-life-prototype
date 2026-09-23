@@ -156,7 +156,7 @@ const LocalizedPoolsDisplay: React.FC = () => {
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                window.open(`https://basescan.org/address/${pool.address}`, "_blank", "noopener,noreferrer");
+                void openExternalLink(`https://basescan.org/address/${pool.address}`);
               }}
               className="flex flex-col justify-center items-start shrink-0 px-5 py-3 rounded-[1.25rem] bg-white border border-slate-200 dark:bg-slate-900/50 dark:border-slate-800 shadow-sm snap-start hover:scale-[1.02] hover:shadow-md active:scale-95 transition-all cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-primary/50"
             >
