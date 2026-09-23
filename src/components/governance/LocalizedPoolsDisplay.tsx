@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { ethers } from "ethers";
 import { MapPin, ExternalLink } from "lucide-react";
 import { PROTOCOL, REGISTRY_ABI } from "@/config/contracts";
+import { openExternalLink } from "./BasescanSheet";
 
 // On-chain Source of Truth (Base Mainnet)
 const REGISTRY_ADDRESS = PROTOCOL.registry;
