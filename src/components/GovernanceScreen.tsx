@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import SegmentedJurisdiction, { Jurisdiction } from "./governance/SegmentedJurisdiction";
 import HatsWardrobe from "./governance/HatsWardrobe";
+import LocalizedPoolsDisplay from "./governance/LocalizedPoolsDisplay";
 import PendingActionsCarousel from "./governance/PendingActionsCarousel";
 import ActiveProposalsList from "./governance/ActiveProposalsList";
 import LifecycleTelemetry from "./governance/LifecycleTelemetry";
@@ -300,6 +301,10 @@ const GovernanceScreen: React.FC = () => {
       <SegmentedJurisdiction value={jurisdiction} onChange={setJurisdiction} />
 
       <HatsWardrobe />
+
+      {/* DECENTRALIZED COMMUNITY GRANT POOLS */}
+      <LocalizedPoolsDisplay />
+
 
       {/* Lazy-evaluated portals to preserve mobile memory */}
       {jurisdiction === "wyoming" ? (
