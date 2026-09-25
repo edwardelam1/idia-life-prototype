@@ -77,7 +77,7 @@ const LocalizedPoolsDisplay = () => {
         
         for (const [location, address] of poolMap.entries()) {
           try {
-            const balanceWei = await client.readContract({
+            const balanceWei = await (client as any).readContract({
               address: USDC_ADDRESS,
               abi: USDC_ABI as any,
               functionName: "balanceOf",
