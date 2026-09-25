@@ -1,16 +1,27 @@
-# Wallet address: confirmed saved, no fix needed
+# Gov page links open like the Hub link, to their own pages
 
-## What the database shows right now
-The `profiles` table has the address for Cedrick Spencer (spencercedrick6@gmail.com):
+## Why the last attempt pointed everything at the Hub
+On the Wallet page, the Hub button sends a message to the iPhone shell through a channel named `openExternalHub`. That channel only carries login tokens — no web address — so the shell always opens the Hub dashboard. Reusing it for Basescan gives the right sheet but the wrong page. The Swift handler isn't in this project; it lives in your Xcode ContentView.
 
-- wallet_address: 0x4B813de54Fa2f0d982E89833301644aaDF9566e1
-- last updated: 2026-09-25 16:13:51 UTC
-- seed backup: marked done
-- profile created: 2026-07-18 (existing account, not a brand-new signup)
+Today the Gov page links do this instead:
+- IDIA token link: `openBasescan()` in `BasescanSheet.tsx` does a full-page navigation in the iOS shell
+- Community pool cards: a bare `window.open(...)` in `LocalizedPoolsDisplay.tsx`
 
-## Likely explanation
-The auth logs show his session updating his account at 16:12 UTC, and the profile row was written about a minute later (16:13). If you checked the profiles table before then, the address wasn't there yet. Refresh the table view in Supabase and it should appear.
+## Fix: give external links their own channel and leave the Hub helper alone
+1. Add a new shared helper, `openExternalLink(url)`, in `src/lib/openExternalLink.ts`:
+   - iOS custom shell: if `webkit.messageHandlers.openExternalLink` exists, post `{ url }` to it
+   - Capacitor (Android): open the Capacitor Browser sheet
+   - Web: open a new tab, and show a toast if pop-ups are blocked
+   - Only `https://basescan.org/...` addresses are allowed, with explicit BEGIN and END logs
+2. Point `openBasescan()` at the new helper, using the token URL for the IDIA contract.
+3. Point the pool cards at the new helper, using the pool's `address` URL.
+4. Leave the Hub flow (`openExternalHub`) exactly as it is.
 
-## Proposed action
-- No code changes.
-- If another user's address goes missing, send me their email and I'll trace that account.
+## Your part in Xcode (a short Swift snippet will be provided)
+- Register a second handler named `openExternalLink` next to `openExternalHub`
+- Read `url` from the message body and present it in the same in-app Safari sheet (`SFSafariViewController`) the Hub uses
+- Until the shell is rebuilt with that handler, the iPhone falls back to the current behaviour, so the links still open instead of breaking
+
+## Verification
+- Web: each link opens its own Basescan page, not the Hub
+- iPhone (after the shell rebuild): the token link and each pool card open in the Hub-style sheet with the correct address
