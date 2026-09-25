@@ -1,36 +1,38 @@
-import React, { useEffect, useRef, useState } from "react";
-import { ethers } from "ethers";
-import { MapPin, ExternalLink } from "lucide-react";
-import { PROTOCOL, REGISTRY_ABI } from "@/config/contracts";
+import React, { useEffect, useState, useRef } from "react";
+import { createPublicClient, http, parseAbiItem, formatUnits } from "viem";
+import { base } from "viem/chains";
+import { openExternalLink } from "@/lib/openExternalLink"; // 🚨 NEW IMPORT
 
-// On-chain Source of Truth (Base Mainnet)
-const REGISTRY_ADDRESS = PROTOCOL.registry;
-const USDC_ADDRESS = PROTOCOL.usdc;
-const BASE_NETWORK = { name: "base", chainId: 8453 };
+// On-chain Source of Truth
+const REGISTRY_ADDRESS = "0x137D913d89d0D6a5b2d1Db76173770C94d25387B"; // Base Mainnet registry
+const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
-// Pre-seeded known deployment — guarantees zero UI stalling if registry reads fail.
-const KNOWN_POOLS: Record<string, string> = {
+// Safe block to start log scans to prevent RPC limits
+const REGISTRY_DEPLOY_BLOCK = 18000000n; 
+
+// 🚨 Pre-seeded Known Deployment (Ensures zero UI stalling if event logs fail)
+const KNOWN_POOLS: Record<string, `0x${string}`> = {
   "Louisville, KY": "0x8a0D07b6133247B9d35010646A2E684cFd9875ce",
 };
 
-const USDC_ABI = ["function balanceOf(address account) view returns (uint256)"];
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+const REGISTRY_ABI = [
+  parseAbiItem("function getPoolByLocation(string location) view returns (address)"),
+  parseAbiItem("event PoolRegistered(string location, address poolAddress)"),
+  parseAbiItem("event PoolCreated(string location, address poolAddress)")
+];
 
-const resolveRpcUrl = (): string => {
-  const raw = (import.meta as any).env?.VITE_ALCHEMY_RPC_URL;
-  if (typeof raw === "string" && raw.startsWith("https://")) return raw;
-  console.warn("[RPC_RESOLVER][FALLBACK] VITE_ALCHEMY_RPC_URL missing — deflecting to public Base node.");
-  return "https://mainnet.base.org";
-};
+const USDC_ABI = [
+  parseAbiItem("function balanceOf(address account) view returns (uint256)")
+];
 
 interface GrantPool {
   location: string;
-  address: string;
+  address: `0x${string}`;
   balanceUSDC: string;
   rawBalance: number;
 }
 
-const LocalizedPoolsDisplay: React.FC = () => {
+const LocalizedPoolsDisplay = () => {
   const [pools, setPools] = useState<GrantPool[]>([]);
   const [loading, setLoading] = useState(true);
   const isMountedRef = useRef(true);
@@ -46,88 +48,66 @@ const LocalizedPoolsDisplay: React.FC = () => {
     const fetchOnChainPools = async () => {
       console.log("[BEGIN: React.GrantPools.Init] Establishing direct RPC connection to Base Mainnet...");
       try {
-        const provider = new ethers.JsonRpcProvider(resolveRpcUrl(), BASE_NETWORK, {
-          staticNetwork: ethers.Network.from(BASE_NETWORK),
+        const client = createPublicClient({
+          chain: base,
+          transport: http("https://mainnet.base.org"),
         });
-        console.log("[END: React.GrantPools.Init] RPC provider instantiated.");
 
-        console.log("[BEGIN: React.GrantPools.MapSeed] Seeding known deployment addresses.");
-        const poolMap = new Map<string, string>(Object.entries(KNOWN_POOLS));
-        console.log(`[END: React.GrantPools.MapSeed] Seeded ${poolMap.size} known pools.`);
+        const poolMap = new Map<string, `0x${string}`>(Object.entries(KNOWN_POOLS));
 
-        console.log("[BEGIN: React.GrantPools.DynamicDiscovery] Reading registry location index...");
         try {
-          const registry = new ethers.Contract(REGISTRY_ADDRESS, REGISTRY_ABI, provider);
-          const locations: string[] = await registry.getAllLocations();
-          console.log(
-            `[PROCESS: React.GrantPools.DynamicDiscovery] Registry reports ${locations.length} registered locations.`,
-          );
+          const logs = await client.getLogs({
+            address: REGISTRY_ADDRESS,
+            event: REGISTRY_ABI[1] as any,
+            fromBlock: REGISTRY_DEPLOY_BLOCK,
+            toBlock: "latest"
+          });
 
-          for (const location of locations) {
-            console.log(`[BEGIN: React.GrantPools.RegistryRead] Resolving pool for "${location}".`);
-            try {
-              const poolAddress: string = await registry.getPoolByLocation(location);
-              if (poolAddress && poolAddress !== ZERO_ADDRESS) {
-                poolMap.set(location, poolAddress);
-                console.log(`[END: React.GrantPools.RegistryRead] ${location} -> ${poolAddress}`);
-              } else {
-                console.log(`[END: React.GrantPools.RegistryRead] ${location} has no active pool — skipped.`);
-              }
-            } catch (readErr) {
-              console.warn(`🚨 [WARNING: React.GrantPools.RegistryRead] Failed resolving "${location}".`, readErr);
+          logs.forEach((log) => {
+            const { location, poolAddress } = log.args as any;
+            if (location && poolAddress && poolAddress !== "0x0000000000000000000000000000000000000000") {
+              poolMap.set(location, poolAddress);
             }
-          }
-          console.log("[END: React.GrantPools.DynamicDiscovery] Registry scan complete.");
-        } catch (regErr) {
-          console.warn(
-            "🚨 [WARNING: React.GrantPools.DynamicDiscovery] Registry read failed. Relying on pre-seeded addresses.",
-            regErr,
-          );
-          console.log("[END: React.GrantPools.DynamicDiscovery] Handled limitation fallback.");
+          });
+        } catch (logErr) {
+          console.warn("🚨 [WARNING: React.GrantPools.DynamicDiscovery] RPC rejected large block range scan. Relying on pre-seeded addresses.", logErr);
         }
 
-        console.log(
-          `[BEGIN: React.GrantPools.BalanceResolution] Querying USDC balances for ${poolMap.size} locations.`,
-        );
-        const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, provider);
         const poolData: GrantPool[] = [];
-
+        
         for (const [location, address] of poolMap.entries()) {
-          console.log(`[BEGIN: React.GrantPools.BalanceRead] Reading USDC for ${location} at ${address}`);
           try {
-            const balanceRaw: bigint = await usdc.balanceOf(address);
-            const rawBalance = Number(ethers.formatUnits(balanceRaw, 6)); // USDC 6 decimals
-
+            const balanceWei = await (client as any).readContract({
+              address: USDC_ADDRESS,
+              abi: USDC_ABI as any,
+              functionName: "balanceOf",
+              args: [address],
+            }) as bigint;
+            
+            const rawBalance = Number(formatUnits(balanceWei, 6));
+            
             poolData.push({
               location,
               address,
               rawBalance,
-              balanceUSDC: rawBalance.toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              }),
+              balanceUSDC: rawBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
             });
-            console.log(`[END: React.GrantPools.BalanceRead] Read successful: ${rawBalance} USDC`);
-          } catch (balErr) {
+          } catch (balErr: any) {
             console.error(`🚨 [ERROR: React.GrantPools.BalanceRead] Failed reading balance for ${location}:`, balErr);
           }
         }
-        console.log("[END: React.GrantPools.BalanceResolution] All balances resolved.");
 
-        console.log("[BEGIN: React.GrantPools.Sorting] Ordering pools by TVL descending.");
         poolData.sort((a, b) => b.rawBalance - a.rawBalance);
-        console.log("[END: React.GrantPools.Sorting] Sort complete.");
 
         if (isMountedRef.current) {
           setPools(poolData);
           console.log(`[END: React.GrantPools] Successfully hydrated ${poolData.length} active pools to UI.`);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("🚨 [FATAL: React.GrantPools] Top-level failure in on-chain fetch pipeline:", error);
       } finally {
         if (isMountedRef.current) {
-          setLoading(false);
-          console.log("[END: React.GrantPools.Lifecycle] Loading state released.");
+            setLoading(false);
         }
       }
     };
@@ -138,16 +118,13 @@ const LocalizedPoolsDisplay: React.FC = () => {
   if (loading || pools.length === 0) return null;
 
   return (
-    <section className="space-y-3 animate-in fade-in duration-500">
-      <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
-        <MapPin size={14} className="text-teal-600" /> Decentralized Community Grant Pools
-      </h2>
-      <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 snap-x snap-mandatory scrollbar-none">
+    <div className="w-full animate-in fade-in duration-500 mb-6">
+      <div className="flex overflow-x-auto gap-3 pb-2 pt-1 px-1 snap-x hide-scrollbar">
         {pools.map((pool) => {
           const parts = pool.location.split(",");
           const city = parts[0]?.trim() || pool.location;
           const state = parts[1]?.trim() || "";
-
+          
           return (
             <button
               key={pool.address}
@@ -155,23 +132,22 @@ const LocalizedPoolsDisplay: React.FC = () => {
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                window.open(`https://basescan.org/address/${pool.address}`, "_blank", "noopener,noreferrer");
+                // 🚨 Trigger native sheet via helper instead of generic window.open
+                openExternalLink(`https://basescan.org/address/${pool.address}`);
               }}
               className="flex flex-col justify-center items-start shrink-0 px-5 py-3 rounded-[1.25rem] bg-white border border-slate-200 dark:bg-slate-900/50 dark:border-slate-800 shadow-sm snap-start hover:scale-[1.02] hover:shadow-md active:scale-95 transition-all cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-primary/50"
             >
-              <span className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1">
-                {city}
-                {state ? `, ${state}` : ""}
-                <ExternalLink size={10} className="text-slate-400" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                {city}{state ? `, ${state}` : ""}
               </span>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-teal-600 dark:text-teal-400">
-                ${pool.balanceUSDC} USDC
+              <span className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5 tracking-tight">
+                ${pool.balanceUSDC} <span className="text-[10px] font-bold text-slate-400 ml-0.5">USDC</span>
               </span>
             </button>
           );
         })}
       </div>
-    </section>
+    </div>
   );
 };
 
