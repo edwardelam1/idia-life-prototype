@@ -58,7 +58,7 @@ const LocalizedPoolsDisplay = () => {
         try {
           const logs = await client.getLogs({
             address: REGISTRY_ADDRESS,
-            event: REGISTRY_ABI[1],
+            event: REGISTRY_ABI[1] as any,
             fromBlock: REGISTRY_DEPLOY_BLOCK,
             toBlock: "latest"
           });
@@ -79,7 +79,7 @@ const LocalizedPoolsDisplay = () => {
           try {
             const balanceWei = await client.readContract({
               address: USDC_ADDRESS,
-              abi: USDC_ABI,
+              abi: USDC_ABI as any,
               functionName: "balanceOf",
               args: [address],
             }) as bigint;
