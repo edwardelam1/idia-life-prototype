@@ -153,9 +153,7 @@ const Auth = () => {
       // Sign-In natively and broadcasts the credential back via custom events.
       // Without these listeners the token is never exchanged and the UI spins.
       const appleShellHandler =
-        provider === "apple"
-          ? (window as any)?.webkit?.messageHandlers?.appleSignIn
-          : undefined;
+        provider === "apple" ? (window as any)?.webkit?.messageHandlers?.appleSignIn : undefined;
 
       if (appleShellHandler) {
         console.log("[BEGIN: APPLE_AUTH.NativeShell] iOS Native Shell detected. Triggering Face ID mandate.");
@@ -219,9 +217,17 @@ const Auth = () => {
                 console.warn("[END:FAIL][APPLE_AUTH.ZeroPII] Local seal failed (non-fatal).", storageErr);
               }
             }
-            // The global onAuthStateChange listener handles the routing handoff.
+
+            // 🚨 NEW: Explicitly kill the spinner and force the app to transition
+            toast({ title: "Identity Verified", description: "Welcome to your Sovereign Vault." });
+            setIsLoading(false);
+            navigate("/", { replace: true });
           } catch (err: any) {
-            toast({ title: "Apple Sign In failed", description: err?.message || "Token exchange failed.", variant: "destructive" });
+            toast({
+              title: "Apple Sign In failed",
+              description: err?.message || "Token exchange failed.",
+              variant: "destructive",
+            });
             setIsLoading(false);
           }
         };
