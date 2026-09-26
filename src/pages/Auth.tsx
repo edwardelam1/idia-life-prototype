@@ -149,6 +149,109 @@ const Auth = () => {
       const platform = Capacitor.getPlatform();
       console.log(`[INFO][OAUTH] platform=${platform} isNative=${isNative}`);
 
+      // iOS WKWebView shell (not Capacitor): the Swift layer intercepts Apple
+      // Sign-In natively and broadcasts the credential back via custom events.
+      // Without these listeners the token is never exchanged and the UI spins.
+      const appleShellHandler =
+        provider === "apple"
+          ? (window as any)?.webkit?.messageHandlers?.appleSignIn
+          : undefined;
+
+      if (appleShellHandler) {
+        console.log("[BEGIN: APPLE_AUTH.NativeShell] iOS Native Shell detected. Triggering Face ID mandate.");
+
+        let timeoutId: number | undefined;
+        let settled = false;
+
+        const cleanupListeners = () => {
+          window.removeEventListener("apple-signin:success", handleSuccess as EventListener);
+          window.removeEventListener("apple-signin:error", handleNativeError as EventListener);
+          delete (window as any).onAppleSignInSuccess;
+        };
+
+        const settle = () => {
+          if (settled) return false;
+          settled = true;
+          cleanupListeners();
+          if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+          return true;
+        };
+
+        const handleSuccess = async (e: CustomEvent | any) => {
+          if (!settle()) return;
+          const payload = e?.detail || e;
+          console.log("[END: APPLE_AUTH.NativeShell] Payload received.", { hasToken: !!payload?.identityToken });
+
+          if (!payload?.identityToken) {
+            console.error("[END:FAIL][APPLE_AUTH.NativeShell] Payload missing identityToken.");
+            toast({ title: "Apple Sign In failed", description: "Missing identity token.", variant: "destructive" });
+            setIsLoading(false);
+            return;
+          }
+
+          try {
+            console.log("[BEGIN: APPLE_AUTH.TokenExchange] Swapping native identity token with Supabase Auth.");
+            const { error } = await supabase.auth.signInWithIdToken({
+              provider: "apple",
+              token: payload.identityToken,
+            });
+            if (error) {
+              console.error("[END:FAIL][APPLE_AUTH.TokenExchange] Supabase rejected token:", error.message);
+              throw error;
+            }
+            console.log("[END:OK][APPLE_AUTH.TokenExchange] Token exchanged for active session.");
+
+            // Zero-PII: first sign-in only — seal name/email on-device, never in the DB.
+            if (payload.email || payload.firstName || payload.lastName) {
+              console.log("[BEGIN: APPLE_AUTH.ZeroPII] Sealing PII in local Secure Enclave.");
+              try {
+                await SecureStoragePlugin.set({
+                  key: "user_pii_profile",
+                  value: JSON.stringify({
+                    first_name: payload.firstName || "",
+                    last_name: payload.lastName || "",
+                    email: payload.email || "",
+                    phone: "",
+                  }),
+                });
+                console.log("[END:OK][APPLE_AUTH.ZeroPII] PII isolated to device storage.");
+              } catch (storageErr) {
+                console.warn("[END:FAIL][APPLE_AUTH.ZeroPII] Local seal failed (non-fatal).", storageErr);
+              }
+            }
+            // The global onAuthStateChange listener handles the routing handoff.
+          } catch (err: any) {
+            toast({ title: "Apple Sign In failed", description: err?.message || "Token exchange failed.", variant: "destructive" });
+            setIsLoading(false);
+          }
+        };
+
+        const handleNativeError = (e: CustomEvent | any) => {
+          if (!settle()) return;
+          const errorMsg = e?.detail?.error || e?.error || "Authentication cancelled.";
+          console.log(`[END: APPLE_AUTH.NativeShell] Process halted: ${errorMsg}`);
+          if (!String(errorMsg).toLowerCase().includes("cancel")) {
+            toast({ title: "Apple Sign In failed", description: errorMsg, variant: "destructive" });
+          }
+          setIsLoading(false);
+        };
+
+        window.addEventListener("apple-signin:success", handleSuccess as EventListener);
+        window.addEventListener("apple-signin:error", handleNativeError as EventListener);
+        (window as any).onAppleSignInSuccess = handleSuccess; // fallback the Swift layer also calls
+
+        // 60-second dead-man switch so the spinner can never hang forever.
+        timeoutId = window.setTimeout(() => {
+          if (!settle()) return;
+          console.error("[END:FAIL][APPLE_AUTH.NativeShell] Timed out waiting for Swift payload.");
+          toast({ title: "Apple Sign In timed out", description: "Please try again.", variant: "destructive" });
+          setIsLoading(false);
+        }, 60000);
+
+        appleShellHandler.postMessage({});
+        return;
+      }
+
       if (provider === "apple" && isNative) {
         console.log("[START] Native Apple Sign-In Intercept");
         const { SignInWithApple } = await import("@capacitor-community/apple-sign-in");
