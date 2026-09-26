@@ -31,4 +31,3 @@
 - [ ] Push delivery for Apple Health / Health Connect wake-ups — needs an FCM service account secret and registered device tokens
 
 - [x] Connected sources refresh on app wake (mount, foreground, iOS/Android shells) with a 5-minute cooldown and a manual Refresh control
-- [x] Fix Apple sign-in spinning after Face ID (iOS shell) — native appleSignIn listener merged into Auth.tsx; verify on iPhone
