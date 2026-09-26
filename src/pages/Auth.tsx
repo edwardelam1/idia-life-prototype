@@ -14,6 +14,8 @@ const AUTH_HISTORY_KEY = "idia_has_auth_history_v1";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
+  // Default to "Welcome Back" only on devices that have authenticated before;
+  // fresh browsers/devices land on "Create Account". Explicit ?mode= overrides.
   const modeParam = searchParams.get("mode");
   const defaultIsLogin =
     modeParam === "signup"
@@ -28,12 +30,14 @@ const Auth = () => {
             }
           })();
 
+  // Standard Auth States
   const [isLogin, setIsLogin] = useState(defaultIsLogin);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // OTP Password Reset States
   const [isResetMode, setIsResetMode] = useState(false);
   const [resetStep, setResetStep] = useState<"request" | "verify">("request");
   const [resetEmail, setResetEmail] = useState("");
@@ -57,10 +61,13 @@ const Auth = () => {
         try {
           localStorage.setItem(AUTH_HISTORY_KEY, "1");
         } catch {}
+        console.log("[START] Auth: post-auth Vault Guard handoff");
         try {
           const { isNewUser } = await runVaultGuard(session.user.id);
+          console.log(`[END] Auth: routing → ${isNewUser ? "/recovery-phrase" : "/"}`);
           navigate(isNewUser ? "/recovery-phrase" : "/", { replace: true });
         } catch (e: any) {
+          console.error("[ERROR] Auth: Vault Guard failed, falling back to dashboard", e);
           toast({ title: "Vault check failed", description: e.message, variant: "destructive" });
           navigate("/", { replace: true });
         }
@@ -70,181 +77,26 @@ const Auth = () => {
     return () => subscription.unsubscribe();
   }, [navigate, searchParams, isResetMode, toast]);
 
-  // ══════════════════════════════════════════════════════════════════════
-  // GLOBAL NATIVE BRIDGE LISTENERS (Always Active)
-  // ══════════════════════════════════════════════════════════════════════
+  // ── Native iOS ASWebAuthenticationSession cancellation/success bridge ──
   useEffect(() => {
     const handleNativeAuthMessage = (event: MessageEvent) => {
       const type = event?.data?.type;
       if (type === "IDIA_AUTH_CANCELLED") {
+        console.log("[NATIVE_BRIDGE] Auth cancelled by user or failed.");
         setIsLoading(false);
         toast({ title: "Sign in cancelled", description: "Please try again when you're ready." });
       } else if (type === "IDIA_AUTH_COMPLETE") {
+        console.log("[NATIVE_BRIDGE] Auth handshake completed.");
         setIsLoading(false);
       }
     };
-
-    // 🚨 VITAL FIX: Routes the native Face ID token through the Edge Proxy to bypass Audience errors
-    const handleNativeAppleSuccess = async (e: CustomEvent | any) => {
-      const payload = e?.detail || e;
-      if (!payload?.identityToken) {
-        console.error("[APPLE_AUTH_ROUTER][FATAL] No identity token found in native bridge payload.");
-        return;
-      }
-
-      console.log("[APPLE_AUTH_ROUTER][BEGIN] Native payload received. Routing to Edge Proxy.");
-      setIsLoading(true);
-
-      try {
-        if (payload.email || payload.firstName || payload.lastName) {
-          SecureStoragePlugin.set({
-            key: "user_pii_profile",
-            value: JSON.stringify({
-              first_name: payload.firstName || "",
-              last_name: payload.lastName || "",
-              email: payload.email || "",
-              phone: "",
-            }),
-          }).catch(console.warn);
-        }
-
-        console.log("[APPLE_AUTH_ROUTER][TRACE] Invoking apple-auth-proxy...");
-        const { data, error } = await supabase.functions.invoke("apple-auth-proxy", {
-          body: { identityToken: payload.identityToken },
-        });
-
-        if (error) {
-          console.error("[APPLE_AUTH_ROUTER][ERROR] Proxy invocation failed:", error);
-          throw error;
-        }
-        if (data?.error) {
-          console.error("[APPLE_AUTH_ROUTER][ERROR] Proxy returned execution error:", data.error);
-          throw new Error(data.error);
-        }
-
-        console.log("[APPLE_AUTH_ROUTER][TRACE] Proxy returned magic exchange URL. Executing redirect...");
-        if (data?.url) {
-          // This URL hits Supabase GoTrue directly to establish the session cookies securely
-          window.location.href = data.url;
-          console.log("[APPLE_AUTH_ROUTER][END] Redirect executed successfully.");
-        } else {
-          console.error("[APPLE_AUTH_ROUTER][ERROR] Missing URL in proxy response.");
-          throw new Error("Invalid proxy response.");
-        }
-      } catch (err: any) {
-        console.error("[APPLE_AUTH_ROUTER][FATAL] Process halted due to uncaught exception.", err);
-        toast({ title: "Authentication Proxy Failed", description: err.message, variant: "destructive" });
-        setIsLoading(false);
-      }
-    };
-
-    const handleNativeAppleError = (e: CustomEvent | any) => {
-      const errorMsg = e?.detail?.error || e?.error || "Authentication cancelled.";
-      if (!String(errorMsg).toLowerCase().includes("cancel")) {
-        toast({ title: "Apple Sign In failed", description: errorMsg, variant: "destructive" });
-      }
-      setIsLoading(false);
-    };
-
     window.addEventListener("message", handleNativeAuthMessage);
-    window.addEventListener("apple-signin:success", handleNativeAppleSuccess as EventListener);
-    window.addEventListener("apple-signin:error", handleNativeAppleError as EventListener);
-    (window as any).onAppleSignInSuccess = handleNativeAppleSuccess;
-
-    return () => {
-      window.removeEventListener("message", handleNativeAuthMessage);
-      window.removeEventListener("apple-signin:success", handleNativeAppleSuccess as EventListener);
-      window.removeEventListener("apple-signin:error", handleNativeAppleError as EventListener);
-      delete (window as any).onAppleSignInSuccess;
-    };
-  }, [navigate, toast]);
+    return () => window.removeEventListener("message", handleNativeAuthMessage);
+  }, [toast]);
 
   // ==========================================
-  // OAUTH TRIGGER
+  // 1. STANDARD AUTH (LOGIN / SIGNUP / OAUTH)
   // ==========================================
-  const handleOAuthSignIn = async (provider: "google" | "apple") => {
-    setIsLoading(true);
-    try {
-      const { Capacitor } = await import("@capacitor/core");
-      const isNative = Capacitor.isNativePlatform();
-      const webkit = (window as any)?.webkit;
-
-      // 1. Force Native Shell Handler if available
-      if (provider === "apple" && webkit?.messageHandlers?.appleSignIn) {
-        webkit.messageHandlers.appleSignIn.postMessage({});
-
-        // 60-Second Deadman Switch
-        setTimeout(() => {
-          setIsLoading((prev) => {
-            if (prev) {
-              toast({
-                title: "Timeout",
-                description: "Apple Sign In timed out. Please try again.",
-                variant: "destructive",
-              });
-            }
-            return false;
-          });
-        }, 60000);
-        return;
-      }
-
-      // 2. Native Capacitor Apple Fallback
-      if (provider === "apple" && isNative) {
-        const { SignInWithApple } = await import("@capacitor-community/apple-sign-in");
-        const result: any = await SignInWithApple.authorize({
-          clientId: "com.thebigidia.app",
-          redirectURI: `${window.location.origin}/`,
-          scopes: "email name",
-        });
-
-        const { error } = await supabase.auth.signInWithIdToken({
-          provider: "apple",
-          token: result.response.identityToken,
-        });
-        if (error) throw error;
-        return;
-      }
-
-      // 3. Native Capacitor Google Fallback
-      if (provider === "google" && isNative) {
-        const { GoogleAuth } = await import("@codetrix-studio/capacitor-google-auth");
-        await GoogleAuth.initialize({
-          clientId: "349472255801-091p5a3320h0kb9636hjsd2otfs160ct.apps.googleusercontent.com",
-          scopes: ["profile", "email"],
-          grantOfflineAccess: false,
-        });
-        const result: any = await GoogleAuth.signIn();
-
-        if (!result?.authentication?.idToken) throw new Error("Missing Google ID token.");
-        const { error } = await supabase.auth.signInWithIdToken({
-          provider: "google",
-          token: result.authentication.idToken,
-        });
-        if (error) throw error;
-        return;
-      }
-
-      // 4. Standard Web OAuth
-      const inIdiaShell =
-        typeof navigator !== "undefined" &&
-        (/IDIA-Native-Shell/i.test(navigator.userAgent) || !!webkit?.messageHandlers?.appleSignIn);
-
-      const useDeepLink = isNative || (inIdiaShell && provider === "google");
-
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: useDeepLink ? "idialife://auth-callback" : `${window.location.origin}/`,
-        },
-      });
-      if (error) throw error;
-    } catch (error: any) {
-      toast({ title: `${provider} Sign In failed`, description: error.message, variant: "destructive" });
-      setIsLoading(false);
-    }
-  };
-
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -259,10 +111,13 @@ const Auth = () => {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
+          // Surgical Fix: Land on root after email confirmation
           options: { emailRedirectTo: `${window.location.origin}/` },
         });
         if (error) throw error;
 
+        // Supabase returns a user with an EMPTY identities array when the email
+        // is already registered (obfuscated "repeated signup"). Treat as existing account.
         const alreadyRegistered = !data.session && (!data.user || (data.user.identities?.length ?? 0) === 0);
 
         if (alreadyRegistered) {
@@ -285,11 +140,166 @@ const Auth = () => {
     }
   };
 
+  const handleOAuthSignIn = async (provider: "google" | "apple") => {
+    setIsLoading(true);
+    console.log(`[START] OAuth Sign-In Dispatch · provider=${provider}`);
+    try {
+      const { Capacitor } = await import("@capacitor/core");
+      const isNative = Capacitor.isNativePlatform();
+      const platform = Capacitor.getPlatform();
+      console.log(`[INFO][OAUTH] platform=${platform} isNative=${isNative}`);
+
+      if (provider === "apple" && isNative) {
+        console.log("[START] Native Apple Sign-In Intercept");
+        const { SignInWithApple } = await import("@capacitor-community/apple-sign-in");
+
+        // 1. Native Apple UI — requests Name & Email (only present on first sign-in)
+        const result: any = await SignInWithApple.authorize({
+          clientId: "com.thebigidia.app",
+          redirectURI: `${window.location.origin}/`,
+          scopes: "email name",
+        });
+
+        // 2. Intercept PII on-device — seal in Secure Enclave
+        if (result?.response?.email || result?.response?.givenName) {
+          console.log("[APPLE_AUTH] PII detected. Sealing in local Secure Enclave.");
+          const piiPayload = {
+            first_name: result.response.givenName || "",
+            last_name: result.response.familyName || "",
+            email: result.response.email || "",
+            phone: "",
+          };
+          await SecureStoragePlugin.set({
+            key: "user_pii_profile",
+            value: JSON.stringify(piiPayload),
+          });
+        }
+
+        // 3. Authenticate with Supabase using only the cryptographic ID token (zero PII)
+        const { error } = await supabase.auth.signInWithIdToken({
+          provider: "apple",
+          token: result.response.identityToken,
+        });
+        if (error) throw error;
+        console.log("[END] Native Apple Auth Complete.");
+      } else if (provider === "google" && isNative) {
+        // ============================================================
+        // NATIVE GOOGLE SIGN-IN INTERCEPT (Android primarily; also iOS)
+        // Mirrors the Apple flow: native UI → seal PII in Secure Enclave
+        // → exchange ID token via Supabase signInWithIdToken (zero-PII DB)
+        // ============================================================
+        console.log("[START] Native Google Sign-In Intercept");
+
+        console.log("[START][GOOGLE_AUTH] Dynamic import of @codetrix-studio/capacitor-google-auth");
+        const { GoogleAuth } = await import("@codetrix-studio/capacitor-google-auth");
+        console.log("[END][GOOGLE_AUTH] Plugin module loaded");
+
+        console.log("[START][GOOGLE_AUTH] Plugin initialize()");
+        try {
+          await GoogleAuth.initialize({
+            clientId: "349472255801-091p5a3320h0kb9636hjsd2otfs160ct.apps.googleusercontent.com",
+            scopes: ["profile", "email"],
+            grantOfflineAccess: false,
+          });
+          console.log("[END:OK][GOOGLE_AUTH] Plugin initialized");
+        } catch (initErr: any) {
+          console.error("[END:FAIL][GOOGLE_AUTH] initialize() threw", initErr?.message || initErr);
+          throw initErr;
+        }
+
+        console.log("[START][GOOGLE_AUTH] signIn() — awaiting native consent sheet");
+        const result: any = await GoogleAuth.signIn();
+        console.log("[END:OK][GOOGLE_AUTH] signIn resolved", {
+          hasIdToken: !!result?.authentication?.idToken,
+          hasEmail: !!result?.email,
+          hasName: !!(result?.givenName || result?.familyName),
+        });
+
+        // Zero-PII: seal name/email locally; never persist to Supabase public schema
+        if (result?.email || result?.givenName || result?.familyName) {
+          console.log("[START][GOOGLE_AUTH] Sealing PII in Secure Enclave");
+          const piiPayload = {
+            first_name: result.givenName || "",
+            last_name: result.familyName || "",
+            email: result.email || "",
+            phone: "",
+          };
+          try {
+            await SecureStoragePlugin.set({
+              key: "user_pii_profile",
+              value: JSON.stringify(piiPayload),
+            });
+            console.log("[END:OK][GOOGLE_AUTH] PII sealed in Secure Enclave");
+          } catch (sealErr: any) {
+            console.error("[END:FAIL][GOOGLE_AUTH] Secure Enclave seal failed", sealErr?.message || sealErr);
+            // Non-fatal — continue with Supabase auth so user can still log in.
+          }
+        } else {
+          console.log("[INFO][GOOGLE_AUTH] No PII returned (returning user) — skip seal");
+        }
+
+        const idToken: string | undefined = result?.authentication?.idToken;
+        if (!idToken) {
+          console.error("[END:FAIL][GOOGLE_AUTH] No idToken on plugin result");
+          throw new Error("Google Sign-In returned no ID token.");
+        }
+
+        console.log("[START][GOOGLE_AUTH] supabase.auth.signInWithIdToken");
+        const { error } = await supabase.auth.signInWithIdToken({
+          provider: "google",
+          token: idToken,
+        });
+        if (error) {
+          console.error("[END:FAIL][GOOGLE_AUTH] Supabase token exchange failed", error.message);
+          throw error;
+        }
+        console.log("[END:OK][GOOGLE_AUTH] Supabase session established");
+        console.log("[END] Native Google Auth Complete.");
+      } else {
+        // The iOS shell is a plain WKWebView (not Capacitor), so isNative is false here.
+        // It intercepts navigations to accounts.google.com and hands them to
+        // ASWebAuthenticationSession, which only closes on the `idialife` callback scheme.
+        // Without that scheme the auth sheet finishes inside itself and the host app
+        // stays signed out — so force the deep-link redirect for Google inside the shell.
+        const inIdiaShell =
+          typeof navigator !== "undefined" &&
+          (/IDIA-Native-Shell/i.test(navigator.userAgent) || !!(window as any)?.webkit?.messageHandlers?.appleSignIn);
+
+        const useDeepLink = isNative || (inIdiaShell && provider === "google");
+        console.log(
+          `[INFO][OAUTH] Falling back to web signInWithOAuth · provider=${provider} shell=${inIdiaShell} deepLink=${useDeepLink}`,
+        );
+
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider,
+          options: {
+            redirectTo: useDeepLink ? "idialife://auth-callback" : `${window.location.origin}/`,
+          },
+        });
+        if (error) throw error;
+        console.log("[END][OAUTH] Web OAuth redirect dispatched");
+      }
+
+      console.log(`[END] OAuth Sign-In Dispatch · provider=${provider}`);
+    } catch (error: any) {
+      console.error(`[END:FAIL] OAuth Sign-In · provider=${provider}`, error?.message || error);
+      toast({ title: `${provider} Sign In failed`, description: error.message, variant: "destructive" });
+      setIsLoading(false);
+    }
+  };
+
+  // ==========================================
+  // 2. OTP PASSWORD RESET FLOW
+  // ==========================================
+
+  // Step 1: Request the 6-Digit Code
   const handleRequestOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsResetLoading(true);
 
     try {
+      // DISCUSSION: Route through the God-Mode Edge Function instead of the client SDK.
+      // This forces the email to send even if the account is shadowed by Apple Sign-In.
       const { data, error } = await supabase.functions.invoke("reset-password", {
         body: { email: resetEmail },
       });
@@ -309,6 +319,7 @@ const Auth = () => {
     }
   };
 
+  // Step 2: Verify Code and Set New Password
   const handleVerifyAndReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsResetLoading(true);
@@ -327,13 +338,18 @@ const Auth = () => {
       if (updateError) throw updateError;
 
       supabase.functions.invoke("send-security-alert", { body: { event: "password_changed" } }).catch(() => {});
-      toast({ title: "Password Updated!", description: "Your password has been successfully changed." });
+
+      toast({
+        title: "Password Updated!",
+        description: "Your password has been successfully changed. You can now log into IDIA Hub.",
+      });
 
       setResetStep("request");
       setResetEmail("");
       setOtpCode("");
       setNewPassword("");
       setIsResetMode(false);
+      // Surgical Fix: Land on root after reset
       navigate("/");
     } catch (error: any) {
       toast({ title: "Reset failed", description: error.message, variant: "destructive" });
@@ -342,6 +358,9 @@ const Auth = () => {
     }
   };
 
+  // ==========================================
+  // RENDER: PASSWORD RESET UI
+  // ==========================================
   if (isResetMode) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted/40 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
@@ -431,6 +450,9 @@ const Auth = () => {
     );
   }
 
+  // ==========================================
+  // RENDER: STANDARD AUTH UI
+  // ==========================================
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted/40 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
       <Card className="w-full max-w-md animate-fade-in">
