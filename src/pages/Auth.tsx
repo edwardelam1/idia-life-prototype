@@ -14,8 +14,6 @@ const AUTH_HISTORY_KEY = "idia_has_auth_history_v1";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
-  // Default to "Welcome Back" only on devices that have authenticated before;
-  // fresh browsers/devices land on "Create Account". Explicit ?mode= overrides.
   const modeParam = searchParams.get("mode");
   const defaultIsLogin =
     modeParam === "signup"
@@ -30,14 +28,12 @@ const Auth = () => {
             }
           })();
 
-  // Standard Auth States
   const [isLogin, setIsLogin] = useState(defaultIsLogin);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // OTP Password Reset States
   const [isResetMode, setIsResetMode] = useState(false);
   const [resetStep, setResetStep] = useState<"request" | "verify">("request");
   const [resetEmail, setResetEmail] = useState("");
@@ -61,13 +57,10 @@ const Auth = () => {
         try {
           localStorage.setItem(AUTH_HISTORY_KEY, "1");
         } catch {}
-        console.log("[START] Auth: post-auth Vault Guard handoff");
         try {
           const { isNewUser } = await runVaultGuard(session.user.id);
-          console.log(`[END] Auth: routing → ${isNewUser ? "/recovery-phrase" : "/"}`);
           navigate(isNewUser ? "/recovery-phrase" : "/", { replace: true });
         } catch (e: any) {
-          console.error("[ERROR] Auth: Vault Guard failed, falling back to dashboard", e);
           toast({ title: "Vault check failed", description: e.message, variant: "destructive" });
           navigate("/", { replace: true });
         }
@@ -84,11 +77,9 @@ const Auth = () => {
     const handleNativeAuthMessage = (event: MessageEvent) => {
       const type = event?.data?.type;
       if (type === "IDIA_AUTH_CANCELLED") {
-        console.log("[NATIVE_BRIDGE] Auth cancelled by user or failed.");
         setIsLoading(false);
         toast({ title: "Sign in cancelled", description: "Please try again when you're ready." });
       } else if (type === "IDIA_AUTH_COMPLETE") {
-        console.log("[NATIVE_BRIDGE] Auth handshake completed.");
         setIsLoading(false);
       }
     };
@@ -97,7 +88,6 @@ const Auth = () => {
       const payload = e?.detail || e;
       if (!payload?.identityToken) return;
 
-      console.log("[NATIVE_BRIDGE] Apple Auth Payload received.");
       setIsLoading(true);
 
       try {
@@ -125,11 +115,11 @@ const Auth = () => {
           }
         }
 
-        // 🚨 CRITICAL FIX: Kill spinner and navigate explicitly
         toast({ title: "Identity Verified", description: "Welcome to your Sovereign Vault." });
         setIsLoading(false);
         navigate("/", { replace: true });
       } catch (err: any) {
+        // 🚨 This catch block guarantees the spinner dies if Supabase throws the audience error
         toast({ title: "Apple Sign In failed", description: err.message, variant: "destructive" });
         setIsLoading(false);
       }
@@ -161,11 +151,9 @@ const Auth = () => {
   // ==========================================
   const handleOAuthSignIn = async (provider: "google" | "apple") => {
     setIsLoading(true);
-    console.log(`[START] OAuth Sign-In Dispatch · provider=${provider}`);
     try {
       const { Capacitor } = await import("@capacitor/core");
       const isNative = Capacitor.isNativePlatform();
-
       const webkit = (window as any)?.webkit;
 
       // 1. Force Native Shell Handler if available
@@ -176,7 +164,11 @@ const Auth = () => {
         setTimeout(() => {
           setIsLoading((prev) => {
             if (prev) {
-              toast({ title: "Timeout", description: "Apple Sign In timed out. Please try again." });
+              toast({
+                title: "Timeout",
+                description: "Apple Sign In timed out. Please try again.",
+                variant: "destructive",
+              });
             }
             return false;
           });
@@ -192,22 +184,6 @@ const Auth = () => {
           redirectURI: `${window.location.origin}/`,
           scopes: "email name",
         });
-
-        if (result?.response?.email || result?.response?.givenName) {
-          try {
-            await SecureStoragePlugin.set({
-              key: "user_pii_profile",
-              value: JSON.stringify({
-                first_name: result.response.givenName || "",
-                last_name: result.response.familyName || "",
-                email: result.response.email || "",
-                phone: "",
-              }),
-            });
-          } catch (err) {
-            console.warn("Secure Storage failed.", err);
-          }
-        }
 
         const { error } = await supabase.auth.signInWithIdToken({
           provider: "apple",
@@ -227,20 +203,6 @@ const Auth = () => {
         });
         const result: any = await GoogleAuth.signIn();
 
-        if (result?.email || result?.givenName) {
-          try {
-            await SecureStoragePlugin.set({
-              key: "user_pii_profile",
-              value: JSON.stringify({
-                first_name: result.givenName || "",
-                last_name: result.familyName || "",
-                email: result.email || "",
-                phone: "",
-              }),
-            });
-          } catch (err) {}
-        }
-
         if (!result?.authentication?.idToken) throw new Error("Missing Google ID token.");
         const { error } = await supabase.auth.signInWithIdToken({
           provider: "google",
@@ -250,7 +212,7 @@ const Auth = () => {
         return;
       }
 
-      // 4. Standard Web OAuth (The iOS Shell will intercept the Apple URL automatically)
+      // 4. Standard Web OAuth
       const inIdiaShell =
         typeof navigator !== "undefined" &&
         (/IDIA-Native-Shell/i.test(navigator.userAgent) || !!webkit?.messageHandlers?.appleSignIn);
@@ -270,9 +232,6 @@ const Auth = () => {
     }
   };
 
-  // ==========================================
-  // 1. STANDARD AUTH (LOGIN / SIGNUP / OAUTH)
-  // ==========================================
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -287,13 +246,10 @@ const Auth = () => {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          // Surgical Fix: Land on root after email confirmation
           options: { emailRedirectTo: `${window.location.origin}/` },
         });
         if (error) throw error;
 
-        // Supabase returns a user with an EMPTY identities array when the email
-        // is already registered (obfuscated "repeated signup"). Treat as existing account.
         const alreadyRegistered = !data.session && (!data.user || (data.user.identities?.length ?? 0) === 0);
 
         if (alreadyRegistered) {
@@ -321,8 +277,6 @@ const Auth = () => {
     setIsResetLoading(true);
 
     try {
-      // DISCUSSION: Route through the God-Mode Edge Function instead of the client SDK.
-      // This forces the email to send even if the account is shadowed by Apple Sign-In.
       const { data, error } = await supabase.functions.invoke("reset-password", {
         body: { email: resetEmail },
       });
@@ -360,18 +314,13 @@ const Auth = () => {
       if (updateError) throw updateError;
 
       supabase.functions.invoke("send-security-alert", { body: { event: "password_changed" } }).catch(() => {});
-
-      toast({
-        title: "Password Updated!",
-        description: "Your password has been successfully changed. You can now log into IDIA Hub.",
-      });
+      toast({ title: "Password Updated!", description: "Your password has been successfully changed." });
 
       setResetStep("request");
       setResetEmail("");
       setOtpCode("");
       setNewPassword("");
       setIsResetMode(false);
-      // Surgical Fix: Land on root after reset
       navigate("/");
     } catch (error: any) {
       toast({ title: "Reset failed", description: error.message, variant: "destructive" });
@@ -380,9 +329,6 @@ const Auth = () => {
     }
   };
 
-  // ==========================================
-  // RENDER: PASSWORD RESET UI
-  // ==========================================
   if (isResetMode) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted/40 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
@@ -472,9 +418,6 @@ const Auth = () => {
     );
   }
 
-  // ==========================================
-  // RENDER: STANDARD AUTH UI
-  // ==========================================
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted/40 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
       <Card className="w-full max-w-md animate-fade-in">
