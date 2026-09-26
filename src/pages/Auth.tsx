@@ -84,43 +84,56 @@ const Auth = () => {
       }
     };
 
+    // 🚨 VITAL FIX: Routes the native Face ID token through the Edge Proxy to bypass Audience errors
     const handleNativeAppleSuccess = async (e: CustomEvent | any) => {
       const payload = e?.detail || e;
-      if (!payload?.identityToken) return;
+      if (!payload?.identityToken) {
+        console.error("[APPLE_AUTH_ROUTER][FATAL] No identity token found in native bridge payload.");
+        return;
+      }
 
+      console.log("[APPLE_AUTH_ROUTER][BEGIN] Native payload received. Routing to Edge Proxy.");
       setIsLoading(true);
 
       try {
-        const { error } = await supabase.auth.signInWithIdToken({
-          provider: "apple",
-          token: payload.identityToken,
-        });
-
-        if (error) throw error;
-
-        // Zero-PII Caching
         if (payload.email || payload.firstName || payload.lastName) {
-          try {
-            await SecureStoragePlugin.set({
-              key: "user_pii_profile",
-              value: JSON.stringify({
-                first_name: payload.firstName || "",
-                last_name: payload.lastName || "",
-                email: payload.email || "",
-                phone: "",
-              }),
-            });
-          } catch (storageErr) {
-            console.warn("⚠️ Local PII seal failed.", storageErr);
-          }
+          SecureStoragePlugin.set({
+            key: "user_pii_profile",
+            value: JSON.stringify({
+              first_name: payload.firstName || "",
+              last_name: payload.lastName || "",
+              email: payload.email || "",
+              phone: "",
+            }),
+          }).catch(console.warn);
         }
 
-        toast({ title: "Identity Verified", description: "Welcome to your Sovereign Vault." });
-        setIsLoading(false);
-        navigate("/", { replace: true });
+        console.log("[APPLE_AUTH_ROUTER][TRACE] Invoking apple-auth-proxy...");
+        const { data, error } = await supabase.functions.invoke("apple-auth-proxy", {
+          body: { identityToken: payload.identityToken },
+        });
+
+        if (error) {
+          console.error("[APPLE_AUTH_ROUTER][ERROR] Proxy invocation failed:", error);
+          throw error;
+        }
+        if (data?.error) {
+          console.error("[APPLE_AUTH_ROUTER][ERROR] Proxy returned execution error:", data.error);
+          throw new Error(data.error);
+        }
+
+        console.log("[APPLE_AUTH_ROUTER][TRACE] Proxy returned magic exchange URL. Executing redirect...");
+        if (data?.url) {
+          // This URL hits Supabase GoTrue directly to establish the session cookies securely
+          window.location.href = data.url;
+          console.log("[APPLE_AUTH_ROUTER][END] Redirect executed successfully.");
+        } else {
+          console.error("[APPLE_AUTH_ROUTER][ERROR] Missing URL in proxy response.");
+          throw new Error("Invalid proxy response.");
+        }
       } catch (err: any) {
-        // 🚨 This catch block guarantees the spinner dies if Supabase throws the audience error
-        toast({ title: "Apple Sign In failed", description: err.message, variant: "destructive" });
+        console.error("[APPLE_AUTH_ROUTER][FATAL] Process halted due to uncaught exception.", err);
+        toast({ title: "Authentication Proxy Failed", description: err.message, variant: "destructive" });
         setIsLoading(false);
       }
     };
