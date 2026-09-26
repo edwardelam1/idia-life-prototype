@@ -1,27 +1,25 @@
-# Gov page links open like the Hub link, to their own pages
+# Fix: Apple sign-in spins after Face ID succeeds (iOS shell)
 
-## Why the last attempt pointed everything at the Hub
-On the Wallet page, the Hub button sends a message to the iPhone shell through a channel named `openExternalHub`. That channel only carries login tokens — no web address — so the shell always opens the Hub dashboard. Reusing it for Basescan gives the right sheet but the wrong page. The Swift handler isn't in this project; it lives in your Xcode ContentView.
+## What I found
 
-Today the Gov page links do this instead:
-- IDIA token link: `openBasescan()` in `BasescanSheet.tsx` does a full-page navigation in the iOS shell
-- Community pool cards: a bare `window.open(...)` in `LocalizedPoolsDisplay.tsx`
+- The iPhone app does its part. After Face ID it builds the Apple credential (identity token, name, email) and broadcasts it to the web page as `apple-signin:success`, a `postMessage`, `appleSignIn`, and `window.onAppleSignInSuccess`. Failures and cancels arrive as `apple-signin:error`.
+- **Nothing on the web side listens for any of these.** A search of the app code finds no listener. The sign-in screen starts the web Apple redirect. The shell cancels that redirect and shows the native sheet, but the returned token is never exchanged for a session. The button keeps spinning forever.
 
-## Fix: give external links their own channel and leave the Hub helper alone
-1. Add a new shared helper, `openExternalLink(url)`, in `src/lib/openExternalLink.ts`:
-   - iOS custom shell: if `webkit.messageHandlers.openExternalLink` exists, post `{ url }` to it
-   - Capacitor (Android): open the Capacitor Browser sheet
-   - Web: open a new tab, and show a toast if pop-ups are blocked
-   - Only `https://basescan.org/...` addresses are allowed, with explicit BEGIN and END logs
-2. Point `openBasescan()` at the new helper, using the token URL for the IDIA contract.
-3. Point the pool cards at the new helper, using the pool's `address` URL.
-4. Leave the Hub flow (`openExternalHub`) exactly as it is.
+## The fix (web only, `src/pages/Auth.tsx`)
 
-## Your part in Xcode (a short Swift snippet will be provided)
-- Register a second handler named `openExternalLink` next to `openExternalHub`
-- Read `url` from the message body and present it in the same in-app Safari sheet (`SFSafariViewController`) the Hub uses
-- Until the shell is rebuilt with that handler, the iPhone falls back to the current behaviour, so the links still open instead of breaking
+1. **Detect the shell for Apple.** When `webkit.messageHandlers.appleSignIn` exists, post to it directly instead of calling the web redirect. That way the page never navigates away.
+2. **Listen for the native result.** Add a one-time listener for `apple-signin:success` (with `window.onAppleSignInSuccess` as a fallback) and a listener for `apple-signin:error`. Clear both on success, on error, and when the component unmounts.
+3. **Exchange the token.** Call `supabase.auth.signInWithIdToken({ provider: "apple", token: identityToken })`. No nonce is sent, because the shell doesn't set one on the request.
+4. **Zero-PII.** If Apple returned a name or email (first sign-in only), store it in the device's Secure Storage (same as the Capacitor path) and never in the database.
+5. **Never spin forever.** On an error or cancel event, or after a 60 s timeout, stop the spinner and show a toast.
+6. **BEGIN/END logs** on each step, in the same `[APPLE_AUTH]` style.
+
+No Swift changes are needed. The Google, Capacitor Apple and web Apple paths stay as they are.
+
+## One setting to confirm
+
+A token from the native sheet names the **app's bundle ID** as its audience, not the web Services ID. In the backend's Apple provider, the Client IDs list must include the bundle ID alongside `com.thebigidia.app`. If it's missing, sign-in will fail with a clear "audience" error toast instead of spinning. I'll check the auth logs after your first attempt.
 
 ## Verification
-- Web: each link opens its own Basescan page, not the Hub
-- iPhone (after the shell rebuild): the token link and each pool card open in the Hub-style sheet with the correct address
+
+On your iPhone: tap Sign in with Apple, then approve Face ID. You should land in the app within a second or two. Cancelling should stop the spinner.
