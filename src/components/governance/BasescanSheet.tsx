@@ -1,19 +1,22 @@
 import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
 
+type BasescanKind = "token" | "address" | "tx";
+
 /**
  * Opens Basescan in the browser surface supplied by each host.
- * Basescan blocks iframe embedding, so rendering it inside a React overlay leaves a blank view.
+ * - iOS custom ContentView: posts to the `openExternalLink` handler, which presents
+ *   an SFSafariViewController page sheet (only https://basescan.org/ URLs are accepted).
+ * - Capacitor (Android): in-app browser sheet.
+ * - Web: new tab.
  */
-export const openBasescan = (contract: string): void => {
-  const url = `https://basescan.org/token/${contract}`;
-  const inCustomIOSShell =
-    /IDIA-Native-Shell/i.test(navigator.userAgent) || Boolean(window.webkit?.messageHandlers);
+export const openBasescan = (target: string, kind: BasescanKind = "token"): void => {
+  const url = `https://basescan.org/${kind}/${target}`;
+  const handler = (window as any).webkit?.messageHandlers?.openExternalLink;
 
-  if (inCustomIOSShell && !Capacitor.isNativePlatform()) {
-    // The custom ContentView intercepts top-level external navigation and presents
-    // the same Safari-style in-app sheet used for authentication.
-    window.location.assign(url);
+  if (handler && !Capacitor.isNativePlatform()) {
+    console.log(`[BASESCAN] iOS shell sheet -> ${url}`);
+    handler.postMessage({ url });
     return;
   }
 
