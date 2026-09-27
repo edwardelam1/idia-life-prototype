@@ -619,7 +619,11 @@ class WalletService {
       console.warn(`${TAG}[REFUSED] ${serverMsg}`);
     }
     const hash: string | null = data?.hash ?? null;
-    const relayerAddress: string | undefined = data?.relayer_address;
+    let relayerAddress: string | undefined = data?.relayer_address;
+    if (!relayerAddress) {
+      const probe = await supabase.functions.invoke("wallet-gas-drip", { body: { target_address: address, probe: true } });
+      relayerAddress = probe.data?.relayer_address;
+    }
 
     if (hash) {
       console.log(`${TAG}[BROADCAST] ${hash}`);

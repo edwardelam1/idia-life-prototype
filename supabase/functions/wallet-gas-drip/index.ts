@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.7";
-import { createWalletClient, http, parseEther } from "https://esm.sh/viem@2.9.20";
+import { createPublicClient, createWalletClient, http, parseEther } from "https://esm.sh/viem@2.9.20";
 import { privateKeyToAccount } from "https://esm.sh/viem@2.9.20/accounts";
 import { base } from "https://esm.sh/viem@2.9.20/chains";
 
@@ -61,6 +61,7 @@ Deno.serve(async (req: Request) => {
     }
     const registered = (profile?.wallet_address ?? "").toLowerCase();
     if (!registered || registered !== normalized) {
+      console.warn(`[DRIP] <<< END: WALLET_MISMATCH registered=${registered || "none"} target=${normalized}`);
       return new Response(JSON.stringify({ error: "WALLET_MISMATCH: target_address does not match the authenticated user's registered wallet." }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
@@ -119,6 +120,17 @@ Deno.serve(async (req: Request) => {
       chain: base,
       transport: http(Deno.env.get("BASE_RPC_URL") || "https://mainnet.base.org"),
     });
+
+    const publicClient = createPublicClient({
+      chain: base,
+      transport: http(Deno.env.get("BASE_RPC_URL") || "https://mainnet.base.org"),
+    });
+    const treasuryBal = await publicClient.getBalance({ address: account.address });
+    console.log(`[DRIP] --- DATA: Treasury ${account.address} balance=${treasuryBal} wei`);
+    if (treasuryBal < parseEther(DRIP_AMOUNT_ETH) * 2n) {
+      console.error("[DRIP] <<< END: TREASURY_EMPTY");
+      throw new Error("TREASURY_EMPTY: Gas treasury balance too low.");
+    }
 
     console.log(`[DRIP] --- ACTION: Dispatching ${DRIP_AMOUNT_ETH} ETH from Treasury to ${normalized}`);
 

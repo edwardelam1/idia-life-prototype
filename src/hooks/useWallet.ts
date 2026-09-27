@@ -197,6 +197,11 @@ export function useWallet(): UseWalletReturn {
       setHasWallet(true);
       setActiveNetwork(walletService.getActiveNetworkKey());
 
+      // Every wallet gets its one-time gas drip + authorization on arrival.
+      walletService
+        .authorizeExistingWallet((stage) => setProvisioningStage(stage))
+        .catch((e) => console.error('[useWallet] import provisioning failed:', e));
+
       return { address: r.address };
     } catch (e: any) { 
       setError(e.message); 
