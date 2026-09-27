@@ -57,13 +57,16 @@ const DataDashboard = () => {
   const [acaLoading, setAcaLoading] = useState(false);
   const { toast } = useToast();
 
-  // Live HealthKit bridge state from the native Swift background sync.
-  const { healthStatus } = useAppleHealthBridge();
+  // Initialize the HealthKit bridge silently to keep background syncs active,
+  // but rely strictly on DB audit records for UI status.
+  useAppleHealthBridge();
 
   // Refresh every connected source when the app wakes (mount, tab visible,
   // iOS `app:foreground`, Android Capacitor appStateChange).
   useSourceWakeRefresh({
-    onRefreshComplete: () => { fetchConnections(); },
+    onRefreshComplete: () => {
+      fetchConnections();
+    },
   });
 
   useEffect(() => {
@@ -163,11 +166,7 @@ const DataDashboard = () => {
 
       // Only active connections count as connected — the modal seeds an inactive
       // placeholder row while connecting, which must not render as "Connected".
-      const connRes = await supabase
-        .from("data_connections")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("is_active", true);
+      const connRes = await supabase.from("data_connections").select("*").eq("user_id", user.id).eq("is_active", true);
 
       if (connRes.error) {
         throw connRes.error;
@@ -268,28 +267,7 @@ const DataDashboard = () => {
     return sourceId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   };
 
-  // Live badge fed by the native Swift HealthKit bridge; falls back to the
-  // database status when no sync event has fired (bridge state "Idle").
-  const BRIDGE_BADGE_META: Record<string, { className: string }> = {
-    "Refreshing...": { className: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 animate-pulse" },
-    "Up to Date": { className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" },
-    "Idle (Throttled)": { className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
-    "Error": { className: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" },
-  };
-
   const renderSyncBadgeFor = (connection: DataBlocker) => {
-    const bridgeMeta = connection.connection_type === "apple_health" ? BRIDGE_BADGE_META[healthStatus] : undefined;
-    if (bridgeMeta) {
-      return (
-        <Badge
-          variant="secondary"
-          className={`border-none px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider cursor-default transition-colors ${bridgeMeta.className}`}
-        >
-          {healthStatus}
-        </Badge>
-      );
-    }
-
     const status = connection.status || "unknown";
     const meta = STATUS_META[status] || STATUS_META["unknown"];
     const order = ["recent", "delayed", "stale", "no_data", "unknown"];
@@ -459,11 +437,25 @@ const DataDashboard = () => {
     !hasFord && {
       name: "FordConnect",
       content: (
-        <div className="flex flex-col items-center cursor-pointer group" role="button" tabIndex={0} aria-label="Connect FordConnect" onClick={() => setShowFordModal(true)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setShowFordModal(true); } }}>
+        <div
+          className="flex flex-col items-center cursor-pointer group"
+          role="button"
+          tabIndex={0}
+          aria-label="Connect FordConnect"
+          onClick={() => setShowFordModal(true)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setShowFordModal(true);
+            }
+          }}
+        >
           <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border border-border transition-all group-hover:scale-105 flex items-center justify-center">
             <img src={fordLogo} alt="FordConnect" className="w-8 h-8 object-contain" />
           </div>
-          <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground text-center">FordConnect</p>
+          <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground text-center">
+            FordConnect
+          </p>
           <p className="text-[9px] text-muted-foreground/70 mt-0.5 text-center">Vehicle Telemetry</p>
         </div>
       ),
@@ -471,7 +463,19 @@ const DataDashboard = () => {
     !hasNest && {
       name: "Nest",
       content: (
-        <div className="flex flex-col items-center cursor-pointer group" role="button" tabIndex={0} aria-label="Connect Nest" onClick={() => setShowNestModal(true)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setShowNestModal(true); } }}>
+        <div
+          className="flex flex-col items-center cursor-pointer group"
+          role="button"
+          tabIndex={0}
+          aria-label="Connect Nest"
+          onClick={() => setShowNestModal(true)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setShowNestModal(true);
+            }
+          }}
+        >
           <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border border-border transition-all group-hover:scale-105 flex items-center justify-center">
             <img src={nestLogo} alt="Nest" className="w-8 h-8 object-contain" />
           </div>
@@ -483,16 +487,32 @@ const DataDashboard = () => {
     !hasStrava && {
       name: "Strava",
       content: (
-        <div className="flex flex-col items-center cursor-pointer group" role="button" tabIndex={0} aria-label="Connect Strava" onClick={() => setShowStravaModal(true)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setShowStravaModal(true); } }}>
+        <div
+          className="flex flex-col items-center cursor-pointer group"
+          role="button"
+          tabIndex={0}
+          aria-label="Connect Strava"
+          onClick={() => setShowStravaModal(true)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setShowStravaModal(true);
+            }
+          }}
+        >
           <div className="w-16 h-16 rounded-full overflow-hidden bg-background shadow-sm border border-border transition-all group-hover:scale-105 flex items-center justify-center">
             <img src={stravaLogo} alt="Strava" className="w-8 h-8 object-contain" />
           </div>
-          <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground text-center">Strava</p>
+          <p className="text-[10px] font-bold mt-2 uppercase tracking-wider text-muted-foreground text-center">
+            Strava
+          </p>
           <p className="text-[9px] text-muted-foreground/70 mt-0.5 text-center">Activity & Routes</p>
         </div>
       ),
     },
-  ].filter((source): source is { name: string; content: JSX.Element } => Boolean(source)).sort((a, b) => a.name.localeCompare(b.name));
+  ]
+    .filter((source): source is { name: string; content: JSX.Element } => Boolean(source))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const sortedVisibleConnections = [...visibleConnections].sort((a, b) =>
     formatSourceName(a.connection_type).localeCompare(formatSourceName(b.connection_type)),
@@ -545,13 +565,15 @@ const DataDashboard = () => {
             </div>
             {availableSources.length > 0 ? (
               <InfiniteCarousel direction="left" ariaLabel="Available data sources">
-                {availableSources.map((source) => <div key={source.name}>{source.content}</div>)}
+                {availableSources.map((source) => (
+                  <div key={source.name}>{source.content}</div>
+                ))}
               </InfiniteCarousel>
             ) : (
-                <div className="w-full text-center py-6 text-muted-foreground">
-                  <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50 text-teal-600" />
-                  <p className="text-sm">All available sources connected</p>
-                </div>
+              <div className="w-full text-center py-6 text-muted-foreground">
+                <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50 text-teal-600" />
+                <p className="text-sm">All available sources connected</p>
+              </div>
             )}
           </div>
 
