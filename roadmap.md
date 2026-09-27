@@ -31,3 +31,5 @@
 - [ ] Push delivery for Apple Health / Health Connect wake-ups — needs an FCM service account secret and registered device tokens
 
 - [x] Connected sources refresh on app wake (mount, foreground, iOS/Android shells) with a 5-minute cooldown and a manual Refresh control
+- [x] Every wallet (created or imported) gets its gas drip; drip errors shown instead of "Waiting for gas"
+- [x] Gov Basescan links use the iOS shell openExternalLink sheet
