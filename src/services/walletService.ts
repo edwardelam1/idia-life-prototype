@@ -575,6 +575,77 @@ class WalletService {
   }
 
   /**
+   * Make sure the signed-in account's profile points at this wallet before
+   * asking for gas — the drip service refuses any address that isn't linked.
+   * SELECT-then-UPDATE (no upsert).
+   */
+  private async ensureWalletLinked(address: string): Promise<void> {
+    const TAG = "[WALLET_LINK]";
+    console.log(`${TAG}[BEGIN] ${address}`);
+    const { data: auth } = await supabase.auth.getUser();
+    const userId = auth?.user?.id;
+    if (!userId) throw new Error("You need to be signed in to fund this wallet.");
+    const { data: profile, error } = await supabase
+      .from("profiles").select("wallet_address").eq("id", userId).maybeSingle();
+    if (error) throw new Error(`Profile lookup failed: ${error.message}`);
+    if ((profile?.wallet_address ?? "").toLowerCase() !== address.toLowerCase()) {
+      const { error: updErr } = await supabase
+        .from("profiles")
+        .update({ wallet_address: address, updated_at: new Date().toISOString() } as any)
+        .eq("id", userId);
+      if (updErr) throw new Error(`Could not link wallet to your account: ${updErr.message}`);
+      console.log(`${TAG}[UPDATED] profile now points at ${address}`);
+    }
+    console.log(`${TAG}[END]`);
+  }
+
+  /**
+   * Request the one-time gas drip and wait for it to land. Throws a readable
+   * error instead of silently waiting when the drip service refuses.
+   */
+  async requestAndAwaitGas(address: string): Promise<{ hash: string | null; relayerAddress?: string }> {
+    const TAG = "[GAS_DRIP]";
+    console.log(`${TAG}[BEGIN] ${address}`);
+    await this.ensureWalletLinked(address);
+    const provider = this.getProvider();
+
+    const { data, error } = await supabase.functions.invoke("wallet-gas-drip", {
+      body: { target_address: address },
+    });
+    let serverMsg = "";
+    if (error) {
+      try { serverMsg = (await (error as any).context?.json())?.error ?? ""; } catch { /* ignore */ }
+      serverMsg = serverMsg || (error as any)?.message || String(error);
+      console.warn(`${TAG}[REFUSED] ${serverMsg}`);
+    }
+    const hash: string | null = data?.hash ?? null;
+    const relayerAddress: string | undefined = data?.relayer_address;
+
+    if (hash) {
+      console.log(`${TAG}[BROADCAST] ${hash}`);
+      const receipt = await provider.waitForTransaction(hash, 1, 60_000).catch(() => null);
+      if (!receipt || receipt.status !== 1) {
+        throw new Error(`NO_GAS: Gas transfer ${hash.slice(0, 10)}... did not confirm within 60 seconds.`);
+      }
+      console.log(`${TAG}[END] confirmed`);
+      return { hash, relayerAddress };
+    }
+
+    const bal = await provider.getBalance(address);
+    if (bal > 0n) {
+      console.log(`${TAG}[END] already has gas`);
+      return { hash: null, relayerAddress };
+    }
+    if (serverMsg.includes("WALLET_ALREADY_FUNDED")) {
+      throw new Error("NO_GAS: This wallet already used its one-time gas and is now empty. Add a small amount of ETH on Base to continue.");
+    }
+    if (serverMsg.includes("TREASURY_EMPTY")) {
+      throw new Error("The gas treasury is empty right now. Please try again later.");
+    }
+    throw new Error(serverMsg ? `Gas request failed: ${serverMsg}` : "Gas request failed.");
+  }
+
+  /**
    * Drip + Sign onboarding sequence for a freshly-created wallet on Base.
    *
    * Steps:
@@ -610,33 +681,10 @@ class WalletService {
     try {
       // -- 1. Request drip ------------------------------------------------
       setStage("requesting_drip");
-      const { data: dripData, error: dripError } = await supabase.functions.invoke("wallet-gas-drip", {
-        body: { target_address: address },
-      });
-      if (dripError) {
-        const msg = (dripError as any)?.message || String(dripError);
-        console.warn(`${TAG}[DRIP_REQUEST] non-fatal error: ${msg}`);
-      }
-      const dripTxHash: string = dripData?.hash ?? "ALREADY_FUNDED";
-      const relayerAddress: string | undefined = dripData?.relayer_address;
-      console.log(`${TAG}[DRIP_REQUEST][OK] hash=${dripTxHash} relayer=${relayerAddress}`);
-
-      // -- 2. Await gas on Base -------------------------------------------
+      const drip = await this.requestAndAwaitGas(address);
       setStage("awaiting_gas");
-      const provider = this.getProvider();
-      const POLL_INTERVAL_MS = 2000;
-      const MAX_POLLS = 15;
-      let funded = false;
-      for (let i = 0; i < MAX_POLLS; i++) {
-        const bal = await provider.getBalance(address);
-        console.log(`${TAG}[DRIP_POLL] attempt=${i + 1}/${MAX_POLLS} bal=${bal.toString()}`);
-        if (bal > 0n) {
-          funded = true;
-          break;
-        }
-        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-      }
-      if (!funded) throw new Error("Gas drip did not land within 30 seconds");
+      const dripTxHash: string = drip.hash ?? "ALREADY_FUNDED";
+      const relayerAddress: string | undefined = drip.relayerAddress;
 
       // -- 3. USDC.approve(relayer) -- for gasless relay operations --------
       setStage("approving_usdc");
@@ -784,26 +832,9 @@ class WalletService {
       // -- 1. Gas ---------------------------------------------------------
       if (!status.hasGas) {
         setStage("requesting_drip");
-        const { data: dripData, error: dripError } = await supabase.functions.invoke("wallet-gas-drip", {
-          body: { target_address: address },
-        });
-        if (dripError && !dripData?.hash) {
-          const msg = (dripError as any)?.message || String(dripError);
-          console.warn(`${TAG}[DRIP_REQUEST] ${msg}`);
-        }
-        if (dripData?.relayer_address) status.relayerAddress = dripData.relayer_address;
-
+        const drip = await this.requestAndAwaitGas(address);
         setStage("awaiting_gas");
-        const provider = this.getProvider();
-        let funded = false;
-        for (let i = 0; i < 15; i++) {
-          const bal = await provider.getBalance(address);
-          if (bal > 0n) { funded = true; break; }
-          await new Promise((r) => setTimeout(r, 2000));
-        }
-        if (!funded) {
-          throw new Error("NO_GAS: This wallet needs a small amount of ETH on Base to complete authorization.");
-        }
+        if (drip.relayerAddress) status.relayerAddress = drip.relayerAddress;
       }
 
       const signer = this.getSigner();
