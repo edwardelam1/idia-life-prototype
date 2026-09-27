@@ -188,13 +188,17 @@ const DataDashboard = () => {
       for (let i = 0; i < rawData.length; i++) {
         const item = rawData[i];
 
-        // Find the latest audit record for THIS specific source
+        // Freshness = newest of the connection's last_sync_at and its latest
+        // consent record (consent records are only written at connect time).
         const latestAudit = auditData.find((a) => a.source_id === item.connection_type);
+        const candidates = [
+          (item as any).last_sync_at ? new Date((item as any).last_sync_at).getTime() : NaN,
+          latestAudit ? new Date(latestAudit.created_at).getTime() : NaN,
+        ].filter((t) => Number.isFinite(t));
 
         let status = "no_data";
-        if (latestAudit) {
-          const lastSyncTime = new Date(latestAudit.created_at).getTime();
-          const hoursSinceLastSync = (Date.now() - lastSyncTime) / (1000 * 60 * 60);
+        if (candidates.length > 0) {
+          const hoursSinceLastSync = (Date.now() - Math.max(...candidates)) / (1000 * 60 * 60);
 
           if (hoursSinceLastSync < 6) status = "recent";
           else if (hoursSinceLastSync < 24) status = "delayed";
