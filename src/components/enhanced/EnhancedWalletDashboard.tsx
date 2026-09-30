@@ -750,7 +750,7 @@ const EnhancedWalletDashboard: React.FC = () => {
               transaction_type: tx.transaction_type,
               amount: Number(tx.amount),
               description: tx.description || "UNLABELED_TRANSACTION",
-              source: strictCurrency || "USD",
+              source: strictCurrency && strictCurrency !== "USD" ? strictCurrency : "USDC",
               created_at: tx.created_at,
               metadata: tx.metadata || {},
             };
@@ -761,8 +761,27 @@ const EnhancedWalletDashboard: React.FC = () => {
         .filter(Boolean) as Transaction[];
 
       const mappedSynapseRows = (synapseResult.data || [])
+        .filter((syn: any) => String(syn.status ?? "").toLowerCase() !== "failed")
         .map((syn: any) => {
           try {
+            const txType = String(syn.transaction_type ?? "");
+            // Contributor payouts: USDC leg and 1:1 IDIA Token leg. Amount lives in `amount` only.
+            if (txType === "data_sale_payout" || txType === "idia_royalty_yield") {
+              const asset = txType === "data_sale_payout" ? "USDC" : "IDIA";
+              return {
+                id: syn.id,
+                transaction_type: txType,
+                amount: Math.abs(Number(syn.amount ?? 0)),
+                description: syn.description || (asset === "USDC" ? "Data Sale Payout" : "IDIA Royalty Yield"),
+                source: asset,
+                created_at: syn.created_at,
+                metadata: {
+                  type: txType,
+                  transaction_hash: syn.blockchain_tx_hash || undefined,
+                  original_data: syn,
+                },
+              };
+            }
             const isPurchase =
               syn.metadata?.class === "Synapse_Purchase" || syn.metadata?.product_class === "SAAS_UTILITY_PURCHASE";
             const entryType = String(syn.entry_type ?? "").toLowerCase();
@@ -770,7 +789,9 @@ const EnhancedWalletDashboard: React.FC = () => {
             const metadataAsset = String(syn.metadata?.asset ?? "").toUpperCase();
             const isRoyalty = !isPurchase && !isConsumption && (metadataAsset === "USDC" || metadataAsset === "IDIA");
             let sourceAsset = "CREDS";
-            let atomicAmount = syn.amount_usdc ?? syn.amount_idia_usd ?? syn.amount ?? 0;
+            const usdcAmt = Number(syn.amount_usdc);
+            const hasUsdc = syn.amount_usdc !== null && syn.amount_usdc !== undefined && usdcAmt !== 0;
+            let atomicAmount = hasUsdc ? usdcAmt : Number(syn.amount ?? 0);
 
             if (isPurchase) {
               sourceAsset = "CR";
@@ -780,9 +801,8 @@ const EnhancedWalletDashboard: React.FC = () => {
               atomicAmount = -Math.abs(Number(syn.amount ?? 0));
             } else if (isRoyalty) {
               sourceAsset = metadataAsset;
-              atomicAmount = Math.abs(Number(syn.amount ?? syn.amount_usdc ?? syn.amount_idia_usd ?? 0));
-            } else if (syn.amount_usdc !== null) sourceAsset = "USDC";
-            else if (syn.amount_idia_usd !== null) sourceAsset = "IDIA";
+              atomicAmount = Math.abs(Number(syn.amount ?? 0) || (hasUsdc ? usdcAmt : 0));
+            } else if (hasUsdc) sourceAsset = "USDC";
 
             return {
               id: syn.id,
@@ -1659,7 +1679,13 @@ const EnhancedWalletDashboard: React.FC = () => {
                 <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
                   <Hash size={12} /> Asset Rail
                 </div>
-                <p className="text-sm font-bold text-slate-800">{selectedTransaction?.source}</p>
+                <p className="text-sm font-bold text-slate-800">
+                  {selectedTransaction?.source === "USDC"
+                    ? "Crypto · USDC"
+                    : selectedTransaction?.source === "IDIA"
+                      ? "Crypto · IDIA Token"
+                      : selectedTransaction?.source}
+                </p>
               </div>
             </div>
             {selectedTransaction?.transaction_type === "synapse_credit_purchase" && (

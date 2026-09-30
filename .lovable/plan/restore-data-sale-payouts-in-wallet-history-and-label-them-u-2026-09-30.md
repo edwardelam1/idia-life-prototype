@@ -17,9 +17,9 @@
 
 1. **Payouts come back.** For `data_sale_payout` and `idia_royalty_yield` rows, take the amount only from the ledger's main amount field. `amount_idia_usd` is never read for these rows.
 2. **Correct labels.**
-   - `data_sale_payout` shows as **USDC**, e.g. "+0.03 USDC", with the rail shown as Crypto · USDC.
-   - `idia_royalty_yield` shows as **IDIA Token**, e.g. "+0.025 IDIA" (4 decimals), with the rail shown as Crypto · IDIA Token. It is never labelled IDIA-USD.
-   - Both show as positive income. Failed rows stay hidden, as they are now.
+  - `data_sale_payout` shows as **USDC**, e.g. "+0.03 USDC", with the rail shown as Crypto · USDC.
+  - `idia_royalty_yield` shows as **IDIA Token**, e.g. "+0.025 IDIA" (4 decimals), with the rail shown as Crypto · IDIA Token. It is never labelled IDIA-USD.
+  - Both show as positive income. Failed rows stay hidden, as they are now.
 3. **No more Fiat/USD for payouts.** The older earnings rows that have no currency show **USDC**, not "USD". Any row without a currency falls back to USDC.
 4. **IDIA-USD kept separate.** A generic ledger row labelled "IDIA" only because of `amount_idia_usd` is now labelled **IDIA-USD**, not IDIA Token. It only appears if that field is actually non-zero.
 5. The hidden corporate and war-chest rows, pending-consent rows, the zero-row rule, the date sort and the balances stay as they are.
@@ -27,8 +27,8 @@
 ## Technical details
 
 - `EnhancedWalletDashboard.tsx` `mappedSynapseRows`: branch on `syn.transaction_type` first. `data_sale_payout` → source `USDC` and amount `Math.abs(Number(syn.amount))`. `idia_royalty_yield` → source `IDIA` (IDIA Token) and amount `Math.abs(Number(syn.amount))`. Skip rows whose `status` is `failed`.
-- Generic fallback: use `amount_usdc` only when it's non-null and non-zero. Use `amount_idia_usd` only when it's non-zero, with source `IDIA-USD`. Otherwise use `amount`.
-- `formatAmount`: add `IDIA-USD` formatting (2 decimals, "IDIA-USD").
+- Generic fallback: use `amount_usdc` only when it's non-null and non-zero. NEVER Use `amount_idia_usd` FOR ANY REASON AS IT'S NOT ACTIVE YET.  USE`amount`.
 - `mappedTx`: the fallback currency becomes `"USDC"`.
-- Receipt "Asset Rail": `USDC` → "Crypto · USDC", `IDIA` → "Crypto · IDIA Token", `IDIA-USD` → "Crypto · IDIA-USD".
-- No database, edge function or settlement changes.
+- Receipt "Asset Rail": `USDC` → "Crypto · USDC", `IDIA` → "Crypto · IDIA Token".
+- No database, edge function or settlement changes.  
+STAY AWAY FROM USING IDIA-TOKEN, IT DOES NOT WORK. ONLY USDC AND IDIA TOKEN, THAT'S IT!
