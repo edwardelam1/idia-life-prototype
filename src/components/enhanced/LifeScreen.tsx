@@ -356,7 +356,7 @@ const LifeScreen: React.FC = () => {
                 <div className="flex flex-col items-center gap-3 h-full">
                   <StandingOrb score={profile?.trust_score ?? null} size={170} />
 
-                  <div className="w-full flex flex-col gap-2 p-3 bg-teal-50/50 border border-teal-100 rounded-xl">
+                  <div className="w-full flex flex-col gap-2 p-3 bg-teal-500/10 border border-teal-500/20 rounded-xl">
                     <div className="space-y-0.5">
                       <h3 className="font-semibold flex items-center gap-2 text-foreground text-sm">
                         <BrainCircuit className="w-4 h-4 text-teal-600" />
@@ -386,7 +386,7 @@ const LifeScreen: React.FC = () => {
                     </Dialog>
 
                     {/* NFC Sync Section — Nearby button purged for social engineering requirement */}
-                    <div className="mt-7 pt-3 border-t border-teal-100 flex flex-col items-center gap-2">
+                    <div className="mt-7 pt-3 border-t border-teal-500/20 flex flex-col items-center gap-2">
                       <div className="flex items-center gap-2">
                         <Button
                           size="sm"
