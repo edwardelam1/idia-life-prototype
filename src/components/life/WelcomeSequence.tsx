@@ -13,8 +13,6 @@ interface SpotlightTab {
   copy: string;
 }
 
-import { IDIA_PAY_RELEASE_DATE } from "@/config/release";
-
 const ALL_SPOTLIGHT_TABS: SpotlightTab[] = [
   { id: "wallet", label: "Wallet", copy: "See, manage, and control your financial world with clarity." },
   { id: "data", label: "My Data", copy: "Connect your apps. Turn everyday digital activity into earnings." },
@@ -30,8 +28,7 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
   const [spotlightRect, setSpotlightRect] = useState<{ x: number; y: number; r: number } | null>(null);
 
   const SPOTLIGHT_TABS = useMemo(() => {
-    const isPayReady = new Date() >= IDIA_PAY_RELEASE_DATE;
-    const gated = new Set(isPayReady ? [] : ["shop", "life"]);
+    const gated = new Set(["shop"]);
     return ALL_SPOTLIGHT_TABS.filter((t) => !gated.has(t.id));
   }, []);
 

@@ -81,7 +81,7 @@ const MainApp = () => {
     () => [
       { id: "wallet", label: "Wallet", icon: Wallet, component: EnhancedWalletDashboard },
       { id: "data", label: "Data", icon: Database, component: DataDashboard },
-      ...(isPayReady ? [{ id: "life", label: "Life", icon: Users, component: LifeScreen }] : []),
+      { id: "life", label: "Life", icon: Users, component: LifeScreen },
       ...(isPayReady ? [{ id: "shop", label: "Shop", icon: ShoppingBag, component: ShopScreen }] : []),
       { id: "vote", label: "Gov", icon: Vote, component: GovernanceScreen },
       { id: "pro", label: "Pro", icon: Crown, component: ProScreen },
