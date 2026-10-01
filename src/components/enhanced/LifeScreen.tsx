@@ -61,8 +61,7 @@ function tierColorForScore(score: number | null | undefined): string {
 }
 
 const LifeScreen: React.FC = () => {
-  const { friends, trustCircles, goodDeeds, socialMetrics, loading, acceptFriendRequest, reload } =
-    useSocialGraph();
+  const { friends, trustCircles, goodDeeds, socialMetrics, loading, acceptFriendRequest, reload } = useSocialGraph();
 
   const { profile, updateProfile, loading: profileLoading } = useEnhancedProfile();
 
@@ -97,8 +96,7 @@ const LifeScreen: React.FC = () => {
 
   // After a successful Sync, prompt the user to label the new Connection.
   const promptLabelForLatestSync = () => {
-    const latest = [...friends]
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+    const latest = [...friends].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
     if (latest) setLabelTarget(latest.id);
   };
 
@@ -190,7 +188,9 @@ const LifeScreen: React.FC = () => {
     setIsSubmittingDeed(true);
     console.log("[GOOD_DEED_SUBMISSION_START]");
     try {
-      const { data: { user } } = await getCachedUser();
+      const {
+        data: { user },
+      } = await getCachedUser();
       if (!user) {
         toast("Please sign in to submit a Good Deed.");
         return;
@@ -212,30 +212,24 @@ const LifeScreen: React.FC = () => {
       // 2. Upload the evidence file
       const ext = (newDeedFile.name.split(".").pop() || "bin").toLowerCase().slice(0, 8);
       const path = `${user.id}/${inserted.id}.${ext}`;
-      const { error: uploadErr } = await supabase.storage
-        .from("deed-evidence")
-        .upload(path, newDeedFile, {
-          cacheControl: "3600",
-          upsert: true,
-          contentType: newDeedFile.type || undefined,
-        });
+      const { error: uploadErr } = await supabase.storage.from("deed-evidence").upload(path, newDeedFile, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: newDeedFile.type || undefined,
+      });
       if (uploadErr) throw uploadErr;
 
       // 3. Persist the storage path
-      await supabase
-        .from("good_deeds")
-        .update({ evidence_url: path })
-        .eq("id", inserted.id);
+      await supabase.from("good_deeds").update({ evidence_url: path }).eq("id", inserted.id);
 
       toast.success("Submitted for review", {
         description: "Your Good Deed is being checked by the Friend AI.",
       });
 
       // 4. Fire the AI verifier
-      const { data: verifyData, error: verifyErr } = await supabase.functions.invoke(
-        "verify-good-deed-evidence",
-        { body: { deed_id: inserted.id } },
-      );
+      const { data: verifyData, error: verifyErr } = await supabase.functions.invoke("verify-good-deed-evidence", {
+        body: { deed_id: inserted.id },
+      });
       if (verifyErr) {
         console.error("[DEED_AI_ERROR]", verifyErr);
         toast("Could not finish AI review. Your Deed will stay as Pending.");
@@ -342,11 +336,21 @@ const LifeScreen: React.FC = () => {
     <div className="h-full max-h-full overflow-hidden flex flex-col">
       <Tabs defaultValue="overview" className="flex-1 min-h-0 flex flex-col gap-2">
         <TabsList className="grid grid-cols-5 w-full bg-muted/20 shrink-0">
-          <TabsTrigger value="overview" className="text-[11px] px-1">Overview</TabsTrigger>
-          <TabsTrigger value="friends" className="text-[11px] px-1">Connections</TabsTrigger>
-          <TabsTrigger value="sphere" className="text-[11px] px-1">Sphere</TabsTrigger>
-          <TabsTrigger value="circles" className="text-[11px] px-1">Circles</TabsTrigger>
-          <TabsTrigger value="deeds" className="text-[11px] px-1">Deeds</TabsTrigger>
+          <TabsTrigger value="overview" className="text-[11px] px-1">
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="friends" className="text-[11px] px-1">
+            Connections
+          </TabsTrigger>
+          <TabsTrigger value="sphere" className="text-[11px] px-1">
+            Sphere
+          </TabsTrigger>
+          <TabsTrigger value="circles" className="text-[11px] px-1">
+            Circles
+          </TabsTrigger>
+          <TabsTrigger value="deeds" className="text-[11px] px-1">
+            Deeds
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="flex-1 min-h-0 overflow-hidden m-0">
@@ -373,7 +377,7 @@ const LifeScreen: React.FC = () => {
                           size="sm"
                           className="w-full font-bold shadow-lg shadow-orange-500/20 bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white border-none"
                         >
-                          {isCalculating ? "Calculating..." : "Take our Tests"}
+                          {isCalculating ? "Calculating..." : "Take our Assessments"}
                           <ArrowRight className="w-4 h-4 ml-2" />
                         </Button>
                       </DialogTrigger>

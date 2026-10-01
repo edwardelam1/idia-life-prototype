@@ -993,7 +993,6 @@ const EnhancedWalletDashboard: React.FC = () => {
           >
             {/* Pending consent requests now live inside the History tab. */}
 
-
             <Card className="bg-gradient-to-br from-[hsl(178,42%,32%)] to-[hsl(178,42%,42%)] text-white border-none shadow-xl rounded-[2.5rem] overflow-hidden">
               <CardContent className="p-7">
                 <div className="flex justify-between items-start">
@@ -1215,9 +1214,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                         <Icon size={18} className={tx.pending ? "text-amber-600" : "text-muted-foreground"} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p
-                          className={`font-bold text-sm truncate ${tx.pending ? "text-amber-900" : "text-slate-800"}`}
-                        >
+                        <p className={`font-bold text-sm truncate ${tx.pending ? "text-amber-900" : "text-slate-800"}`}>
                           {tx.description}
                         </p>
                         <div className="flex items-center gap-2">
@@ -1274,7 +1271,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                     <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
                       <DialogTrigger asChild>
                         <Button className="w-full font-bold shadow-lg shadow-orange-500/30 bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white">
-                          {isCalculating ? "Calculating..." : "Need an advance? Take our Tests"}{" "}
+                          {isCalculating ? "Calculating..." : "Need an advance? Take our Assessments"}{" "}
                           <ArrowRight className="w-4 h-4 ml-2" />
                         </Button>
                       </DialogTrigger>
@@ -1300,7 +1297,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                   <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
                     <DialogTrigger asChild>
                       <Button className="w-full font-bold shadow-lg shadow-orange-500/30 bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white">
-                        {isCalculating ? "Calculating..." : "Need an advance? Take our Tests"}{" "}
+                        {isCalculating ? "Calculating..." : "Need an advance? Take our Asssessments"}{" "}
                         <ArrowRight className="w-4 h-4 ml-2" />
                       </Button>
                     </DialogTrigger>
