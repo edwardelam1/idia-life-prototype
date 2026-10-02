@@ -6830,6 +6830,156 @@ export type Database = {
         }
         Relationships: []
       }
+      music_connections: {
+        Row: {
+          access_token: string
+          created_at: string
+          display_name: string | null
+          expires_at: string | null
+          last_synced_at: string | null
+          product: string | null
+          provider: string
+          provider_user_id: string | null
+          refresh_token: string | null
+          scopes: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          display_name?: string | null
+          expires_at?: string | null
+          last_synced_at?: string | null
+          product?: string | null
+          provider: string
+          provider_user_id?: string | null
+          refresh_token?: string | null
+          scopes?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          display_name?: string | null
+          expires_at?: string | null
+          last_synced_at?: string | null
+          product?: string | null
+          provider?: string
+          provider_user_id?: string | null
+          refresh_token?: string | null
+          scopes?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      music_listening_history: {
+        Row: {
+          album: string | null
+          artists: string | null
+          created_at: string
+          duration_ms: number | null
+          id: string
+          isrc: string | null
+          played_at: string
+          provider: string
+          track_id: string
+          track_name: string
+          user_id: string
+        }
+        Insert: {
+          album?: string | null
+          artists?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          id?: string
+          isrc?: string | null
+          played_at: string
+          provider: string
+          track_id: string
+          track_name: string
+          user_id: string
+        }
+        Update: {
+          album?: string | null
+          artists?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          id?: string
+          isrc?: string | null
+          played_at?: string
+          provider?: string
+          track_id?: string
+          track_name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      music_oauth_states: {
+        Row: {
+          created_at: string
+          provider: string
+          return_to: string
+          state: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          provider: string
+          return_to: string
+          state: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          provider?: string
+          return_to?: string
+          state?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      music_user_library: {
+        Row: {
+          id: string
+          item_id: string
+          kind: string
+          name: string
+          payload: Json
+          provider: string
+          rank: number | null
+          synced_at: string
+          time_range: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          item_id: string
+          kind: string
+          name: string
+          payload?: Json
+          provider: string
+          rank?: number | null
+          synced_at?: string
+          time_range?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          item_id?: string
+          kind?: string
+          name?: string
+          payload?: Json
+          provider?: string
+          rank?: number | null
+          synced_at?: string
+          time_range?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       nano_bite_executions: {
         Row: {
           action: string
