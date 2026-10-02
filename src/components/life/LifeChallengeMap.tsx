@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import StandingOrb from "./StandingOrb";
-import mapStart from "@/assets/life-map-start.jpg";
-import mapJourney from "@/assets/life-map-journey.jpg";
-import mapDestination from "@/assets/life-map-destination.jpg";
 import type { LifeChallengeState } from "@/hooks/useLifeChallengeProgress";
 import { fireHouseConfetti } from "@/components/psychometric/confetti";
 
@@ -24,42 +21,136 @@ type MapNode = {
   position: string;
 };
 
-type MapSection = {
-  id: string;
-  image: string;
-  alt: string;
-  nodes: MapNode[];
-  destination?: boolean;
-};
-
-// New journey sections can be inserted before the destination without changing the map renderer.
-const MAP_SECTIONS: MapSection[] = [
-  {
-    id: "destination",
-    image: mapDestination,
-    alt: "The illuminated IDIA house beyond a jungle challenge clearing",
-    destination: true,
-    nodes: [{ challenge: 5, key: "proposalVote", position: "left-[50%] top-[56%]" }],
-  },
-  {
-    id: "journey-one",
-    image: mapJourney,
-    alt: "A luminous jungle path connecting two challenge clearings",
-    nodes: [
-      { challenge: 4, key: "dataSource", position: "left-[68%] top-[56%]" },
-      { challenge: 3, key: "goodDeed", position: "left-[30%] top-[20%]" },
-    ],
-  },
-  {
-    id: "start",
-    image: mapStart,
-    alt: "The beginning of the Life journey through two jungle challenge clearings",
-    nodes: [
-      { challenge: 2, key: "connection", position: "left-[68%] top-[22%]" },
-      { challenge: 1, key: "assessment", position: "left-[29%] top-[55%]" },
-    ],
-  },
+// Every stop is measured in the same 600 × 1800 coordinate space as the road.
+const MAP_NODES: MapNode[] = [
+  { challenge: 5, key: "proposalVote", position: "left-[50%] top-[16.67%]" },
+  { challenge: 4, key: "dataSource", position: "left-[70%] top-[33.89%]" },
+  { challenge: 3, key: "goodDeed", position: "left-[30%] top-[50%]" },
+  { challenge: 2, key: "connection", position: "left-[68.33%] top-[66.67%]" },
+  { challenge: 1, key: "assessment", position: "left-[31.67%] top-[83.33%]" },
 ];
+
+function LifeTerrain() {
+  return (
+    <svg
+      viewBox="0 0 600 1800"
+      role="img"
+      aria-label="A continuous jungle terrain with one winding illuminated road"
+      className="absolute inset-0 h-full w-full"
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <defs>
+        <linearGradient id="terrain-depth" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="hsl(var(--life-terrain-deep))" />
+          <stop offset="0.5" stopColor="hsl(var(--life-terrain))" />
+          <stop offset="1" stopColor="hsl(var(--life-terrain-deep))" />
+        </linearGradient>
+        <linearGradient id="river-light" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="hsl(var(--life-water-deep))" />
+          <stop offset="0.5" stopColor="hsl(var(--life-water))" />
+          <stop offset="1" stopColor="hsl(var(--life-water-deep))" />
+        </linearGradient>
+        <linearGradient id="road-light" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="hsl(var(--life-road-edge))" />
+          <stop offset="0.5" stopColor="hsl(var(--life-road))" />
+          <stop offset="1" stopColor="hsl(var(--life-road-edge))" />
+        </linearGradient>
+        <filter id="road-glow" x="-35%" y="-10%" width="170%" height="120%">
+          <feGaussianBlur stdDeviation="14" />
+        </filter>
+        <pattern id="contours" width="74" height="74" patternUnits="userSpaceOnUse">
+          <path d="M-10 24 Q 18 2 47 22 T 84 18" fill="none" stroke="hsl(var(--life-contour))" strokeWidth="2" opacity="0.32" />
+          <path d="M-8 55 Q 21 37 48 56 T 84 51" fill="none" stroke="hsl(var(--life-contour))" strokeWidth="1.5" opacity="0.2" />
+        </pattern>
+      </defs>
+
+      <rect width="600" height="1800" fill="url(#terrain-depth)" />
+
+      <path
+        d="M0 0H130C146 138 104 246 124 382C146 526 98 646 116 790C136 944 86 1062 106 1212C127 1370 83 1518 120 1800H0Z"
+        fill="hsl(var(--life-terrain-bank))"
+      />
+      <path
+        d="M600 0H476C451 143 497 276 475 415C454 552 506 699 480 840C455 982 511 1132 485 1280C458 1430 504 1592 474 1800H600Z"
+        fill="hsl(var(--life-terrain-bank))"
+      />
+      <rect width="600" height="1800" fill="url(#contours)" />
+
+      <path
+        d="M74 0C90 148 54 275 78 425C103 584 61 730 84 886C106 1035 63 1180 90 1335C112 1466 79 1612 97 1800"
+        fill="none"
+        stroke="hsl(var(--life-water-bank))"
+        strokeWidth="62"
+        strokeLinecap="round"
+      />
+      <path
+        d="M74 0C90 148 54 275 78 425C103 584 61 730 84 886C106 1035 63 1180 90 1335C112 1466 79 1612 97 1800"
+        fill="none"
+        stroke="url(#river-light)"
+        strokeWidth="42"
+        strokeLinecap="round"
+      />
+      <path
+        d="M526 0C508 152 548 292 520 446C496 582 542 742 515 897C490 1040 538 1198 510 1345C486 1475 526 1624 503 1800"
+        fill="none"
+        stroke="hsl(var(--life-water-bank))"
+        strokeWidth="62"
+        strokeLinecap="round"
+      />
+      <path
+        d="M526 0C508 152 548 292 520 446C496 582 542 742 515 897C490 1040 538 1198 510 1345C486 1475 526 1624 503 1800"
+        fill="none"
+        stroke="url(#river-light)"
+        strokeWidth="42"
+        strokeLinecap="round"
+      />
+
+      <path
+        d="M300 0 C300 105 300 205 300 300 C300 418 420 478 420 610 C420 730 180 775 180 900 C180 1024 410 1070 410 1200 C410 1322 190 1370 190 1500 C190 1620 300 1696 300 1800"
+        fill="none"
+        stroke="hsl(var(--life-road-glow))"
+        strokeWidth="104"
+        strokeLinecap="round"
+        filter="url(#road-glow)"
+        opacity="0.55"
+      />
+      <path
+        d="M300 0 C300 105 300 205 300 300 C300 418 420 478 420 610 C420 730 180 775 180 900 C180 1024 410 1070 410 1200 C410 1322 190 1370 190 1500 C190 1620 300 1696 300 1800"
+        fill="none"
+        stroke="hsl(var(--life-road-border))"
+        strokeWidth="82"
+        strokeLinecap="round"
+      />
+      <path
+        d="M300 0 C300 105 300 205 300 300 C300 418 420 478 420 610 C420 730 180 775 180 900 C180 1024 410 1070 410 1200 C410 1322 190 1370 190 1500 C190 1620 300 1696 300 1800"
+        fill="none"
+        stroke="url(#road-light)"
+        strokeWidth="64"
+        strokeLinecap="round"
+      />
+      <path
+        d="M300 0 C300 105 300 205 300 300 C300 418 420 478 420 610 C420 730 180 775 180 900 C180 1024 410 1070 410 1200 C410 1322 190 1370 190 1500 C190 1620 300 1696 300 1800"
+        fill="none"
+        stroke="hsl(var(--life-road-highlight))"
+        strokeWidth="5"
+        strokeLinecap="round"
+        strokeDasharray="8 16"
+        opacity="0.58"
+      />
+
+      {[300, 610, 900, 1200, 1500].map((y, index) => {
+        const x = [300, 420, 180, 410, 190][index];
+        return (
+          <g key={y}>
+            <circle cx={x} cy={y} r="67" fill="hsl(var(--life-road-glow))" opacity="0.28" />
+            <circle cx={x} cy={y} r="53" fill="hsl(var(--life-road-border))" />
+            <circle cx={x} cy={y} r="43" fill="url(#road-light)" stroke="hsl(var(--life-road-highlight))" strokeWidth="3" opacity="0.92" />
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
 
 export default function LifeChallengeMap({
   score,
@@ -119,37 +210,21 @@ export default function LifeChallengeMap({
       <div className="sticky left-3 top-3 z-30 ml-2 h-0 w-fit translate-y-2 rounded-full border border-border/60 bg-background/55 p-1.5 shadow-lg backdrop-blur-md">
         <StandingOrb score={score} size={43} compact />
       </div>
-      <div className="relative mx-auto w-full max-w-2xl overflow-hidden rounded-[15%] bg-card">
-        {MAP_SECTIONS.map((section, sectionIndex) => (
-          <div key={section.id} className={`relative aspect-square w-full ${sectionIndex > 0 ? "-mt-px" : ""}`}>
-            <img
-              src={section.image}
-              alt={section.alt}
-              width={1024}
-              height={1024}
-              loading={section.id === "start" ? "eager" : "lazy"}
-              className="absolute inset-0 h-full w-full select-none object-cover"
-              draggable={false}
-            />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/5 via-transparent to-background/10" aria-hidden />
+      <div className="relative mx-auto aspect-[1/3] w-full max-w-2xl overflow-hidden rounded-[15%] bg-card">
+        <LifeTerrain />
+        <Button
+          ref={houseRef}
+          type="button"
+          variant="ghost"
+          disabled={!allComplete || loading}
+          aria-label={allComplete ? "Enter the completed wave one destination" : "Complete all five challenges to unlock the destination"}
+          onClick={celebrateFromHouse}
+          className={`absolute left-[38%] top-0 z-20 h-[9%] w-[24%] rounded-[45%] border-0 bg-transparent p-0 hover:bg-transparent ${
+            allComplete ? "drop-shadow-[0_0_20px_hsl(var(--life-amber)/0.95)] hover:scale-105" : "cursor-default disabled:opacity-100"
+          }`}
+        />
 
-            {section.destination && (
-              <Button
-                ref={houseRef}
-                type="button"
-                variant="ghost"
-                disabled={!allComplete || loading}
-                aria-label={allComplete ? "Enter the completed wave one house" : "Complete all five challenges to unlock the house"}
-                onClick={celebrateFromHouse}
-                className={`absolute left-[26%] top-[1%] z-20 h-[35%] w-[48%] rounded-[45%] border-0 bg-transparent p-0 transition-[filter,transform] hover:bg-transparent ${
-                  allComplete
-                    ? "drop-shadow-[0_0_20px_hsl(var(--life-amber)/0.95)] hover:scale-105"
-                    : "cursor-default opacity-80 disabled:opacity-80"
-                }`}
-              />
-            )}
-
-            {section.nodes.map((node) => {
+        {MAP_NODES.map((node) => {
               const index = node.challenge - 1;
               const done = progress[node.key];
               const current = next === index;
@@ -160,26 +235,24 @@ export default function LifeChallengeMap({
                   ? `Challenge ${node.challenge}, available`
                   : `Challenge ${node.challenge}, locked`;
               const earlyNumber = node.challenge <= 3;
-              return (
-                <Button
-                  key={node.challenge}
-                  type="button"
-                  variant="ghost"
-                  disabled={!enabled || loading}
-                  aria-label={label}
-                  onClick={() => onChallenge(node.challenge)}
-                  className={`absolute z-20 aspect-square h-[17%] -translate-x-1/2 -translate-y-1/2 rounded-full border p-0 text-3xl font-black transition-[filter,transform,opacity] hover:scale-105 disabled:opacity-100 ${node.position} ${
-                    earlyNumber
-                      ? "border-primary-foreground/25 bg-primary-foreground/15 text-primary-foreground/65 shadow-[inset_0_4px_10px_hsl(var(--primary-foreground)/0.32),inset_0_-8px_14px_hsl(var(--foreground)/0.22),0_5px_12px_hsl(var(--foreground)/0.35)] backdrop-blur-[2px]"
-                      : "border-life-amber/70 bg-life-amber/75 text-life-ink shadow-[inset_0_5px_12px_hsl(var(--primary-foreground)/0.45),inset_0_-9px_14px_hsl(var(--life-amber)/0.5),0_0_18px_hsl(var(--life-amber)/0.95)]"
-                  } ${current ? "motion-safe:animate-pulse" : ""} ${!enabled ? "saturate-50" : ""}`}
-                >
-                  <span className="drop-shadow-sm">{node.challenge}</span>
-                </Button>
-              );
-            })}
-          </div>
-        ))}
+          return (
+            <Button
+              key={node.challenge}
+              type="button"
+              variant="ghost"
+              disabled={!enabled || loading}
+              aria-label={label}
+              onClick={() => onChallenge(node.challenge)}
+              className={`absolute z-20 aspect-square h-[5.67%] -translate-x-1/2 -translate-y-1/2 rounded-full border p-0 text-3xl font-black transition-[filter,transform,opacity] hover:scale-105 disabled:opacity-100 ${node.position} ${
+                earlyNumber
+                  ? "border-primary-foreground/25 bg-primary-foreground/15 text-primary-foreground/65 shadow-[inset_0_4px_10px_hsl(var(--primary-foreground)/0.32),inset_0_-8px_14px_hsl(var(--foreground)/0.22),0_5px_12px_hsl(var(--foreground)/0.35)] backdrop-blur-[2px]"
+                  : "border-life-amber/70 bg-life-amber/75 text-life-ink shadow-[inset_0_5px_12px_hsl(var(--primary-foreground)/0.45),inset_0_-9px_14px_hsl(var(--life-amber)/0.5),0_0_18px_hsl(var(--life-amber)/0.95)]"
+              } ${current ? "motion-safe:animate-pulse" : ""} ${!enabled ? "saturate-50" : ""}`}
+            >
+              <span className="drop-shadow-sm">{node.challenge}</span>
+            </Button>
+          );
+        })}
       </div>
     </section>
   );
