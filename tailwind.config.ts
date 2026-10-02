@@ -20,6 +20,8 @@ export default {
 		},
 		extend: {
 			colors: {
+				'life-teal': 'hsl(var(--life-teal))',
+				'life-amber': 'hsl(var(--life-amber))',
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',

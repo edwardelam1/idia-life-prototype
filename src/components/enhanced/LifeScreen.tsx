@@ -12,8 +12,8 @@ import { useSocialGraph } from "@/hooks/useSocialGraph";
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
 import { supabase } from "@/integrations/supabase/client";
 import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter";
-import { fireGraffitiConfetti, fireFinaleConfetti } from "../psychometric/confetti";
-import StandingOrb from "../life/StandingOrb";
+import { fireFinaleConfetti } from "../psychometric/confetti";
+import LifeChallengeMap from "../life/LifeChallengeMap";
 import ColorWashOverlay from "../life/ColorWashOverlay";
 import SwipeToRate from "../life/SwipeToRate";
 import SphereOfInfluence from "../life/SphereOfInfluence";
@@ -21,20 +21,16 @@ import LabelConnectionDialog from "../life/LabelConnectionDialog";
 import ProximityAwarenessOverlay from "../life/ProximityAwarenessOverlay";
 import { localPIIVault, type ConnectionLabel } from "@/lib/localPIIVault";
 import { useNFCBridge } from "@/hooks/useNFCBridge";
+import { useLifeChallengeProgress } from "@/hooks/useLifeChallengeProgress";
 import { toast } from "@/components/ui/sonner";
 import {
-  Heart,
   Award,
-  TrendingUp,
   MessageCircle,
   Shield,
   Clock,
   CheckCircle,
-  BrainCircuit,
-  Users,
-  ArrowRight,
   Nfc,
-  Radar,
+  Keyboard,
 } from "lucide-react";
 
 // Placeholder — derives a peer tier hue from the opaque native peer token
@@ -60,8 +56,12 @@ function tierColorForScore(score: number | null | undefined): string {
   return "hsl(0, 0%, 4%)";
 }
 
-const LifeScreen: React.FC = () => {
-  const { friends, trustCircles, goodDeeds, socialMetrics, loading, acceptFriendRequest, reload } = useSocialGraph();
+interface LifeScreenProps {
+  onNavigate?: (tab: "data" | "vote") => void;
+}
+
+const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
+  const { friends, trustCircles, goodDeeds, loading, acceptFriendRequest, reload } = useSocialGraph();
 
   const { profile, updateProfile, loading: profileLoading } = useEnhancedProfile();
 
@@ -70,12 +70,17 @@ const LifeScreen: React.FC = () => {
   const [newDeedFile, setNewDeedFile] = useState<File | null>(null);
   const [isSubmittingDeed, setIsSubmittingDeed] = useState(false);
   const [deedDialogOpen, setDeedDialogOpen] = useState(false);
+  const [lifeTab, setLifeTab] = useState("overview");
 
   const [showTestModal, setShowTestModal] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [connectionDialogOpen, setConnectionDialogOpen] = useState(false);
+  const [manualGuid, setManualGuid] = useState("");
+  const [manualConnecting, setManualConnecting] = useState(false);
+  const challengeProgress = useLifeChallengeProgress();
 
   // NFC Bridge — Sovereign Handshake to native iOS hardware
-  const { isBridgeAvailable, isScanning, initiateSovereignHandshake } = useNFCBridge();
+  const { isScanning, initiateSovereignHandshake } = useNFCBridge();
   const [washPeerColor, setWashPeerColor] = useState<string | null>(null);
   const [rateTarget, setRateTarget] = useState<string | null>(null);
   const [proximityOpen, setProximityOpen] = useState(false);
@@ -125,6 +130,7 @@ const LifeScreen: React.FC = () => {
           description: data.created ? "You made a new Connection." : "Connection refreshed.",
         });
         await reload();
+        await challengeProgress.refresh();
         // Target the new friendship row for rate + label sheets
         setTimeout(() => setRateTarget(data.friendshipId), 3600);
         setTimeout(() => setLabelTarget(data.friendshipId), 4200);
@@ -147,7 +153,7 @@ const LifeScreen: React.FC = () => {
       window.removeEventListener("nfc:scan-error", onError);
       console.log("[LIFE_NFC_SUBSCRIBE_END]");
     };
-  }, [reload]);
+  }, [reload, challengeProgress.refresh]);
 
   // Granular layout calibration logging
   useLayoutEffect(() => {
@@ -171,10 +177,6 @@ const LifeScreen: React.FC = () => {
     return () => {
       console.log("[SYNCING_TERMINOLOGY_INIT_END]");
     };
-  }, []);
-
-  useEffect(() => {
-    fireGraffitiConfetti();
   }, []);
 
   // Phase 5 — Evidence-Based Good Deeds.
@@ -237,6 +239,7 @@ const LifeScreen: React.FC = () => {
         toast.success("Verified!", {
           description: verifyData.reason || "Your Good Deed was approved.",
         });
+        await challengeProgress.refresh();
       } else if (verifyData?.verdict === "reject") {
         toast("Not approved", {
           description: verifyData?.reason || "The proof did not match the description.",
@@ -277,14 +280,51 @@ const LifeScreen: React.FC = () => {
           available_credit_line: data.credit_line,
         });
       }
+      await challengeProgress.markAssessmentComplete();
+      toast.success("Challenge 1 complete");
     } catch (err) {
       console.error("IDIA Algorithm Execution Failed:", err);
+      toast("Assessment could not be secured", { description: "Please try again." });
     } finally {
       setIsCalculating(false);
       setShowTestModal(false);
       console.log("[STANDING_SYNC_END]");
       setTimeout(() => fireFinaleConfetti(), 400);
     }
+  };
+
+  const resolveConnection = async (peerPayload: string) => {
+    setManualConnecting(true);
+    console.log("[LIFE_MANUAL_CONNECTION][BEGIN]");
+    try {
+      const { data, error } = await supabase.functions.invoke("nfc-handshake-resolve", {
+        body: { peerPayload, connectionMethod: "manual_guid" },
+      });
+      if (error || !data?.friendshipId) throw error ?? new Error("Could not register the Connection.");
+      setManualGuid("");
+      setConnectionDialogOpen(false);
+      await reload();
+      await challengeProgress.refresh();
+      setLabelTarget(data.friendshipId);
+      toast.success("Challenge 2 complete", { description: "Your Connection is active." });
+      console.log("[LIFE_MANUAL_CONNECTION][END:OK]");
+    } catch (error: any) {
+      console.error("[LIFE_MANUAL_CONNECTION][END:FAIL]", error);
+      toast("Connection failed", { description: error?.message ?? "Check the GUID and try again." });
+    } finally {
+      setManualConnecting(false);
+    }
+  };
+
+  const handleChallenge = (challenge: number) => {
+    if (challenge === 1) setShowTestModal(true);
+    if (challenge === 2) setConnectionDialogOpen(true);
+    if (challenge === 3) {
+      setLifeTab("deeds");
+      window.setTimeout(() => setDeedDialogOpen(true), 0);
+    }
+    if (challenge === 4) onNavigate?.("data");
+    if (challenge === 5) onNavigate?.("vote");
   };
 
   const handleSubmitRating = async (rateeId: string, stars: number) => {
@@ -334,7 +374,7 @@ const LifeScreen: React.FC = () => {
 
   return (
     <div className="h-full max-h-full overflow-hidden flex flex-col">
-      <Tabs defaultValue="overview" className="flex-1 min-h-0 flex flex-col gap-2">
+      <Tabs value={lifeTab} onValueChange={setLifeTab} className="flex-1 min-h-0 flex flex-col gap-2">
         <TabsList className="grid grid-cols-5 w-full bg-muted/20 shrink-0">
           <TabsTrigger value="overview" className="text-[11px] px-1">
             Overview
@@ -354,99 +394,14 @@ const LifeScreen: React.FC = () => {
         </TabsList>
 
         <TabsContent value="overview" className="flex-1 min-h-0 overflow-hidden m-0">
-          <div className="h-full flex flex-col gap-2">
-            <Card className="bg-card border-border shadow-sm flex-1 min-h-0 overflow-hidden">
-              <CardContent className="p-4 h-full">
-                <div className="flex flex-col items-center gap-3 h-full">
-                  <StandingOrb score={profile?.trust_score ?? null} size={170} />
-
-                  <div className="w-full flex flex-col gap-2 p-3 bg-teal-500/10 border border-teal-500/20 rounded-xl">
-                    <div className="space-y-0.5">
-                      <h3 className="font-semibold flex items-center gap-2 text-foreground text-sm">
-                        <BrainCircuit className="w-4 h-4 text-teal-600" />
-                        Establish Your Standing
-                      </h3>
-                      <p className="text-[11px] text-muted-foreground leading-snug">
-                        Complete your psychometric validation to deepen the chromatic resolution of your standing.
-                      </p>
-                    </div>
-
-                    <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
-                      <DialogTrigger asChild>
-                        <Button
-                          size="sm"
-                          className="w-full font-bold shadow-lg shadow-orange-500/20 bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white border-none"
-                        >
-                          {isCalculating ? "Calculating..." : "Take our Assessments"}
-                          <ArrowRight className="w-4 h-4 ml-2" />
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto bg-card p-0 border-none">
-                        <PsychometricTestingCenter
-                          onCompleteAll={handleCalculateScore}
-                          onCancel={() => setShowTestModal(false)}
-                        />
-                      </DialogContent>
-                    </Dialog>
-
-                    {/* NFC Sync Section — Nearby button purged for social engineering requirement */}
-                    <div className="mt-7 pt-3 border-t border-teal-500/20 flex flex-col items-center gap-2">
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            console.log("[SYNC_INIT_START]");
-                            console.log("[SYNC_INIT_PROCESS] Bridge Available:", isBridgeAvailable);
-                            console.log("[SYNC_INIT_PROCESS] Invoking native handshake via useNFCBridge...");
-                            initiateSovereignHandshake("STANDARD");
-                            console.log("[SYNC_INIT_END]");
-                          }}
-                          disabled={isScanning}
-                          className="font-bold shadow-lg shadow-teal-500/25 bg-gradient-to-r from-teal-500 via-amber-400 to-orange-500 hover:from-teal-600 hover:via-amber-500 hover:to-orange-600 text-white border-none backdrop-blur-md"
-                        >
-                          <Nfc className="w-4 h-4 mr-2" />
-                          {isScanning ? "Listening for a tap…" : "Start Syncing"}
-                        </Button>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground text-center leading-tight px-2">
-                        Sync with another user in person by tapping your phones back-to-back.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="grid grid-cols-3 gap-2 shrink-0">
-              <Card className="bg-card border-none shadow-sm">
-                <CardContent className="p-2 flex flex-col items-center">
-                  <Heart className="w-3.5 h-3.5 text-orange-500" />
-                  <span className="text-[10px] text-muted-foreground mt-0.5">Reciprocity</span>
-                  <span className="text-base font-bold text-teal-600 leading-tight">
-                    {socialMetrics?.reciprocity_score?.toFixed(1) || "0.0"}
-                  </span>
-                </CardContent>
-              </Card>
-              <Card className="bg-card border-none shadow-sm">
-                <CardContent className="p-2 flex flex-col items-center">
-                  <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-                  <span className="text-[10px] text-muted-foreground mt-0.5">Vitality</span>
-                  <span className="text-base font-bold text-teal-600 leading-tight">
-                    {socialMetrics?.network_vitality_score?.toFixed(1) || "0.0"}
-                  </span>
-                </CardContent>
-              </Card>
-              <Card className="bg-card border-none shadow-sm">
-                <CardContent className="p-2 flex flex-col items-center">
-                  <Users className="w-3.5 h-3.5 text-teal-600" />
-                  <span className="text-[10px] text-muted-foreground mt-0.5">Network</span>
-                  <span className="text-base font-bold text-teal-600 leading-tight">
-                    {friends.filter((f) => f.status === "accepted").length}
-                  </span>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+          <LifeChallengeMap
+            score={profile?.trust_score}
+            progress={challengeProgress.state}
+            celebrated={challengeProgress.celebrated}
+            loading={challengeProgress.loading}
+            onChallenge={handleChallenge}
+            onCelebrate={challengeProgress.markCelebrated}
+          />
         </TabsContent>
 
         <TabsContent value="friends" className="flex-1 min-h-0 overflow-hidden m-0">
@@ -658,6 +613,51 @@ const LifeScreen: React.FC = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
+        <DialogContent className="max-h-[90vh] w-[95vw] max-w-5xl overflow-y-auto border-none bg-card p-0">
+          <PsychometricTestingCenter onCompleteAll={handleCalculateScore} onCancel={() => setShowTestModal(false)} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={connectionDialogOpen} onOpenChange={setConnectionDialogOpen}>
+        <DialogContent className="max-w-sm bg-card">
+          <DialogHeader>
+            <DialogTitle>Make a Connection</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Button
+              className="w-full bg-life-teal text-primary-foreground hover:bg-life-teal/90"
+              disabled={isScanning}
+              onClick={() => initiateSovereignHandshake("STANDARD")}
+            >
+              <Nfc className="mr-2 h-4 w-4" />
+              {isScanning ? "Listening for a tap…" : "NFC Sync"}
+            </Button>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" />
+            </div>
+            <div className="space-y-2">
+              <Input
+                value={manualGuid}
+                onChange={(event) => setManualGuid(event.target.value)}
+                placeholder="Enter their GUID"
+                autoCapitalize="none"
+                autoCorrect="off"
+              />
+              <Button
+                variant="outline"
+                className="w-full"
+                disabled={manualConnecting || !/^[0-9a-f-]{36}$/i.test(manualGuid.trim())}
+                onClick={() => void resolveConnection(manualGuid.trim())}
+              >
+                <Keyboard className="mr-2 h-4 w-4" />
+                {manualConnecting ? "Connecting…" : "Connect with GUID"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {washPeerColor && (
         <ColorWashOverlay myColor={myTierColor} peerColor={washPeerColor} onComplete={() => setWashPeerColor(null)} />
