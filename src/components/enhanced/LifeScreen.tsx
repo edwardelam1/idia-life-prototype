@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { getCachedUser } from "@/lib/authUser";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter";
 import { fireFinaleConfetti } from "../psychometric/confetti";
 import LifeChallengeMap from "../life/LifeChallengeMap";
+import LifeAchievementNotice from "../life/LifeAchievementNotice";
 import ColorWashOverlay from "../life/ColorWashOverlay";
 import SwipeToRate from "../life/SwipeToRate";
 import SphereOfInfluence from "../life/SphereOfInfluence";
@@ -78,6 +79,33 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
   const [manualGuid, setManualGuid] = useState("");
   const [manualConnecting, setManualConnecting] = useState(false);
   const challengeProgress = useLifeChallengeProgress();
+  const [achievementChallenge, setAchievementChallenge] = useState<number | null>(null);
+  const previousSequentialProgress = useRef<boolean[] | null>(null);
+
+  useEffect(() => {
+    if (challengeProgress.loading) return;
+
+    const recorded = [
+      challengeProgress.state.assessment,
+      challengeProgress.state.connection,
+      challengeProgress.state.goodDeed,
+      challengeProgress.state.dataSource,
+      challengeProgress.state.proposalVote,
+    ];
+    let sequenceOpen = true;
+    const sequential = recorded.map((isRecorded) => {
+      const isComplete = sequenceOpen && isRecorded;
+      if (!isComplete) sequenceOpen = false;
+      return isComplete;
+    });
+
+    const previous = previousSequentialProgress.current;
+    previousSequentialProgress.current = sequential;
+    if (!previous) return;
+
+    const newlyCompleted = sequential.findIndex((isComplete, index) => isComplete && !previous[index]);
+    if (newlyCompleted !== -1) setAchievementChallenge(newlyCompleted + 1);
+  }, [challengeProgress.loading, challengeProgress.state]);
 
   // NFC Bridge — Sovereign Handshake to native iOS hardware
   const { isScanning, initiateSovereignHandshake } = useNFCBridge();
@@ -373,7 +401,14 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
   const myTierColor = tierColorForScore(profile?.trust_score);
 
   return (
-    <div className="h-full max-h-full overflow-hidden flex flex-col">
+    <div className="relative h-full max-h-full overflow-hidden flex flex-col">
+      {achievementChallenge !== null && (
+        <LifeAchievementNotice
+          key={achievementChallenge}
+          challenge={achievementChallenge}
+          onDismiss={() => setAchievementChallenge(null)}
+        />
+      )}
       <Tabs value={lifeTab} onValueChange={setLifeTab} className="flex-1 min-h-0 flex flex-col gap-2">
         <TabsList className="grid grid-cols-5 w-full bg-muted/20 shrink-0">
           <TabsTrigger value="overview" className="text-[11px] px-1">
