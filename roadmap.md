@@ -33,4 +33,4 @@
 - [x] Connected sources refresh on app wake (mount, foreground, iOS/Android shells) with a 5-minute cooldown and a manual Refresh control
 - [x] Every wallet (created or imported) gets its gas drip; drip errors shown instead of "Waiting for gas"
 - [x] Gov Basescan links use the iOS shell openExternalLink sheet
-- [x] Life Overview: five-stop Afro-futurist challenge map with strict real-data progression and wave-one house celebration
+- [x] Life Overview: reusable-section Afro-futurist challenge map with integrated bubble stops, strict real-data progression, and wave-one house celebration
