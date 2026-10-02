@@ -243,7 +243,8 @@ const MainApp = () => {
     return () => window.removeEventListener("showFriend", handleShowFriend as EventListener);
   }, []);
 
-  const ActiveComponent = tabs.find((tab) => tab.id === activeTab)?.component || EnhancedWalletDashboard;
+  const activeTabConfig = tabs.find((tab) => tab.id === activeTab);
+  const ActiveComponent = activeTabConfig?.component || EnhancedWalletDashboard;
 
   return (
     <FriendAssistantProvider>
@@ -256,7 +257,11 @@ const MainApp = () => {
               className="h-full px-2 pb-2 overflow-y-auto touch-pan-y no-scrollbar"
               style={{ WebkitOverflowScrolling: "touch" }}
             >
-              <ActiveComponent />
+              {activeTab === "life" ? (
+                <LifeScreen onNavigate={(tab) => setActiveTab(tab)} />
+              ) : (
+                <ActiveComponent />
+              )}
             </div>
           </div>
         </main>

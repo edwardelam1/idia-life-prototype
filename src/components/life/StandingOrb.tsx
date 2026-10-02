@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 interface StandingOrbProps {
   score: number | null | undefined;
   size?: number;
+  compact?: boolean;
 }
 
 type TierName =
@@ -88,7 +89,7 @@ const TIER_LABEL: Record<TierName, string> = {
 const BASELINE_X = 0.04;
 const BASELINE_Y = 0.07;
 
-export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
+export default function StandingOrb({ score, size = 240, compact = false }: StandingOrbProps) {
   const sceneRef = useRef<HTMLDivElement | null>(null);
   const orbRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -329,8 +330,12 @@ export default function StandingOrb({ score, size = 240 }: StandingOrbProps) {
         )}
       </div>
 
-      <p className="mt-3 text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Your Standing</p>
-      <p className="mt-0.5 text-sm font-medium text-foreground">{TIER_LABEL[tier.name]}</p>
+      {!compact && (
+        <>
+          <p className="mt-3 text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Your Standing</p>
+          <p className="mt-0.5 text-sm font-medium text-foreground">{TIER_LABEL[tier.name]}</p>
+        </>
+      )}
 
       <style>{`
         @keyframes orb-shimmer {
