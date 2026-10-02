@@ -40,6 +40,18 @@ All colors MUST be HSL.
     --life-teal: 178 42% 32%;
     --life-amber: 28 80% 55%;
     --life-ink: 222 47% 8%;
+    --life-terrain-deep: 166 46% 10%;
+    --life-terrain: 158 36% 18%;
+    --life-terrain-bank: 151 31% 23%;
+    --life-contour: 146 35% 44%;
+    --life-water-deep: 187 58% 19%;
+    --life-water: 181 63% 42%;
+    --life-water-bank: 174 38% 13%;
+    --life-road-border: 31 45% 19%;
+    --life-road-edge: 30 65% 38%;
+    --life-road: 38 76% 59%;
+    --life-road-highlight: 45 82% 77%;
+    --life-road-glow: 35 86% 55%;
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -85,6 +97,18 @@ All colors MUST be HSL.
     --life-teal: 174 55% 46%;
     --life-amber: 32 88% 60%;
     --life-ink: 222 47% 8%;
+    --life-terrain-deep: 166 51% 7%;
+    --life-terrain: 158 40% 14%;
+    --life-terrain-bank: 151 34% 19%;
+    --life-contour: 146 40% 40%;
+    --life-water-deep: 187 64% 16%;
+    --life-water: 181 68% 44%;
+    --life-water-bank: 174 42% 10%;
+    --life-road-border: 31 50% 15%;
+    --life-road-edge: 30 72% 35%;
+    --life-road: 38 82% 60%;
+    --life-road-highlight: 45 88% 80%;
+    --life-road-glow: 35 92% 58%;
     
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;

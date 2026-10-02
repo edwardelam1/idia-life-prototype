@@ -33,4 +33,5 @@
 - [x] Connected sources refresh on app wake (mount, foreground, iOS/Android shells) with a 5-minute cooldown and a manual Refresh control
 - [x] Every wallet (created or imported) gets its gas drip; drip errors shown instead of "Waiting for gas"
 - [x] Gov Basescan links use the iOS shell openExternalLink sheet
-- [x] Life Overview: reusable-section Afro-futurist challenge map with integrated bubble stops, strict real-data progression, and wave-one house celebration
+- [x] Life map phase 1: one handcrafted vector terrain and mathematically continuous road with shared stop coordinates
+- [ ] Life map phase 2: build one challenge clearing and bubble style after phase 1 visual approval
