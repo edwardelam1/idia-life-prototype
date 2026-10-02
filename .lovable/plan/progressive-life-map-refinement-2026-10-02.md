@@ -16,9 +16,8 @@ Turn the Life Overview into a genuinely expandable Candy Crush-style journey rat
 ### 2. Integrate the challenge bubbles into the landscape
 
 - Replace the flat transparent hit areas with dimensional Candy Crush-style bubble medallions that visually belong to each stone clearing.
-- Precisely recalculate all five positions against the artwork: 1–4 centered inside their clearings and 5 moved down into the center of its clearing.
 - Preserve accessible interactive controls, but make their visible surfaces feel painted and illuminated into the map rather than layered UI.
-- Apply the requested number treatment: 1, 2, and 3 white and faded; 4 and 5 black with a glow.
+- Apply the requested number treatment consistently throughout 
 - Continue showing only the numbers, with no challenge names on the map.
 
 ### 3. Remove and refine
@@ -37,7 +36,7 @@ Turn the Life Overview into a genuinely expandable Candy Crush-style journey rat
 ## Verification
 
 - Inspect the mobile layout at the current phone size and confirm every number is centered in its intended clearing.
-- Confirm 1–3 are faded white, 4–5 are glowing black, and no square Hub logo remains.
+- no square Hub logo remains.
 - Confirm the 15% curved boundary clips the complete visual cleanly.
 - Confirm locked/current/completed interactions still work without shifting the artwork.
 - Confirm an additional journey section and challenge node can be added through configuration without redesigning the first wave.
