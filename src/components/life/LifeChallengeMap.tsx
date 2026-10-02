@@ -168,7 +168,7 @@ export default function LifeChallengeMap({
                   disabled={!enabled || loading}
                   aria-label={label}
                   onClick={() => onChallenge(node.challenge)}
-                  className={`absolute z-20 aspect-square h-[17%] -translate-x-1/2 -translate-y-1/2 rounded-full border p-0 text-3xl font-black transition-[filter,transform,opacity] hover:scale-105 ${node.position} ${
+                  className={`absolute z-20 aspect-square h-[17%] -translate-x-1/2 -translate-y-1/2 rounded-full border p-0 text-3xl font-black transition-[filter,transform,opacity] hover:scale-105 disabled:opacity-100 ${node.position} ${
                     earlyNumber
                       ? "border-primary-foreground/25 bg-primary-foreground/15 text-primary-foreground/65 shadow-[inset_0_4px_10px_hsl(var(--primary-foreground)/0.32),inset_0_-8px_14px_hsl(var(--foreground)/0.22),0_5px_12px_hsl(var(--foreground)/0.35)] backdrop-blur-[2px]"
                       : "border-life-amber/70 bg-life-amber/75 text-life-ink shadow-[inset_0_5px_12px_hsl(var(--primary-foreground)/0.45),inset_0_-9px_14px_hsl(var(--life-amber)/0.5),0_0_18px_hsl(var(--life-amber)/0.95)]"
