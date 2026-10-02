@@ -39,7 +39,7 @@ const MAP_SECTIONS: MapSection[] = [
     image: mapDestination,
     alt: "The illuminated IDIA house beyond a jungle challenge clearing",
     destination: true,
-    nodes: [{ challenge: 5, key: "proposalVote", position: "left-[50%] top-[53%]" }],
+    nodes: [{ challenge: 5, key: "proposalVote", position: "left-[50%] top-[56%]" }],
   },
   {
     id: "journey-one",
@@ -115,12 +115,11 @@ export default function LifeChallengeMap({
   }, [allComplete, celebrated, celebrateFromHouse, loading, onCelebrate]);
 
   return (
-    <section ref={scrollAreaRef} className="h-full min-h-0 overflow-y-auto bg-card px-1" aria-label="Life challenge journey">
+    <section ref={scrollAreaRef} className="relative h-full min-h-0 overflow-y-auto bg-card px-1" aria-label="Life challenge journey">
+      <div className="sticky left-3 top-3 z-30 ml-2 h-0 w-fit translate-y-2 rounded-full border border-border/60 bg-background/55 p-1.5 shadow-lg backdrop-blur-md">
+        <StandingOrb score={score} size={43} compact />
+      </div>
       <div className="relative mx-auto w-full max-w-2xl overflow-hidden rounded-[15%] bg-card">
-        <div className="absolute left-3 bottom-3 z-30 rounded-full border border-border/60 bg-background/55 p-1.5 shadow-lg backdrop-blur-md">
-          <StandingOrb score={score} size={43} compact />
-        </div>
-
         {MAP_SECTIONS.map((section, sectionIndex) => (
           <div key={section.id} className={`relative aspect-square w-full ${sectionIndex > 0 ? "-mt-px" : ""}`}>
             <img
@@ -172,7 +171,7 @@ export default function LifeChallengeMap({
                   className={`absolute z-20 aspect-square h-[17%] -translate-x-1/2 -translate-y-1/2 rounded-full border p-0 text-3xl font-black transition-[filter,transform,opacity] hover:scale-105 ${node.position} ${
                     earlyNumber
                       ? "border-primary-foreground/25 bg-primary-foreground/15 text-primary-foreground/65 shadow-[inset_0_4px_10px_hsl(var(--primary-foreground)/0.32),inset_0_-8px_14px_hsl(var(--foreground)/0.22),0_5px_12px_hsl(var(--foreground)/0.35)] backdrop-blur-[2px]"
-                      : "border-life-amber/70 bg-life-amber/75 text-foreground shadow-[inset_0_5px_12px_hsl(var(--primary-foreground)/0.45),inset_0_-9px_14px_hsl(var(--life-amber)/0.5),0_0_18px_hsl(var(--life-amber)/0.95)]"
+                      : "border-life-amber/70 bg-life-amber/75 text-life-ink shadow-[inset_0_5px_12px_hsl(var(--primary-foreground)/0.45),inset_0_-9px_14px_hsl(var(--life-amber)/0.5),0_0_18px_hsl(var(--life-amber)/0.95)]"
                   } ${current ? "motion-safe:animate-pulse" : ""} ${!enabled ? "saturate-50" : ""}`}
                 >
                   <span className="drop-shadow-sm">{node.challenge}</span>

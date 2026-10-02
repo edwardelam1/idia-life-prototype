@@ -22,6 +22,7 @@ export default {
 			colors: {
 				'life-teal': 'hsl(var(--life-teal))',
 				'life-amber': 'hsl(var(--life-amber))',
+				'life-ink': 'hsl(var(--life-ink))',
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',
