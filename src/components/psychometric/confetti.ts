@@ -85,14 +85,14 @@ export const fireFinaleConfetti = () => {
   }, 250);
 };
 
-export const fireHouseConfetti = () => {
+export const fireHouseConfetti = (origin: { x: number; y: number } = { x: 0.5, y: 0.2 }) => {
   fire({
     ...globalDefaults,
     particleCount: 170,
     spread: 100,
     startVelocity: 52,
     gravity: 0.9,
-    origin: { x: 0.5, y: 0.2 },
+    origin,
   });
 };
 

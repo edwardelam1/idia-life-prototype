@@ -1,3 +1,3 @@
 # Project architecture rules
 
-- Keep the Life challenge map presentation in `LifeChallengeMap` and completion queries in `useLifeChallengeProgress`; `LifeScreen` owns existing action dialogs, while `MainApp` owns cross-tab navigation. This keeps future map waves additive without duplicating Data or Gov workflows.
+- Keep Life map presentation and data-driven reusable map-section/node configuration in `LifeChallengeMap`, completion queries in `useLifeChallengeProgress`, existing action dialogs in `LifeScreen`, and cross-tab navigation in `MainApp`. This lets future waves extend the journey without replacing prior artwork or duplicating Data and Gov workflows.
