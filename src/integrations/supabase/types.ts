@@ -5887,6 +5887,33 @@ export type Database = {
           },
         ]
       }
+      life_challenge_progress: {
+        Row: {
+          assessment_completed_at: string | null
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+          wave_one_celebrated_at: string | null
+        }
+        Insert: {
+          assessment_completed_at?: string | null
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+          wave_one_celebrated_at?: string | null
+        }
+        Update: {
+          assessment_completed_at?: string | null
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+          wave_one_celebrated_at?: string | null
+        }
+        Relationships: []
+      }
       lifestyle_processing_queue: {
         Row: {
           created_at: string | null
