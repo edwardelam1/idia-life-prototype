@@ -16,11 +16,11 @@ interface LifeChallengeMapProps {
 }
 
 const POSITIONS = [
-  "bottom-[11%] left-[21%]",
-  "bottom-[30%] right-[16%]",
-  "bottom-[49%] left-[15%]",
-  "bottom-[66%] right-[18%]",
-  "bottom-[79%] left-[20%]",
+  "left-[34%] top-[81%]",
+  "left-[69%] top-[64%]",
+  "left-[34%] top-[48%]",
+  "left-[66%] top-[35%]",
+  "left-[38%] top-[22%]",
 ];
 
 export default function LifeChallengeMap({
@@ -54,66 +54,69 @@ export default function LifeChallengeMap({
   }, [allComplete, celebrated, loading, onCelebrate]);
 
   return (
-    <section className="relative h-full min-h-0 overflow-hidden bg-card" aria-label="Life challenge journey">
-      <img
-        src={jungleMap}
-        alt=""
-        width={1024}
-        height={1536}
-        className="absolute inset-0 h-full w-full object-cover object-center"
-      />
-      <div className="absolute inset-0 bg-gradient-to-b from-background/10 via-transparent to-background/15" aria-hidden />
+    <section className="h-full min-h-0 overflow-y-auto bg-card" aria-label="Life challenge journey">
+      <div className="relative mx-auto aspect-[2/3] w-full max-w-2xl overflow-hidden">
+        <img
+          src={jungleMap}
+          alt="An illuminated jungle path winding through five challenge clearings to the IDIA house"
+          width={1024}
+          height={1536}
+          className="absolute inset-0 h-full w-full select-none object-cover"
+          draggable={false}
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/10 via-transparent to-background/15" aria-hidden />
 
-      <div className="absolute left-3 top-3 z-20 rounded-full border border-border/60 bg-background/55 p-1.5 shadow-lg backdrop-blur-md">
-        <StandingOrb score={score} size={43} compact />
-      </div>
-
-      <img
-        src={idiaLogo.url}
-        alt="IDIA"
-        width={84}
-        height={84}
-        className="absolute left-1/2 top-[3%] z-10 h-12 w-12 -translate-x-1/2 object-contain drop-shadow-lg sm:h-14 sm:w-14"
-      />
-
-      <div
-        className={`absolute left-1/2 top-[11%] z-10 -translate-x-1/2 transition-all duration-700 ${
-          allComplete ? "scale-110 opacity-100 drop-shadow-[0_0_18px_hsl(var(--life-amber)/0.9)]" : "opacity-70 grayscale"
-        }`}
-        aria-label={allComplete ? "Wave one house unlocked" : "Wave one house locked"}
-      >
-        <div className="relative h-10 w-14 border-x-2 border-b-2 border-life-amber bg-background/75 shadow-lg backdrop-blur-sm">
-          <div className="absolute -top-4 left-1/2 h-8 w-8 -translate-x-1/2 rotate-45 border-l-2 border-t-2 border-life-amber bg-background/75" />
-          <div className="absolute bottom-0 left-1/2 h-6 w-3 -translate-x-1/2 bg-life-teal" />
+        <div className="absolute left-3 top-3 z-20 rounded-full border border-border/60 bg-background/55 p-1.5 shadow-lg backdrop-blur-md">
+          <StandingOrb score={score} size={43} compact />
         </div>
-      </div>
 
-      {POSITIONS.map((position, index) => {
-        const done = completion[index];
-        const current = next === index;
-        const enabled = done || current;
-        const label = done ? `Challenge ${index + 1}, complete` : current ? `Challenge ${index + 1}, available` : `Challenge ${index + 1}, locked`;
-        return (
-          <Button
-            key={index}
-            type="button"
-            variant="ghost"
-            size="icon"
-            disabled={!enabled || loading}
-            aria-label={label}
-            onClick={() => onChallenge(index + 1)}
-            className={`absolute z-20 h-12 w-12 rounded-full border-2 p-0 text-base font-black shadow-xl backdrop-blur-sm transition-all ${position} ${
-              done
-                ? "border-life-teal bg-life-teal text-primary-foreground shadow-life-teal/40"
-                : current
-                  ? "border-life-amber bg-background/85 text-foreground shadow-life-amber/50 motion-safe:animate-pulse"
-                  : "border-border/60 bg-background/55 text-muted-foreground opacity-75"
-            }`}
-          >
-            {index + 1}
-          </Button>
-        );
-      })}
+        <img
+          src={idiaLogo.url}
+          alt="IDIA"
+          width={84}
+          height={84}
+          className="pointer-events-none absolute left-1/2 top-[3%] z-10 h-12 w-12 -translate-x-1/2 object-contain drop-shadow-lg sm:h-14 sm:w-14"
+        />
+
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={!allComplete || loading}
+          aria-label={allComplete ? "Enter the completed wave one house" : "Complete all five challenges to unlock the house"}
+          onClick={fireHouseConfetti}
+          className={`absolute left-[34%] top-[2%] z-20 h-[17%] w-[32%] rounded-none border-0 bg-transparent p-0 transition-[filter,transform] hover:bg-transparent ${
+            allComplete
+              ? "drop-shadow-[0_0_20px_hsl(var(--life-amber)/0.95)] hover:scale-105"
+              : "cursor-default opacity-80 disabled:opacity-80"
+          }`}
+        />
+
+        {POSITIONS.map((position, index) => {
+          const done = completion[index];
+          const current = next === index;
+          const enabled = done || current;
+          const label = done ? `Challenge ${index + 1}, complete` : current ? `Challenge ${index + 1}, available` : `Challenge ${index + 1}, locked`;
+          return (
+            <Button
+              key={index}
+              type="button"
+              variant="ghost"
+              disabled={!enabled || loading}
+              aria-label={label}
+              onClick={() => onChallenge(index + 1)}
+              className={`absolute z-20 h-[12%] w-[28%] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border-0 bg-transparent p-0 text-2xl font-black transition-[filter,transform,opacity] hover:bg-transparent ${position} ${
+                done
+                  ? "text-primary-foreground drop-shadow-[0_2px_6px_hsl(var(--life-teal))]"
+                  : current
+                    ? "text-foreground drop-shadow-[0_2px_7px_hsl(var(--life-amber))] motion-safe:animate-pulse"
+                    : "text-muted-foreground opacity-70 disabled:opacity-70"
+              }`}
+            >
+              {index + 1}
+            </Button>
+          );
+        })}
+      </div>
     </section>
   );
 }
