@@ -130,6 +130,7 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
           description: data.created ? "You made a new Connection." : "Connection refreshed.",
         });
         await reload();
+        await challengeProgress.refresh();
         // Target the new friendship row for rate + label sheets
         setTimeout(() => setRateTarget(data.friendshipId), 3600);
         setTimeout(() => setLabelTarget(data.friendshipId), 4200);
@@ -152,7 +153,7 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
       window.removeEventListener("nfc:scan-error", onError);
       console.log("[LIFE_NFC_SUBSCRIBE_END]");
     };
-  }, [reload]);
+  }, [reload, challengeProgress.refresh]);
 
   // Granular layout calibration logging
   useLayoutEffect(() => {
@@ -238,6 +239,7 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
         toast.success("Verified!", {
           description: verifyData.reason || "Your Good Deed was approved.",
         });
+        await challengeProgress.refresh();
       } else if (verifyData?.verdict === "reject") {
         toast("Not approved", {
           description: verifyData?.reason || "The proof did not match the description.",

@@ -50,6 +50,7 @@ async function sha256Hex(input: string): Promise<string> {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  console.log("[NFC_RESOLVE][BEGIN]");
   try {
     const authHeader = req.headers.get("Authorization") ?? req.headers.get("authorization");
     if (!authHeader) {
@@ -110,6 +111,18 @@ Deno.serve(async (req) => {
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+    const { data: peerProfile, error: peerError } = await admin
+      .from("profiles")
+      .select("user_id")
+      .eq("user_id", peer)
+      .maybeSingle();
+    if (peerError || !peerProfile) {
+      console.log("[NFC_RESOLVE_UNKNOWN_PEER]");
+      return new Response(JSON.stringify({ error: "No Life user was found for that GUID" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Look up existing pair (idempotent)
     const { data: existing, error: selErr } = await admin
       .from("friends")
@@ -158,12 +171,27 @@ Deno.serve(async (req) => {
       console.log("[NFC_RESOLVE_CREATED]", { friendshipId });
     }
 
+    const { error: acaError } = await admin.from("user_aca_records").insert({
+      platform_guid: me,
+      source_id: "life_connection",
+      consent_type: "sovereign_connection",
+      consent_scope: [body?.connectionMethod === "manual_guid" ? "manual_guid" : "nfc_handshake"],
+      aca_hash_key: aca_hash,
+    });
+    if (acaError) {
+      console.error("[NFC_RESOLVE_ACA_ERR]", acaError.message);
+      return new Response(JSON.stringify({ error: "Connection saved, but its consent record could not be secured" }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    console.log("[NFC_RESOLVE][END:OK]", { friendshipId, created });
     return new Response(
       JSON.stringify({ friendshipId, peerUserId: peer, aca_hash, created }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
-    console.error("[NFC_RESOLVE_CRASH]", String(e));
+    console.error("[NFC_RESOLVE][END:FAIL]", String(e));
     return new Response(JSON.stringify({ error: String(e) }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

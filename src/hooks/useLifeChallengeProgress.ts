@@ -73,6 +73,7 @@ export function useLifeChallengeProgress() {
   }, []);
 
   const writeTimestamp = useCallback(async (field: "assessment_completed_at" | "wave_one_celebrated_at") => {
+    console.log(`[LIFE_CHALLENGE_WRITE][BEGIN] ${field}`);
     const { data: auth } = await getCachedUser();
     const user = auth?.user;
     if (!user) throw new Error("Sign in required");
@@ -92,6 +93,7 @@ export function useLifeChallengeProgress() {
     }
     if (field === "assessment_completed_at") setState((current) => ({ ...current, assessment: true }));
     if (field === "wave_one_celebrated_at") setCelebrated(true);
+    console.log(`[LIFE_CHALLENGE_WRITE][END:OK] ${field}`);
   }, []);
 
   useEffect(() => {
