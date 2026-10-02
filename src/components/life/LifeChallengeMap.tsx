@@ -229,6 +229,7 @@ export default function LifeChallengeMap({
               const done = progress[node.key];
               const current = next === index;
               const enabled = done || current;
+              const interactive = enabled && !loading;
               const label = done
                 ? `Challenge ${node.challenge}, complete`
                 : current
@@ -240,14 +241,19 @@ export default function LifeChallengeMap({
               key={node.challenge}
               type="button"
               variant="ghost"
-              disabled={!enabled || loading}
+              disabled={loading}
+              aria-disabled={!interactive}
               aria-label={label}
-              onClick={() => onChallenge(node.challenge)}
-              className={`absolute z-20 aspect-square h-[5.67%] -translate-x-1/2 -translate-y-1/2 rounded-full border p-0 text-3xl font-black transition-[filter,transform,opacity] hover:scale-105 disabled:opacity-100 ${node.position} ${
+              tabIndex={interactive ? 0 : -1}
+              onClick={() => {
+                if (!interactive) return;
+                onChallenge(node.challenge);
+              }}
+              className={`absolute z-20 aspect-square h-[5.67%] -translate-x-1/2 -translate-y-1/2 rounded-full border p-0 text-3xl font-black transition-[filter,transform,opacity] disabled:opacity-100 ${node.position} ${
                 fadedNumber
                   ? "border-primary-foreground/25 bg-primary-foreground/15 text-primary-foreground/65 shadow-[inset_0_4px_10px_hsl(var(--primary-foreground)/0.32),inset_0_-8px_14px_hsl(var(--foreground)/0.22),0_5px_12px_hsl(var(--foreground)/0.35)] backdrop-blur-[2px]"
                   : "border-life-amber/70 bg-life-amber/75 text-life-ink shadow-[inset_0_5px_12px_hsl(var(--primary-foreground)/0.45),inset_0_-9px_14px_hsl(var(--life-amber)/0.5),0_0_18px_hsl(var(--life-amber)/0.95)]"
-              } ${current ? "motion-safe:animate-pulse" : ""} ${!enabled ? "saturate-50" : ""}`}
+              } ${interactive ? "cursor-pointer hover:scale-105 active:scale-95 focus-visible:scale-105" : "cursor-default hover:bg-life-amber/75"} ${current ? "motion-safe:animate-pulse" : ""} ${!enabled ? "saturate-50" : ""}`}
             >
               <span className="drop-shadow-sm">{node.challenge}</span>
             </Button>
