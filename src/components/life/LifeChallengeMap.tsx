@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef } from "react";
-import { Check, LockKeyhole } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import StandingOrb from "./StandingOrb";
 import jungleMap from "@/assets/life-challenge-jungle.jpg";
@@ -48,7 +47,10 @@ export default function LifeChallengeMap({
     }
     celebrationStarted.current = true;
     fireHouseConfetti();
-    void onCelebrate();
+    void onCelebrate().catch((error) => {
+      celebrationStarted.current = false;
+      console.error("[LIFE_HOUSE_CELEBRATION][END:FAIL]", error);
+    });
   }, [allComplete, celebrated, loading, onCelebrate]);
 
   return (
@@ -108,8 +110,7 @@ export default function LifeChallengeMap({
                   : "border-border/60 bg-background/55 text-muted-foreground opacity-75"
             }`}
           >
-            {done ? <Check className="h-5 w-5" aria-hidden /> : index + 1}
-            {!done && !current && <LockKeyhole className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-muted p-0.5" aria-hidden />}
+            {index + 1}
           </Button>
         );
       })}
