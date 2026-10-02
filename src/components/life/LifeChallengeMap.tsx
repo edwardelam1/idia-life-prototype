@@ -160,10 +160,16 @@ export default function LifeChallengeMap({
   onChallenge,
   onCelebrate,
 }: LifeChallengeMapProps) {
-  const completion = useMemo(
-    () => [progress.assessment, progress.connection, progress.goodDeed, progress.dataSource, progress.proposalVote],
-    [progress],
-  );
+  const completion = useMemo(() => {
+    const recorded = [progress.assessment, progress.connection, progress.goodDeed, progress.dataSource, progress.proposalVote];
+    let sequenceOpen = true;
+
+    return recorded.map((isRecorded) => {
+      const isComplete = sequenceOpen && isRecorded;
+      if (!isComplete) sequenceOpen = false;
+      return isComplete;
+    });
+  }, [progress]);
   const next = completion.findIndex((done) => !done);
   const allComplete = next === -1;
   const celebrationStarted = useRef(false);
@@ -226,7 +232,7 @@ export default function LifeChallengeMap({
 
         {MAP_NODES.map((node) => {
               const index = node.challenge - 1;
-              const done = progress[node.key];
+              const done = completion[index];
               const current = next === index;
               const enabled = done || current;
               const interactive = enabled && !loading;
