@@ -30,6 +30,7 @@ export interface TrustCircle {
 export interface GoodDeed {
   id: string;
   user_id: string;
+  doer_id?: string | null;
   title: string;
   description: string;
   verification_status: 'pending' | 'verified' | 'rejected';
@@ -98,7 +99,7 @@ export const useSocialGraph = () => {
         (supabase as any)
           .from('good_deeds')
           .select('*')
-          .eq('user_id', user.id)
+          .or(`user_id.eq.${user.id},doer_id.eq.${user.id}`)
           .order('created_at', { ascending: false }),
       ]);
 

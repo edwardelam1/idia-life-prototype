@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.enforce_good_deed_witness() FROM PUBLIC, anon, authenticated;

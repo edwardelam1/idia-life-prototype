@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { getCachedUser } from "@/lib/authUser";
+import { useAuthUser } from "@/hooks/useAuthUser";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -127,6 +128,15 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
     localPIIVault.lookupBatch(ids).then(setLabels);
   }, [friends]);
 
+  // Witness-only Good Deeds: the submitter picks the Connection who did the deed.
+  const { user: authUser } = useAuthUser();
+  const [deedDoerFriendshipId, setDeedDoerFriendshipId] = useState<string | null>(null);
+  const acceptedConnections = friends.filter((f) => f.status === "accepted");
+  const doerName = (doerId: string) => {
+    const f = acceptedConnections.find((c) => c.user_id_1 === doerId || c.user_id_2 === doerId);
+    return f ? localPIIVault.displayName(f.id, labels[f.id] ?? null) : "a Connection";
+  };
+
   // After a successful Sync, prompt the user to label the new Connection.
   const promptLabelForLatestSync = () => {
     const latest = [...friends].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
@@ -215,6 +225,11 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
       toast("Please add a title, a description, and one piece of proof.");
       return;
     }
+    const doerFriendship = acceptedConnections.find((f) => f.id === deedDoerFriendshipId);
+    if (!doerFriendship) {
+      toast("Please choose the Connection who did the Good Deed.");
+      return;
+    }
     setIsSubmittingDeed(true);
     console.log("[GOOD_DEED_SUBMISSION_START]");
     try {
@@ -225,16 +240,22 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
         toast("Please sign in to submit a Good Deed.");
         return;
       }
+      const doerId = doerFriendship.user_id_1 === user.id ? doerFriendship.user_id_2 : doerFriendship.user_id_1;
+      if (!doerId || doerId === user.id) {
+        toast("You cannot submit a Good Deed about yourself.");
+        return;
+      }
 
-      // 1. Insert the deed row first
+      // 1. Insert the deed row first (witness = submitter, doer = Connection)
       const { data: inserted, error: insertErr } = await supabase
         .from("good_deeds")
         .insert({
           user_id: user.id,
+          doer_id: doerId,
           title,
           description,
           verification_status: "pending",
-        })
+        } as any)
         .select("id")
         .maybeSingle();
       if (insertErr || !inserted) throw insertErr ?? new Error("Insert failed");
@@ -555,6 +576,7 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
                       setNewDeedTitle("");
                       setNewDeedDescription("");
                       setNewDeedFile(null);
+                      setDeedDoerFriendshipId(null);
                     }
                   }}
                 >
@@ -570,8 +592,8 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
                     </DialogHeader>
                     <div className="space-y-4">
                       <p className="text-xs text-muted-foreground leading-snug">
-                        You must show proof. Add a photo, a short video, or a voice note that shows the Good Deed. Then
-                        write what you did.
+                        You must show proof. Add a photo, a short video, or a voice note that shows the Good Deed you saw. Then
+                        write what your Connection did.
                       </p>
                       <Input
                         placeholder="Title of your Good Deed"
@@ -581,7 +603,7 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
                         className="border-teal-100"
                       />
                       <Textarea
-                        placeholder="Tell us what you did and who it helped."
+                        placeholder="Tell us what your Connection did and who it helped."
                         value={newDeedDescription}
                         onChange={(e) => setNewDeedDescription(e.target.value)}
                         rows={3}
@@ -602,11 +624,52 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
                           <p className="text-[11px] text-muted-foreground truncate">{newDeedFile.name}</p>
                         )}
                       </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs text-foreground font-medium">Who did the Good Deed?</label>
+                        {acceptedConnections.length === 0 ? (
+                          <p className="text-[11px] text-muted-foreground leading-snug">
+                            You can only submit a Good Deed you saw a Connection do. Make a Connection first.
+                          </p>
+                        ) : (
+                          <div className="max-h-40 space-y-1.5 overflow-y-auto">
+                            {acceptedConnections.map((f) => {
+                              const label = labels[f.id] ?? null;
+                              const selected = deedDoerFriendshipId === f.id;
+                              return (
+                                <button
+                                  key={f.id}
+                                  type="button"
+                                  onClick={() => setDeedDoerFriendshipId(f.id)}
+                                  aria-pressed={selected}
+                                  className={`flex w-full items-center gap-2 rounded-lg border p-2 text-left text-sm transition-colors ${
+                                    selected ? "border-teal-500 bg-teal-50/60 dark:bg-teal-900/30" : "border-border"
+                                  }`}
+                                >
+                                  <Avatar className="h-7 w-7">
+                                    <AvatarFallback className="bg-teal-100 text-teal-700 text-xs">
+                                      {localPIIVault.initials(f.id, label)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="flex-1 truncate text-foreground">
+                                    {localPIIVault.displayName(f.id, label)}
+                                  </span>
+                                  {selected && <CheckCircle className="h-4 w-4 text-teal-600" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <p className="text-[11px] text-muted-foreground">You cannot submit a Good Deed about yourself.</p>
+                      </div>
                       <Button
                         className="w-full bg-teal-600 hover:bg-teal-700"
                         onClick={handleSubmitGoodDeed}
                         disabled={
-                          isSubmittingDeed || !newDeedTitle.trim() || !newDeedDescription.trim() || !newDeedFile
+                          isSubmittingDeed ||
+                          !newDeedTitle.trim() ||
+                          !newDeedDescription.trim() ||
+                          !newDeedFile ||
+                          !deedDoerFriendshipId
                         }
                       >
                         {isSubmittingDeed ? "Submitting…" : "Submit for Verification"}
@@ -627,6 +690,11 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
                         <h4 className="font-medium text-foreground">{deed.title}</h4>
                         {getStatusBadge(deed.verification_status)}
                       </div>
+                      <p className="text-xs font-medium text-teal-700 dark:text-teal-300">
+                        {deed.user_id === authUser?.id
+                          ? `You witnessed ${deed.doer_id ? doerName(deed.doer_id) : "this deed"}`
+                          : "Witnessed by a Connection"}
+                      </p>
                       <p className="text-sm text-muted-foreground">{deed.description}</p>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
