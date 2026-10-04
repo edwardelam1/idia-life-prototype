@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
 
     const { data: deed, error: deedErr } = await admin
       .from("good_deeds")
-      .select("id, user_id, title, description, evidence_url, verification_status")
+      .select("id, user_id, doer_id, title, description, evidence_url, verification_status")
       .eq("id", body.deed_id)
       .maybeSingle();
 
@@ -87,6 +87,28 @@ Deno.serve(async (req) => {
     if (deed.user_id !== userId) {
       return new Response(JSON.stringify({ error: "Not your deed" }), {
         status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    // Witness-only rule: a named doer, never the submitter, and an accepted Connection.
+    if (!deed.doer_id || deed.doer_id === userId) {
+      return new Response(JSON.stringify({ error: "A Good Deed must be witnessed about another Connection" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { data: link } = await admin
+      .from("friends")
+      .select("id")
+      .eq("status", "accepted")
+      .or(
+        `and(user_id_1.eq.${userId},user_id_2.eq.${deed.doer_id}),and(user_id_1.eq.${deed.doer_id},user_id_2.eq.${userId})`,
+      )
+      .limit(1)
+      .maybeSingle();
+    if (!link) {
+      return new Response(JSON.stringify({ error: "The doer is not one of your Connections" }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -206,10 +228,12 @@ Deno.serve(async (req) => {
     }
 
     if (verdict === "accept") {
-      const { data: profile } = await admin.from("profiles").select("trust_score").eq("user_id", userId).maybeSingle();
+      // Witness-only: the trust boost goes to the Connection who did the deed.
+      const doerId = deed.doer_id as string;
+      const { data: profile } = await admin.from("profiles").select("trust_score").eq("user_id", doerId).maybeSingle();
       const next = (profile?.trust_score ?? 850) + TRUST_SCORE_BUMP_ON_ACCEPT;
-      await admin.from("profiles").update({ trust_score: next }).eq("user_id", userId);
-      await admin.from("trust_score_history").insert({ user_id: userId, score: next });
+      await admin.from("profiles").update({ trust_score: next }).eq("user_id", doerId);
+      await admin.from("trust_score_history").insert({ user_id: doerId, score: next });
     }
 
     // --- 7. DELT Protocol — ACA hash for the egress ---
