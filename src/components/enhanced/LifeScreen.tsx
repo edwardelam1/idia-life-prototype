@@ -592,8 +592,8 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
                     </DialogHeader>
                     <div className="space-y-4">
                       <p className="text-xs text-muted-foreground leading-snug">
-                        You must show proof. Add a photo, a short video, or a voice note that shows the Good Deed. Then
-                        write what you did.
+                        You must show proof. Add a photo, a short video, or a voice note that shows the Good Deed you saw. Then
+                        write what your Connection did.
                       </p>
                       <Input
                         placeholder="Title of your Good Deed"
@@ -603,7 +603,7 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
                         className="border-teal-100"
                       />
                       <Textarea
-                        placeholder="Tell us what you did and who it helped."
+                        placeholder="Tell us what your Connection did and who it helped."
                         value={newDeedDescription}
                         onChange={(e) => setNewDeedDescription(e.target.value)}
                         rows={3}
