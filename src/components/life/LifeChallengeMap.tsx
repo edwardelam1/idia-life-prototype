@@ -293,6 +293,59 @@ export default function LifeChallengeMap({
             </Button>
           );
         })}
+
+        {infoChallenge !== null &&
+          (() => {
+            const node = MAP_NODES.find((item) => item.challenge === infoChallenge);
+            if (!node) return null;
+            const info = CHALLENGE_INFO[infoChallenge];
+            const above = node.y > 50;
+            const clampedX = Math.min(Math.max(node.x, 33), 67);
+            return (
+              <>
+                <div aria-hidden="true" className="absolute inset-0 z-30" onClick={() => setInfoChallenge(null)} />
+                <div
+                  role="dialog"
+                  aria-label={`Challenge ${node.challenge}: ${info.title}`}
+                  className="absolute z-40 w-[62%] max-w-60 rounded-2xl border border-border/60 bg-background/85 p-3 shadow-xl backdrop-blur-md motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"
+                  style={{
+                    left: `${clampedX}%`,
+                    top: above ? `${node.y - 10}%` : `${node.y + 10}%`,
+                    transform: `translate(-50%, ${above ? "-100%" : "0"})`,
+                  }}
+                >
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-life-amber">
+                    Challenge {node.challenge}
+                  </p>
+                  <p className="mt-0.5 text-sm font-bold leading-tight text-foreground">{info.title}</p>
+                  <p className="mt-1 text-xs leading-snug text-muted-foreground">{info.description}</p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Button
+                      ref={beginButtonRef}
+                      type="button"
+                      size="sm"
+                      className="h-8 flex-1 text-xs"
+                      onClick={() => {
+                        setInfoChallenge(null);
+                        onChallenge(node.challenge);
+                      }}
+                    >
+                      Begin
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 px-2 text-xs text-muted-foreground"
+                      onClick={() => setInfoChallenge(null)}
+                    >
+                      Close
+                    </Button>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
       </div>
     </section>
   );
