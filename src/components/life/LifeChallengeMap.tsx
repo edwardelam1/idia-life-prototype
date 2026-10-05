@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import StandingOrb from "./StandingOrb";
 import type { LifeChallengeState } from "@/hooks/useLifeChallengeProgress";
@@ -18,17 +18,29 @@ type ChallengeKey = keyof LifeChallengeState;
 type MapNode = {
   challenge: number;
   key: ChallengeKey;
+  x: number;
+  y: number;
   position: string;
 };
 
 // Every stop is measured in the same 600 × 1800 coordinate space as the road.
 const MAP_NODES: MapNode[] = [
-  { challenge: 5, key: "proposalVote", position: "left-[50%] top-[16.67%]" },
-  { challenge: 4, key: "dataSource", position: "left-[70%] top-[33.89%]" },
-  { challenge: 3, key: "goodDeed", position: "left-[30%] top-[50%]" },
-  { challenge: 2, key: "connection", position: "left-[68.33%] top-[66.67%]" },
-  { challenge: 1, key: "assessment", position: "left-[31.67%] top-[83.33%]" },
+  { challenge: 5, key: "proposalVote", x: 50, y: 16.67, position: "left-[50%] top-[16.67%]" },
+  { challenge: 4, key: "dataSource", x: 70, y: 33.89, position: "left-[70%] top-[33.89%]" },
+  { challenge: 3, key: "goodDeed", x: 30, y: 50, position: "left-[30%] top-[50%]" },
+  { challenge: 2, key: "connection", x: 68.33, y: 66.67, position: "left-[68.33%] top-[66.67%]" },
+  { challenge: 1, key: "assessment", x: 31.67, y: 83.33, position: "left-[31.67%] top-[83.33%]" },
 ];
+
+// Static presentation copy for the current-challenge pop-up.
+// The actions themselves stay in LifeScreen via onChallenge.
+const CHALLENGE_INFO: Record<number, { title: string; description: string }> = {
+  1: { title: "Assessment", description: "Complete your psychometric assessment to establish your standing." },
+  2: { title: "Connection", description: "Make a real Connection: sync with someone in person, or enter their GUID." },
+  3: { title: "Good Deed", description: "Submit a Good Deed you witnessed for verification." },
+  4: { title: "Data Source", description: "Attach one data source to your profile." },
+  5: { title: "Proposal Vote", description: "Vote on an active governance proposal." },
+};
 
 function LifeTerrain() {
   return (
@@ -175,6 +187,18 @@ export default function LifeChallengeMap({
   const celebrationStarted = useRef(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const houseRef = useRef<HTMLButtonElement>(null);
+  const [infoChallenge, setInfoChallenge] = useState<number | null>(null);
+  const beginButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (infoChallenge === null) return;
+    beginButtonRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setInfoChallenge(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [infoChallenge]);
 
   const celebrateFromHouse = useCallback(() => {
     const bounds = houseRef.current?.getBoundingClientRect();
@@ -212,7 +236,7 @@ export default function LifeChallengeMap({
   }, [allComplete, celebrated, celebrateFromHouse, loading, onCelebrate]);
 
   return (
-    <section ref={scrollAreaRef} className="relative h-full min-h-0 overflow-y-auto bg-card px-1" aria-label="Life challenge journey">
+    <section ref={scrollAreaRef} onScroll={() => setInfoChallenge(null)} className="relative h-full min-h-0 overflow-y-auto bg-card px-1" aria-label="Life challenge journey">
       <div className="sticky left-3 top-3 z-30 ml-2 h-0 w-fit translate-y-2 rounded-full border border-border/60 bg-background/55 p-1.5 shadow-lg backdrop-blur-md">
         <StandingOrb score={score} size={43} compact />
       </div>
@@ -253,6 +277,10 @@ export default function LifeChallengeMap({
               tabIndex={interactive ? 0 : -1}
               onClick={() => {
                 if (!interactive) return;
+                if (!done) {
+                  setInfoChallenge(node.challenge);
+                  return;
+                }
                 onChallenge(node.challenge);
               }}
               className={`absolute z-20 aspect-square h-[5.67%] -translate-x-1/2 -translate-y-1/2 rounded-full border p-0 text-3xl font-black transition-[filter,transform,opacity] disabled:opacity-100 ${node.position} ${
@@ -265,6 +293,59 @@ export default function LifeChallengeMap({
             </Button>
           );
         })}
+
+        {infoChallenge !== null &&
+          (() => {
+            const node = MAP_NODES.find((item) => item.challenge === infoChallenge);
+            if (!node) return null;
+            const info = CHALLENGE_INFO[infoChallenge];
+            const above = node.y > 50;
+            const clampedX = Math.min(Math.max(node.x, 33), 67);
+            return (
+              <>
+                <div aria-hidden="true" className="absolute inset-0 z-30" onClick={() => setInfoChallenge(null)} />
+                <div
+                  role="dialog"
+                  aria-label={`Challenge ${node.challenge}: ${info.title}`}
+                  className="absolute z-40 w-[62%] max-w-60 rounded-2xl border border-border/60 bg-background/85 p-3 shadow-xl backdrop-blur-md motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"
+                  style={{
+                    left: `${clampedX}%`,
+                    top: above ? `${node.y - 10}%` : `${node.y + 10}%`,
+                    transform: `translate(-50%, ${above ? "-100%" : "0"})`,
+                  }}
+                >
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-life-amber">
+                    Challenge {node.challenge}
+                  </p>
+                  <p className="mt-0.5 text-sm font-bold leading-tight text-foreground">{info.title}</p>
+                  <p className="mt-1 text-xs leading-snug text-muted-foreground">{info.description}</p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Button
+                      ref={beginButtonRef}
+                      type="button"
+                      size="sm"
+                      className="h-8 flex-1 text-xs"
+                      onClick={() => {
+                        setInfoChallenge(null);
+                        onChallenge(node.challenge);
+                      }}
+                    >
+                      Begin
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 px-2 text-xs text-muted-foreground"
+                      onClick={() => setInfoChallenge(null)}
+                    >
+                      Close
+                    </Button>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
       </div>
     </section>
   );
