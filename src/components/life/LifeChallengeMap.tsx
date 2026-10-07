@@ -189,12 +189,22 @@ export default function LifeChallengeMap({
   const houseRef = useRef<HTMLButtonElement>(null);
   const [infoChallenge, setInfoChallenge] = useState<number | null>(null);
   const [standingInfoOpen, setStandingInfoOpen] = useState(false);
+  const standingTimerRef = useRef<number | null>(null);
   const beginButtonRef = useRef<HTMLButtonElement>(null);
 
   const closePopups = useCallback(() => {
+    if (standingTimerRef.current !== null) {
+      window.clearTimeout(standingTimerRef.current);
+      standingTimerRef.current = null;
+    }
     setInfoChallenge(null);
     setStandingInfoOpen(false);
   }, []);
+
+  useEffect(() => () => {
+    if (standingTimerRef.current !== null) window.clearTimeout(standingTimerRef.current);
+  }, []);
+
 
   useEffect(() => {
     if (infoChallenge === null && !standingInfoOpen) return;
@@ -261,15 +271,12 @@ export default function LifeChallengeMap({
             <div
               role="dialog"
               aria-label="What Standing means"
-              className="absolute left-[calc(100%+8px)] top-1/2 z-50 w-52 -translate-y-1/2 rounded-2xl border border-border/60 bg-background/90 p-3 shadow-xl backdrop-blur-md motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"
+              className="absolute left-[calc(100%+8px)] top-[calc(100%+8px)] z-50 w-52 rounded-2xl border border-border/60 bg-background/90 p-3 shadow-xl backdrop-blur-md motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"
             >
               <p className="text-sm font-bold leading-tight text-foreground">Set your standing first</p>
               <p className="mt-1 text-xs leading-snug text-muted-foreground">
                 Standing is your current Trust Score tier, shown by this sphere. Your initial assessment establishes it.
               </p>
-              <Button type="button" size="sm" variant="ghost" className="mt-2 h-8 px-2 text-xs text-muted-foreground" onClick={closePopups}>
-                Close
-              </Button>
             </div>
           )}
         </div>
@@ -313,7 +320,14 @@ export default function LifeChallengeMap({
                 if (!interactive) return;
                 if (!done) {
                   setInfoChallenge(node.challenge);
-                  setStandingInfoOpen(node.challenge === 1);
+                  if (node.challenge === 1) {
+                    standingTimerRef.current = window.setTimeout(() => {
+                      standingTimerRef.current = null;
+                      setStandingInfoOpen(true);
+                    }, 500);
+                  } else {
+                    setStandingInfoOpen(false);
+                  }
                   return;
                 }
                 setStandingInfoOpen(false);
