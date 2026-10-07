@@ -197,14 +197,14 @@ export default function LifeChallengeMap({
   }, []);
 
   useEffect(() => {
-    if (infoChallenge === null) return;
+    if (infoChallenge === null && !standingInfoOpen) return;
     beginButtonRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") closePopups();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [closePopups, infoChallenge]);
+  }, [closePopups, infoChallenge, standingInfoOpen]);
 
   const celebrateFromHouse = useCallback(() => {
     const bounds = houseRef.current?.getBoundingClientRect();
@@ -243,6 +243,9 @@ export default function LifeChallengeMap({
 
   return (
     <section ref={scrollAreaRef} onScroll={closePopups} className="relative h-full min-h-0 overflow-y-auto bg-card px-1" aria-label="Life challenge journey">
+      {standingInfoOpen && infoChallenge === null && (
+        <div aria-hidden="true" className="absolute inset-0 z-40" onClick={closePopups} />
+      )}
       <div className="sticky left-3 top-3 z-50 ml-2 h-0 w-fit translate-y-2">
         <div className="relative rounded-full border border-border/60 bg-background/55 p-1.5 shadow-lg backdrop-blur-md">
           <StandingOrb
