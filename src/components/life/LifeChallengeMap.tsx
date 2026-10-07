@@ -71,8 +71,20 @@ function LifeTerrain() {
           <feGaussianBlur stdDeviation="14" />
         </filter>
         <pattern id="contours" width="74" height="74" patternUnits="userSpaceOnUse">
-          <path d="M-10 24 Q 18 2 47 22 T 84 18" fill="none" stroke="hsl(var(--life-contour))" strokeWidth="2" opacity="0.32" />
-          <path d="M-8 55 Q 21 37 48 56 T 84 51" fill="none" stroke="hsl(var(--life-contour))" strokeWidth="1.5" opacity="0.2" />
+          <path
+            d="M-10 24 Q 18 2 47 22 T 84 18"
+            fill="none"
+            stroke="hsl(var(--life-contour))"
+            strokeWidth="2"
+            opacity="0.32"
+          />
+          <path
+            d="M-8 55 Q 21 37 48 56 T 84 51"
+            fill="none"
+            stroke="hsl(var(--life-contour))"
+            strokeWidth="1.5"
+            opacity="0.2"
+          />
         </pattern>
       </defs>
 
@@ -156,7 +168,15 @@ function LifeTerrain() {
           <g key={y}>
             <circle cx={x} cy={y} r="67" fill="hsl(var(--life-road-glow))" opacity="0.28" />
             <circle cx={x} cy={y} r="53" fill="hsl(var(--life-road-border))" />
-            <circle cx={x} cy={y} r="43" fill="url(#road-light)" stroke="hsl(var(--life-road-highlight))" strokeWidth="3" opacity="0.92" />
+            <circle
+              cx={x}
+              cy={y}
+              r="43"
+              fill="url(#road-light)"
+              stroke="hsl(var(--life-road-highlight))"
+              strokeWidth="3"
+              opacity="0.92"
+            />
           </g>
         );
       })}
@@ -173,7 +193,13 @@ export default function LifeChallengeMap({
   onCelebrate,
 }: LifeChallengeMapProps) {
   const completion = useMemo(() => {
-    const recorded = [progress.assessment, progress.connection, progress.goodDeed, progress.dataSource, progress.proposalVote];
+    const recorded = [
+      progress.assessment,
+      progress.connection,
+      progress.goodDeed,
+      progress.dataSource,
+      progress.proposalVote,
+    ];
     let sequenceOpen = true;
 
     return recorded.map((isRecorded) => {
@@ -201,10 +227,12 @@ export default function LifeChallengeMap({
     setStandingInfoOpen(false);
   }, []);
 
-  useEffect(() => () => {
-    if (standingTimerRef.current !== null) window.clearTimeout(standingTimerRef.current);
-  }, []);
-
+  useEffect(
+    () => () => {
+      if (standingTimerRef.current !== null) window.clearTimeout(standingTimerRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (infoChallenge === null && !standingInfoOpen) return;
@@ -252,7 +280,12 @@ export default function LifeChallengeMap({
   }, [allComplete, celebrated, celebrateFromHouse, loading, onCelebrate]);
 
   return (
-    <section ref={scrollAreaRef} onScroll={closePopups} className="relative h-full min-h-0 overflow-y-auto bg-card px-1" aria-label="Life challenge journey">
+    <section
+      ref={scrollAreaRef}
+      onScroll={closePopups}
+      className="relative h-full min-h-0 overflow-y-auto bg-card px-1"
+      aria-label="Life challenge journey"
+    >
       {standingInfoOpen && infoChallenge === null && (
         <div aria-hidden="true" className="absolute inset-0 z-40" onClick={closePopups} />
       )}
@@ -273,9 +306,10 @@ export default function LifeChallengeMap({
               aria-label="What Standing means"
               className="absolute left-[calc(100%+8px)] top-[calc(100%+8px)] z-50 w-52 rounded-2xl border border-border/60 bg-background/90 p-3 shadow-xl backdrop-blur-md motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"
             >
-              <p className="text-sm font-bold leading-tight text-foreground">Set your standing first</p>
+              <p className="text-sm font-bold leading-tight text-foreground">Sphere of Life</p>
               <p className="mt-1 text-xs leading-snug text-muted-foreground">
-                Standing is your current Trust Score tier, shown by this sphere. Your initial assessment establishes it.
+                Standing is your current Trust Score tier, shown by this sphere by color. Your inititial color is White
+                Pearl and the goal is Vantablack.
               </p>
             </div>
           )}
@@ -288,25 +322,31 @@ export default function LifeChallengeMap({
           type="button"
           variant="ghost"
           disabled={!allComplete || loading}
-          aria-label={allComplete ? "Enter the completed wave one destination" : "Complete all five challenges to unlock the destination"}
+          aria-label={
+            allComplete
+              ? "Enter the completed wave one destination"
+              : "Complete all five challenges to unlock the destination"
+          }
           onClick={celebrateFromHouse}
           className={`absolute left-[38%] top-0 z-20 h-[9%] w-[24%] rounded-[45%] border-0 bg-transparent p-0 hover:bg-transparent ${
-            allComplete ? "drop-shadow-[0_0_20px_hsl(var(--life-amber)/0.95)] hover:scale-105" : "cursor-default disabled:opacity-100"
+            allComplete
+              ? "drop-shadow-[0_0_20px_hsl(var(--life-amber)/0.95)] hover:scale-105"
+              : "cursor-default disabled:opacity-100"
           }`}
         />
 
         {MAP_NODES.map((node) => {
-              const index = node.challenge - 1;
-              const done = completion[index];
-              const current = next === index;
-              const enabled = done || current;
-              const interactive = enabled && !loading;
-              const label = done
-                ? `Challenge ${node.challenge}, complete`
-                : current
-                  ? `Challenge ${node.challenge}, available`
-                  : `Challenge ${node.challenge}, locked`;
-              const fadedNumber = node.challenge === 1;
+          const index = node.challenge - 1;
+          const done = completion[index];
+          const current = next === index;
+          const enabled = done || current;
+          const interactive = enabled && !loading;
+          const label = done
+            ? `Challenge ${node.challenge}, complete`
+            : current
+              ? `Challenge ${node.challenge}, available`
+              : `Challenge ${node.challenge}, locked`;
+          const fadedNumber = node.challenge === 1;
           return (
             <Button
               key={node.challenge}
