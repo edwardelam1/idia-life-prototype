@@ -304,7 +304,7 @@ export default function LifeChallengeMap({
             <div
               role="dialog"
               aria-label="What Standing means"
-              className="absolute left-[calc(100%+8px)] top-[calc(100%+8px)] z-50 w-52 rounded-2xl border border-border/60 bg-background/90 p-3 shadow-xl backdrop-blur-md motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"
+              className="absolute left-0 top-[calc(100%+8px)] z-50 w-52 rounded-2xl border border-border/60 bg-background/90 p-3 shadow-xl backdrop-blur-md motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"
             >
               <p className="text-sm font-bold leading-tight text-foreground">Sphere of Life</p>
               <p className="mt-1 text-xs leading-snug text-muted-foreground">
