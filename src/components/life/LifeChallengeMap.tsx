@@ -35,7 +35,10 @@ const MAP_NODES: MapNode[] = [
 // Static presentation copy for the current-challenge pop-up.
 // The actions themselves stay in LifeScreen via onChallenge.
 const CHALLENGE_INFO: Record<number, { title: string; description: string }> = {
-  1: { title: "Assessment", description: "Complete your psychometric assessment to establish your standing." },
+  1: {
+    title: "Assessment",
+    description: "Complete your psychometric assessment to begin enhacing your Sphere of Life standing.",
+  },
   2: { title: "Connection", description: "Make a real Connection: sync with someone in person, or enter their GUID." },
   3: { title: "Good Deed", description: "Submit a Good Deed you witnessed for verification." },
   4: { title: "Data Source", description: "Attach one data source to your profile." },
