@@ -6,22 +6,12 @@ Make the first Life challenge introduce the purpose of the journey before showin
 
 ## Changes
 
-### 1. Add a first-step introduction for Challenge 1
+### 1. Add a seconadry pop-up for Challenge 1
 
-- When Challenge 1 is the current active challenge and the user taps it, show a small pop-up beside the challenge bubble with the message **“Set your standing first.”**
-- Give that pop-up one clear **“Okay”** action.
-- After the user taps **“Okay,”** replace the message in the same anchored pop-up with the existing Assessment title, description, and **“Begin”** action.
-- **“Begin”** continues to launch the existing assessment flow.
+- When Challenge 1 is the current active challenge and the user taps it, show an additional small pop-up beside the sphere, this is secondary to the original Challenge 1 pop-up and explains the function of the sphere.
+- Give this secondary pop-up is entirely controlled by the primary Challenge 1 pop-up.
 - Keep the current behavior for challenges 2–5, completed challenges, and locked challenges unchanged.
 - Preserve outside-tap, Close, Escape, scroll, and tab-change dismissal behavior. Dismissing and reopening Challenge 1 starts again with “Set your standing first.”
-
-### 2. Explain the Standing sphere on tap
-
-- Make the compact Standing sphere in the top-left tappable without removing its existing drag/spin behavior.
-- A deliberate tap—not a drag—opens a matching small pop-up beside the sphere.
-- Explain that **Standing is the user’s current Trust Score tier, visualized by the sphere, and that the initial assessment establishes it.**
-- This pop-up is informational only and has a **“Close”** action, as requested.
-- Opening the sphere explanation closes any challenge pop-up, and opening a challenge pop-up closes the sphere explanation, so only one is visible.
 
 ### 3. Accessibility and presentation
 

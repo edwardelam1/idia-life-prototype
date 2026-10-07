@@ -188,17 +188,23 @@ export default function LifeChallengeMap({
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const houseRef = useRef<HTMLButtonElement>(null);
   const [infoChallenge, setInfoChallenge] = useState<number | null>(null);
+  const [standingInfoOpen, setStandingInfoOpen] = useState(false);
   const beginButtonRef = useRef<HTMLButtonElement>(null);
 
+  const closePopups = useCallback(() => {
+    setInfoChallenge(null);
+    setStandingInfoOpen(false);
+  }, []);
+
   useEffect(() => {
-    if (infoChallenge === null) return;
+    if (infoChallenge === null && !standingInfoOpen) return;
     beginButtonRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setInfoChallenge(null);
+      if (event.key === "Escape") closePopups();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [infoChallenge]);
+  }, [closePopups, infoChallenge, standingInfoOpen]);
 
   const celebrateFromHouse = useCallback(() => {
     const bounds = houseRef.current?.getBoundingClientRect();
@@ -236,9 +242,37 @@ export default function LifeChallengeMap({
   }, [allComplete, celebrated, celebrateFromHouse, loading, onCelebrate]);
 
   return (
-    <section ref={scrollAreaRef} onScroll={() => setInfoChallenge(null)} className="relative h-full min-h-0 overflow-y-auto bg-card px-1" aria-label="Life challenge journey">
-      <div className="sticky left-3 top-3 z-30 ml-2 h-0 w-fit translate-y-2 rounded-full border border-border/60 bg-background/55 p-1.5 shadow-lg backdrop-blur-md">
-        <StandingOrb score={score} size={43} compact />
+    <section ref={scrollAreaRef} onScroll={closePopups} className="relative h-full min-h-0 overflow-y-auto bg-card px-1" aria-label="Life challenge journey">
+      {standingInfoOpen && infoChallenge === null && (
+        <div aria-hidden="true" className="absolute inset-0 z-40" onClick={closePopups} />
+      )}
+      <div className="sticky left-3 top-3 z-50 ml-2 h-0 w-fit translate-y-2">
+        <div className="relative rounded-full border border-border/60 bg-background/55 p-1.5 shadow-lg backdrop-blur-md">
+          <StandingOrb
+            score={score}
+            size={43}
+            compact
+            onTap={() => {
+              setInfoChallenge(null);
+              setStandingInfoOpen(true);
+            }}
+          />
+          {standingInfoOpen && (
+            <div
+              role="dialog"
+              aria-label="What Standing means"
+              className="absolute left-[calc(100%+8px)] top-1/2 z-50 w-52 -translate-y-1/2 rounded-2xl border border-border/60 bg-background/90 p-3 shadow-xl backdrop-blur-md motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"
+            >
+              <p className="text-sm font-bold leading-tight text-foreground">Set your standing first</p>
+              <p className="mt-1 text-xs leading-snug text-muted-foreground">
+                Standing is your current Trust Score tier, shown by this sphere. Your initial assessment establishes it.
+              </p>
+              <Button type="button" size="sm" variant="ghost" className="mt-2 h-8 px-2 text-xs text-muted-foreground" onClick={closePopups}>
+                Close
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
       <div className="relative mx-auto aspect-[1/3] w-full max-w-2xl overflow-hidden rounded-[15%] bg-card">
         <LifeTerrain />
@@ -279,8 +313,10 @@ export default function LifeChallengeMap({
                 if (!interactive) return;
                 if (!done) {
                   setInfoChallenge(node.challenge);
+                  setStandingInfoOpen(node.challenge === 1);
                   return;
                 }
+                setStandingInfoOpen(false);
                 onChallenge(node.challenge);
               }}
               className={`absolute z-20 aspect-square h-[5.67%] -translate-x-1/2 -translate-y-1/2 rounded-full border p-0 text-3xl font-black transition-[filter,transform,opacity] disabled:opacity-100 ${node.position} ${
@@ -306,7 +342,7 @@ export default function LifeChallengeMap({
             const availablePercent = 100 - edgePercent;
             return (
               <>
-                <div aria-hidden="true" className="absolute inset-0 z-30" onClick={() => setInfoChallenge(null)} />
+                <div aria-hidden="true" className="absolute inset-0 z-30" onClick={closePopups} />
                 <div
                   role="dialog"
                   aria-label={`Challenge ${node.challenge}: ${info.title}`}
@@ -332,7 +368,7 @@ export default function LifeChallengeMap({
                       size="sm"
                       className="h-8 flex-1 text-xs"
                       onClick={() => {
-                        setInfoChallenge(null);
+                        closePopups();
                         onChallenge(node.challenge);
                       }}
                     >
@@ -343,7 +379,7 @@ export default function LifeChallengeMap({
                       size="sm"
                       variant="ghost"
                       className="h-8 px-2 text-xs text-muted-foreground"
-                      onClick={() => setInfoChallenge(null)}
+                      onClick={closePopups}
                     >
                       Close
                     </Button>

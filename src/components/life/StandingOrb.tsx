@@ -4,6 +4,7 @@ interface StandingOrbProps {
   score: number | null | undefined;
   size?: number;
   compact?: boolean;
+  onTap?: () => void;
 }
 
 type TierName =
@@ -89,7 +90,7 @@ const TIER_LABEL: Record<TierName, string> = {
 const BASELINE_X = 0.04;
 const BASELINE_Y = 0.07;
 
-export default function StandingOrb({ score, size = 240, compact = false }: StandingOrbProps) {
+export default function StandingOrb({ score, size = 240, compact = false, onTap }: StandingOrbProps) {
   const sceneRef = useRef<HTMLDivElement | null>(null);
   const orbRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -101,6 +102,7 @@ export default function StandingOrb({ score, size = 240, compact = false }: Stan
 
   // Pointer drag state
   const draggingRef = useRef(false);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const lastPointerRef = useRef<{ x: number; y: number; t: number } | null>(null);
   const samplesRef = useRef<{ t: number; x: number; y: number }[]>([]);
   const stabilizedRef = useRef(true);
@@ -168,6 +170,7 @@ export default function StandingOrb({ score, size = 240, compact = false }: Stan
   const handlePointerDown = (e: React.PointerEvent) => {
     (e.target as Element).setPointerCapture?.(e.pointerId);
     draggingRef.current = true;
+    pointerStartRef.current = { x: e.clientX, y: e.clientY };
     setIsPressed(true);
     lastPointerRef.current = { x: e.clientX, y: e.clientY, t: performance.now() };
     samplesRef.current = [
@@ -198,10 +201,14 @@ export default function StandingOrb({ score, size = 240, compact = false }: Stan
     applyTransform();
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e: React.PointerEvent) => {
     if (!draggingRef.current) return;
     draggingRef.current = false;
     setIsPressed(false);
+
+    const start = pointerStartRef.current;
+    pointerStartRef.current = null;
+    const moved = start ? Math.hypot(e.clientX - start.x, e.clientY - start.y) : Number.POSITIVE_INFINITY;
 
     const samples = samplesRef.current;
     if (samples.length >= 2) {
@@ -218,6 +225,13 @@ export default function StandingOrb({ score, size = 240, compact = false }: Stan
     console.log(
       `[ORB_FLICK_RELEASE] vx=${velRef.current.x.toFixed(2)} vy=${velRef.current.y.toFixed(2)}`,
     );
+    if (moved < 8) onTap?.();
+  };
+
+  const handlePointerCancel = () => {
+    draggingRef.current = false;
+    pointerStartRef.current = null;
+    setIsPressed(false);
   };
 
   // Build the orb visual styles
@@ -238,7 +252,15 @@ export default function StandingOrb({ score, size = 240, compact = false }: Stan
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onKeyDown={(event) => {
+          if (!onTap || (event.key !== "Enter" && event.key !== " ")) return;
+          event.preventDefault();
+          onTap();
+        }}
+        role={onTap ? "button" : undefined}
+        tabIndex={onTap ? 0 : undefined}
+        aria-label={onTap ? "Learn what Standing means" : undefined}
         className="relative cursor-grab active:cursor-grabbing"
         style={{
           width: `${size}px`,
