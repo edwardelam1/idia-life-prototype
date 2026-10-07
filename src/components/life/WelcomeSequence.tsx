@@ -15,10 +15,10 @@ interface SpotlightTab {
 
 const ALL_SPOTLIGHT_TABS: SpotlightTab[] = [
   { id: "wallet", label: "Wallet", copy: "See, manage, and control your financial world with clarity." },
-  { id: "data", label: "My Data", copy: "Connect your apps. Turn everyday digital activity into earnings." },
-  { id: "life", label: "Life", copy: "Take assessments that reveal how you think, act, and operate." },
+  { id: "data", label: "Data", copy: "Connect your apps. Turn everyday digital activity into earnings." },
+  { id: "life", label: "Life", copy: "Track your milestones within the ecosystem." },
   { id: "shop", label: "Shop", copy: "Discover and support the places you love." },
-  { id: "vote", label: "Vote", copy: "Your voice directly shapes the ecosystem." },
+  { id: "vote", label: "Gov", copy: "Your voice directly shapes the ecosystem." },
   { id: "pro", label: "Pro", copy: "Where performance meets opportunity." },
 ];
 
