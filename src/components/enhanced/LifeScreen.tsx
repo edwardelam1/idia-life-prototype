@@ -16,6 +16,7 @@ import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter
 import { fireFinaleConfetti } from "../psychometric/confetti";
 import LifeChallengeMap from "../life/LifeChallengeMap";
 import LifeAchievementNotice from "../life/LifeAchievementNotice";
+import WelcomeToLifeOverlay from "../life/WelcomeToLifeOverlay";
 import ColorWashOverlay from "../life/ColorWashOverlay";
 import SwipeToRate from "../life/SwipeToRate";
 import SphereOfInfluence from "../life/SphereOfInfluence";
@@ -130,6 +131,26 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
 
   // Witness-only Good Deeds: the submitter picks the Connection who did the deed.
   const { user: authUser } = useAuthUser();
+  const [showLifeWelcome, setShowLifeWelcome] = useState(false);
+  const lifeWelcomeUserId = authUser?.id || profile?.user_id || profile?.id;
+
+  useEffect(() => {
+    if (!lifeWelcomeUserId) return;
+    try {
+      setShowLifeWelcome(localStorage.getItem(`idia_life_welcome_seen_v1:${lifeWelcomeUserId}`) !== "1");
+    } catch {
+      setShowLifeWelcome(true);
+    }
+  }, [lifeWelcomeUserId]);
+
+  const dismissLifeWelcome = () => {
+    setShowLifeWelcome(false);
+    if (!lifeWelcomeUserId) return;
+    try {
+      localStorage.setItem(`idia_life_welcome_seen_v1:${lifeWelcomeUserId}`, "1");
+    } catch {}
+  };
+
   const [deedDoerFriendshipId, setDeedDoerFriendshipId] = useState<string | null>(null);
   const acceptedConnections = friends.filter((f) => f.status === "accepted");
   const doerName = (doerId: string) => {
@@ -423,6 +444,7 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
 
   return (
     <div className="relative h-full max-h-full overflow-hidden flex flex-col">
+      {showLifeWelcome && <WelcomeToLifeOverlay onDismiss={dismissLifeWelcome} />}
       {achievementChallenge !== null && (
         <LifeAchievementNotice
           key={achievementChallenge}
