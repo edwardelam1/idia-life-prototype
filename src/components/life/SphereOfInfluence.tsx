@@ -120,7 +120,7 @@ const SphereOfInfluence: React.FC<SphereOfInfluenceProps> = ({ friends, currentS
   }, [friends, labels]);
 
   return (
-    <Card className="bg-white shadow-sm border-none h-full flex flex-col">
+    <Card className="bg-card shadow-sm border-none h-full flex flex-col">
       <CardContent className="p-4 flex-1 min-h-0 flex flex-col gap-3">
         {/* Toggle */}
         <div className="grid grid-cols-2 gap-2 shrink-0">
@@ -161,7 +161,7 @@ const SphereOfInfluence: React.FC<SphereOfInfluenceProps> = ({ friends, currentS
                 Each dot is a Connection you made by Syncing in person.
               </p>
             </div>
-            <div className="relative flex-1 min-h-0 rounded-2xl bg-gradient-to-br from-teal-50 via-white to-orange-50 border border-teal-100 overflow-hidden">
+            <div className="relative flex-1 min-h-0 rounded-2xl bg-gradient-to-br from-teal-50 via-white to-orange-50 dark:from-teal-950/50 dark:via-background dark:to-orange-950/40 border border-teal-100 dark:border-teal-900/40 overflow-hidden">
               {/* Center: the user */}
               <div
                 className="absolute"
@@ -183,7 +183,7 @@ const SphereOfInfluence: React.FC<SphereOfInfluenceProps> = ({ friends, currentS
               {[20, 32, 44].map((r) => (
                 <div
                   key={r}
-                  className="absolute rounded-full border border-teal-200/40"
+                  className="absolute rounded-full border border-teal-200/40 dark:border-teal-800/40"
                   style={{
                     left: "50%",
                     top: "50%",
@@ -239,7 +239,7 @@ const SphereOfInfluence: React.FC<SphereOfInfluenceProps> = ({ friends, currentS
                 See how your score changed over the last 30 days.
               </p>
             </div>
-            <div className="flex-1 min-h-0 rounded-2xl bg-white border border-teal-100 p-2">
+            <div className="flex-1 min-h-0 rounded-2xl bg-card border border-teal-100 dark:border-teal-900/40 p-2">
               {historyLoading ? (
                 <div className="h-full flex items-center justify-center">
                   <p className="text-sm text-muted-foreground">Loading your trend…</p>
@@ -253,28 +253,29 @@ const SphereOfInfluence: React.FC<SphereOfInfluenceProps> = ({ friends, currentS
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={history} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
-                    <CartesianGrid stroke="hsl(180, 30%, 90%)" strokeDasharray="3 3" />
+                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
                     <XAxis
                       dataKey="date"
-                      tick={{ fontSize: 10, fill: "hsl(215, 15%, 45%)" }}
-                      axisLine={{ stroke: "hsl(180, 30%, 85%)" }}
+                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                      axisLine={{ stroke: "hsl(var(--border))" }}
                       tickLine={false}
                     />
                     <YAxis
                       domain={["dataMin - 20", "dataMax + 20"]}
-                      tick={{ fontSize: 10, fill: "hsl(215, 15%, 45%)" }}
-                      axisLine={{ stroke: "hsl(180, 30%, 85%)" }}
+                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                      axisLine={{ stroke: "hsl(var(--border))" }}
                       tickLine={false}
                       width={32}
                     />
                     <Tooltip
                       contentStyle={{
-                        background: "white",
-                        border: "1px solid hsl(180, 30%, 88%)",
+                        background: "hsl(var(--popover))",
+                        color: "hsl(var(--popover-foreground))",
+                        border: "1px solid hsl(var(--border))",
                         borderRadius: 8,
                         fontSize: 12,
                       }}
-                      labelStyle={{ color: "hsl(215, 15%, 30%)" }}
+                      labelStyle={{ color: "hsl(var(--foreground))" }}
                     />
                     <Line
                       type="monotone"
