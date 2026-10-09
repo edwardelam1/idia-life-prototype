@@ -1211,23 +1211,6 @@ const EnhancedWalletDashboard: React.FC = () => {
           </div>
         </TabsContent>
 
-        {/* ═══ CREDIT TAB ═══ */}
-        <TabsContent value="credit" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Capital Advancement</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 flex flex-col items-center">
-                <BrainCircuit className="w-12 h-12 text-muted-foreground mb-4" />
-                <p className="text-sm text-muted-foreground max-w-xs">
-                  Limits are calculated via verifiable behavioral telemetry.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         {/* ═══ WALLET TAB (was "Security") ═══ */}
         <TabsContent value="security" className="flex-1 min-h-0 overflow-hidden">
           <div
