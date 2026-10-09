@@ -19,7 +19,7 @@ const ManualViewerModal: React.FC<ManualViewerModalProps> = ({ open, onClose }) 
             <ScrollText className="w-6 h-6 text-[hsl(178,42%,32%)]" />
           </div>
           <div className="flex-1">
-            <h1 className="text-lg font-bold tracking-tight">IDIA Data DUNA — Welcome Manual</h1>
+            <h1 className="text-lg font-bold tracking-tight">IDIA DUNA — Welcome Manual</h1>
             <p className="text-[11px] text-muted-foreground uppercase tracking-widest">
               Reference document for governance participants
             </p>
@@ -41,7 +41,7 @@ const ManualViewerModal: React.FC<ManualViewerModalProps> = ({ open, onClose }) 
                 <img
                   key={n}
                   src={`/legal/duna-manual-pages/page-${n}.jpg`}
-                  alt={`IDIA Data DUNA Welcome Manual — Page ${i + 1}`}
+                  alt={`IDIA DUNA Welcome Manual — Page ${i + 1}`}
                   loading={i < 2 ? "eager" : "lazy"}
                   className="w-full max-w-[760px] rounded-md shadow-md border border-border bg-white"
                 />
@@ -49,9 +49,7 @@ const ManualViewerModal: React.FC<ManualViewerModalProps> = ({ open, onClose }) 
             })}
           </div>
           <div className="px-6 py-4 text-center bg-white border-t border-border">
-            <p className="text-xs text-muted-foreground mb-2">
-              PDF not rendering? Open it directly:
-            </p>
+            <p className="text-xs text-muted-foreground mb-2">PDF not rendering? Open it directly:</p>
             <a
               href={MANUAL_PDF_URL}
               target="_blank"

@@ -32,10 +32,7 @@ const WelcomeManualGate: React.FC<WelcomeManualGateProps> = ({ userId, onAcknowl
     setIsLoading(true);
     console.log("[DUNA_WELCOME] START: Capturing manual review acknowledgement.");
     try {
-      const { payload } = await generateACAHash(userId, "DUNA_WELCOME_V1", [
-        "MANUAL_REVIEW",
-        "GOVERNANCE_ONBOARDING",
-      ]);
+      const { payload } = await generateACAHash(userId, "DUNA_WELCOME_V1", ["MANUAL_REVIEW", "GOVERNANCE_ONBOARDING"]);
       console.log("[DUNA_WELCOME] ACA Hash Generated.");
 
       const { error: deviceError } = await (supabase as any).from("device_events").insert({
@@ -86,7 +83,7 @@ const WelcomeManualGate: React.FC<WelcomeManualGateProps> = ({ userId, onAcknowl
             <ScrollText className="w-6 h-6 text-[hsl(178,42%,32%)]" />
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight">IDIA Data DUNA — Welcome Manual</h1>
+            <h1 className="text-lg font-bold tracking-tight">IDIA DUNA — Welcome Manual</h1>
             <p className="text-[11px] text-muted-foreground uppercase tracking-widest">
               Scroll to the bottom to acknowledge
             </p>
@@ -101,7 +98,7 @@ const WelcomeManualGate: React.FC<WelcomeManualGateProps> = ({ userId, onAcknowl
                 <img
                   key={n}
                   src={`/legal/duna-manual-pages/page-${n}.jpg`}
-                  alt={`IDIA Data DUNA Welcome Manual — Page ${i + 1}`}
+                  alt={`IDIA DUNA Welcome Manual — Page ${i + 1}`}
                   loading={i < 2 ? "eager" : "lazy"}
                   className="w-full max-w-[760px] rounded-md shadow-md border border-border bg-white"
                 />
@@ -109,9 +106,7 @@ const WelcomeManualGate: React.FC<WelcomeManualGateProps> = ({ userId, onAcknowl
             })}
           </div>
           <div className="px-6 py-4 text-center bg-white border-t border-border">
-            <p className="text-xs text-muted-foreground mb-2">
-              PDF not rendering? Open it directly:
-            </p>
+            <p className="text-xs text-muted-foreground mb-2">PDF not rendering? Open it directly:</p>
             <a
               href={MANUAL_PDF_URL}
               target="_blank"
