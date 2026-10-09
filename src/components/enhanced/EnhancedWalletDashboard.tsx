@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/dialog";
 
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
-import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { useSovereignWallet } from "@/hooks/useSovereignWallet";
 import { useWallet } from "@/hooks/useWallet";
@@ -28,7 +27,6 @@ import { toast } from "@/hooks/use-toast";
 import { AUTHORIZE_STAGE_LABEL } from "@/lib/authorizeStages";
 import SendRequestModal from "../SendRequestModal";
 import PaymentTrigger from "../PaymentTrigger";
-import { fireFinaleConfetti } from "../psychometric/confetti";
 import { useChainReceiveWatcher, type ChainReceipt } from "@/hooks/useChainReceiveWatcher";
 import {
   Wallet,
@@ -356,14 +354,8 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [selectedPendingExtraction, setSelectedPendingExtraction] = useState<any | null>(null);
   const [isCopying, setIsCopying] = useState(false);
   const [synapseCredits, setSynapseCredits] = useState<number>(0);
-  const [showTestModal, setShowTestModal] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("overview");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [creditSimulation, setCreditSimulation] = useState<{
-    current_score: number | string;
-    simulated_score: number | string;
-    actions: string[];
-  } | null>(null);
 
   useEffect(() => {
     console.log("[IDENTITY_SYNC:START] Evaluating profile hydration state...");
@@ -580,7 +572,6 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [backupModalMode, setBackupModalMode] = useState<"backup" | "restore">("backup");
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [seedBackedUp, setSeedBackedUp] = useState<boolean>(false);
-  const [isCalculating, setIsCalculating] = useState(false);
 
   const displayAddress = globalWalletAddress || localAddress;
   const isProvisioned = !!displayAddress;
@@ -895,34 +886,6 @@ const EnhancedWalletDashboard: React.FC = () => {
       description: "Cryptographic artifacts stored to clipboard.",
     });
     setTimeout(() => setIsCopying(false), 2000);
-  };
-
-  const handleCalculateScore = async (moduleScores: Record<string, number>) => {
-    setIsCalculating(true);
-    try {
-      const { tut, ...actualTelemetry } = moduleScores;
-      const { data, error } = await supabase.functions.invoke("calculate-trust-score", {
-        body: { user_id: stableUserId, telemetry: actualTelemetry },
-      });
-      if (error) throw error;
-      if (updateProfile) {
-        await updateProfile({
-          trust_score: data.trust_score,
-          available_credit_line: data.credit_line,
-        });
-      }
-      setCreditSimulation({
-        current_score: profile?.trust_score ?? "NO SCORE",
-        simulated_score: data.trust_score,
-        actions: ["Psychometric telemetry verified via IDIA Protocol", "Capital limit recalculated"],
-      });
-    } catch (err: any) {
-      console.error(err.message);
-    } finally {
-      setIsCalculating(false);
-      setShowTestModal(false);
-      setTimeout(() => fireFinaleConfetti(), 400);
-    }
   };
 
   // ── Transaction display helpers ──
@@ -1255,65 +1218,12 @@ const EnhancedWalletDashboard: React.FC = () => {
               <CardTitle>Capital Advancement</CardTitle>
             </CardHeader>
             <CardContent>
-              {creditSimulation ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="text-center p-4 border rounded-lg">
-                      <p className="text-xs text-muted-foreground">Current</p>
-                      <p className="text-xl font-bold">{creditSimulation.current_score}</p>
-                    </div>
-                    <div className="text-center p-4 border rounded-lg bg-green-50/30">
-                      <p className="text-xs text-muted-foreground">Updated</p>
-                      <p className="text-xl font-bold text-green-600">{creditSimulation.simulated_score}</p>
-                    </div>
-                  </div>
-                  <div className="pt-4">
-                    <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
-                      <DialogTrigger asChild>
-                        <Button className="w-full font-bold shadow-lg shadow-orange-500/30 bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white">
-                          {isCalculating ? "Calculating..." : "Need an advance? Take our Assessments"}{" "}
-                          <ArrowRight className="w-4 h-4 ml-2" />
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-background p-0 border-none">
-                        <DialogHeader className="sr-only">
-                          <DialogTitle>Psychometric Validation</DialogTitle>
-                          <DialogDescription>Establish Trust Score via telemetry modules.</DialogDescription>
-                        </DialogHeader>
-                        <PsychometricTestingCenter
-                          onCompleteAll={handleCalculateScore}
-                          onCancel={() => setShowTestModal(false)}
-                        />
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8 flex flex-col items-center">
-                  <BrainCircuit className="w-12 h-12 text-muted-foreground mb-4" />
-                  <p className="text-sm text-muted-foreground max-w-xs mb-6">
-                    Limits are calculated via verifiable behavioral telemetry.
-                  </p>
-                  <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
-                    <DialogTrigger asChild>
-                      <Button className="w-full font-bold shadow-lg shadow-orange-500/30 bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white">
-                        {isCalculating ? "Calculating..." : "Need an advance? Take our Assessments"}{" "}
-                        <ArrowRight className="w-4 h-4 ml-2" />
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-background p-0 border-none">
-                      <DialogHeader className="sr-only">
-                        <DialogTitle>Psychometric Validation</DialogTitle>
-                        <DialogDescription>Establish Trust Score via telemetry modules.</DialogDescription>
-                      </DialogHeader>
-                      <PsychometricTestingCenter
-                        onCompleteAll={handleCalculateScore}
-                        onCancel={() => setShowTestModal(false)}
-                      />
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              )}
+              <div className="text-center py-8 flex flex-col items-center">
+                <BrainCircuit className="w-12 h-12 text-muted-foreground mb-4" />
+                <p className="text-sm text-muted-foreground max-w-xs">
+                  Limits are calculated via verifiable behavioral telemetry.
+                </p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
