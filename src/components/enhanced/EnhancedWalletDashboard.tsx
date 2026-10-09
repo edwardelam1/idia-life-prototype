@@ -888,34 +888,6 @@ const EnhancedWalletDashboard: React.FC = () => {
     setTimeout(() => setIsCopying(false), 2000);
   };
 
-  const handleCalculateScore = async (moduleScores: Record<string, number>) => {
-    setIsCalculating(true);
-    try {
-      const { tut, ...actualTelemetry } = moduleScores;
-      const { data, error } = await supabase.functions.invoke("calculate-trust-score", {
-        body: { user_id: stableUserId, telemetry: actualTelemetry },
-      });
-      if (error) throw error;
-      if (updateProfile) {
-        await updateProfile({
-          trust_score: data.trust_score,
-          available_credit_line: data.credit_line,
-        });
-      }
-      setCreditSimulation({
-        current_score: profile?.trust_score ?? "NO SCORE",
-        simulated_score: data.trust_score,
-        actions: ["Psychometric telemetry verified via IDIA Protocol", "Capital limit recalculated"],
-      });
-    } catch (err: any) {
-      console.error(err.message);
-    } finally {
-      setIsCalculating(false);
-      setShowTestModal(false);
-      setTimeout(() => fireFinaleConfetti(), 400);
-    }
-  };
-
   // ── Transaction display helpers ──
   const getTransactionIcon = (type: string, currency: string) => {
     if (type === "synapse_ledger_event" || type === "synapse_credit_purchase") return BrainCircuit;
