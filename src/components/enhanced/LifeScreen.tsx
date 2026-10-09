@@ -83,6 +83,7 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
   const challengeProgress = useLifeChallengeProgress();
   const [achievementChallenge, setAchievementChallenge] = useState<number | null>(null);
   const previousSequentialProgress = useRef<boolean[] | null>(null);
+  const pendingAchievementKey = "idia_life_pending_achievement_v1";
 
   useEffect(() => {
     if (challengeProgress.loading) return;
@@ -103,7 +104,16 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
 
     const previous = previousSequentialProgress.current;
     previousSequentialProgress.current = sequential;
-    if (!previous) return;
+    if (!previous) {
+      try {
+        const pendingChallenge = Number(sessionStorage.getItem(pendingAchievementKey));
+        if ((pendingChallenge === 4 || pendingChallenge === 5) && sequential[pendingChallenge - 1]) {
+          sessionStorage.removeItem(pendingAchievementKey);
+          setAchievementChallenge(pendingChallenge);
+        }
+      } catch {}
+      return;
+    }
 
     const newlyCompleted = sequential.findIndex((isComplete, index) => isComplete && !previous[index]);
     if (newlyCompleted !== -1) setAchievementChallenge(newlyCompleted + 1);
@@ -393,8 +403,12 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
       setLifeTab("deeds");
       window.setTimeout(() => setDeedDialogOpen(true), 0);
     }
-    if (challenge === 4) onNavigate?.("data");
-    if (challenge === 5) onNavigate?.("vote");
+    if (challenge === 4 || challenge === 5) {
+      try {
+        sessionStorage.setItem(pendingAchievementKey, String(challenge));
+      } catch {}
+      onNavigate?.(challenge === 4 ? "data" : "vote");
+    }
   };
 
   const handleSubmitRating = async (rateeId: string, stars: number) => {

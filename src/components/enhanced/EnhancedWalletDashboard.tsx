@@ -1297,7 +1297,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                   <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
                     <DialogTrigger asChild>
                       <Button className="w-full font-bold shadow-lg shadow-orange-500/30 bg-gradient-to-r from-teal-500 to-orange-500 hover:from-teal-600 hover:to-orange-600 text-white">
-                        {isCalculating ? "Calculating..." : "Need an advance? Take our Asssessments"}{" "}
+                        {isCalculating ? "Calculating..." : "Need an advance? Take our Assessments"}{" "}
                         <ArrowRight className="w-4 h-4 ml-2" />
                       </Button>
                     </DialogTrigger>
