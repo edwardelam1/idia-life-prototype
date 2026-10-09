@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/dialog";
 
 import { useEnhancedProfile } from "@/hooks/useEnhancedProfile";
-import PsychometricTestingCenter from "../psychometric/PsychometricTestingCenter";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { useSovereignWallet } from "@/hooks/useSovereignWallet";
 import { useWallet } from "@/hooks/useWallet";
@@ -28,7 +27,6 @@ import { toast } from "@/hooks/use-toast";
 import { AUTHORIZE_STAGE_LABEL } from "@/lib/authorizeStages";
 import SendRequestModal from "../SendRequestModal";
 import PaymentTrigger from "../PaymentTrigger";
-import { fireFinaleConfetti } from "../psychometric/confetti";
 import { useChainReceiveWatcher, type ChainReceipt } from "@/hooks/useChainReceiveWatcher";
 import {
   Wallet,
@@ -356,14 +354,8 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [selectedPendingExtraction, setSelectedPendingExtraction] = useState<any | null>(null);
   const [isCopying, setIsCopying] = useState(false);
   const [synapseCredits, setSynapseCredits] = useState<number>(0);
-  const [showTestModal, setShowTestModal] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("overview");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [creditSimulation, setCreditSimulation] = useState<{
-    current_score: number | string;
-    simulated_score: number | string;
-    actions: string[];
-  } | null>(null);
 
   useEffect(() => {
     console.log("[IDENTITY_SYNC:START] Evaluating profile hydration state...");
@@ -580,7 +572,6 @@ const EnhancedWalletDashboard: React.FC = () => {
   const [backupModalMode, setBackupModalMode] = useState<"backup" | "restore">("backup");
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [seedBackedUp, setSeedBackedUp] = useState<boolean>(false);
-  const [isCalculating, setIsCalculating] = useState(false);
 
   const displayAddress = globalWalletAddress || localAddress;
   const isProvisioned = !!displayAddress;
