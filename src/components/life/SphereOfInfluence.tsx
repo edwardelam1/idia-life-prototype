@@ -253,28 +253,29 @@ const SphereOfInfluence: React.FC<SphereOfInfluenceProps> = ({ friends, currentS
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={history} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
-                    <CartesianGrid stroke="hsl(180, 30%, 90%)" strokeDasharray="3 3" />
+                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
                     <XAxis
                       dataKey="date"
-                      tick={{ fontSize: 10, fill: "hsl(215, 15%, 45%)" }}
-                      axisLine={{ stroke: "hsl(180, 30%, 85%)" }}
+                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                      axisLine={{ stroke: "hsl(var(--border))" }}
                       tickLine={false}
                     />
                     <YAxis
                       domain={["dataMin - 20", "dataMax + 20"]}
-                      tick={{ fontSize: 10, fill: "hsl(215, 15%, 45%)" }}
-                      axisLine={{ stroke: "hsl(180, 30%, 85%)" }}
+                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                      axisLine={{ stroke: "hsl(var(--border))" }}
                       tickLine={false}
                       width={32}
                     />
                     <Tooltip
                       contentStyle={{
-                        background: "white",
-                        border: "1px solid hsl(180, 30%, 88%)",
+                        background: "hsl(var(--popover))",
+                        color: "hsl(var(--popover-foreground))",
+                        border: "1px solid hsl(var(--border))",
                         borderRadius: 8,
                         fontSize: 12,
                       }}
-                      labelStyle={{ color: "hsl(215, 15%, 30%)" }}
+                      labelStyle={{ color: "hsl(var(--foreground))" }}
                     />
                     <Line
                       type="monotone"
