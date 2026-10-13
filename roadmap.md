@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Match royalties pop-up to Welcome to Life and verify video-only enlargement with X return.
+
 - [x] Fix Apple Health connect: send real selected data types to native bridge (React)
 - [x] Reuse existing ACA hash instead of minting per tap (React + DB)
 - [x] Seed inactive apple_health row in data_connections for realtime/poll watchers

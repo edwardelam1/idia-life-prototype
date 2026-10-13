@@ -40,6 +40,7 @@ All colors MUST be HSL.
     --life-teal: 178 42% 32%;
     --life-amber: 28 80% 55%;
     --life-ink: 222 47% 8%;
+    --royalty-panel-shadow: 0 18px 60px hsl(var(--foreground) / 0.24), 0 0 32px hsl(var(--life-amber) / 0.2);
     --life-terrain-deep: 166 46% 10%;
     --life-terrain: 158 36% 18%;
     --life-terrain-bank: 151 31% 23%;
@@ -265,6 +266,9 @@ All colors MUST be HSL.
 }
 
 @layer utilities {
+  .royalty-glass-panel {
+    box-shadow: var(--royalty-panel-shadow);
+  }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
