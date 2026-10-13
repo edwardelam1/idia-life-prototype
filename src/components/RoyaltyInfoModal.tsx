@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useCallback, useEffect, useRef, useState } from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { Dialog, DialogPortal, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { HandCoins, Fingerprint, Database, Coins } from "lucide-react";
+import { Fingerprint, Database, Coins, X } from "lucide-react";
 import royaltyDemo from "@/assets/royalty-demo.mp4.asset.json";
 
 interface RoyaltyInfoModalProps {
@@ -33,12 +34,28 @@ const STEPS = [
 ];
 
 const RoyaltyInfoModal = ({ isOpen, onClose }: RoyaltyInfoModalProps) => {
+  const [videoExpanded, setVideoExpanded] = useState(false);
+  const videoOpenerRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const isOpenRef = useRef(isOpen);
   const playPromiseRef = useRef<Promise<void> | null>(null);
   const retryTimersRef = useRef<number[]>([]);
 
   isOpenRef.current = isOpen;
+
+  const returnToPopup = useCallback(() => {
+    setVideoExpanded(false);
+    requestAnimationFrame(() => videoOpenerRef.current?.focus());
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) setVideoExpanded(false);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (videoExpanded) closeButtonRef.current?.focus();
+  }, [videoExpanded]);
 
   const clearRetries = useCallback(() => {
     retryTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -126,35 +143,59 @@ const RoyaltyInfoModal = ({ isOpen, onClose }: RoyaltyInfoModalProps) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-sm max-h-[85vh] rounded-[2rem] bg-background border-border p-5 overflow-y-auto gap-0">
-        <DialogHeader className="text-center space-y-1 mb-3">
-          <DialogTitle className="text-xl font-black tracking-tight text-foreground text-center">
+      <DialogPortal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-foreground/35 backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in" />
+        <DialogPrimitive.Content
+          className="fixed inset-0 z-[101] flex items-center justify-center outline-none"
+          aria-label={videoExpanded ? "Royalties video" : "How to Generate Royalties"}
+          onEscapeKeyDown={(event) => {
+            if (videoExpanded) {
+              event.preventDefault();
+              returnToPopup();
+            }
+          }}
+          onPointerDown={(event) => {
+            if (!videoExpanded && event.target === event.currentTarget) onClose();
+          }}
+        >
+        <section className={videoExpanded
+          ? "relative flex h-full w-full flex-col bg-life-ink p-0"
+          : "royalty-glass-panel relative mx-4 max-h-[calc(100dvh-max(1rem,env(safe-area-inset-top))-max(1rem,env(safe-area-inset-bottom)))] w-full max-w-md overflow-y-auto overscroll-contain rounded-lg border border-life-amber/55 bg-background/90 p-5 backdrop-blur-xl touch-pan-y"
+        }>
+        <header className={videoExpanded ? "hidden" : "text-center"}>
+          <p className="text-[10px] font-semibold uppercase text-life-amber">Life by IDIA</p>
+          <DialogTitle className="mt-1 text-2xl font-black leading-tight text-foreground text-center">
             How to Generate Royalties
           </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground text-center">
+          <DialogDescription className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground text-center">
             Connect your data sources and start earning automatically when your data is consumed.
           </DialogDescription>
-        </DialogHeader>
+        </header>
 
-        <ol className="space-y-1 text-left px-1 mb-4">
+        <ol className={videoExpanded ? "hidden" : "mt-5 divide-y divide-border/60 border-y border-border/60 text-left"}>
           {STEPS.map((step, index) => {
             const Icon = step.icon;
             return (
-              <li key={index} className="text-xs text-muted-foreground leading-snug">
-                <span className="inline-flex items-center gap-1.5 text-foreground font-semibold">
-                  <Icon className="w-3.5 h-3.5 text-teal-600" />
-                  {step.title}:
-                </span>{" "}
-                {step.description}
+              <li key={index} className="flex items-start gap-3 py-3">
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-life-teal/35 bg-life-teal/10 text-life-teal">
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-foreground">{step.title}</h3>
+                  <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{step.description}</p>
+                </div>
               </li>
             );
           })}
         </ol>
 
-        <div className="relative w-full max-h-[180px] bg-black rounded-2xl overflow-hidden mb-4 mx-auto">
+        <div className={videoExpanded
+          ? "relative flex min-h-0 flex-1 items-center justify-center pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]"
+          : "relative mx-auto mt-5 h-[180px] w-full overflow-hidden rounded-lg bg-life-ink"
+        }>
           <video
             ref={setVideoRef}
-            className="w-full h-full max-h-[180px] object-contain mx-auto"
+            className="mx-auto h-full w-full object-contain"
             autoPlay
             muted
             playsInline
@@ -162,16 +203,42 @@ const RoyaltyInfoModal = ({ isOpen, onClose }: RoyaltyInfoModalProps) => {
             preload="auto"
             aria-label="How to generate royalties demo"
           />
+          <Button
+            ref={videoOpenerRef}
+            type="button"
+            variant="ghost"
+            aria-label="Enlarge royalties video"
+            className={videoExpanded ? "hidden" : "absolute inset-0 h-full w-full rounded-lg p-0 hover:bg-transparent focus-visible:ring-inset"}
+            onClick={() => setVideoExpanded(true)}
+          />
         </div>
 
         <Button
-          onClick={onClose}
-          className="w-full h-11 rounded-xl bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-400 text-white font-black tracking-wide"
+          ref={closeButtonRef}
+          type="button"
+          size="icon"
+          variant="secondary"
+          aria-label={videoExpanded ? "Return to royalties pop-up" : "Close royalties pop-up"}
+          title={videoExpanded ? "Return to royalties pop-up" : "Close"}
+          className={videoExpanded
+            ? "absolute right-[max(1rem,env(safe-area-inset-right))] top-[max(1rem,env(safe-area-inset-top))] z-10 rounded-full"
+            : "absolute right-2 top-2 h-7 w-7 rounded-full bg-background/80"
+          }
+          onClick={videoExpanded ? returnToPopup : onClose}
         >
-          <HandCoins className="w-4 h-4 mr-2" />
+          <X aria-hidden="true" />
+        </Button>
+
+        <Button
+          onClick={onClose}
+          type="button"
+          className={videoExpanded ? "hidden" : "mt-5 w-full"}
+        >
           Got it
         </Button>
-      </DialogContent>
+        </section>
+        </DialogPrimitive.Content>
+      </DialogPortal>
     </Dialog>
   );
 };
