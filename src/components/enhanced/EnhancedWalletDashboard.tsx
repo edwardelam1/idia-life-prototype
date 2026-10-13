@@ -1015,7 +1015,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                 {/* Balances — ETH, IDIA, USDC */}
                 <div className="space-y-3">
                   {/* ETH */}
-                  <div className="p-3 bg-secondary/30 rounded-lg border">
+                  <div className="p-3 bg-gradient-to-br from-teal-200 to-teal-50 dark:from-teal-800 dark:to-teal-950 rounded-lg border">
                     <div className="flex items-center justify-between">
                       <p className="text-xs text-muted-foreground">ETH (Gas)</p>
                       <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={refreshBalances}>
@@ -1071,7 +1071,7 @@ const EnhancedWalletDashboard: React.FC = () => {
                 </div>
 
                 {/* Voting Power */}
-                <div className="p-3 bg-secondary/30 rounded-lg border">
+                <div className="p-3 bg-gradient-to-br from-indigo-50 to-purple-200 dark:from-indigo-950 dark:to-purple-950 rounded-lg border">
                   <p className="text-xs text-muted-foreground">Voting Power</p>
                   <p className="text-lg font-bold mt-1">
                     {(() => {
