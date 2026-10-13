@@ -1,6 +1,7 @@
 # Roadmap
 
-- [ ] Match royalties pop-up to Welcome to Life and verify video-only enlargement with X return.
+- [x] Match royalties pop-up to Welcome to Life; video-only enlargement, X/Escape return, and focus/playback continuity verified in browser.
+- [ ] Verify royalties MP4 autoplay and expansion on real iPhone — needs a device attempt; local Chromium checks used a transcoded copy of the same recording.
 
 - [x] Fix Apple Health connect: send real selected data types to native bridge (React)
 - [x] Reuse existing ACA hash instead of minting per tap (React + DB)
