@@ -26,6 +26,7 @@ import ApplicationReviewQueue from "./governance/ApplicationReviewQueue";
 import AuditFeed from "./governance/AuditFeed";
 import WelcomeManualGate from "./governance/WelcomeManualGate";
 import ManualViewerModal from "./governance/ManualViewerModal";
+import WelcomeToGovOverlay from "./governance/WelcomeToGovOverlay";
 import { openBasescan } from "./governance/BasescanSheet";
 import { fireWelcomeConfetti } from "./psychometric/confetti";
 import CreateDaoProposalModal from "./governance/CreateDaoProposalModal";
@@ -223,6 +224,21 @@ const GovernanceScreen: React.FC = () => {
   const [refreshKey, setRefreshKey] = useState(0);
   const [ascensionLevel, setAscensionLevel] = useState<AscensionLevel>(0);
   const [isManualViewerOpen, setIsManualViewerOpen] = useState(false);
+  const [showGovWelcome, setShowGovWelcome] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    try {
+      setShowGovWelcome(localStorage.getItem(`idia_gov_welcome_seen_v1:${userId}`) !== "1");
+    } catch {
+      setShowGovWelcome(true);
+    }
+  }, [userId]);
+
+  const dismissGovWelcome = React.useCallback(() => {
+    try { if (userId) localStorage.setItem(`idia_gov_welcome_seen_v1:${userId}`, "1"); } catch { /* storage unavailable */ }
+    setShowGovWelcome(false);
+  }, [userId]);
   const canSubmitProposal = ascensionLevel >= ACTION_REQUIRED_LEVEL.SUBMIT_PROPOSAL;
 
   useEffect(() => {
@@ -276,7 +292,7 @@ const GovernanceScreen: React.FC = () => {
   // First touch of the Gov tab (per account, per device): auto-open the read-only manual
   // with a celebratory burst from both sides. Never competes with the acknowledgement gate.
   useEffect(() => {
-    if (!userId || needsWelcomeAck || isManualViewerOpen) return;
+    if (!userId || showGovWelcome !== false || needsWelcomeAck || isManualViewerOpen) return;
     const seenKey = `idia_gov_manual_seen_v1:${userId}`;
     try {
       if (localStorage.getItem(seenKey)) return;
@@ -287,7 +303,7 @@ const GovernanceScreen: React.FC = () => {
     console.log("[GOVERNANCE_SCREEN][MANUAL_AUTO_OPEN] First Gov visit — presenting manual.");
     setIsManualViewerOpen(true);
     window.setTimeout(() => fireWelcomeConfetti(), 350);
-  }, [userId, needsWelcomeAck, isManualViewerOpen]);
+  }, [userId, showGovWelcome, needsWelcomeAck, isManualViewerOpen]);
 
   return (
     <div className="flex flex-col space-y-5 bg-white dark:bg-background min-h-screen p-4 pb-24 overflow-x-hidden animate-in fade-in duration-700">
@@ -321,7 +337,9 @@ const GovernanceScreen: React.FC = () => {
         <DelawarePortal />
       )}
 
-      {needsWelcomeAck && userId && (
+      {showGovWelcome && <WelcomeToGovOverlay onDismiss={dismissGovWelcome} />}
+
+      {showGovWelcome === false && needsWelcomeAck && userId && (
         <WelcomeManualGate
           userId={userId}
           onAcknowledged={() => setNeedsWelcomeAck(false)}
