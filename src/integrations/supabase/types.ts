@@ -6755,6 +6755,48 @@ export type Database = {
         }
         Relationships: []
       }
+      mesh_nodes: {
+        Row: {
+          created_at: string
+          id: string
+          ip_allowlist: string[]
+          key_prefix: string
+          label: string
+          last_used_at: string | null
+          node_id: string
+          status: string
+          tenant_id: string
+          token_hash: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ip_allowlist?: string[]
+          key_prefix: string
+          label: string
+          last_used_at?: string | null
+          node_id: string
+          status?: string
+          tenant_id: string
+          token_hash: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ip_allowlist?: string[]
+          key_prefix?: string
+          label?: string
+          last_used_at?: string | null
+          node_id?: string
+          status?: string
+          tenant_id?: string
+          token_hash?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       mesh_telemetry_events: {
         Row: {
           created_at: string
@@ -11305,6 +11347,60 @@ export type Database = {
         }
         Relationships: []
       }
+      vulture_ledger: {
+        Row: {
+          anchored_at: string | null
+          batch_id: string | null
+          created_at: string
+          id: string
+          node_id: string
+          original_file_name: string | null
+          payload: Json
+          raw_hash: string
+          record_count: number
+          sanitized_hash: string
+          source: string
+          status: string
+          tenant_id: string | null
+          trace_id: string
+          tx_hash: string | null
+        }
+        Insert: {
+          anchored_at?: string | null
+          batch_id?: string | null
+          created_at?: string
+          id?: string
+          node_id: string
+          original_file_name?: string | null
+          payload: Json
+          raw_hash: string
+          record_count?: number
+          sanitized_hash: string
+          source?: string
+          status?: string
+          tenant_id?: string | null
+          trace_id: string
+          tx_hash?: string | null
+        }
+        Update: {
+          anchored_at?: string | null
+          batch_id?: string | null
+          created_at?: string
+          id?: string
+          node_id?: string
+          original_file_name?: string | null
+          payload?: Json
+          raw_hash?: string
+          record_count?: number
+          sanitized_hash?: string
+          source?: string
+          status?: string
+          tenant_id?: string | null
+          trace_id?: string
+          tx_hash?: string | null
+        }
+        Relationships: []
+      }
       vulture_provenance_ledger: {
         Row: {
           action: string
@@ -11344,6 +11440,45 @@ export type Database = {
           record_count?: number | null
           sanitized_hash?: string | null
           status?: string
+        }
+        Relationships: []
+      }
+      vulture_quarantine: {
+        Row: {
+          contractor_metadata: Json
+          created_at: string
+          id: string
+          node_id: string | null
+          raw_hash: string
+          raw_payload: string | null
+          reason_code: string
+          reason_detail: Json
+          tenant_id: string | null
+          trace_id: string
+        }
+        Insert: {
+          contractor_metadata?: Json
+          created_at?: string
+          id?: string
+          node_id?: string | null
+          raw_hash: string
+          raw_payload?: string | null
+          reason_code: string
+          reason_detail?: Json
+          tenant_id?: string | null
+          trace_id: string
+        }
+        Update: {
+          contractor_metadata?: Json
+          created_at?: string
+          id?: string
+          node_id?: string | null
+          raw_hash?: string
+          raw_payload?: string | null
+          reason_code?: string
+          reason_detail?: Json
+          tenant_id?: string | null
+          trace_id?: string
         }
         Relationships: []
       }
