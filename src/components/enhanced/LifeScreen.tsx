@@ -26,7 +26,8 @@ import { localPIIVault, type ConnectionLabel } from "@/lib/localPIIVault";
 import { useNFCBridge } from "@/hooks/useNFCBridge";
 import { useLifeChallengeProgress } from "@/hooks/useLifeChallengeProgress";
 import { toast } from "@/components/ui/sonner";
-import { Award, MessageCircle, Shield, Clock, CheckCircle, Nfc, Keyboard, Plus } from "lucide-react";
+import { Award, MessageCircle, Shield, Clock, CheckCircle, Nfc, Plus } from "lucide-react";
+import { generateACAHash } from "@/utils/acaGenerator";
 
 // Placeholder — derives a peer tier hue from the opaque native peer token
 // until the finalized iOS contract ships. Stable hash → hue.
@@ -72,6 +73,7 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
   const [connectionDialogOpen, setConnectionDialogOpen] = useState(false);
   const [manualGuid, setManualGuid] = useState("");
   const [manualConnecting, setManualConnecting] = useState(false);
+  const [guidError, setGuidError] = useState<string | null>(null);
   const challengeProgress = useLifeChallengeProgress();
   const [achievementChallenge, setAchievementChallenge] = useState<number | null>(null);
   const previousSequentialProgress = useRef<boolean[] | null>(null);
@@ -367,12 +369,30 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
 
   const resolveConnection = async (peerPayload: string) => {
     setManualConnecting(true);
+    setGuidError(null);
     console.log("[LIFE_MANUAL_CONNECTION][BEGIN]");
     try {
+      if (authUser?.id && peerPayload === authUser.id.toLowerCase()) {
+        throw new Error("That is your own GUID. Enter the other person's GUID.");
+      }
+      // Biometric challenge before the Connection is accepted
+      try {
+        await generateACAHash(authUser?.id ?? "", "life_connection", ["sovereign_connection", "manual_guid"]);
+      } catch {
+        throw new Error("Biometric check was not completed. Try again.");
+      }
       const { data, error } = await supabase.functions.invoke("nfc-handshake-resolve", {
         body: { peerPayload, connectionMethod: "manual_guid" },
       });
-      if (error || !data?.friendshipId) throw error ?? new Error("Could not register the Connection.");
+      if (error) {
+        let message = "Could not register the Connection.";
+        try {
+          const body = await (error as any).context?.json?.();
+          if (body?.error) message = body.error;
+        } catch { /* keep default */ }
+        throw new Error(message);
+      }
+      if (!data?.friendshipId) throw new Error(data?.error ?? "Could not register the Connection.");
       setManualGuid("");
       setConnectionDialogOpen(false);
       await reload();
@@ -381,11 +401,26 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
       toast.success("Challenge 2 complete", { description: "Your Connection is active." });
       console.log("[LIFE_MANUAL_CONNECTION][END:OK]");
     } catch (error: any) {
-      console.error("[LIFE_MANUAL_CONNECTION][END:FAIL]", error);
-      toast("Connection failed", { description: error?.message ?? "Check the GUID and try again." });
+      console.error("[LIFE_MANUAL_CONNECTION][END:FAIL]", error?.message);
+      setGuidError(error?.message ?? "Check the GUID and try again.");
     } finally {
       setManualConnecting(false);
     }
+  };
+
+  const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+  const handleGuidInput = (raw: string) => {
+    const value = raw.replace(/\s+/g, "").toLowerCase().slice(0, 36);
+    setManualGuid(value);
+    if (value.length < 36) {
+      setGuidError(null);
+      return;
+    }
+    if (!GUID_RE.test(value)) {
+      setGuidError("That is not a valid GUID. Check it and try again.");
+      return;
+    }
+    if (!manualConnecting) void resolveConnection(value);
   };
 
   const handleChallenge = (challenge: number) => {
@@ -784,20 +819,28 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
             <div className="space-y-2">
               <Input
                 value={manualGuid}
-                onChange={(event) => setManualGuid(event.target.value)}
+                onChange={(event) => handleGuidInput(event.target.value)}
                 placeholder="Enter their GUID"
                 autoCapitalize="none"
                 autoCorrect="off"
+                spellCheck={false}
+                maxLength={36}
+                disabled={manualConnecting}
+                aria-invalid={!!guidError}
+                aria-describedby="guid-status"
+                className="font-mono text-xs"
               />
-              <Button
-                variant="outline"
-                className="w-full"
-                disabled={manualConnecting || !/^[0-9a-f-]{36}$/i.test(manualGuid.trim())}
-                onClick={() => void resolveConnection(manualGuid.trim())}
+              <p
+                id="guid-status"
+                role={guidError ? "alert" : undefined}
+                className={`min-h-[1rem] text-xs ${guidError ? "text-destructive" : "text-muted-foreground"}`}
               >
-                <Keyboard className="mr-2 h-4 w-4" />
-                {manualConnecting ? "Connecting…" : "Connect with GUID"}
-              </Button>
+                {guidError
+                  ? guidError
+                  : manualConnecting
+                    ? "Confirm with biometrics to connect…"
+                    : `${manualGuid.length}/36 characters`}
+              </p>
             </div>
           </div>
         </DialogContent>
