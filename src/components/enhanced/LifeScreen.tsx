@@ -26,15 +26,7 @@ import { localPIIVault, type ConnectionLabel } from "@/lib/localPIIVault";
 import { useNFCBridge } from "@/hooks/useNFCBridge";
 import { useLifeChallengeProgress } from "@/hooks/useLifeChallengeProgress";
 import { toast } from "@/components/ui/sonner";
-import {
-  Award,
-  MessageCircle,
-  Shield,
-  Clock,
-  CheckCircle,
-  Nfc,
-  Keyboard,
-} from "lucide-react";
+import { Award, MessageCircle, Shield, Clock, CheckCircle, Nfc, Keyboard } from "lucide-react";
 
 // Placeholder — derives a peer tier hue from the opaque native peer token
 // until the finalized iOS contract ships. Stable hash → hue.
@@ -469,10 +461,10 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
       <Tabs value={lifeTab} onValueChange={setLifeTab} className="flex-1 min-h-0 flex flex-col gap-2">
         <TabsList className="grid grid-cols-5 w-full bg-muted/20 shrink-0">
           <TabsTrigger value="overview" className="text-[11px] px-1">
-            Overview
+            Life Path
           </TabsTrigger>
           <TabsTrigger value="friends" className="text-[11px] px-1">
-            Connections
+            Connects
           </TabsTrigger>
           <TabsTrigger value="sphere" className="text-[11px] px-1">
             Sphere
@@ -628,8 +620,8 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
                     </DialogHeader>
                     <div className="space-y-4">
                       <p className="text-xs text-muted-foreground leading-snug">
-                        You must show proof. Add a photo, a short video, or a voice note that shows the Good Deed you saw. Then
-                        write what your Connection did.
+                        You must show proof. Add a photo, a short video, or a voice note that shows the Good Deed you
+                        saw. Then write what your Connection did.
                       </p>
                       <Input
                         placeholder="Title of your Good Deed"
@@ -695,7 +687,9 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
                             })}
                           </div>
                         )}
-                        <p className="text-[11px] text-muted-foreground">You cannot submit a Good Deed about yourself.</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          You cannot submit a Good Deed about yourself.
+                        </p>
                       </div>
                       <Button
                         className="w-full bg-teal-600 hover:bg-teal-700"
@@ -774,7 +768,9 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
               {isScanning ? "Listening for a tap…" : "NFC Sync"}
             </Button>
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" />
+              <span className="h-px flex-1 bg-border" />
+              or
+              <span className="h-px flex-1 bg-border" />
             </div>
             <div className="space-y-2">
               <Input
