@@ -176,12 +176,12 @@ const WelcomeSequence = ({ tabRefs, onComplete }: WelcomeSequenceProps) => {
             <h2 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-teal-600 via-amber-500 to-orange-500 bg-clip-text text-transparent">
               Welcome to Life.
             </h2>
-            <p className="text-slate-700">This is where you come into focus.</p>
+            <p className="text-slate-700">This is where you find your Life Path.</p>
             <p className="text-slate-600">
               Your gateway to understanding, owning, and activating your digital self. Every signal you create has
               value—claim it.
             </p>
-            <p className="font-semibold text-amber-600">Leverage. Royalties. Power.</p>
+            <p className="font-semibold text-amber-600">Get started on your Life Path</p>
           </div>
 
           <ContinueButton onClick={next} label="Continue" />
