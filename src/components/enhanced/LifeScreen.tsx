@@ -26,7 +26,8 @@ import { localPIIVault, type ConnectionLabel } from "@/lib/localPIIVault";
 import { useNFCBridge } from "@/hooks/useNFCBridge";
 import { useLifeChallengeProgress } from "@/hooks/useLifeChallengeProgress";
 import { toast } from "@/components/ui/sonner";
-import { Award, MessageCircle, Shield, Clock, CheckCircle, Nfc, Keyboard, Plus } from "lucide-react";
+import { Award, MessageCircle, Shield, Clock, CheckCircle, Nfc, Plus } from "lucide-react";
+import { generateACAHash } from "@/utils/acaGenerator";
 
 // Placeholder — derives a peer tier hue from the opaque native peer token
 // until the finalized iOS contract ships. Stable hash → hue.
@@ -818,20 +819,28 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
             <div className="space-y-2">
               <Input
                 value={manualGuid}
-                onChange={(event) => setManualGuid(event.target.value)}
+                onChange={(event) => handleGuidInput(event.target.value)}
                 placeholder="Enter their GUID"
                 autoCapitalize="none"
                 autoCorrect="off"
+                spellCheck={false}
+                maxLength={36}
+                disabled={manualConnecting}
+                aria-invalid={!!guidError}
+                aria-describedby="guid-status"
+                className="font-mono text-xs"
               />
-              <Button
-                variant="outline"
-                className="w-full"
-                disabled={manualConnecting || !/^[0-9a-f-]{36}$/i.test(manualGuid.trim())}
-                onClick={() => void resolveConnection(manualGuid.trim())}
+              <p
+                id="guid-status"
+                role={guidError ? "alert" : undefined}
+                className={`min-h-[1rem] text-xs ${guidError ? "text-destructive" : "text-muted-foreground"}`}
               >
-                <Keyboard className="mr-2 h-4 w-4" />
-                {manualConnecting ? "Connecting…" : "Connect with GUID"}
-              </Button>
+                {guidError
+                  ? guidError
+                  : manualConnecting
+                    ? "Confirm with biometrics to connect…"
+                    : `${manualGuid.length}/36 characters`}
+              </p>
             </div>
           </div>
         </DialogContent>
