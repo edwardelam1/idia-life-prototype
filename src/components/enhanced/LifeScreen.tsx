@@ -26,7 +26,7 @@ import { localPIIVault, type ConnectionLabel } from "@/lib/localPIIVault";
 import { useNFCBridge } from "@/hooks/useNFCBridge";
 import { useLifeChallengeProgress } from "@/hooks/useLifeChallengeProgress";
 import { toast } from "@/components/ui/sonner";
-import { Award, MessageCircle, Shield, Clock, CheckCircle, Nfc, Keyboard } from "lucide-react";
+import { Award, MessageCircle, Shield, Clock, CheckCircle, Nfc, Keyboard, Plus } from "lucide-react";
 
 // Placeholder — derives a peer tier hue from the opaque native peer token
 // until the finalized iOS contract ships. Stable hash → hue.
@@ -490,15 +490,24 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
 
         <TabsContent value="friends" className="flex-1 min-h-0 overflow-hidden m-0">
           <Card className="bg-card shadow-sm border-none h-full flex flex-col">
-            <CardHeader className="shrink-0">
+            <CardHeader className="shrink-0 flex-row items-center justify-between space-y-0">
               <CardTitle className="text-foreground text-base">Your Connections</CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 px-2 text-xs text-teal-600"
+                onClick={() => setConnectionDialogOpen(true)}
+                aria-label="Add a Connection by NFC or GUID"
+              >
+                Add <Plus className="h-3.5 w-3.5" />
+              </Button>
             </CardHeader>
             <CardContent className="flex-1 min-h-0 overflow-y-auto">
               {friends.length === 0 ? (
                 <div className="text-center py-8 space-y-3">
                   <p className="text-muted-foreground">You do not have any Connections yet.</p>
                   <p className="text-xs text-muted-foreground">
-                    You must Sync in person by tapping two phones together.
+                    Sync in person by tapping phones, or tap Add + to enter their GUID.
                   </p>
                 </div>
               ) : (
