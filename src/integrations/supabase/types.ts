@@ -9075,6 +9075,39 @@ export type Database = {
         }
         Relationships: []
       }
+      security_milestones: {
+        Row: {
+          author_id: string
+          body: string
+          category: string
+          created_at: string
+          effective_date: string
+          id: string
+          published: boolean
+          title: string
+        }
+        Insert: {
+          author_id?: string
+          body: string
+          category?: string
+          created_at?: string
+          effective_date?: string
+          id?: string
+          published?: boolean
+          title: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          category?: string
+          created_at?: string
+          effective_date?: string
+          id?: string
+          published?: boolean
+          title?: string
+        }
+        Relationships: []
+      }
       security_preferences: {
         Row: {
           aegis_protocol: boolean | null
@@ -9108,6 +9141,33 @@ export type Database = {
           silver_sentinel?: boolean | null
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      security_ticker: {
+        Row: {
+          agent: string
+          event_type: string
+          id: string
+          occurred_at: string
+          resolved: boolean
+          severity: string
+        }
+        Insert: {
+          agent: string
+          event_type: string
+          id: string
+          occurred_at?: string
+          resolved?: boolean
+          severity: string
+        }
+        Update: {
+          agent?: string
+          event_type?: string
+          id?: string
+          occurred_at?: string
+          resolved?: boolean
+          severity?: string
         }
         Relationships: []
       }
@@ -11081,6 +11141,27 @@ export type Database = {
           suggested_impact?: string
           title?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
         Relationships: []
@@ -13090,6 +13171,7 @@ export type Database = {
           count: number
         }[]
       }
+      get_security_event_detail: { Args: { _id: string }; Returns: Json }
       get_service_role_key: { Args: never; Returns: string }
       get_staging_aggregates: {
         Args: never
@@ -13177,6 +13259,13 @@ export type Database = {
       has_business_access: { Args: { p_business_id: string }; Returns: boolean }
       has_hat: {
         Args: { _hat_type: string; _user_id: string }
+        Returns: boolean
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
         Returns: boolean
       }
       increment_community_pool: {
@@ -13363,6 +13452,10 @@ export type Database = {
         Returns: number
       }
       release_relayer_lock: { Args: { run_id: string }; Returns: undefined }
+      resolve_security_event: {
+        Args: { _id: string; _resolved?: boolean }
+        Returns: boolean
+      }
       revoke_employee: {
         Args: { _employee_id: string }
         Returns: {
@@ -13540,6 +13633,7 @@ export type Database = {
       }
     }
     Enums: {
+      app_role: "super_admin" | "security_operator"
       buyer_jurisdiction_type: "USA" | "SGP" | "IND" | "NGA_ZAF" | "UAE"
       buyer_latency_type: "STREAMING" | "INTRADAY" | "BATCH"
       buyer_role_type:
@@ -13708,6 +13802,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["super_admin", "security_operator"],
       buyer_jurisdiction_type: ["USA", "SGP", "IND", "NGA_ZAF", "UAE"],
       buyer_latency_type: ["STREAMING", "INTRADAY", "BATCH"],
       buyer_role_type: [
