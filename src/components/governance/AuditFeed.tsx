@@ -1,3 +1,4 @@
+import { requireActiveSession } from "@/lib/authUser";
 import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +71,7 @@ const AuditFeed: React.FC = () => {
 
     const fetchPage = async () => {
       console.log("[AUDIT_FEED][FETCH][START] Executing ACA ledger poll.");
+      if (!(await requireActiveSession("AUDIT_FEED"))) return;
       try {
         const { data, error } = await (supabase as any)
           .from("user_aca_records")

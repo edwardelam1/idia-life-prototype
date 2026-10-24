@@ -1,3 +1,4 @@
+import { requireActiveSession } from "@/lib/authUser";
 import React, { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -581,6 +582,7 @@ const EnhancedWalletDashboard: React.FC = () => {
     if (!stableUserId) return;
     let active = true;
     (async () => {
+      if (!(await requireActiveSession("WALLET_SEED_STATUS"))) return;
       const { data } = await (supabase.from("profiles") as any)
         .select("is_seed_backed_up")
         .eq("user_id", stableUserId)

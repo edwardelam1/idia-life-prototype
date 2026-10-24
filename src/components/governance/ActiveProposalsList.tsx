@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { getCachedUser } from "@/lib/authUser";
+import { getCachedUser , requireActiveSession } from "@/lib/authUser";
 // Card primitives no longer used — cards are rendered as compact lifecycle-style rows.
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -323,6 +323,7 @@ const VoterLedger: React.FC<{ proposalId: string; refreshKey: number }> = ({
   useEffect(() => {
     let alive = true;
     (async () => {
+      if (!(await requireActiveSession("VOTER_LIST"))) { if (alive) setLoading(false); return; }
       setLoading(true);
       try {
         const { data: votes, error } = await (supabase as any)
@@ -507,6 +508,7 @@ export const ProposalCard: React.FC<{
     (async () => {
       const s = stage("PROPOSAL_CARD", "META_FETCH");
       s.start({ id: proposal.id });
+      if (!(await requireActiveSession("PROPOSAL_CARD_VOTES"))) return;
       try {
         const [{ data: votes }, mine] = await Promise.all([
           (supabase as any).from("dao_votes").select("vote_type, vote_weight").eq("proposal_id", proposal.proposal_ref),
