@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
       const { data: votes, error: vErr } = await admin
         .from("dao_votes")
         .select("vote_type, vote_weight")
-        .eq("proposal_ref", proposalRef);
+        .eq("proposal_id", String(proposalRef)); // text column: on-chain id or uuid string
       if (vErr) {
         console.error("[PROPOSAL_TALLY] votes fetch failed", p.id, vErr);
         continue;
