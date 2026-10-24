@@ -1,3 +1,4 @@
+import { requireActiveSession } from "@/lib/authUser";
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -133,6 +134,7 @@ const DetailDialog: React.FC<{ proposal: ProposalLite | null; onClose: () => voi
     (async () => {
       try {
         const voteKey = proposal.on_chain_id ?? proposal.id;
+        if (!(await requireActiveSession("LIFECYCLE_TELEMETRY_VOTES"))) return;
         const { data } = await supabase
           .from("dao_votes")
           .select("vote_type, vote_weight, snapshot_voting_power")

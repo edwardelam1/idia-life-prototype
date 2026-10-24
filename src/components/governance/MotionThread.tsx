@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { getCachedUser } from "@/lib/authUser";
+import { getCachedUser , requireActiveSession } from "@/lib/authUser";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -87,6 +87,7 @@ const MotionThread: React.FC<MotionThreadProps> = ({ proposal, open, onClose, on
       
       if (rawComments.length > 0) {
         console.log("[MOTION_THREAD][HYDRATE][FETCH_PROFILES][START] Resolving wallet addresses for authors.");
+        if (!(await requireActiveSession("MOTION_THREAD_PROFILES"))) return;
         const uniqueAuthorIds = [...new Set(rawComments.map((c: any) => c.author_id))];
         
         const { data: profilesData, error: profileError } = await (supabase as any)

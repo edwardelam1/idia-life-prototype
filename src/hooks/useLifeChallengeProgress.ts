@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { getCachedUser } from "@/lib/authUser";
+import { getCachedUser , requireActiveSession } from "@/lib/authUser";
 import { supabase } from "@/integrations/supabase/client";
 
 type ProgressRow = {

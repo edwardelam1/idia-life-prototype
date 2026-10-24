@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { getCachedUser } from "@/lib/authUser";
+import { getCachedUser , requireActiveSession } from "@/lib/authUser";
 import { supabase } from "@/integrations/supabase/client";
 import { ethers } from "ethers"; // <-- Swapped viem for ethers (Native Infrastructure)
 import { PROTOCOL } from "@/config/contracts";
@@ -160,6 +160,7 @@ export const useWalletBalance = () => {
       let votingPower = 0;
       let delegatee: string | null = null;
 
+      if (!(await requireActiveSession("WALLET_BALANCE_PROFILE"))) return;
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("wallet_address")
