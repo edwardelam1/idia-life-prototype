@@ -31,8 +31,7 @@ export function useLifeChallengeProgress() {
   const refresh = useCallback(async () => {
     console.log("[LIFE_CHALLENGE_REFRESH][BEGIN]");
     try {
-      const { data: auth } = await getCachedUser();
-      const user = auth?.user;
+      const user = await requireActiveSession("LIFE_CHALLENGE_PROGRESS");
       if (!user) return;
 
       const [progress, connections, deeds, sources, votes] = await Promise.all([
