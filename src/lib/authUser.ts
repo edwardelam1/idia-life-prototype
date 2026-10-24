@@ -97,6 +97,40 @@ export const revalidateUser = async (): Promise<User | null> => {
   }
 };
 
+/**
+ * UI auth guard: resolves the signed-in user ONLY when a live, unexpired session
+ * exists. Call before reading `profiles` / `dao_votes` so signed-out or expired
+ * page loads never fire queries that the database rejects (42501 log noise).
+ */
+export const requireActiveSession = async (tag: string): Promise<User | null> => {
+  console.log(`[UI_AUTH_GUARD][START] ${tag}`);
+  ensureSubscription();
+  let status: "ACTIVE" | "NO_SESSION" | "EXPIRED" = "NO_SESSION";
+  let user: User | null = null;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      const live = (s: typeof session) => !!s?.expires_at && s.expires_at * 1000 > Date.now() + 30_000;
+      if (live(session)) {
+        status = "ACTIVE";
+        user = session.user;
+      } else {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        if (refreshed.session && live(refreshed.session)) {
+          status = "ACTIVE";
+          user = refreshed.session.user;
+        } else {
+          status = "EXPIRED";
+        }
+      }
+    }
+  } catch {
+    status = "NO_SESSION";
+  }
+  console.log(`[UI_AUTH_GUARD][END] ${tag} status=${status}`);
+  return user;
+};
+
 /** Prime the cache at app start. */
 export const initAuthUserCache = () => {
   ensureSubscription();
