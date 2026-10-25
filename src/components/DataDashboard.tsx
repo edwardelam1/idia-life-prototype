@@ -23,6 +23,7 @@ const stravaLogo = stravaLogoAsset.url;
 const nestLogo = nestLogoAsset.url;
 import { isAndroid, isIOS, isWeb } from "@/services/platform";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
+import usdcLogo from "@/assets/usdc-logo.jpg.asset.json";
 import { useSourceWakeRefresh } from "@/hooks/useSourceWakeRefresh";
 import { useAppleHealthBridge } from "@/hooks/useAppleHealthBridge";
 
@@ -535,7 +536,13 @@ const DataDashboard = () => {
             <div className="flex justify-between items-start">
               <div className="space-y-1">
                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60">USDC Balance</p>
-                <h2 className="text-4xl font-black">${balanceLoading ? "0.00" : balance.usdc_balance.toFixed(2)}</h2>
+                <h2 className="text-4xl font-black">
+                  ${balanceLoading ? "0.00" : balance.usdc_balance.toFixed(2)}{" "}
+                  <span className="inline-flex items-center gap-1 align-middle text-sm font-medium text-teal-100/40">
+                    <img src={usdcLogo.url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                    USDC
+                  </span>
+                </h2>
               </div>
               <DollarSign className="w-10 h-10 text-orange-400 drop-shadow-lg" />
             </div>

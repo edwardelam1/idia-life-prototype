@@ -33,6 +33,8 @@ import CreateDaoProposalModal from "./governance/CreateDaoProposalModal";
 import { PROTOCOL, ACTIVE_DEPLOYMENT } from "@/config/contracts";
 import { ACTION_REQUIRED_LEVEL, getAscensionLevel, type AscensionLevel } from "@/utils/governanceGate";
 
+import idiaTokenLogo from "@/assets/idia-token-logo.jpg.asset.json";
+
 const IDIA_CONTRACT = PROTOCOL.idiaToken;
 const IS_MAINNET = ACTIVE_DEPLOYMENT === "mainnet";
 
@@ -83,7 +85,10 @@ const IdiaGovernanceCard: React.FC<{ idiaBalance: number; chainVerified: boolean
           </p>
           <h1 className="text-4xl font-black truncate">
             {idiaBalance.toLocaleString(undefined, { maximumFractionDigits: 4 })}{" "}
-            <span className="text-sm font-medium text-teal-100/40">IDIA</span>
+            <span className="inline-flex items-center gap-1 align-middle text-sm font-medium text-teal-100/40">
+              <img src={idiaTokenLogo.url} alt="" className="w-5 h-5 rounded-full object-cover" />
+              IDIA
+            </span>
           </h1>
         </div>
         <ShieldCheck className="w-10 h-10 text-orange-400 drop-shadow-lg shrink-0" />

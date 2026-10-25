@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import usdcLogoAsset from "@/assets/usdc-logo.jpg.asset.json";
+import idiaTokenLogoAsset from "@/assets/idia-token-logo.jpg.asset.json";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -237,11 +239,17 @@ const EnhancedProfileSettings: React.FC = () => {
               <p className="text-base font-semibold">{(balance.eth_balance || 0).toFixed(4)}</p>
             </div>
             <div className="text-center p-2 bg-muted rounded-md">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">USDC</p>
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
+                <img src={usdcLogoAsset.url} alt="" className="w-4 h-4 rounded-full object-cover" />
+                USDC
+              </p>
               <p className="text-base font-semibold">${(balance.usdc_balance || 0).toFixed(2)}</p>
             </div>
             <div className="text-center p-2 bg-muted rounded-md">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">IDIA Tokens</p>
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
+                <img src={idiaTokenLogoAsset.url} alt="" className="w-4 h-4 rounded-full object-cover" />
+                IDIA Tokens
+              </p>
               <p className="text-base font-semibold">{(balance.idia_token_balance || 0).toFixed(2)}</p>
             </div>
           </div>
