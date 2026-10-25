@@ -62,6 +62,9 @@ import {
   XCircle,
 } from "lucide-react";
 import idiaHubLogo from "@/assets/idia-hub-logo.png.asset.json";
+import usdcLogo from "@/assets/usdc-logo.jpg.asset.json";
+import idiaTokenLogo from "@/assets/idia-token-logo.jpg.asset.json";
+import synapseCreditLogo from "@/assets/synapse-credit-logo.jpg.asset.json";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { recordACA } from "@/utils/acaLedger";
 
@@ -965,7 +968,10 @@ const EnhancedWalletDashboard: React.FC = () => {
                     <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-100/60">Total Balance</p>
                     <h2 className="text-4xl font-black">
                       ${walletBalance?.usdc_balance?.toFixed(2) || "0.00"}{" "}
-                      <span className="text-sm font-medium text-teal-100/40">USDC</span>
+                      <span className="inline-flex items-center gap-1 align-middle text-sm font-medium text-teal-100/40">
+                        <img src={usdcLogo.url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                        USDC
+                      </span>
                     </h2>
                   </div>
                   <Wallet className="w-10 h-10 text-orange-400 drop-shadow-lg" />
@@ -1034,7 +1040,10 @@ const EnhancedWalletDashboard: React.FC = () => {
 
                   {/* IDIA Token */}
                   <div className="p-3 bg-gradient-to-br from-teal-50 to-blue-50 dark:from-teal-950 dark:to-blue-950 rounded-lg border">
-                    <p className="text-xs text-muted-foreground">IDIA Token</p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <img src={idiaTokenLogo.url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                      IDIA Token
+                    </p>
                     <p className="text-2xl font-bold mt-1">
                       {(balances?.idia
                         ? Number(balances.idia.balanceFormatted)
@@ -1048,7 +1057,10 @@ const EnhancedWalletDashboard: React.FC = () => {
                   <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 rounded-lg border">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-xs text-muted-foreground">Synapse Credits</p>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                          <img src={synapseCreditLogo.url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                          Synapse Credits
+                        </p>
                         <p className="text-2xl font-bold mt-1">
                           {synapseCredits.toLocaleString(undefined, { maximumFractionDigits: 3 })}
                           <span className="text-sm text-muted-foreground font-normal ml-1">CR</span>

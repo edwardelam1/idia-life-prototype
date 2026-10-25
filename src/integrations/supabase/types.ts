@@ -13330,7 +13330,6 @@ export type Database = {
         }
         Returns: string
       }
-      maintain_real_time_signals: { Args: never; Returns: undefined }
       mask_owner: { Args: { _id: string }; Returns: string }
       process_idia_telemetry: {
         Args: {
