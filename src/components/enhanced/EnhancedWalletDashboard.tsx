@@ -65,6 +65,7 @@ import idiaHubLogo from "@/assets/idia-hub-logo.png.asset.json";
 import usdcLogo from "@/assets/usdc-logo.jpg.asset.json";
 import idiaTokenLogo from "@/assets/idia-token-logo.jpg.asset.json";
 import synapseCreditLogo from "@/assets/synapse-credit-logo.jpg.asset.json";
+import ethLogo from "@/assets/eth-logo.png.asset.json";
 import { generateACAHash } from "@/utils/acaGenerator";
 import { recordACA } from "@/utils/acaLedger";
 
@@ -1025,7 +1026,10 @@ const EnhancedWalletDashboard: React.FC = () => {
                   {/* ETH */}
                   <div className="p-3 bg-gradient-to-br from-teal-200 to-teal-50 dark:from-teal-800 dark:to-teal-950 rounded-lg border">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs text-muted-foreground">ETH (Gas)</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <img src={ethLogo.url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                        ETH (Gas)
+                      </p>
                       <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={refreshBalances}>
                         <RefreshCw className={`w-3 h-3 ${balancesLoading ? "animate-spin" : ""}`} />
                       </Button>
