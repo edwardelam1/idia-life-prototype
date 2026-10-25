@@ -1,13 +1,14 @@
 import { useEffect, useRef } from "react";
 import { Coins, Crown, Gavel, Landmark, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import idiaTokenLogo from "@/assets/idia-token-logo.jpg.asset.json";
 
 interface WelcomeToGovOverlayProps {
   onDismiss: () => void;
 }
 
-const GOV_FEATURES = [
-  { icon: Coins, title: "IDIA Token", description: "Your governance balance, verifiable on Basescan." },
+const GOV_FEATURES: { icon: typeof Coins; logo?: string; title: string; description: string }[] = [
+  { icon: Coins, logo: idiaTokenLogo.url, title: "IDIA Token", description: "Your governance balance, verifiable on Basescan." },
   { icon: Scale, title: "Jurisdiction", description: "Switch between the Wyoming DUNA and Delaware portals." },
   { icon: Crown, title: "Hats", description: "The roles you hold in the DAO." },
   { icon: Landmark, title: "Decentralized Community Grant Pools", description: "Live on-chain local funding pools." },
@@ -54,10 +55,10 @@ export default function WelcomeToGovOverlay({ onDismiss }: WelcomeToGovOverlayPr
         </header>
 
         <div className="mt-5 divide-y divide-border/60 border-y border-border/60">
-          {GOV_FEATURES.map(({ icon: Icon, title, description }) => (
+          {GOV_FEATURES.map(({ icon: Icon, logo, title, description }) => (
             <div key={title} className="flex items-start gap-3 py-3">
               <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-life-teal/35 bg-life-teal/10 text-life-teal">
-                <Icon className="h-4 w-4" aria-hidden="true" />
+                {logo ? <img src={logo} alt="" className="h-8 w-8 rounded-full object-cover" /> : <Icon className="h-4 w-4" aria-hidden="true" />}
               </span>
               <div className="min-w-0">
                 <h3 className="text-sm font-bold text-foreground">{title}</h3>
