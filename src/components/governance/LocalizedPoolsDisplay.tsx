@@ -6,6 +6,7 @@ import { PROTOCOL, REGISTRY_ABI } from "@/config/contracts";
 
 // On-chain Source of Truth (Base Mainnet)
 const REGISTRY_ADDRESS = PROTOCOL.registry;
+import usdcLogo from "@/assets/usdc-logo.jpg.asset.json";
 const USDC_ADDRESS = PROTOCOL.usdc;
 const BASE_NETWORK = { name: "base", chainId: 8453 };
 
@@ -165,7 +166,8 @@ const LocalizedPoolsDisplay: React.FC = () => {
                 {state ? `, ${state}` : ""}
                 <ExternalLink size={10} className="text-slate-400" />
               </span>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-teal-600 dark:text-teal-400">
+              <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-teal-600 dark:text-teal-400">
+                <img src={usdcLogo.url} alt="" className="w-3.5 h-3.5 rounded-full object-cover" />
                 ${pool.balanceUSDC} USDC
               </span>
             </button>

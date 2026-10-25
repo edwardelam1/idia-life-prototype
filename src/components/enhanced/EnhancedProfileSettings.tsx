@@ -237,11 +237,17 @@ const EnhancedProfileSettings: React.FC = () => {
               <p className="text-base font-semibold">{(balance.eth_balance || 0).toFixed(4)}</p>
             </div>
             <div className="text-center p-2 bg-muted rounded-md">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">USDC</p>
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
+                <img src={usdcLogoAsset.url} alt="" className="w-4 h-4 rounded-full object-cover" />
+                USDC
+              </p>
               <p className="text-base font-semibold">${(balance.usdc_balance || 0).toFixed(2)}</p>
             </div>
             <div className="text-center p-2 bg-muted rounded-md">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">IDIA Tokens</p>
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
+                <img src={idiaTokenLogoAsset.url} alt="" className="w-4 h-4 rounded-full object-cover" />
+                IDIA Tokens
+              </p>
               <p className="text-base font-semibold">{(balance.idia_token_balance || 0).toFixed(2)}</p>
             </div>
           </div>
