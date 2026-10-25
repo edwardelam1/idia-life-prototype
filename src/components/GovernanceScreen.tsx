@@ -6,6 +6,30 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import SegmentedJurisdiction, { Jurisdiction } from "./governance/SegmentedJurisdiction";
+import DiscordCommunityCard from "./governance/DiscordCommunityCard";
+
+const JURISDICTION_SECTIONS = {
+  wyoming: [
+    { id: "gov-community", label: "Community Discord" },
+    { id: "gov-pending", label: "Pending Actions" },
+    { id: "gov-active", label: "Active Proposals" },
+    { id: "gov-telemetry", label: "Lifecycle Telemetry" },
+    { id: "gov-execution", label: "Execution Phase" },
+    { id: "gov-successful", label: "Successful Proposals" },
+    { id: "gov-archive", label: "Archive" },
+    { id: "gov-locked", label: "Locked Proposals" },
+  ],
+  delaware: [
+    { id: "msa-compliance", label: "MSA Compliance" },
+    { id: "msa-treasury", label: "Treasury Flows" },
+    { id: "msa-execution", label: "Execution Tracker" },
+    { id: "msa-applications", label: "Application Review" },
+    { id: "msa-committees", label: "Committees" },
+    { id: "msa-community", label: "Community Discord" },
+    { id: "msa-deliberations", label: "Motion Threads" },
+    { id: "msa-audit", label: "Audit Feed" },
+  ],
+};
 import HatsWardrobe from "./governance/HatsWardrobe";
 import LocalizedPoolsDisplay from "./governance/LocalizedPoolsDisplay";
 import PendingActionsCarousel from "./governance/PendingActionsCarousel";
@@ -118,14 +142,18 @@ const WyomingPortal: React.FC<{
   onOpenCreateModal: () => void;
 }> = ({ idiaBalance, votingPower, isSelfDelegated, canSubmitProposal, refreshBalance, refreshKey, onOpenCreateModal }) => (
   <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-    <section className="space-y-3">
+    <section id="gov-community" className="space-y-3 scroll-mt-24">
+      <DiscordCommunityCard />
+    </section>
+
+    <section id="gov-pending" className="space-y-3 scroll-mt-24">
       <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
         <Zap size={14} className="text-orange-500" /> Pending Actions · Negative Consent
       </h2>
       <PendingActionsCarousel escrowTargets={PROTOCOL.escrow} />
     </section>
 
-    <section className="space-y-3">
+    <section id="gov-active" className="space-y-3 scroll-mt-24">
       <div className="flex items-center justify-between px-2">
         <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
           <Gavel size={14} className="text-teal-600" /> Active Proposals · 1:1 Vote
@@ -149,14 +177,14 @@ const WyomingPortal: React.FC<{
       />
     </section>
 
-    <section className="space-y-3">
+    <section id="gov-telemetry" className="space-y-3 scroll-mt-24">
       <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
         <Activity size={14} className="text-teal-600" /> Lifecycle Telemetry
       </h2>
       <LifecycleTelemetry />
     </section>
 
-    <section className="space-y-3">
+    <section id="gov-execution" className="space-y-3 scroll-mt-24">
       <ExecutionPhaseList
         balance={idiaBalance}
         votingPower={votingPower}
@@ -164,7 +192,7 @@ const WyomingPortal: React.FC<{
       />
     </section>
 
-    <section className="space-y-3">
+    <section id="gov-successful" className="space-y-3 scroll-mt-24">
       <SuccessfulProposalsList
         balance={idiaBalance}
         votingPower={votingPower}
@@ -172,7 +200,7 @@ const WyomingPortal: React.FC<{
       />
     </section>
 
-    <section className="space-y-3">
+    <section id="gov-archive" className="space-y-3 scroll-mt-24">
       <ArchiveProposalsList
         balance={idiaBalance}
         votingPower={votingPower}
@@ -180,7 +208,7 @@ const WyomingPortal: React.FC<{
       />
     </section>
 
-    <section className="space-y-3">
+    <section id="gov-locked" className="space-y-3 scroll-mt-24">
       <LockedProposalsList
         balance={idiaBalance}
         votingPower={votingPower}
@@ -192,19 +220,19 @@ const WyomingPortal: React.FC<{
 
 const DelawarePortal: React.FC = () => (
   <div className="space-y-5 animate-in slide-in-from-left-4 duration-300">
-    <MSAComplianceCard />
-    <TreasuryFlows />
-    <ExecutionTracker />
-    <ApplicationReviewQueue />
-
-    <CommitteesList />
-    <section className="space-y-3">
+    <div id="msa-compliance" className="scroll-mt-24"><MSAComplianceCard /></div>
+    <div id="msa-treasury" className="scroll-mt-24"><TreasuryFlows /></div>
+    <div id="msa-execution" className="scroll-mt-24"><ExecutionTracker /></div>
+    <div id="msa-applications" className="scroll-mt-24"><ApplicationReviewQueue /></div>
+    <div id="msa-committees" className="scroll-mt-24"><CommitteesList /></div>
+    <div id="msa-community" className="scroll-mt-24"><DiscordCommunityCard compact /></div>
+    <section id="msa-deliberations" className="space-y-3 scroll-mt-24">
       <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
         <Gavel size={14} className="text-teal-600" /> Committee Deliberations · Motion Threads
       </h2>
       <CommitteeWorkspaceBoundary />
     </section>
-    <AuditFeed />
+    <div id="msa-audit" className="scroll-mt-24"><AuditFeed /></div>
   </div>
 );
 
@@ -319,7 +347,7 @@ const GovernanceScreen: React.FC = () => {
         onOpenExplorer={() => openBasescan(IDIA_CONTRACT)}
       />
 
-      <SegmentedJurisdiction value={jurisdiction} onChange={setJurisdiction} />
+      <SegmentedJurisdiction value={jurisdiction} onChange={setJurisdiction} sections={JURISDICTION_SECTIONS} />
 
       <HatsWardrobe />
 
