@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import usdcLogoAsset from "@/assets/usdc-logo.jpg.asset.json";
+import idiaTokenLogoAsset from "@/assets/idia-token-logo.jpg.asset.json";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
