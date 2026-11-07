@@ -47,7 +47,7 @@ const TermsOfService = () => {
     }
 
     setIsLoading(true);
-    console.log("[BEGIN: TOS_FLOW] Processing biometric-linked consent.");
+    console.log("[BEGIN: TOS_FLOW] Processing consent (no biometric).");
 
     try {
       console.log("[BEGIN: TOS_FLOW.GetUser] Fetching cached identity.");
