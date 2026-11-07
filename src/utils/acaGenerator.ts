@@ -116,13 +116,15 @@ export const generateACAHash = async (
         throw new Error(`BIOMETRIC_REJECTED:${nativeErr?.message || "unknown"}`);
       }
     } else {
-      // ─── WEB / PREVIEW SIMULATION (temporary) ─────────────────────────────
-      console.log(`🪪 [PROCESS: generateACAHash] Environment: Web/Simulation. Bypassing Secure Enclave.`);
-      const randomBytes = crypto.getRandomValues(new Uint8Array(16));
-      const randomHex = Array.from(randomBytes)
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-      hardwareAttestationId = `${randomHex}:${Date.now()}:WEB_SIMULATION`;
+      // Synthetic / web-simulated ACAs are prohibited: an ACA requires real biometric capture.
+      console.warn(`🚨 [FAIL: generateACAHash] No hardware biometric available — ACA refused.`);
+      toast({
+        title: "Mobile App Required",
+        description:
+          "Biometric verification is required to anchor an Auditable Consent Artifact (ACA). To perform this action, please use the IDIA mobile app.",
+        variant: "destructive",
+      });
+      throw new Error("ACA_PROMPT_REJECTED: MOBILE_APP_REQUIRED");
     }
 
     // ─── IMMUTABLE PAYLOAD CONSTRUCTION ─────────────────────────────────────
@@ -157,11 +159,10 @@ export const generateACAHash = async (
   } catch (error: any) {
     console.error(`🚨 [FAIL: generateACAHash] CRITICAL_FAILURE: Sequence aborted. Reason: ${error.message}`);
 
+    if (String(error?.message || "").startsWith("ACA_PROMPT_REJECTED")) throw error;
     toast({
       title: "Handshake Failed",
-      description: isNative
-        ? "Face ID / Touch ID is required to anchor this action."
-        : "Open the IDIA iOS app to complete this action — the web preview cannot anchor consent.",
+      description: "Face ID / Touch ID / fingerprint is required to anchor this action.",
       variant: "destructive",
     });
 

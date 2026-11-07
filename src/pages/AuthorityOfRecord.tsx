@@ -2,7 +2,6 @@ import { useState } from "react";
 import { getCachedUser } from "@/lib/authUser";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { generateACAHash } from "@/utils/acaGenerator";
 import { Button } from "@/components/ui/button";
 import { Shield, ScrollText } from "lucide-react";
 import { toast } from "sonner";
@@ -28,8 +27,6 @@ const AuthorityOfRecord = () => {
       console.log(`[AOR_FLOW] Identity Confirmed: ${user.id}`);
 
       const scopes = ["AOR_AUTHORIZATION", decision === "accepted" ? "POA_GRANTED" : "POA_DECLINED"];
-      const { payload } = await generateACAHash(user.id, "AUTHORITY_OF_RECORD_V1", scopes);
-      console.log("[AOR_FLOW] ACA Hash Generated.");
 
       // Ledger writes are best-effort — a single insert failure must NOT strand the
       // user on the AoR screen. Metadata update + navigation are the source of truth
@@ -49,13 +46,7 @@ const AuthorityOfRecord = () => {
         consent_type: "AUTHORITY_OF_RECORD_V1",
         decision,
         document_version: "v1",
-        aca_hash_key: payload.aca_hash_key,
-        payload,
-      });
-      await safeInsert("user_aca_records", {
-        platform_guid: user.id,
-        consent_type: "AUTHORITY_OF_RECORD_V1",
-        aca_hash_key: payload.aca_hash_key,
+        payload: { scopes },
       });
       await safeInsert("device_events", {
         user_id: user.id,
@@ -65,7 +56,7 @@ const AuthorityOfRecord = () => {
           feature: "authority_of_record",
           version: "v1",
           decision,
-          aca: payload,
+          scopes,
         },
       });
 
