@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from "react";
 import { getCachedUser } from "@/lib/authUser";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { generateACAHash } from "@/utils/acaGenerator";
 import { Button } from "@/components/ui/button";
 import { Download, ShieldCheck, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -48,7 +47,7 @@ const TermsOfService = () => {
     }
 
     setIsLoading(true);
-    console.log("[BEGIN: TOS_FLOW] Processing biometric-linked consent.");
+    console.log("[BEGIN: TOS_FLOW] Processing consent (no biometric).");
 
     try {
       console.log("[BEGIN: TOS_FLOW.GetUser] Fetching cached identity.");
@@ -63,13 +62,6 @@ const TermsOfService = () => {
       }
       console.log(`[END: TOS_FLOW.GetUser] Identity Confirmed: ${user.id}`);
 
-      console.log("[BEGIN: TOS_FLOW.GenerateACA] Generating cryptographic consent signature.");
-      const { payload } = await generateACAHash(user.id, `TERMS_OF_SERVICE_${REQUIRED_TOS_VERSION.toUpperCase()}`, [
-        "TOS_ACCEPTANCE",
-        "LEGAL_BINDING",
-      ]);
-      console.log(`[END: TOS_FLOW.GenerateACA] Signature generated: ${payload.aca_hash_key.substring(0, 8)}...`);
-
       console.log("[BEGIN: TOS_FLOW.LogDeviceEvent] Writing to device_events ledger.");
       const { error: deviceError } = await (supabase as any).from("device_events").insert({
         user_id: user.id,
@@ -80,7 +72,6 @@ const TermsOfService = () => {
           document: "IDIA_Protocol_Terms_of_Service",
           version: REQUIRED_TOS_VERSION,
           acknowledgement: "I_ACCEPT",
-          aca: payload,
         },
       });
       if (deviceError) {
@@ -88,25 +79,6 @@ const TermsOfService = () => {
         throw new Error(`Device event rejected: ${deviceError.message}`);
       }
       console.log("[END: TOS_FLOW.LogDeviceEvent] Event securely logged.");
-
-      console.log("[BEGIN: TOS_FLOW.UpsertACA] Upserting to user_aca_records.");
-      // 🚨 LEDGER HARDENING: Use Upsert to prevent unique constraint failures
-      const { error: acaError } = await (supabase as any).from("user_aca_records").upsert(
-        {
-          platform_guid: user.id,
-          source_id: "idia_tos",
-          consent_scope: ["TOS_ACCEPTANCE", "LEGAL_BINDING"],
-          consent_type: `TOS_ACCEPTANCE_${REQUIRED_TOS_VERSION.toUpperCase()}`,
-          aca_hash_key: payload.aca_hash_key,
-        },
-        { onConflict: "aca_hash_key" },
-      );
-
-      if (acaError) {
-        console.error("🚨 [ERROR: TOS_FLOW.UpsertACA] ACA write rejected:", acaError);
-        throw new Error(`ACA record rejected: ${acaError.message}`);
-      }
-      console.log("[END: TOS_FLOW.UpsertACA] ACA Record mirrored.");
 
       console.log("[BEGIN: TOS_FLOW.UpdateAuth] Stamping user metadata.");
       const { error: authError } = await supabase.auth.updateUser({
@@ -127,8 +99,6 @@ const TermsOfService = () => {
             consent_type: `TOS_${REQUIRED_TOS_VERSION.toUpperCase()}`,
             decision: "accepted",
             document_version: REQUIRED_TOS_VERSION,
-            aca_hash_key: payload.aca_hash_key,
-            payload,
           },
           { onConflict: "user_id,consent_type" },
         );

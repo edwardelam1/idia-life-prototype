@@ -113,46 +113,11 @@ serve(async (req) => {
     const receipt = await tx.wait();
     console.log(`[relay-delegation] confirmed block ${receipt.blockNumber}`);
 
-    stage = "ACA";
-    // Generate ACA hash for delegation event
-    const acaPayload = {
-      consent_scope: ["GOVERNANCE_DELEGATE", "LEDGER_WRITE"],
-      timestamp: new Date().toISOString(),
-      action: "self_delegate",
-      delegatee,
-      tx_hash: tx.hash,
-      chain_id: network.chainId,
-    };
-    const encoder = new TextEncoder();
-    const buf = await crypto.subtle.digest(
-      "SHA-256",
-      encoder.encode(`${userId}:self_delegate:${tx.hash}:${expiry}`),
-    );
-    const acaHash =
-      "0x" +
-      Array.from(new Uint8Array(buf))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-
-    try {
-      await supabaseAdmin.from("user_aca_records").insert({
-        platform_guid: userId,
-        aca_hash_key: acaHash,
-        source_id: "governance_self_delegate",
-        consent_type: "GOVERNANCE_DELEGATE",
-        consent_scope: acaPayload.consent_scope,
-        created_at: acaPayload.timestamp,
-        tx_hash: tx.hash,
-      });
-    } catch (acaErr: any) {
-      console.error(`[relay-delegation] ACA insert failed (non-fatal): ${acaErr.message}`);
-    }
-
+    // No server-side ACA: ACAs require real device biometric capture.
     return jsonResponse({
       success: true,
       tx_hash: tx.hash,
       block_number: receipt.blockNumber,
-      aca_hash: acaHash,
       delegatee,
       network: network.name,
     });

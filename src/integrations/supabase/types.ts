@@ -1208,6 +1208,47 @@ export type Database = {
         }
         Relationships: []
       }
+      business_service_provisioning_log: {
+        Row: {
+          business_id: string
+          changed_by: string | null
+          created_at: string
+          id: string
+          utility_provisioned: boolean
+          utility_rate: number
+          vulture_provisioned: boolean
+          vulture_rate: number
+        }
+        Insert: {
+          business_id: string
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          utility_provisioned: boolean
+          utility_rate: number
+          vulture_provisioned: boolean
+          vulture_rate: number
+        }
+        Update: {
+          business_id?: string
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          utility_provisioned?: boolean
+          utility_rate?: number
+          vulture_provisioned?: boolean
+          vulture_rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_service_provisioning_log_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       business_user_permissions: {
         Row: {
           business_user_id: string
@@ -1345,22 +1386,33 @@ export type Database = {
           country: string | null
           created_at: string | null
           data_coop_enabled: boolean | null
+          dba_name: string | null
           email: string | null
           entity_type: string | null
           franchise_parent_id: string | null
           id: string
+          irs_tax_classification: string | null
+          legal_name: string | null
           logo_url: string | null
           name: string
           phone: string | null
           postal_code: string | null
           provisioning_code: string
+          services_updated_at: string | null
+          services_updated_by: string | null
           state: string | null
+          state_of_formation: string | null
           street_address_1: string | null
           street_address_2: string | null
           submodule_id: string | null
           subscription_tier: string | null
           tax_id: string | null
+          tax_id_type: string | null
           updated_at: string | null
+          utility_provisioned: boolean
+          utility_rate: number
+          vulture_provisioned: boolean
+          vulture_rate: number
         }
         Insert: {
           business_health_score?: number | null
@@ -1369,22 +1421,33 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           data_coop_enabled?: boolean | null
+          dba_name?: string | null
           email?: string | null
           entity_type?: string | null
           franchise_parent_id?: string | null
           id?: string
+          irs_tax_classification?: string | null
+          legal_name?: string | null
           logo_url?: string | null
           name: string
           phone?: string | null
           postal_code?: string | null
           provisioning_code?: string
+          services_updated_at?: string | null
+          services_updated_by?: string | null
           state?: string | null
+          state_of_formation?: string | null
           street_address_1?: string | null
           street_address_2?: string | null
           submodule_id?: string | null
           subscription_tier?: string | null
           tax_id?: string | null
+          tax_id_type?: string | null
           updated_at?: string | null
+          utility_provisioned?: boolean
+          utility_rate?: number
+          vulture_provisioned?: boolean
+          vulture_rate?: number
         }
         Update: {
           business_health_score?: number | null
@@ -1393,22 +1456,33 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           data_coop_enabled?: boolean | null
+          dba_name?: string | null
           email?: string | null
           entity_type?: string | null
           franchise_parent_id?: string | null
           id?: string
+          irs_tax_classification?: string | null
+          legal_name?: string | null
           logo_url?: string | null
           name?: string
           phone?: string | null
           postal_code?: string | null
           provisioning_code?: string
+          services_updated_at?: string | null
+          services_updated_by?: string | null
           state?: string | null
+          state_of_formation?: string | null
           street_address_1?: string | null
           street_address_2?: string | null
           submodule_id?: string | null
           subscription_tier?: string | null
           tax_id?: string | null
+          tax_id_type?: string | null
           updated_at?: string | null
+          utility_provisioned?: boolean
+          utility_rate?: number
+          vulture_provisioned?: boolean
+          vulture_rate?: number
         }
         Relationships: [
           {
@@ -6757,39 +6831,60 @@ export type Database = {
       }
       mesh_nodes: {
         Row: {
+          cjis_isolated: boolean
           created_at: string
+          expires_at: string
           id: string
           ip_allowlist: string[]
           key_prefix: string
           label: string
           last_used_at: string | null
           node_id: string
+          revocation_reason: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          revoked_ip: string | null
+          rotated_from: string | null
           status: string
           tenant_id: string
           token_hash: string
           updated_at: string
         }
         Insert: {
+          cjis_isolated?: boolean
           created_at?: string
+          expires_at?: string
           id?: string
           ip_allowlist?: string[]
           key_prefix: string
           label: string
           last_used_at?: string | null
           node_id: string
+          revocation_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          revoked_ip?: string | null
+          rotated_from?: string | null
           status?: string
           tenant_id: string
           token_hash: string
           updated_at?: string
         }
         Update: {
+          cjis_isolated?: boolean
           created_at?: string
+          expires_at?: string
           id?: string
           ip_allowlist?: string[]
           key_prefix?: string
           label?: string
           last_used_at?: string | null
           node_id?: string
+          revocation_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          revoked_ip?: string | null
+          rotated_from?: string | null
           status?: string
           tenant_id?: string
           token_hash?: string
@@ -8172,6 +8267,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      protocol_api_requests: {
+        Row: {
+          created_at: string
+          endpoint: string
+          id: string
+          idempotency_key: string
+          owner_id: string
+          response: Json
+          status_code: number
+        }
+        Insert: {
+          created_at?: string
+          endpoint: string
+          id?: string
+          idempotency_key: string
+          owner_id: string
+          response: Json
+          status_code: number
+        }
+        Update: {
+          created_at?: string
+          endpoint?: string
+          id?: string
+          idempotency_key?: string
+          owner_id?: string
+          response?: Json
+          status_code?: number
+        }
+        Relationships: []
       }
       protocol_events: {
         Row: {
@@ -11432,11 +11557,14 @@ export type Database = {
         Row: {
           anchored_at: string | null
           batch_id: string | null
+          cjis_isolated: boolean
           created_at: string
           id: string
+          merkle_leaf_index: number | null
           node_id: string
           original_file_name: string | null
-          payload: Json
+          payload: Json | null
+          payload_ciphertext: string | null
           raw_hash: string
           record_count: number
           sanitized_hash: string
@@ -11449,11 +11577,14 @@ export type Database = {
         Insert: {
           anchored_at?: string | null
           batch_id?: string | null
+          cjis_isolated?: boolean
           created_at?: string
           id?: string
+          merkle_leaf_index?: number | null
           node_id: string
           original_file_name?: string | null
-          payload: Json
+          payload?: Json | null
+          payload_ciphertext?: string | null
           raw_hash: string
           record_count?: number
           sanitized_hash: string
@@ -11466,11 +11597,14 @@ export type Database = {
         Update: {
           anchored_at?: string | null
           batch_id?: string | null
+          cjis_isolated?: boolean
           created_at?: string
           id?: string
+          merkle_leaf_index?: number | null
           node_id?: string
           original_file_name?: string | null
-          payload?: Json
+          payload?: Json | null
+          payload_ciphertext?: string | null
           raw_hash?: string
           record_count?: number
           sanitized_hash?: string
@@ -11482,16 +11616,60 @@ export type Database = {
         }
         Relationships: []
       }
+      vulture_notarization_batches: {
+        Row: {
+          block_number: number | null
+          chain_id: number
+          created_at: string
+          error_message: string | null
+          id: string
+          leaf_count: number
+          merkle_root: string
+          relayer_address: string | null
+          status: string
+          tx_hash: string | null
+          updated_at: string
+        }
+        Insert: {
+          block_number?: number | null
+          chain_id?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          leaf_count: number
+          merkle_root: string
+          relayer_address?: string | null
+          status?: string
+          tx_hash?: string | null
+          updated_at?: string
+        }
+        Update: {
+          block_number?: number | null
+          chain_id?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          leaf_count?: number
+          merkle_root?: string
+          relayer_address?: string | null
+          status?: string
+          tx_hash?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       vulture_provenance_ledger: {
         Row: {
           action: string
           bucket_path: string | null
+          cjis_isolated: boolean
           created_at: string
           error_message: string | null
           id: string
           manifest_path: string | null
           original_file_name: string
           original_hash: string | null
+          owner: string | null
           record_count: number | null
           sanitized_hash: string | null
           status: string
@@ -11499,12 +11677,14 @@ export type Database = {
         Insert: {
           action?: string
           bucket_path?: string | null
+          cjis_isolated?: boolean
           created_at?: string
           error_message?: string | null
           id?: string
           manifest_path?: string | null
           original_file_name: string
           original_hash?: string | null
+          owner?: string | null
           record_count?: number | null
           sanitized_hash?: string | null
           status?: string
@@ -11512,12 +11692,14 @@ export type Database = {
         Update: {
           action?: string
           bucket_path?: string | null
+          cjis_isolated?: boolean
           created_at?: string
           error_message?: string | null
           id?: string
           manifest_path?: string | null
           original_file_name?: string
           original_hash?: string | null
+          owner?: string | null
           record_count?: number | null
           sanitized_hash?: string | null
           status?: string
@@ -11526,36 +11708,42 @@ export type Database = {
       }
       vulture_quarantine: {
         Row: {
+          cjis_isolated: boolean
           contractor_metadata: Json
           created_at: string
           id: string
           node_id: string | null
           raw_hash: string
           raw_payload: string | null
+          raw_payload_ciphertext: string | null
           reason_code: string
           reason_detail: Json
           tenant_id: string | null
           trace_id: string
         }
         Insert: {
+          cjis_isolated?: boolean
           contractor_metadata?: Json
           created_at?: string
           id?: string
           node_id?: string | null
           raw_hash: string
           raw_payload?: string | null
+          raw_payload_ciphertext?: string | null
           reason_code: string
           reason_detail?: Json
           tenant_id?: string | null
           trace_id: string
         }
         Update: {
+          cjis_isolated?: boolean
           contractor_metadata?: Json
           created_at?: string
           id?: string
           node_id?: string | null
           raw_hash?: string
           raw_payload?: string | null
+          raw_payload_ciphertext?: string | null
           reason_code?: string
           reason_detail?: Json
           tenant_id?: string | null
@@ -13092,6 +13280,16 @@ export type Database = {
         }
         Returns: number
       }
+      charge_service_usage: {
+        Args: {
+          _description?: string
+          _reference: string
+          _service: string
+          _units: number
+          _user_id: string
+        }
+        Returns: Json
+      }
       check_raw_health_data_duplicate: {
         Args: { p_recorded_at: string; p_step_count: number; p_user_id: string }
         Returns: boolean
@@ -13147,6 +13345,7 @@ export type Database = {
       }
       get_average_rating: { Args: { p_ratee_id: string }; Returns: number }
       get_hub_balance: { Args: { uid: string }; Returns: number }
+      get_my_service_access: { Args: never; Returns: Json }
       get_nft_radio_tracks: {
         Args: { _limit?: number }
         Returns: {
@@ -13311,6 +13510,7 @@ export type Database = {
         Returns: Json
       }
       invoke_refiner_secure: { Args: { payload: Json }; Returns: undefined }
+      is_aal2: { Args: never; Returns: boolean }
       is_business_leadership: {
         Args: { _business_id: string }
         Returns: boolean
@@ -13319,6 +13519,8 @@ export type Database = {
       is_business_member: { Args: { _business_id: string }; Returns: boolean }
       is_csuite: { Args: { _user_id: string }; Returns: boolean }
       is_org_admin: { Args: { _business_id: string }; Returns: boolean }
+      is_service_operator: { Args: { _user_id: string }; Returns: boolean }
+      is_vulture_tenant: { Args: { _user_id: string }; Returns: boolean }
       log_delt_egress: {
         Args: {
           p_aca_hash: string
@@ -13451,9 +13653,20 @@ export type Database = {
         Returns: number
       }
       release_relayer_lock: { Args: { run_id: string }; Returns: undefined }
+      reset_my_mfa_factors: { Args: never; Returns: undefined }
       resolve_security_event: {
         Args: { _id: string; _resolved?: boolean }
         Returns: boolean
+      }
+      resolve_service_access: {
+        Args: { _service: string; _user_id: string }
+        Returns: {
+          allowed: boolean
+          business_id: string
+          business_name: string
+          is_operator: boolean
+          rate: number
+        }[]
       }
       revoke_employee: {
         Args: { _employee_id: string }
@@ -13497,6 +13710,16 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      set_business_service_provisioning: {
+        Args: {
+          _business_id: string
+          _utility_provisioned: boolean
+          _utility_rate: number
+          _vulture_provisioned: boolean
+          _vulture_rate: number
+        }
+        Returns: Json
       }
       set_usdc_balance: {
         Args: {
@@ -13629,6 +13852,10 @@ export type Database = {
           aca_hash_key: string
           vault: string
         }[]
+      }
+      vulture_read_payload: {
+        Args: { _id: string; _kind: string }
+        Returns: Json
       }
     }
     Enums: {

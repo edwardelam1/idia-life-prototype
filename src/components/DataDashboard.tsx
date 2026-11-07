@@ -22,6 +22,7 @@ import { InfiniteCarousel } from "@/components/ui/infinite-carousel";
 const stravaLogo = stravaLogoAsset.url;
 const nestLogo = nestLogoAsset.url;
 import { isAndroid, isIOS, isWeb } from "@/services/platform";
+import { generateACAHash } from "@/utils/acaGenerator";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import usdcLogo from "@/assets/usdc-logo.jpg.asset.json";
 import { useSourceWakeRefresh } from "@/hooks/useSourceWakeRefresh";
@@ -55,6 +56,7 @@ const DataDashboard = () => {
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [acaRecords, setAcaRecords] = useState<any[]>([]);
+  const [ingestionBusy, setIngestionBusy] = useState(false);
   const [acaLoading, setAcaLoading] = useState(false);
   const { toast } = useToast();
 
@@ -519,8 +521,54 @@ const DataDashboard = () => {
     formatSourceName(a.connection_type).localeCompare(formatSourceName(b.connection_type)),
   );
 
+  const hasIngestionKey = acaRecords.some((r) => r.source_id === "data_ingestion");
+
+  const authorizeIngestion = async () => {
+    if (!currentUserId || ingestionBusy) return;
+    setIngestionBusy(true);
+    console.log("[BEGIN: DATA_INGESTION_ACA] Requesting hardware biometric.");
+    try {
+      const scopes = ["DATA_PIPELINE_INGESTION", "DELT_TELEMETRY"];
+      const { hash } = await generateACAHash(currentUserId, "data_ingestion", scopes);
+      const { error } = await (supabase as any).from("user_aca_records").insert({
+        platform_guid: currentUserId,
+        source_id: "data_ingestion",
+        consent_type: "DATA_INGESTION",
+        consent_scope: scopes,
+        aca_hash_key: hash,
+      });
+      if (error) throw error;
+      console.log("[END: DATA_INGESTION_ACA] SUCCESS");
+      toast({ title: "Data ingestion authorized" });
+      fetchAcaRecords();
+    } catch (e: any) {
+      console.error("[END: DATA_INGESTION_ACA] FAILED", e?.message);
+      if (!String(e?.message || "").startsWith("ACA_PROMPT_REJECTED")) {
+        toast({ title: "Authorization failed", description: e?.message, variant: "destructive" });
+      }
+    } finally {
+      setIngestionBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
+      {currentUserId && !acaLoading && !hasIngestionKey && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-4 flex items-center justify-between gap-3">
+            <div className="flex items-start gap-2">
+              <FileKey className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold">Authorize Data Ingestion with Biometrics</p>
+                <p className="text-xs text-muted-foreground">Creates your consent key so your data sources can be securely ingested.</p>
+              </div>
+            </div>
+            <Button size="sm" onClick={authorizeIngestion} disabled={ingestionBusy}>
+              {ingestionBusy ? "Verifying…" : "Authorize"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
       <Tabs defaultValue="connections" className="w-full">
         <TabsList className="grid grid-cols-2 w-full bg-muted/20 shrink-0">
           <TabsTrigger value="connections" className="text-[11px] px-1">
