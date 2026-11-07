@@ -28,6 +28,7 @@ import { useLifeChallengeProgress } from "@/hooks/useLifeChallengeProgress";
 import { toast } from "@/components/ui/sonner";
 import { Award, MessageCircle, Shield, Clock, CheckCircle, Nfc, Plus } from "lucide-react";
 import { generateACAHash } from "@/utils/acaGenerator";
+import { verifyIdentity } from "@/lib/identityVerification";
 
 // Placeholder — derives a peer tier hue from the opaque native peer token
 // until the finalized iOS contract ships. Stable hash → hue.
@@ -377,9 +378,9 @@ const LifeScreen: React.FC<LifeScreenProps> = ({ onNavigate }) => {
       }
       // Biometric challenge before the Connection is accepted
       try {
-        await generateACAHash(authUser?.id ?? "", "life_connection", ["sovereign_connection", "manual_guid"]);
+        await verifyIdentity(authUser?.id ?? "", "life_connection", ["sovereign_connection", "manual_guid"], "Confirm it's you to add this Connection.");
       } catch {
-        throw new Error("Biometric check was not completed. Try again.");
+        throw new Error("Identity check was not completed. Try again.");
       }
       const { data, error } = await supabase.functions.invoke("nfc-handshake-resolve", {
         body: { peerPayload, connectionMethod: "manual_guid" },
