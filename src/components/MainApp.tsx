@@ -53,6 +53,9 @@ const MainApp = () => {
     try {
       localStorage.setItem(royaltyInfoKey, "1");
     } catch {}
+    // Strict sequence: the Biometric Consent overlay on the Data page waits
+    // for this signal before appearing.
+    window.dispatchEvent(new CustomEvent("royaltyInfoDismissed"));
   };
 
   useEffect(() => {

@@ -59,6 +59,24 @@ const DataDashboard = () => {
   const [acaRecords, setAcaRecords] = useState<any[]>([]);
   const [ingestionBusy, setIngestionBusy] = useState(false);
   const [consentOverlayDismissed, setConsentOverlayDismissed] = useState(false);
+  // Strict sequence: if the "How to Generate Royalties" video hasn't been
+  // seen yet, it appears first and the consent overlay waits for its
+  // dismissal signal.
+  const [royaltyVideoPending, setRoyaltyVideoPending] = useState(false);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    try {
+      setRoyaltyVideoPending(
+        localStorage.getItem(`idia_royalty_info_seen_v1:${currentUserId}`) !== "1",
+      );
+    } catch {
+      setRoyaltyVideoPending(false);
+    }
+    const handleRoyaltyDismissed = () => setRoyaltyVideoPending(false);
+    window.addEventListener("royaltyInfoDismissed", handleRoyaltyDismissed);
+    return () => window.removeEventListener("royaltyInfoDismissed", handleRoyaltyDismissed);
+  }, [currentUserId]);
   const [acaLoading, setAcaLoading] = useState(false);
   const { toast } = useToast();
 
@@ -555,7 +573,7 @@ const DataDashboard = () => {
 
   return (
     <div className="space-y-4">
-      {currentUserId && !acaLoading && !hasIngestionKey && !consentOverlayDismissed && (
+      {currentUserId && !acaLoading && !hasIngestionKey && !consentOverlayDismissed && !royaltyVideoPending && (
         <BiometricConsentOverlay
           busy={ingestionBusy}
           onAuthorize={authorizeIngestion}
