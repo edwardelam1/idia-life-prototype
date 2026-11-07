@@ -553,18 +553,22 @@ const DataDashboard = () => {
 
   return (
     <div className="space-y-4">
-      {currentUserId && !acaLoading && !hasIngestionKey && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="p-4 flex items-center justify-between gap-3">
-            <div className="flex items-start gap-2">
-              <FileKey className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold">Authorize Data Ingestion with Biometrics</p>
-                <p className="text-xs text-muted-foreground">Creates your consent key so your data sources can be securely ingested.</p>
-              </div>
+      {currentUserId && !acaLoading && !hasIngestionKey && !consentOverlayDismissed && (
+        <BiometricConsentOverlay
+          busy={ingestionBusy}
+          onAuthorize={authorizeIngestion}
+          onDismiss={() => setConsentOverlayDismissed(true)}
+        />
+      )}
+      {currentUserId && !acaLoading && !hasIngestionKey && consentOverlayDismissed && (
+        <Card className="border-life-amber/40 bg-life-amber/5">
+          <CardContent className="p-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <FileKey className="h-4 w-4 text-life-amber shrink-0" />
+              <p className="text-xs font-semibold">Biometric consent needed for data ingestion</p>
             </div>
-            <Button size="sm" onClick={authorizeIngestion} disabled={ingestionBusy}>
-              {ingestionBusy ? "Verifying…" : "Authorize"}
+            <Button size="sm" variant="outline" onClick={() => setConsentOverlayDismissed(false)}>
+              Review
             </Button>
           </CardContent>
         </Card>
