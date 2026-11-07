@@ -34,7 +34,9 @@ const listeners = new Set<(p: Pending | null) => void>();
 export const subscribeMfaPrompt = (fn: (p: Pending | null) => void) => {
   listeners.add(fn);
   fn(pending);
-  return () => listeners.delete(fn);
+  return () => {
+    listeners.delete(fn);
+  };
 };
 const emit = () => listeners.forEach((l) => l(pending));
 export const settleMfaPrompt = (ok: boolean) => {
