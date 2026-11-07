@@ -27,6 +27,7 @@ import { useWalletBalance } from "@/hooks/useWalletBalance";
 import usdcLogo from "@/assets/usdc-logo.jpg.asset.json";
 import { useSourceWakeRefresh } from "@/hooks/useSourceWakeRefresh";
 import { useAppleHealthBridge } from "@/hooks/useAppleHealthBridge";
+import BiometricConsentOverlay from "@/components/data/BiometricConsentOverlay";
 
 const supabase: any = typedSupabase;
 
@@ -57,6 +58,7 @@ const DataDashboard = () => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [acaRecords, setAcaRecords] = useState<any[]>([]);
   const [ingestionBusy, setIngestionBusy] = useState(false);
+  const [consentOverlayDismissed, setConsentOverlayDismissed] = useState(false);
   const [acaLoading, setAcaLoading] = useState(false);
   const { toast } = useToast();
 
