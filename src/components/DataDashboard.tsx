@@ -573,7 +573,7 @@ const DataDashboard = () => {
 
   return (
     <div className="space-y-4">
-      {currentUserId && !acaLoading && !hasIngestionKey && !consentOverlayDismissed && (
+      {currentUserId && !acaLoading && !hasIngestionKey && !consentOverlayDismissed && !royaltyVideoPending && (
         <BiometricConsentOverlay
           busy={ingestionBusy}
           onAuthorize={authorizeIngestion}
