@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { AlertTriangle, CheckCircle2, Fingerprint, Loader2, Lock, ShieldCheck, Upload } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { getCachedUser } from "@/lib/authUser";
-import { generateACAHash } from "@/utils/acaGenerator";
+import { verifyIdentity } from "@/lib/identityVerification";
 import { supabase } from "@/integrations/supabase/client";
 import { saveFileToDevice } from "@/utils/nativeDownload";
 import {
@@ -90,7 +90,7 @@ const SeedBackupModal: React.FC<SeedBackupModalProps> = ({
         data: { user },
       } = await getCachedUser();
       if (!user) throw new Error("Sovereign identity not found.");
-      await generateACAHash(user.id, "seed_phrase_backup", ["VAULT_EXPORT", "SELF_CUSTODY"]);
+      await verifyIdentity(user.id, "seed_phrase_backup", ["VAULT_EXPORT", "SELF_CUSTODY"], "Confirm it's you before backing up your recovery phrase.");
       console.log("[SEED_BACKUP] GATE_END: Attestation accepted.");
       setStep("password");
     } catch (e: any) {

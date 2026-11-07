@@ -469,6 +469,92 @@ export type Database = {
           },
         ]
       }
+      api_webhook_deliveries: {
+        Row: {
+          attempts: number
+          created_at: string
+          delivered_at: string | null
+          event_key: string
+          event_type: string
+          id: string
+          last_status_code: number | null
+          next_attempt_at: string
+          payload: Json
+          status: string
+          webhook_id: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          delivered_at?: string | null
+          event_key: string
+          event_type: string
+          id?: string
+          last_status_code?: number | null
+          next_attempt_at?: string
+          payload: Json
+          status?: string
+          webhook_id: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          delivered_at?: string | null
+          event_key?: string
+          event_type?: string
+          id?: string
+          last_status_code?: number | null
+          next_attempt_at?: string
+          payload?: Json
+          status?: string
+          webhook_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_webhook_deliveries_webhook_id_fkey"
+            columns: ["webhook_id"]
+            isOneToOne: false
+            referencedRelation: "api_webhooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_webhooks: {
+        Row: {
+          created_at: string
+          credit_threshold: number | null
+          events: string[]
+          id: string
+          owner_id: string
+          secret: string
+          status: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          credit_threshold?: number | null
+          events: string[]
+          id?: string
+          owner_id: string
+          secret: string
+          status?: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          credit_threshold?: number | null
+          events?: string[]
+          id?: string
+          owner_id?: string
+          secret?: string
+          status?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
       ar_campaign_performance: {
         Row: {
           business_id: string
@@ -3713,6 +3799,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      feature_feed_packets: {
+        Row: {
+          created_at: string
+          id: number
+          owner_id: string | null
+          payload: Json
+          topic: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          owner_id?: string | null
+          payload: Json
+          topic: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          owner_id?: string | null
+          payload?: Json
+          topic?: string
+        }
+        Relationships: []
+      }
+      feature_feed_sessions: {
+        Row: {
+          created_at: string
+          credits_charged: number
+          expires_at: string
+          id: string
+          owner_id: string
+          topic: string
+        }
+        Insert: {
+          created_at?: string
+          credits_charged: number
+          expires_at: string
+          id?: string
+          owner_id: string
+          topic: string
+        }
+        Update: {
+          created_at?: string
+          credits_charged?: number
+          expires_at?: string
+          id?: string
+          owner_id?: string
+          topic?: string
+        }
+        Relationships: []
       }
       feature_feeds: {
         Row: {
@@ -8267,6 +8404,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      protocol_api_rate_windows: {
+        Row: {
+          hits: number
+          key_hash: string
+          window_start: string
+        }
+        Insert: {
+          hits?: number
+          key_hash: string
+          window_start: string
+        }
+        Update: {
+          hits?: number
+          key_hash?: string
+          window_start?: string
+        }
+        Relationships: []
       }
       protocol_api_requests: {
         Row: {
@@ -13319,6 +13474,7 @@ export type Database = {
         }
         Returns: number
       }
+      feature_feed_rate: { Args: { _tier: string }; Returns: number }
       generate_business_provisioning_code: { Args: never; Returns: string }
       generate_pseudonym:
         | { Args: { input_id: string }; Returns: string }
@@ -13549,6 +13705,14 @@ export type Database = {
           processed_count: number
         }[]
       }
+      protocol_api_rate_hit: {
+        Args: { _key_hash: string; _limit: number; _window_seconds?: number }
+        Returns: {
+          allowed: boolean
+          remaining: number
+          reset_at: string
+        }[]
+      }
       provision_business_from_request: {
         Args: { p_request_id: string; p_vertical_id: string }
         Returns: undefined
@@ -13648,6 +13812,16 @@ export type Database = {
         Returns: string
       }
       prune_infra_logs: { Args: never; Returns: undefined }
+      publish_feature_feeds: { Args: never; Returns: Json }
+      publish_feature_packet: {
+        Args: {
+          _metrics: Json
+          _owner: string
+          _source: string
+          _topic: string
+        }
+        Returns: undefined
+      }
       refresh_application_sponsor_count: {
         Args: { _application_id: string }
         Returns: number
@@ -13771,6 +13945,10 @@ export type Database = {
       }
       staged_marketplace_aggregates: { Args: never; Returns: Json }
       staged_user_aggregates: { Args: { _pseudo_id: string }; Returns: Json }
+      start_feature_feed_session: {
+        Args: { _owner: string; _topic: string }
+        Returns: Json
+      }
       submit_variance_correction: {
         Args: {
           _corrective_action: string

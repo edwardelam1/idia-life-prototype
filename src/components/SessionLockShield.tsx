@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Fingerprint } from "lucide-react";
+import MfaPanel from "@/components/security/MfaPanel";
 
 interface Props {
   /** Called once the Secure Enclave confirms the biological capture. */
@@ -15,7 +16,7 @@ const hasEnclaveBridge = () =>
  * the user touches the screen or the app regains focus after a rejection.
  */
 const SessionLockShield = ({ onVerified }: Props) => {
-  const [status, setStatus] = useState<"challenging" | "rejected">("challenging");
+  const [status, setStatus] = useState<"challenging" | "rejected" | "mfa">(hasEnclaveBridge() ? "challenging" : "mfa");
   const inFlight = useRef(false);
 
   useEffect(() => {
@@ -26,9 +27,9 @@ const SessionLockShield = ({ onVerified }: Props) => {
       if (inFlight.current) return;
 
       if (!hasEnclaveBridge()) {
-        // Web / preview: no Secure Enclave available — never lock the user out.
-        console.log("[SESSION_SENTINEL][SHIELD] No enclave bridge (web). Auto-clearing shield.");
-        onVerified();
+        // No biometrics on this device: re-entry requires an Authenticator code.
+        console.log("[SESSION_SENTINEL][SHIELD] No biometric bridge — MFA re-entry.");
+        setStatus("mfa");
         return;
       }
 
@@ -52,7 +53,10 @@ const SessionLockShield = ({ onVerified }: Props) => {
       const handleError = (e: any) => {
         cleanup();
         console.warn(`[SESSION_SENTINEL][SHIELD][END:FAIL] ${e?.detail?.error || "BIOMETRIC_REJECTED"}`);
-        if (mounted) setStatus("rejected");
+        const reason = String(e?.detail?.error || "");
+        // Biometrics unavailable / blocked by privacy settings → MFA fallback.
+        const unavailable = /NOT_AVAILABLE|NOT_ENROLLED|UNAVAILABLE|LOCKOUT|PERMISSION|DENIED|PASSCODE_NOT_SET/i.test(reason);
+        if (mounted) setStatus(unavailable ? "mfa" : "rejected");
       };
 
       window.addEventListener("biological:capture-success", handleSuccess);
@@ -79,7 +83,10 @@ const SessionLockShield = ({ onVerified }: Props) => {
 
     // Retry silently on interaction only — the Face ID sheet itself churns
     // window focus, so a focus listener would re-fire the challenge in a loop.
-    const retry = () => challenge();
+    const retry = () => {
+      if (!hasEnclaveBridge()) return;
+      challenge();
+    };
     window.addEventListener("pointerdown", retry);
 
     return () => {
@@ -89,6 +96,14 @@ const SessionLockShield = ({ onVerified }: Props) => {
     };
   }, [onVerified]);
 
+
+  if (status === "mfa") {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/95 p-4 backdrop-blur-2xl">
+        <MfaPanel reason="Enter the code from your authenticator app to unlock IDIA." onVerified={onVerified} />
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background/95 backdrop-blur-2xl">

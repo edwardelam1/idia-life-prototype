@@ -30,6 +30,8 @@ import { startPushBootstrap } from "@/utils/pushBootstrap";
 import ConsentGate from "@/components/ConsentGate";
 import { useSessionSentinel } from "@/hooks/useSessionSentinel";
 import SessionLockShield from "@/components/SessionLockShield";
+import MfaEntryGate from "@/components/security/MfaEntryGate";
+import MfaPromptHost from "@/components/security/MfaPromptHost";
 
 /**
  * Session Sentinel — mounted inside the router so it can navigate on logout.
@@ -233,6 +235,8 @@ const App = () => {
           <BrowserRouter>
             <AnalyticsTracker />
             <SessionSentinel enabled={!!session} />
+            <MfaEntryGate enabled={!!session} />
+            <MfaPromptHost />
             <Routes>
               <Route path="/auth" element={session ? <Navigate to="/" replace /> : <Auth />} />
               <Route path="/" element={<Index />} />
