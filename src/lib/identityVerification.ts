@@ -15,6 +15,19 @@ export const hasBiometricHardware = (): boolean => {
   return !!w.webkit?.messageHandlers?.triggerBiologicalCapture || !!w.Capacitor?.Plugins?.IDIABiometric;
 };
 
+const BIO_PREF_KEY = "idia_biometrics_available";
+/** True when the user/device has been remembered as not using biometrics. */
+export const biometricsMarkedUnavailable = (): boolean => {
+  try { return localStorage.getItem(BIO_PREF_KEY) === "false"; } catch { return false; }
+};
+/** True only once a real biometric capture has succeeded on this device. */
+export const biometricsConfirmed = (): boolean => {
+  try { return localStorage.getItem(BIO_PREF_KEY) === "true"; } catch { return false; }
+};
+export const setBiometricsAvailable = (available: boolean) => {
+  try { localStorage.setItem(BIO_PREF_KEY, available ? "true" : "false"); } catch { /* ignore */ }
+};
+
 /** Errors meaning biometrics are unavailable / not enrolled / blocked — not a user "no". */
 const isBiometricUnavailable = (msg: string) =>
   /NOT_AVAILABLE|NOT_ENROLLED|UNAVAILABLE|NO_BIOMETRIC|BIOMETRY|LOCKOUT|PERMISSION|DENIED|PASSCODE_NOT_SET|MOBILE_APP_REQUIRED/i.test(
