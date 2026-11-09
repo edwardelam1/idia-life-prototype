@@ -1,17 +1,18 @@
 import { useEffect, useState } from "react";
 import MfaPanel from "./MfaPanel";
 import { supabase } from "@/integrations/supabase/client";
-import { hasBiometricHardware } from "@/lib/identityVerification";
+import { biometricsConfirmed, setBiometricsAvailable } from "@/lib/identityVerification";
 
 /**
- * App entry gate for users without biometrics: requires an Authenticator code
- * (enrolling on first entry) before the app is usable. Biometric devices skip it.
+ * App entry gate: requires an Authenticator code (enrolling on first entry)
+ * unless this device has a confirmed successful biometric capture. The mere
+ * presence of the native bridge is not enough to skip it.
  */
 export default function MfaEntryGate({ enabled }: { enabled: boolean }) {
   const [needed, setNeeded] = useState(false);
 
   useEffect(() => {
-    if (!enabled || hasBiometricHardware()) {
+    if (!enabled || biometricsConfirmed()) {
       setNeeded(false);
       return;
     }
@@ -33,8 +34,11 @@ export default function MfaEntryGate({ enabled }: { enabled: boolean }) {
   return (
     <div className="fixed inset-0 z-[105] flex items-center justify-center bg-background/95 p-4 backdrop-blur-2xl">
       <MfaPanel
-        reason="Biometrics aren't available on this device, so we use a code from your authenticator app to keep your account safe."
-        onVerified={() => setNeeded(false)}
+        reason="Biometrics aren't confirmed on this device, so we use a code from your authenticator app to keep your account safe."
+        onVerified={() => {
+          setBiometricsAvailable(false);
+          setNeeded(false);
+        }}
         onSignOut={() => supabase.auth.signOut({ scope: "local" })}
       />
     </div>
