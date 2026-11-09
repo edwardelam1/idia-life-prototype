@@ -1,19 +1,19 @@
 import { useEffect, useState } from "react";
 import MfaPanel from "./MfaPanel";
+import SessionLockShield from "@/components/SessionLockShield";
 import { supabase } from "@/integrations/supabase/client";
-import { biometricsConfirmed, setBiometricsAvailable } from "@/lib/identityVerification";
+import { biometricsConfirmed, hasBiometricHardware, setBiometricsAvailable } from "@/lib/identityVerification";
 
 /**
- * App entry gate: requires an Authenticator code (enrolling on first entry)
- * unless this device has a confirmed successful biometric capture. The mere
- * presence of the native bridge is not enough to skip it.
+ * App entry gate. Native app: biometrics-first lock shield (Face ID prompt,
+ * manual "Use MFA" fallback). Browser: Authenticator code required.
  */
 export default function MfaEntryGate({ enabled }: { enabled: boolean }) {
-  const [needed, setNeeded] = useState(false);
+  const [needed, setNeeded] = useState<"none" | "shield" | "mfa">("none");
 
   useEffect(() => {
     if (!enabled || biometricsConfirmed()) {
-      setNeeded(false);
+      setNeeded("none");
       return;
     }
     let alive = true;
@@ -22,22 +22,24 @@ export default function MfaEntryGate({ enabled }: { enabled: boolean }) {
       const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
       if (!alive) return;
       const pass = !error && data?.currentLevel === "aal2";
-      console.log(`[MFA_ENTRY_GATE][END] level=${data?.currentLevel} gate=${!pass}`);
-      setNeeded(!pass);
+      const mode = pass ? "none" : hasBiometricHardware() ? "shield" : "mfa";
+      console.log(`[MFA_ENTRY_GATE][END] level=${data?.currentLevel} mode=${mode}`);
+      setNeeded(mode);
     })();
     return () => {
       alive = false;
     };
   }, [enabled]);
 
-  if (!needed) return null;
+  if (needed === "none") return null;
+  if (needed === "shield") return <SessionLockShield onVerified={() => setNeeded("none")} />;
   return (
     <div className="fixed inset-0 z-[105] flex items-center justify-center bg-background/95 p-4 backdrop-blur-2xl">
       <MfaPanel
-        reason="Biometrics aren't confirmed on this device, so we use a code from your authenticator app to keep your account safe."
+        reason="Enter the code from your authenticator app to keep your account safe."
         onVerified={() => {
           setBiometricsAvailable(false);
-          setNeeded(false);
+          setNeeded("none");
         }}
         onSignOut={() => supabase.auth.signOut({ scope: "local" })}
       />
