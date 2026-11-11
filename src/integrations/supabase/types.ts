@@ -3125,6 +3125,24 @@ export type Database = {
         }
         Relationships: []
       }
+      duna_member_count_cache: {
+        Row: {
+          checked_at: string
+          id: boolean
+          member_count: number
+        }
+        Insert: {
+          checked_at?: string
+          id?: boolean
+          member_count: number
+        }
+        Update: {
+          checked_at?: string
+          id?: boolean
+          member_count?: number
+        }
+        Relationships: []
+      }
       economic_impact_metrics: {
         Row: {
           business_id: string | null
@@ -6057,47 +6075,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
-          },
-        ]
-      }
-      lidd_extraction_events: {
-        Row: {
-          aca_hash_key: string | null
-          citizen_guid: string
-          created_at: string
-          extraction_timestamp: string
-          extractor_id: string
-          id: string
-          payment_status: string
-          synapse_credit_cost: number
-        }
-        Insert: {
-          aca_hash_key?: string | null
-          citizen_guid: string
-          created_at?: string
-          extraction_timestamp: string
-          extractor_id: string
-          id?: string
-          payment_status?: string
-          synapse_credit_cost?: number
-        }
-        Update: {
-          aca_hash_key?: string | null
-          citizen_guid?: string
-          created_at?: string
-          extraction_timestamp?: string
-          extractor_id?: string
-          id?: string
-          payment_status?: string
-          synapse_credit_cost?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lidd_extraction_events_citizen_guid_fkey"
-            columns: ["citizen_guid"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["platform_guid"]
           },
         ]
       }
@@ -10836,6 +10813,47 @@ export type Database = {
           },
         ]
       }
+      trust_extraction_events: {
+        Row: {
+          aca_hash_key: string | null
+          citizen_guid: string
+          created_at: string
+          extraction_timestamp: string
+          extractor_id: string
+          id: string
+          payment_status: string
+          synapse_credit_cost: number
+        }
+        Insert: {
+          aca_hash_key?: string | null
+          citizen_guid: string
+          created_at?: string
+          extraction_timestamp: string
+          extractor_id: string
+          id?: string
+          payment_status?: string
+          synapse_credit_cost?: number
+        }
+        Update: {
+          aca_hash_key?: string | null
+          citizen_guid?: string
+          created_at?: string
+          extraction_timestamp?: string
+          extractor_id?: string
+          id?: string
+          payment_status?: string
+          synapse_credit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lidd_extraction_events_citizen_guid_fkey"
+            columns: ["citizen_guid"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["platform_guid"]
+          },
+        ]
+      }
       trust_score_history: {
         Row: {
           id: string
@@ -12697,6 +12715,47 @@ export type Database = {
         }
         Relationships: []
       }
+      lidd_extraction_events: {
+        Row: {
+          aca_hash_key: string | null
+          citizen_guid: string | null
+          created_at: string | null
+          extraction_timestamp: string | null
+          extractor_id: string | null
+          id: string | null
+          payment_status: string | null
+          synapse_credit_cost: number | null
+        }
+        Insert: {
+          aca_hash_key?: string | null
+          citizen_guid?: string | null
+          created_at?: string | null
+          extraction_timestamp?: string | null
+          extractor_id?: string | null
+          id?: string | null
+          payment_status?: string | null
+          synapse_credit_cost?: number | null
+        }
+        Update: {
+          aca_hash_key?: string | null
+          citizen_guid?: string | null
+          created_at?: string | null
+          extraction_timestamp?: string | null
+          extractor_id?: string | null
+          id?: string | null
+          payment_status?: string | null
+          synapse_credit_cost?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lidd_extraction_events_citizen_guid_fkey"
+            columns: ["citizen_guid"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["platform_guid"]
+          },
+        ]
+      }
       member_wallet_directory: {
         Row: {
           user_id: string | null
@@ -13411,6 +13470,7 @@ export type Database = {
         }
       }
       auto_promote_pending_veto: { Args: never; Returns: number }
+      bundle_measurement_label: { Args: { value: string }; Returns: string }
       calculate_business_health_index: {
         Args: { p_business_id: string; p_location_id?: string }
         Returns: number
@@ -13473,6 +13533,13 @@ export type Database = {
           p_user_id: string
         }
         Returns: number
+      }
+      duna_membership_candidates: {
+        Args: never
+        Returns: {
+          user_id: string
+          wallet_address: string
+        }[]
       }
       feature_feed_rate: { Args: { _tier: string }; Returns: number }
       generate_business_provisioning_code: { Args: never; Returns: string }
@@ -13689,6 +13756,13 @@ export type Database = {
         Returns: string
       }
       mask_owner: { Args: { _id: string }; Returns: string }
+      mirror_anon_table_exposure: {
+        Args: { _tables: string[] }
+        Returns: {
+          blocked: boolean
+          table_name: string
+        }[]
+      }
       process_idia_telemetry: {
         Args: {
           p_credit: number
