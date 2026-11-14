@@ -1,5 +1,8 @@
 # Roadmap
 
+- [ ] Add mandatory consent pop-up using existing Terms and Authority of Record screens; block root, deep links, and foreground returns until completion.
+- [ ] Verify consent ordering, dismissal protection, and saved-consent rules with tests and available browser checks.
+
 - [x] Match royalties pop-up to Welcome to Life; video-only enlargement, X/Escape return, and focus/playback continuity verified in browser.
 - [ ] Verify royalties MP4 autoplay and expansion on real iPhone — needs a device attempt; local Chromium checks used a transcoded copy of the same recording.
 
