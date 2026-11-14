@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { getCachedUser } from "@/lib/authUser";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -42,9 +41,9 @@ const AuthorityOfRecord = ({ embedded = false, onComplete }: { embedded?: boolea
 
       await safeInsert("consent_registry", {
         user_id: user.id,
-        consent_type: "AUTHORITY_OF_RECORD_V1",
+        consent_type: `AUTHORITY_OF_RECORD_${REQUIRED_AOR_VERSION.toUpperCase()}`,
         decision,
-        document_version: "v1",
+        document_version: REQUIRED_AOR_VERSION,
         payload: { scopes },
       });
       await safeInsert("device_events", {
@@ -53,7 +52,7 @@ const AuthorityOfRecord = ({ embedded = false, onComplete }: { embedded?: boolea
         json_payload: {
           surface: "onboarding",
           feature: "authority_of_record",
-          version: "v1",
+          version: REQUIRED_AOR_VERSION,
           decision,
           scopes,
         },
