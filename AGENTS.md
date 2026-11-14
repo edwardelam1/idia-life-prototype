@@ -6,3 +6,4 @@
 - Share device-token persistence between push bootstrap and Settings, check database errors, and use scoped SELECT then INSERT/UPDATE; this prevents false registration success and duplicate workflows.
 - Restrict push configuration checks and campaigns to authenticated server-verified administrators; never expose signing keys or device tokens in responses or logs.
 - Keep the fixed Terms push campaign in its own APNs sender with server-only unique delivery claims and an accepted-device-test prerequisite; this prevents arbitrary alerts and accidental duplicate broadcasts.
+- Log APNs rejection status and documented reason codes only, never raw response bodies or exceptions; this keeps device tokens and signing details out of diagnostics.

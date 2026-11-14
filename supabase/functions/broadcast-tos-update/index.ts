@@ -4,6 +4,7 @@ import { importPKCS8, SignJWT } from "npm:jose@5";
 import { z } from "npm:zod@3";
 import {
   appleEndpoint,
+  appleFailureDiagnostic,
   mayBroadcast,
   permanentlyInvalid,
   REQUIRED_PUSH_ROLE,
@@ -177,16 +178,22 @@ Deno.serve(async (req) => {
         });
 
         status = response.status;
-        if (!response.ok) {
+        if (status !== 200) {
           const failure = await response.json().catch(() => ({}));
-          reason = typeof failure.reason === "string" ? failure.reason : "";
+          reason = appleFailureDiagnostic(status, failure?.reason).reason;
           revokedAt = typeof failure.timestamp === "number" ? failure.timestamp : undefined;
         } else {
           await response.body?.cancel();
         }
-      } catch (err) {
-        console.error("[APNS_TERMS][FETCH_ERROR]", err);
+      } catch {
         status = 0;
+      }
+
+      if (status !== 200) {
+        console.error("[APNS_TERMS][APPLE_REJECTION]", JSON.stringify({
+          campaign,
+          ...appleFailureDiagnostic(status, reason),
+        }));
       }
 
       const resultStatus = status === 200 ? "accepted" : status === 0 ? "uncertain" : "failed";
@@ -231,8 +238,8 @@ Deno.serve(async (req) => {
       next_after_id: body.mode === "broadcast" && devices.length === 100 ? devices[devices.length - 1]?.id : null,
       device_display_verified: false,
     });
-  } catch (err) {
-    console.error("[APNS_TERMS][FATAL]", err);
+  } catch {
+    console.error("[APNS_TERMS][FATAL] Apple delivery configuration or processing failed");
     return respond({ error: "Apple delivery could not be completed; verify server settings and HTTP/2 support" }, 503);
   } finally {
     console.log("[APNS_TERMS][END]");
