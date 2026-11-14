@@ -1,5 +1,5 @@
 import { assertEquals, assertThrows } from "jsr:@std/assert";
-import { appleEndpoint, appleFailureDiagnostic, mayBroadcast, permanentlyInvalid, REQUIRED_PUSH_ROLE } from "./rules.ts";
+import { appleEndpoint, appleFailureDiagnostic, appleReasonHint, mayBroadcast, permanentlyInvalid, REQUIRED_PUSH_ROLE, RETRYABLE_TEST_STATUSES } from "./rules.ts";
 
 Deno.test("Apple rejection diagnostics preserve exact BadDeviceToken and DeviceTokenNotForTopic reasons", () => {
   assertEquals(appleFailureDiagnostic(400, "BadDeviceToken"), { status: 400, reason: "BadDeviceToken" });
