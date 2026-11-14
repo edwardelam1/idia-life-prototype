@@ -1,5 +1,5 @@
 import { assertEquals, assertThrows } from "jsr:@std/assert";
-import { appleEndpoint, appleFailureDiagnostic, mayBroadcast, permanentlyInvalid, REQUIRED_PUSH_ROLE } from "./rules.ts";
+import { appleEndpoint, appleFailureDiagnostic, appleReasonHint, mayBroadcast, permanentlyInvalid, REQUIRED_PUSH_ROLE, RETRYABLE_TEST_STATUSES } from "./rules.ts";
 
 Deno.test("Apple rejection diagnostics preserve exact BadDeviceToken and DeviceTokenNotForTopic reasons", () => {
   assertEquals(appleFailureDiagnostic(400, "BadDeviceToken"), { status: 400, reason: "BadDeviceToken" });
@@ -33,4 +33,12 @@ Deno.test("broadcast requires an accepted device test and human display confirma
 });
 Deno.test("push administration uses this project's protected super_admin role", () => {
   assertEquals(REQUIRED_PUSH_ROLE, "super_admin");
+});
+Deno.test("test retries release only non-accepted claims", () => {
+  assertEquals(RETRYABLE_TEST_STATUSES.includes("accepted"), false);
+  assertEquals(RETRYABLE_TEST_STATUSES.includes("failed"), true);
+});
+
+Deno.test("403 provider token rejection points at signing settings", () => {
+  assertEquals(appleReasonHint("InvalidProviderToken").includes("Key ID"), true);
 });
