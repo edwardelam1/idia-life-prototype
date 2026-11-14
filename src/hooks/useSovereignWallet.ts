@@ -137,11 +137,6 @@ export const useSovereignWallet = (userId: string | undefined) => {
       setGlobalWalletAddress(newAddress);
       console.log("🌐 [SUPABASE_SYNC_LOG] END: Global state secured in Supabase.");
 
-      toast({
-        title: "Vault Synced",
-        description: "Sovereign identity aligned across all devices.",
-      });
-
       return true;
     } catch (err: any) {
       console.error("🚨 [SUPABASE_SYNC_LOG] FATAL: Sync failure.", err?.message);
