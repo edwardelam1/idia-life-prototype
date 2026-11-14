@@ -32,6 +32,7 @@ import { useSessionSentinel } from "@/hooks/useSessionSentinel";
 import SessionLockShield from "@/components/SessionLockShield";
 import MfaEntryGate from "@/components/security/MfaEntryGate";
 import MfaPromptHost from "@/components/security/MfaPromptHost";
+import ConsentModalHost from "@/components/ConsentModalHost";
 
 /**
  * Session Sentinel — mounted inside the router so it can navigate on logout.
@@ -237,6 +238,7 @@ const App = () => {
             <SessionSentinel enabled={!!session} />
             <MfaEntryGate enabled={!!session} />
             <MfaPromptHost />
+            <ConsentModalHost session={session}>
             <Routes>
               <Route path="/auth" element={session ? <Navigate to="/" replace /> : <Auth />} />
               <Route path="/" element={<Index />} />
@@ -254,18 +256,18 @@ const App = () => {
               <Route path="/secure_vault" element={<Navigate to="/secure-vault" replace />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </BrowserRouter>
-
           {/* ── Hub → Life wallet authorization hand-off ── */}
-          <HubAuthorizationGate />
+          {session && <HubAuthorizationGate />}
 
           {/* ── NFC Payment Modal (root level — catches deep links regardless of route) ── */}
           <NfcPaymentModal
-            isOpen={showNfcPaymentModal}
+            isOpen={!!session && showNfcPaymentModal}
             onClose={() => setShowNfcPaymentModal(false)}
             paymentRequest={paymentRequest}
             onClearPayment={clearPayment}
           />
+            </ConsentModalHost>
+          </BrowserRouter>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
