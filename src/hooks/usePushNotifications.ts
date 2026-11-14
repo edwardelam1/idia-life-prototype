@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { getCachedUser } from "@/lib/authUser";
 import { supabase } from "@/integrations/supabase/client";
 import { notify } from "@/lib/notify";
+import { persistPushToken } from "@/utils/pushToken";
 
 export type PushEnableResult = {
   ok: boolean;
@@ -43,10 +44,7 @@ export function usePushNotifications() {
             return;
           }
           try {
-            await (supabase.from("push_tokens" as any) as any).upsert(
-              { user_id: user.id, token, platform: "ios" },
-              { onConflict: "user_id,token" },
-            );
+            if (!await persistPushToken(token, "ios")) throw new Error("Not signed in");
             resolve({ ok: true, platform: "ios" });
           } catch (err: any) {
             resolve({ ok: false, platform: "ios", reason: err?.message || "Persist failed" });
@@ -116,10 +114,7 @@ export function usePushNotifications() {
 
           PushNotifications.addListener("registration", async (t) => {
             try {
-              await (supabase.from("push_tokens" as any) as any).upsert(
-                { user_id: user.id, token: t.value, platform: "android" },
-                { onConflict: "user_id,token" },
-              );
+              if (!await persistPushToken(t.value, "android")) throw new Error("Not signed in");
               finish({ ok: true, platform: "android" });
             } catch (err: any) {
               finish({ ok: false, platform: "android", reason: err?.message || "Persist failed" });
@@ -148,12 +143,7 @@ export function usePushNotifications() {
         if (perm !== "granted") {
           return { ok: false, platform: "web", reason: "Browser permission denied" };
         }
-        const token = `web-${user.id}-${Date.now()}`;
-        await (supabase.from("push_tokens" as any) as any).upsert(
-          { user_id: user.id, token, platform: "web" },
-          { onConflict: "user_id,token" },
-        );
-        return { ok: true, platform: "web" };
+        return { ok: false, platform: "web", reason: "Browser permission alone cannot enable iPhone push. Use the Life iPhone app." };
       }
     } catch (err: any) {
       return { ok: false, platform: "web", reason: err?.message || "Notification API failed" };
@@ -165,7 +155,8 @@ export function usePushNotifications() {
   const disable = useCallback(async () => {
     const { data: { user } } = await getCachedUser();
     if (!user) return;
-    await (supabase.from("push_tokens" as any) as any).delete().eq("user_id", user.id);
+    const { error } = await supabase.from("push_tokens").delete().eq("user_id", user.id);
+    if (error) throw new Error("Could not disable push notifications");
     // Fire and forget: notify user via unified notify to keep behavior consistent
     notify.info("Push notifications disabled");
   }, []);
