@@ -8937,6 +8937,44 @@ export type Database = {
         }
         Relationships: []
       }
+      push_campaign_deliveries: {
+        Row: {
+          apns_status: number | null
+          campaign: string
+          created_at: string
+          id: string
+          push_token_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          apns_status?: number | null
+          campaign: string
+          created_at?: string
+          id?: string
+          push_token_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          apns_status?: number | null
+          campaign?: string
+          created_at?: string
+          id?: string
+          push_token_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_campaign_deliveries_push_token_id_fkey"
+            columns: ["push_token_id"]
+            isOneToOne: false
+            referencedRelation: "push_tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       push_tokens: {
         Row: {
           created_at: string
