@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Download, ShieldCheck, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { REQUIRED_TOS_VERSION } from "@/config/consent";
+import { requireActiveSession } from "@/lib/authUser";
 
 const TOS_PDF_URL = "/legal/IDIA_Protocol_Terms_of_Service.pdf";
 
-const TermsOfService = () => {
+const TermsOfService = ({ embedded = false, onComplete }: { embedded?: boolean; onComplete?: () => void }) => {
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isReAcceptance, setIsReAcceptance] = useState(false);
@@ -40,6 +41,7 @@ const TermsOfService = () => {
   };
 
   const handleAcceptance = async (e?: React.MouseEvent) => {
+    if (!hasScrolledToBottom || isLoading) return;
     // 🚨 SEAL THE EVENT: Prevent phantom form submissions/reloads
     if (e) {
       e.preventDefault();
@@ -51,13 +53,9 @@ const TermsOfService = () => {
 
     try {
       console.log("[BEGIN: TOS_FLOW.GetUser] Fetching cached identity.");
-      const {
-        data: { user },
-        error: userError,
-      } = await getCachedUser();
+      const user = await requireActiveSession("TermsOfService.accept");
 
-      if (userError || !user) {
-        console.error("🚨 [ERROR: TOS_FLOW.GetUser] Identity verification failed:", userError);
+      if (!user) {
         throw new Error("Identity verification failed.");
       }
       console.log(`[END: TOS_FLOW.GetUser] Identity Confirmed: ${user.id}`);
@@ -90,18 +88,17 @@ const TermsOfService = () => {
       }
       console.log("[END: TOS_FLOW.UpdateAuth] Auth Metadata Updated.");
 
-      console.log("[BEGIN: TOS_FLOW.MirrorRegistry] Upserting to consent_registry.");
-      // Mirror ToS into consent_registry (best-effort, idempotent via upsert)
+      console.log("[BEGIN: TOS_FLOW.MirrorRegistry] Mirroring consent_registry.");
+      // Mirror without upsert; the Auth acceptance stamp remains authoritative.
       try {
-        const { error: registryError } = await (supabase as any).from("consent_registry").upsert(
-          {
-            user_id: user.id,
-            consent_type: `TOS_${REQUIRED_TOS_VERSION.toUpperCase()}`,
-            decision: "accepted",
-            document_version: REQUIRED_TOS_VERSION,
-          },
-          { onConflict: "user_id,consent_type" },
-        );
+        const consentType = `TOS_${REQUIRED_TOS_VERSION.toUpperCase()}`;
+        const { data: existing, error: lookupError } = await (supabase as any).from("consent_registry")
+          .select("id").eq("user_id", user.id).eq("consent_type", consentType).maybeSingle();
+        if (lookupError) throw lookupError;
+        const row = { user_id: user.id, consent_type: consentType, decision: "accepted", document_version: REQUIRED_TOS_VERSION };
+        const { error: registryError } = existing
+          ? await (supabase as any).from("consent_registry").update(row).eq("id", existing.id).eq("user_id", user.id)
+          : await (supabase as any).from("consent_registry").insert(row);
 
         if (registryError) {
           console.warn("⚠️ [WARNING: TOS_FLOW.MirrorRegistry] Registry mirror failed (Non-fatal):", registryError);
@@ -112,31 +109,14 @@ const TermsOfService = () => {
       console.log("[END: TOS_FLOW.MirrorRegistry] Registry step cleared.");
 
       toast.success("Identity Ledger Updated: ToS Accepted");
-      navigate("/authority-of-record");
+      if (onComplete) onComplete();
+      else navigate("/authority-of-record", { replace: true });
     } catch (error: any) {
       console.error(`🚨 [FATAL: TOS_FLOW.Execution] Pipeline stalled:`, error);
 
-      const errorMsg = (error.message || "").toLowerCase();
-
-      // 🚨 HARDWARE ENFORCEMENT: Actionable directive to iOS Settings
-      if (
-        errorMsg.includes("not enrolled") ||
-        errorMsg.includes("biometry") ||
-        errorMsg.includes("biometric") ||
-        errorMsg.includes("rejected") ||
-        errorMsg.includes("missing or disabled")
-      ) {
-        toast.error("Hardware Security Requirement", {
-          description:
-            "IDIA strictly requires Face ID or Touch ID to generate your cryptographic signature. Please go to Settings > Face ID & Passcode > Other Apps > Life by IDIA to enable, then return here.",
-          duration: 15000,
-        });
-      } else {
-        toast.error(`Compliance capture failed. System entry denied.`, {
-          description: error.message || "Unknown error",
-          duration: 8000,
-        });
-      }
+      toast.error("Could not save your consent. Please try again.", {
+        description: error.message || "Unknown error", duration: 8000,
+      });
     } finally {
       setIsLoading(false);
       console.log("[END: TOS_FLOW] Flow attempt finalized.");
@@ -144,10 +124,10 @@ const TermsOfService = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-[200] bg-background/95 backdrop-blur-xl flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
-      <div className="w-full max-w-2xl h-full max-h-[90vh] flex flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+    <div className={embedded ? "flex min-h-0 flex-1 flex-col" : "fixed inset-0 z-[200] bg-background/95 backdrop-blur-xl flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]"}>
+      <div className={embedded ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "w-full max-w-2xl h-full max-h-[90vh] flex flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden"}>
         {/* Header */}
-        <div className="p-6 border-b border-border bg-gradient-to-br from-primary/5 to-transparent flex items-center gap-3">
+        <div className="shrink-0 p-4 border-b border-border bg-gradient-to-br from-primary/5 to-transparent flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg">
             <ShieldCheck className="w-6 h-6 text-primary" />
           </div>
@@ -167,7 +147,7 @@ const TermsOfService = () => {
         )}
 
         {/* Scrollable Document View */}
-        <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto bg-muted/20">
+        <div ref={scrollContainerRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto bg-muted/20" tabIndex={0} aria-label="Terms of Service document">
           <div className="flex flex-col items-center gap-4 py-4 px-3 bg-muted/20">
             {Array.from({ length: 11 }, (_, i) => {
               const n = String(i + 1).padStart(2, "0");
@@ -177,6 +157,8 @@ const TermsOfService = () => {
                   src={`/legal/tos-pages/page-${n}.jpg`}
                   alt={`IDIA Protocol Terms of Service — Page ${i + 1}`}
                   loading={i < 2 ? "eager" : "lazy"}
+                  width={1275}
+                  height={1650}
                   className="w-full max-w-[760px] rounded-md shadow-md border border-border bg-white"
                 />
               );
@@ -197,7 +179,7 @@ const TermsOfService = () => {
         </div>
 
         {/* Action Footer */}
-        <div className="p-6 border-t border-border bg-background/60 flex flex-col items-center gap-3">
+        <div className="shrink-0 p-4 border-t border-border bg-background/60 flex flex-col items-center gap-3">
           <Button
             type="button" // 🚨 Override default submit behavior
             onClick={handleAcceptance}

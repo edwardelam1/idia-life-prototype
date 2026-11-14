@@ -5,25 +5,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Shield, ScrollText } from "lucide-react";
 import { toast } from "sonner";
+import { REQUIRED_AOR_VERSION } from "@/config/consent";
+import { requireActiveSession } from "@/lib/authUser";
 
 type Decision = "accepted" | "declined" | null;
 
-const AuthorityOfRecord = () => {
+const AuthorityOfRecord = ({ embedded = false, onComplete }: { embedded?: boolean; onComplete?: () => void }) => {
   const [decision, setDecision] = useState<Decision>(null);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleContinue = async () => {
-    if (!decision) return;
+    if (!decision || isLoading) return;
     setIsLoading(true);
     console.log("[AOR_FLOW] START: Processing Authority of Record decision:", decision);
 
     try {
-      const {
-        data: { user },
-        error: userError,
-      } = await getCachedUser();
-      if (userError || !user) throw new Error("Identity verification failed.");
+      const user = await requireActiveSession("AuthorityOfRecord.decide");
+      if (!user) throw new Error("Identity verification failed.");
       console.log(`[AOR_FLOW] Identity Confirmed: ${user.id}`);
 
       const scopes = ["AOR_AUTHORIZATION", decision === "accepted" ? "POA_GRANTED" : "POA_DECLINED"];
@@ -64,7 +63,7 @@ const AuthorityOfRecord = () => {
         data: {
           aor_decision: decision,
           aor_decided_at: new Date().toISOString(),
-          aor_version: "v1",
+          aor_version: REQUIRED_AOR_VERSION,
         },
       });
       if (authError) throw authError;
@@ -73,7 +72,8 @@ const AuthorityOfRecord = () => {
       toast.success(
         decision === "accepted" ? "Authority of Record authorization recorded" : "Decision recorded — service declined",
       );
-      navigate("/", { replace: true });
+      if (onComplete) onComplete();
+      else navigate("/", { replace: true });
     } catch (error: any) {
       console.error(`[AOR_FLOW] CRITICAL STALL: ${error.message}`);
       toast.error("Consent capture failed. Please try again.");
@@ -84,8 +84,8 @@ const AuthorityOfRecord = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-[200] bg-background/95 backdrop-blur-xl flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
-      <div className="w-full max-w-2xl h-full max-h-[90vh] flex flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+    <div className={embedded ? "flex min-h-0 flex-1 flex-col" : "fixed inset-0 z-[200] bg-background/95 backdrop-blur-xl flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]"}>
+      <div className={embedded ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "w-full max-w-2xl h-full max-h-[90vh] flex flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden"}>
         {/* Header */}
         <div className="p-6 border-b border-border bg-gradient-to-br from-primary/5 to-transparent flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg">
@@ -94,13 +94,13 @@ const AuthorityOfRecord = () => {
           <div>
             <h1 className="text-lg font-bold tracking-tight">Authority of Record Authorization</h1>
             <p className="text-xs text-muted-foreground">
-              Elective Technical Service — biometric confirmation required.
+              Elective Technical Service — choose whether to authorize.
             </p>
           </div>
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        <div className="min-h-0 flex-1 overflow-y-auto p-5 space-y-5">
           <div className="rounded-xl border border-border/60 bg-muted/20 p-5 space-y-4">
             <p className="text-sm leading-relaxed text-foreground">
               To monetize your digital identity from authorized and unauthorized surveillance, you have the option to
@@ -115,10 +115,12 @@ const AuthorityOfRecord = () => {
           </div>
 
           <div className="space-y-3">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              aria-pressed={decision === "accepted"}
               onClick={() => setDecision("accepted")}
-              className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+              className={`h-auto whitespace-normal w-full text-left p-4 rounded-lg border-2 transition-all ${
                 decision === "accepted"
                   ? "border-primary bg-primary/10"
                   : "border-border hover:border-primary/40 bg-card"
@@ -137,12 +139,14 @@ const AuthorityOfRecord = () => {
                   <p className="text-xs text-muted-foreground mt-1">Grants limited POA for identity-asset defense.</p>
                 </div>
               </div>
-            </button>
+            </Button>
 
-            <button
+            <Button
               type="button"
+              variant="outline"
+              aria-pressed={decision === "declined"}
               onClick={() => setDecision("declined")}
-              className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+              className={`h-auto whitespace-normal w-full text-left p-4 rounded-lg border-2 transition-all ${
                 decision === "declined"
                   ? "border-primary bg-primary/10"
                   : "border-border hover:border-primary/40 bg-card"
@@ -161,12 +165,12 @@ const AuthorityOfRecord = () => {
                   <p className="text-xs text-muted-foreground mt-1">No POA granted. You may revisit this later.</p>
                 </div>
               </div>
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-border bg-background/60 flex flex-col items-center gap-3">
+        <div className="shrink-0 p-4 border-t border-border bg-background/60 flex flex-col items-center gap-3">
           <Button
             onClick={handleContinue}
             disabled={!decision || isLoading}
