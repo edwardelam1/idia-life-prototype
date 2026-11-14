@@ -2,6 +2,26 @@ export const TERMS_CAMPAIGN = "life-terms-v2-2026-11-14";
 export const TEST_CAMPAIGN = `${TERMS_CAMPAIGN}:device-test`;
 export const REQUIRED_PUSH_ROLE = "super_admin";
 
+// Only documented Apple reason codes may enter logs; never log raw response bodies.
+const APPLE_REASONS = new Set([
+  "BadCollapseId", "BadDeviceToken", "BadExpirationDate", "BadMessageId",
+  "BadPriority", "BadTopic", "DeviceTokenNotForTopic", "DuplicateHeaders",
+  "IdleTimeout", "InvalidPushType", "MissingDeviceToken", "MissingTopic",
+  "PayloadEmpty", "TopicDisallowed", "BadCertificate", "BadCertificateEnvironment",
+  "ExpiredProviderToken", "Forbidden", "InvalidProviderToken", "MissingProviderToken",
+  "BadPath", "MethodNotAllowed", "Unregistered", "PayloadTooLarge",
+  "TooManyProviderTokenUpdates", "TooManyRequests", "InternalServerError",
+  "ServiceUnavailable", "Shutdown",
+]);
+
+export function appleFailureDiagnostic(status: number, reason: unknown) {
+  return {
+    status,
+    reason: status === 0 ? "TransportFailure" :
+      typeof reason === "string" && APPLE_REASONS.has(reason) ? reason : "UnknownAppleReason",
+  };
+}
+
 export function appleEndpoint(environment: string): string {
   if (environment === "production") return "https://api.push.apple.com";
   if (environment === "sandbox") return "https://api.sandbox.push.apple.com";

@@ -1,0 +1,1 @@
+DELETE FROM public.push_campaign_deliveries WHERE id = 'f82279de-07a2-44a2-9831-7a2deb0433b1' AND campaign = 'life-terms-v2-2026-11-14:device-test' AND status = 'failed' AND apns_status = 400;

@@ -1,5 +1,6 @@
 # Roadmap
 
+- [x] Clear the failed Terms device-test claim and deploy safe Apple rejection-reason logging; database reset verified and seven sender tests passed.
 - [x] Save Apple settings securely, deploy direct APNs sender, and add automatic signed-in iPhone token registration with checked scoped saves.
 - [x] Prepare the Terms campaign with protected administration, opt-in checks, duplicate prevention, and five passing sender-rule tests.
 - [ ] Test the Terms notification on one real iPhone, confirm display/opening, then send production broadcast after approval — no authenticated administrator session available here; device confirmation required.
