@@ -34,3 +34,11 @@ Deno.test("broadcast requires an accepted device test and human display confirma
 Deno.test("push administration uses this project's protected super_admin role", () => {
   assertEquals(REQUIRED_PUSH_ROLE, "super_admin");
 });
+Deno.test("test retries release only non-accepted claims", () => {
+  assertEquals(RETRYABLE_TEST_STATUSES.includes("accepted"), false);
+  assertEquals(RETRYABLE_TEST_STATUSES.includes("failed"), true);
+});
+
+Deno.test("403 provider token rejection points at signing settings", () => {
+  assertEquals(appleReasonHint("InvalidProviderToken").includes("Key ID"), true);
+});

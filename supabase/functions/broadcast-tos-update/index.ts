@@ -5,9 +5,11 @@ import { z } from "npm:zod@3";
 import {
   appleEndpoint,
   appleFailureDiagnostic,
+  appleReasonHint,
   mayBroadcast,
   permanentlyInvalid,
   REQUIRED_PUSH_ROLE,
+  RETRYABLE_TEST_STATUSES,
   TERMS_CAMPAIGN,
   TEST_CAMPAIGN,
   termsPayload,
@@ -146,6 +148,18 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      if (body.mode === "test") {
+        // Test sends go only to the administrator's own iPhone; release an earlier
+        // failed or uncertain test claim so the test can be retried. Accepted claims stay.
+        const { error: releaseError } = await admin
+          .from("push_campaign_deliveries")
+          .delete()
+          .eq("campaign", TEST_CAMPAIGN)
+          .eq("push_token_id", device.id)
+          .in("status", RETRYABLE_TEST_STATUSES);
+        if (releaseError) return respond({ error: "Could not reset the earlier test attempt" }, 500);
+      }
+
       const { error: claimError } = await admin
         .from("push_campaign_deliveries")
         .insert({ campaign, push_token_id: device.id, status: "claimed" });
@@ -178,27 +192,15 @@ Deno.serve(async (req) => {
 
         status = response.status;
         if (!response.ok) {
-          // FIX: Explicitly parse Apple's exact error reason string for the 403
-          const rawFailureBody = await response.text();
-          let failure: any = {};
-          try {
-            failure = JSON.parse(rawFailureBody);
-          } catch (e) {
-            console.error("[APNS_TERMS][APPLE_PARSE_ERROR] Failed to parse Apple 403 response:", rawFailureBody);
-          }
-
-          reason = typeof failure.reason === "string" ? failure.reason : rawFailureBody || "UnknownAppleReason";
-          revokedAt = typeof failure.timestamp === "number" ? failure.timestamp : undefined;
-
-          console.error(
-            `[APNS_TERMS][APPLE_REJECTION] Status: ${status}, Reason: ${reason}, Token: ${device.token.substring(0, 6)}...`,
-          );
+          const failure = await response.json().catch(() => ({}));
+          reason = appleFailureDiagnostic(status, failure?.reason).reason;
+          revokedAt = typeof failure?.timestamp === "number" ? failure.timestamp : undefined;
         } else {
           await response.body?.cancel();
         }
-      } catch (err) {
-        console.error("[APNS_TERMS][FETCH_ERROR]", err);
+      } catch {
         status = 0;
+        reason = "TransportFailure";
       }
 
       if (status !== 200) {
@@ -235,7 +237,9 @@ Deno.serve(async (req) => {
       if (status === 403 || reason === "BadDeviceToken" || reason === "DeviceTokenNotForTopic") {
         return respond(
           {
-            error: `Apple rejected delivery (${status} - ${reason}); verify Apple signing settings and build environment`,
+            error: `Apple rejected delivery (${status} - ${reason}); ${appleReasonHint(reason)}`,
+            apple_status: status,
+            apple_reason: reason,
             accepted,
             failed,
             skipped,
