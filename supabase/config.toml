@@ -77,3 +77,6 @@ verify_jwt = false
 
 [functions.data-source-refresh]
 verify_jwt = false
+
+[functions.broadcast-tos-update]
+verify_jwt = false
