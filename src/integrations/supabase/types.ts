@@ -14504,6 +14504,52 @@ export type Database = {
         }
         Returns: Json
       }
+      set_employee_active: {
+        Args: { _active: boolean; _employee_id: string }
+        Returns: {
+          aca_secured: boolean
+          address: string | null
+          assigned_locations: string[] | null
+          business_id: string
+          can_buy_credits: boolean
+          can_spend_company_credits: boolean
+          city: string | null
+          created_at: string
+          direct_deposit_enabled: boolean | null
+          email: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          hire_date: string | null
+          hourly_rate: number | null
+          id: string
+          is_ephemeral: boolean
+          job_title: string | null
+          last_login: string | null
+          name: string
+          notes: string | null
+          overtime_rate: number | null
+          pay_center_id: string | null
+          pay_frequency: string | null
+          permission_template_id: string | null
+          permissions: Json | null
+          phone: string | null
+          platform_role: string
+          role: string
+          salary_type: string | null
+          state: string | null
+          status: string
+          tax_filing_status: string | null
+          updated_at: string
+          user_id: string | null
+          zip: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_employee_credit_access: {
         Args: {
           _can_buy: boolean
