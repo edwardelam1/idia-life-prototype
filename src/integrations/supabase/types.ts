@@ -1073,6 +1073,74 @@ export type Database = {
           },
         ]
       }
+      business_credit_ledger: {
+        Row: {
+          amount: number
+          business_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          employee_id: string | null
+          entry_type: string
+          id: string
+          pay_center_id: string | null
+          reference_id: string | null
+        }
+        Insert: {
+          amount: number
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          employee_id?: string | null
+          entry_type: string
+          id?: string
+          pay_center_id?: string | null
+          reference_id?: string | null
+        }
+        Update: {
+          amount?: number
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          employee_id?: string | null
+          entry_type?: string
+          id?: string
+          pay_center_id?: string | null
+          reference_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_credit_ledger_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_credit_ledger_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_credit_ledger_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_credit_ledger_pay_center_id_fkey"
+            columns: ["pay_center_id"]
+            isOneToOne: false
+            referencedRelation: "business_pay_centers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       business_health_metrics: {
         Row: {
           business_id: string
@@ -1212,6 +1280,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "business_locations_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      business_pay_centers: {
+        Row: {
+          business_id: string
+          code: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+          removed_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          code?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          removed_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          code?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          removed_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_pay_centers_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -3314,6 +3426,122 @@ export type Database = {
         }
         Relationships: []
       }
+      employee_pay_centers: {
+        Row: {
+          business_id: string
+          can_buy: boolean
+          can_spend: boolean
+          created_at: string
+          employee_id: string
+          id: string
+          pay_center_id: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          can_buy?: boolean
+          can_spend?: boolean
+          created_at?: string
+          employee_id: string
+          id?: string
+          pay_center_id: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          can_buy?: boolean
+          can_spend?: boolean
+          created_at?: string
+          employee_id?: string
+          id?: string
+          pay_center_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_pay_centers_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_pay_centers_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_pay_centers_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_pay_centers_pay_center_id_fkey"
+            columns: ["pay_center_id"]
+            isOneToOne: false
+            referencedRelation: "business_pay_centers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_profile_changes: {
+        Row: {
+          action: string
+          business_id: string
+          changed_by: string
+          changed_by_name: string | null
+          created_at: string
+          employee_id: string
+          field: string | null
+          id: string
+          new_value: string | null
+          old_value: string | null
+        }
+        Insert: {
+          action: string
+          business_id: string
+          changed_by: string
+          changed_by_name?: string | null
+          created_at?: string
+          employee_id: string
+          field?: string | null
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+        }
+        Update: {
+          action?: string
+          business_id?: string
+          changed_by?: string
+          changed_by_name?: string | null
+          created_at?: string
+          employee_id?: string
+          field?: string | null
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_profile_changes_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_profile_changes_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_schedules: {
         Row: {
           created_at: string | null
@@ -3529,10 +3757,12 @@ export type Database = {
           address: string | null
           assigned_locations: string[] | null
           business_id: string
+          can_buy_credits: boolean
+          can_spend_company_credits: boolean
           city: string | null
           created_at: string
           direct_deposit_enabled: boolean | null
-          email: string
+          email: string | null
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           hire_date: string | null
@@ -3544,6 +3774,7 @@ export type Database = {
           name: string
           notes: string | null
           overtime_rate: number | null
+          pay_center_id: string | null
           pay_frequency: string | null
           permission_template_id: string | null
           permissions: Json | null
@@ -3563,10 +3794,12 @@ export type Database = {
           address?: string | null
           assigned_locations?: string[] | null
           business_id: string
+          can_buy_credits?: boolean
+          can_spend_company_credits?: boolean
           city?: string | null
           created_at?: string
           direct_deposit_enabled?: boolean | null
-          email: string
+          email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           hire_date?: string | null
@@ -3578,6 +3811,7 @@ export type Database = {
           name: string
           notes?: string | null
           overtime_rate?: number | null
+          pay_center_id?: string | null
           pay_frequency?: string | null
           permission_template_id?: string | null
           permissions?: Json | null
@@ -3597,10 +3831,12 @@ export type Database = {
           address?: string | null
           assigned_locations?: string[] | null
           business_id?: string
+          can_buy_credits?: boolean
+          can_spend_company_credits?: boolean
           city?: string | null
           created_at?: string
           direct_deposit_enabled?: boolean | null
-          email?: string
+          email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           hire_date?: string | null
@@ -3612,6 +3848,7 @@ export type Database = {
           name?: string
           notes?: string | null
           overtime_rate?: number | null
+          pay_center_id?: string | null
           pay_frequency?: string | null
           permission_template_id?: string | null
           permissions?: Json | null
@@ -3626,7 +3863,15 @@ export type Database = {
           user_id?: string | null
           zip?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "employees_pay_center_id_fkey"
+            columns: ["pay_center_id"]
+            isOneToOne: false
+            referencedRelation: "business_pay_centers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       endorsements: {
         Row: {
@@ -9365,6 +9610,32 @@ export type Database = {
         }
         Relationships: []
       }
+      security_observation_nodes: {
+        Row: {
+          created_at: string
+          node_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          node_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          node_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "security_observation_nodes_node_id_fkey"
+            columns: ["node_id"]
+            isOneToOne: true
+            referencedRelation: "mesh_nodes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       security_preferences: {
         Row: {
           aegis_protocol: boolean | null
@@ -9400,6 +9671,56 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      security_threat_observations: {
+        Row: {
+          action_type: string | null
+          agent_name: string
+          created_at: string
+          event_index: number
+          id: string
+          ledger_id: string
+          observation_kind: string
+          observed_at: string
+          severity: string
+          signals: Json
+          updated_at: string
+        }
+        Insert: {
+          action_type?: string | null
+          agent_name: string
+          created_at?: string
+          event_index: number
+          id?: string
+          ledger_id: string
+          observation_kind: string
+          observed_at: string
+          severity: string
+          signals: Json
+          updated_at?: string
+        }
+        Update: {
+          action_type?: string | null
+          agent_name?: string
+          created_at?: string
+          event_index?: number
+          id?: string
+          ledger_id?: string
+          observation_kind?: string
+          observed_at?: string
+          severity?: string
+          signals?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "security_threat_observations_ledger_id_fkey"
+            columns: ["ledger_id"]
+            isOneToOne: false
+            referencedRelation: "vulture_ledger"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       security_ticker: {
         Row: {
@@ -13436,6 +13757,10 @@ export type Database = {
         Args: { run_id: string; timeout_seconds?: number }
         Returns: boolean
       }
+      allocate_credits_to_pay_center: {
+        Args: { _amount: number; _business_id: string; _pay_center_id: string }
+        Returns: Json
+      }
       anonymize_location: {
         Args: { lat: number; lng: number }
         Returns: string
@@ -13469,8 +13794,16 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      authorize_pay_center: {
+        Args: { _operation: string; _pay_center_id: string; _user_id: string }
+        Returns: string
+      }
       auto_promote_pending_veto: { Args: never; Returns: number }
       bundle_measurement_label: { Args: { value: string }; Returns: string }
+      business_wallet_balance: {
+        Args: { _business_id: string; _pay_center_id: string }
+        Returns: number
+      }
       calculate_business_health_index: {
         Args: { p_business_id: string; p_location_id?: string }
         Returns: number
@@ -13495,6 +13828,7 @@ export type Database = {
         }
         Returns: number
       }
+      can_manage_employee: { Args: { _employee_id: string }; Returns: boolean }
       charge_service_usage: {
         Args: {
           _description?: string
@@ -13517,9 +13851,38 @@ export type Database = {
         Args: { p_fiat_amount: number; p_pseudo_id: string }
         Returns: undefined
       }
+      create_pay_center: {
+        Args: { _business_id: string; _code?: string; _name: string }
+        Returns: {
+          business_id: string
+          code: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+          removed_at: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "business_pay_centers"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       decrement_hub_cash: {
         Args: { amount_to_deduct: number; target_user_id: string }
         Returns: undefined
+      }
+      deduct_business_credits: {
+        Args: {
+          _amount: number
+          _business_id: string
+          _reason: string
+          _reference_id: string
+        }
+        Returns: Json
       }
       deduct_synapse_credit: {
         Args: { amount_to_deduct: number; target_enterprise_id: string }
@@ -13540,6 +13903,52 @@ export type Database = {
           user_id: string
           wallet_address: string
         }[]
+      }
+      employee_actor: {
+        Args: { _business_id: string }
+        Returns: {
+          aca_secured: boolean
+          address: string | null
+          assigned_locations: string[] | null
+          business_id: string
+          can_buy_credits: boolean
+          can_spend_company_credits: boolean
+          city: string | null
+          created_at: string
+          direct_deposit_enabled: boolean | null
+          email: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          hire_date: string | null
+          hourly_rate: number | null
+          id: string
+          is_ephemeral: boolean
+          job_title: string | null
+          last_login: string | null
+          name: string
+          notes: string | null
+          overtime_rate: number | null
+          pay_center_id: string | null
+          pay_frequency: string | null
+          permission_template_id: string | null
+          permissions: Json | null
+          phone: string | null
+          platform_role: string
+          role: string
+          salary_type: string | null
+          state: string | null
+          status: string
+          tax_filing_status: string | null
+          updated_at: string
+          user_id: string | null
+          zip: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       feature_feed_rate: { Args: { _tier: string }; Returns: number }
       generate_business_provisioning_code: { Args: never; Returns: string }
@@ -13567,7 +13976,12 @@ export type Database = {
         }[]
       }
       get_average_rating: { Args: { p_ratee_id: string }; Returns: number }
+      get_business_wallet_summary: {
+        Args: { _business_id: string }
+        Returns: Json
+      }
       get_hub_balance: { Args: { uid: string }; Returns: number }
+      get_my_pay_centers: { Args: never; Returns: Json }
       get_my_service_access: { Args: never; Returns: Json }
       get_nft_radio_tracks: {
         Args: { _limit?: number }
@@ -13593,6 +14007,7 @@ export type Database = {
           count: number
         }[]
       }
+      get_security_defense_coverage: { Args: never; Returns: Json }
       get_security_event_detail: { Args: { _id: string }; Returns: Json }
       get_service_role_key: { Args: never; Returns: string }
       get_staging_aggregates: {
@@ -13621,8 +14036,16 @@ export type Database = {
         }[]
       }
       get_synapse_balance: { Args: { uid: string }; Returns: number }
+      get_team_identity_display: {
+        Args: { _business_id: string }
+        Returns: {
+          avatar_url: string
+          platform_guid: string
+          user_id: string
+        }[]
+      }
       get_user_business_access: {
-        Args: { p_user_id: string }
+        Args: { p_user_id?: string }
         Returns: {
           business_id: string
         }[]
@@ -13673,6 +14096,52 @@ export type Database = {
           id: string
           metadata: Json
         }[]
+      }
+      grant_employee_access: {
+        Args: { _employee_id: string }
+        Returns: {
+          aca_secured: boolean
+          address: string | null
+          assigned_locations: string[] | null
+          business_id: string
+          can_buy_credits: boolean
+          can_spend_company_credits: boolean
+          city: string | null
+          created_at: string
+          direct_deposit_enabled: boolean | null
+          email: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          hire_date: string | null
+          hourly_rate: number | null
+          id: string
+          is_ephemeral: boolean
+          job_title: string | null
+          last_login: string | null
+          name: string
+          notes: string | null
+          overtime_rate: number | null
+          pay_center_id: string | null
+          pay_frequency: string | null
+          permission_template_id: string | null
+          permissions: Json | null
+          phone: string | null
+          platform_role: string
+          role: string
+          salary_type: string | null
+          state: string | null
+          status: string
+          tax_filing_status: string | null
+          updated_at: string
+          user_id: string | null
+          zip: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       grant_hat: {
         Args: { _hat_type: string; _target_user: string }
@@ -13755,6 +14224,16 @@ export type Database = {
         }
         Returns: string
       }
+      log_employee_change: {
+        Args: {
+          _action: string
+          _field: string
+          _new: string
+          _old: string
+          _t: Database["public"]["Tables"]["employees"]["Row"]
+        }
+        Returns: undefined
+      }
       mask_owner: { Args: { _id: string }; Returns: string }
       mirror_anon_table_exposure: {
         Args: { _tables: string[] }
@@ -13802,10 +14281,12 @@ export type Database = {
           address: string | null
           assigned_locations: string[] | null
           business_id: string
+          can_buy_credits: boolean
+          can_spend_company_credits: boolean
           city: string | null
           created_at: string
           direct_deposit_enabled: boolean | null
-          email: string
+          email: string | null
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           hire_date: string | null
@@ -13817,6 +14298,7 @@ export type Database = {
           name: string
           notes: string | null
           overtime_rate: number | null
+          pay_center_id: string | null
           pay_frequency: string | null
           permission_template_id: string | null
           permissions: Json | null
@@ -13845,10 +14327,12 @@ export type Database = {
           address: string | null
           assigned_locations: string[] | null
           business_id: string
+          can_buy_credits: boolean
+          can_spend_company_credits: boolean
           city: string | null
           created_at: string
           direct_deposit_enabled: boolean | null
-          email: string
+          email: string | null
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           hire_date: string | null
@@ -13860,6 +14344,7 @@ export type Database = {
           name: string
           notes: string | null
           overtime_rate: number | null
+          pay_center_id: string | null
           pay_frequency: string | null
           permission_template_id: string | null
           permissions: Json | null
@@ -13901,6 +14386,53 @@ export type Database = {
         Returns: number
       }
       release_relayer_lock: { Args: { run_id: string }; Returns: undefined }
+      remove_pay_center: { Args: { _pay_center_id: string }; Returns: Json }
+      require_org_admin: {
+        Args: { _business_id: string }
+        Returns: {
+          aca_secured: boolean
+          address: string | null
+          assigned_locations: string[] | null
+          business_id: string
+          can_buy_credits: boolean
+          can_spend_company_credits: boolean
+          city: string | null
+          created_at: string
+          direct_deposit_enabled: boolean | null
+          email: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          hire_date: string | null
+          hourly_rate: number | null
+          id: string
+          is_ephemeral: boolean
+          job_title: string | null
+          last_login: string | null
+          name: string
+          notes: string | null
+          overtime_rate: number | null
+          pay_center_id: string | null
+          pay_frequency: string | null
+          permission_template_id: string | null
+          permissions: Json | null
+          phone: string | null
+          platform_role: string
+          role: string
+          salary_type: string | null
+          state: string | null
+          status: string
+          tax_filing_status: string | null
+          updated_at: string
+          user_id: string | null
+          zip: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       reset_my_mfa_factors: { Args: never; Returns: undefined }
       resolve_security_event: {
         Args: { _id: string; _resolved?: boolean }
@@ -13923,10 +14455,12 @@ export type Database = {
           address: string | null
           assigned_locations: string[] | null
           business_id: string
+          can_buy_credits: boolean
+          can_spend_company_credits: boolean
           city: string | null
           created_at: string
           direct_deposit_enabled: boolean | null
-          email: string
+          email: string | null
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           hire_date: string | null
@@ -13938,6 +14472,7 @@ export type Database = {
           name: string
           notes: string | null
           overtime_rate: number | null
+          pay_center_id: string | null
           pay_frequency: string | null
           permission_template_id: string | null
           permissions: Json | null
@@ -13968,6 +14503,81 @@ export type Database = {
           _vulture_rate: number
         }
         Returns: Json
+      }
+      set_employee_credit_access: {
+        Args: {
+          _can_buy: boolean
+          _can_spend: boolean
+          _employee_id: string
+          _pay_center_id: string
+        }
+        Returns: {
+          aca_secured: boolean
+          address: string | null
+          assigned_locations: string[] | null
+          business_id: string
+          can_buy_credits: boolean
+          can_spend_company_credits: boolean
+          city: string | null
+          created_at: string
+          direct_deposit_enabled: boolean | null
+          email: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          hire_date: string | null
+          hourly_rate: number | null
+          id: string
+          is_ephemeral: boolean
+          job_title: string | null
+          last_login: string | null
+          name: string
+          notes: string | null
+          overtime_rate: number | null
+          pay_center_id: string | null
+          pay_frequency: string | null
+          permission_template_id: string | null
+          permissions: Json | null
+          phone: string | null
+          platform_role: string
+          role: string
+          salary_type: string | null
+          state: string | null
+          status: string
+          tax_filing_status: string | null
+          updated_at: string
+          user_id: string | null
+          zip: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_employee_pay_centers: {
+        Args: { _assignments: Json; _employee_id: string }
+        Returns: undefined
+      }
+      set_pay_center_active: {
+        Args: { _active: boolean; _pay_center_id: string }
+        Returns: {
+          business_id: string
+          code: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+          removed_at: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "business_pay_centers"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       set_usdc_balance: {
         Args: {
@@ -14023,6 +14633,10 @@ export type Database = {
         Args: { _owner: string; _topic: string }
         Returns: Json
       }
+      start_pay_center_feed_session: {
+        Args: { _owner: string; _pay_center_id: string; _topic: string }
+        Returns: Json
+      }
       submit_variance_correction: {
         Args: {
           _corrective_action: string
@@ -14059,6 +14673,52 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      update_employee_profile: {
+        Args: { _changes: Json; _employee_id: string }
+        Returns: {
+          aca_secured: boolean
+          address: string | null
+          assigned_locations: string[] | null
+          business_id: string
+          can_buy_credits: boolean
+          can_spend_company_credits: boolean
+          city: string | null
+          created_at: string
+          direct_deposit_enabled: boolean | null
+          email: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          hire_date: string | null
+          hourly_rate: number | null
+          id: string
+          is_ephemeral: boolean
+          job_title: string | null
+          last_login: string | null
+          name: string
+          notes: string | null
+          overtime_rate: number | null
+          pay_center_id: string | null
+          pay_frequency: string | null
+          permission_template_id: string | null
+          permissions: Json | null
+          phone: string | null
+          platform_role: string
+          role: string
+          salary_type: string | null
+          state: string | null
+          status: string
+          tax_filing_status: string | null
+          updated_at: string
+          user_id: string | null
+          zip: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       update_raw_health_data_status: {
         Args: {
           p_error_message?: string
@@ -14078,6 +14738,10 @@ export type Database = {
           p_wallet_address: string
         }
         Returns: boolean
+      }
+      validate_team_member_key: {
+        Args: { _business_id: string; _platform_guid: string }
+        Returns: string
       }
       vault_note_append: {
         Args: { p_content: string; p_note_id: string }
