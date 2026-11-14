@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { nextConsentRoute } from '@/config/consent';
 import FlashingSplashScreen from '@/components/FlashingSplashScreen';
 import LandingScreen from '@/components/LandingScreen';
 import { SplashAudioProvider } from '@/components/SplashAudioProvider';
@@ -18,10 +17,6 @@ const Index = () => {
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
       setIsAuthenticated(!!user);
-      if (user) {
-        const target = nextConsentRoute(user.user_metadata as any);
-        if (target) navigate(target, { replace: true });
-      }
     };
 
     checkAuth();
@@ -29,10 +24,6 @@ const Index = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const user = session?.user;
       setIsAuthenticated(!!user);
-      if (user) {
-        const target = nextConsentRoute(user.user_metadata as any);
-        if (target) navigate(target, { replace: true });
-      }
     });
 
     return () => subscription.unsubscribe();
