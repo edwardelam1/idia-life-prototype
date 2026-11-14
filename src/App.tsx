@@ -235,10 +235,10 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <AnalyticsTracker />
-            <ConsentModalHost session={session}>
             <SessionSentinel enabled={!!session} />
             <MfaEntryGate enabled={!!session} />
             <MfaPromptHost />
+            <ConsentModalHost session={session}>
             <Routes>
               <Route path="/auth" element={session ? <Navigate to="/" replace /> : <Auth />} />
               <Route path="/" element={<Index />} />

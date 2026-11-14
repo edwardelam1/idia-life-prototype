@@ -1,5 +1,11 @@
-import { describe, expect, test } from "bun:test";
+import { describe, test } from "node:test";
+import assert from "node:assert/strict";
 import { nextConsentRoute, type ConsentMeta } from "./consent";
+
+const expect = (actual: unknown) => ({
+  toBe: (expected: unknown) => assert.equal(actual, expected),
+  toBeNull: () => assert.equal(actual, null),
+});
 
 const complete: ConsentMeta = {
   age_verified: true,

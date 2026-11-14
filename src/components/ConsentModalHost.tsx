@@ -19,6 +19,7 @@ export default function ConsentModalHost({ session, children }: { session: Sessi
     let alive = true;
     let sequence = 0;
     const check = async () => {
+      if (!alive) return;
       const request = ++sequence;
       setChecking(true);
       setFailed(false);
@@ -52,6 +53,7 @@ export default function ConsentModalHost({ session, children }: { session: Sessi
     document.addEventListener("visibilitychange", onForeground);
     window.addEventListener("pageshow", onNativeResume);
     window.addEventListener("idia:app-foreground", onNativeResume);
+    window.addEventListener("app:foreground", onNativeResume);
     let removeNative: (() => void) | undefined;
     void import("@capacitor/app").then(async ({ App }) => {
       const listener = await App.addListener("appStateChange", ({ isActive }) => {
@@ -66,6 +68,7 @@ export default function ConsentModalHost({ session, children }: { session: Sessi
       document.removeEventListener("visibilitychange", onForeground);
       window.removeEventListener("pageshow", onNativeResume);
       window.removeEventListener("idia:app-foreground", onNativeResume);
+      window.removeEventListener("app:foreground", onNativeResume);
       removeNative?.();
     };
   }, [session, attempt]);
@@ -87,7 +90,7 @@ export default function ConsentModalHost({ session, children }: { session: Sessi
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className="fixed inset-0 z-[300] bg-foreground/35 backdrop-blur-sm" />
       <DialogPrimitive.Content
-        className="royalty-glass-panel fixed inset-0 z-[301] m-auto flex h-[min(90dvh,900px)] w-[calc(100%-2rem)] max-w-2xl flex-col overflow-hidden rounded-lg border border-life-amber/55 bg-background/90 text-foreground backdrop-blur-xl"
+        className="royalty-glass-panel fixed inset-0 z-[301] m-auto flex h-[min(90dvh,900px)] w-[calc(100%_-_2rem)] max-w-2xl flex-col overflow-hidden rounded-lg border border-life-amber/55 bg-background/90 text-foreground backdrop-blur-xl"
         onEscapeKeyDown={event => event.preventDefault()}
         onPointerDownOutside={event => event.preventDefault()}
         onInteractOutside={event => event.preventDefault()}
