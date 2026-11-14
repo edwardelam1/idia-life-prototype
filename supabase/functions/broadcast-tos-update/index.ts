@@ -162,7 +162,6 @@ Deno.serve(async (req) => {
       let revokedAt: number | undefined;
 
       try {
-        // FIX: Remove 'client: httpClient' and rely on global fetch. Supabase Edge Runtime natively supports HTTP/2 to APNs if headers are strictly compliant.
         const response = await fetch(`${endpoint}/3/device/${encodeURIComponent(device.token)}`, {
           method: "POST",
           signal: AbortSignal.timeout(15_000),
@@ -178,22 +177,38 @@ Deno.serve(async (req) => {
         });
 
         status = response.status;
-        if (status !== 200) {
-          const failure = await response.json().catch(() => ({}));
-          reason = appleFailureDiagnostic(status, failure?.reason).reason;
+        if (!response.ok) {
+          // FIX: Explicitly parse Apple's exact error reason string for the 403
+          const rawFailureBody = await response.text();
+          let failure: any = {};
+          try {
+            failure = JSON.parse(rawFailureBody);
+          } catch (e) {
+            console.error("[APNS_TERMS][APPLE_PARSE_ERROR] Failed to parse Apple 403 response:", rawFailureBody);
+          }
+
+          reason = typeof failure.reason === "string" ? failure.reason : rawFailureBody || "UnknownAppleReason";
           revokedAt = typeof failure.timestamp === "number" ? failure.timestamp : undefined;
+
+          console.error(
+            `[APNS_TERMS][APPLE_REJECTION] Status: ${status}, Reason: ${reason}, Token: ${device.token.substring(0, 6)}...`,
+          );
         } else {
           await response.body?.cancel();
         }
-      } catch {
+      } catch (err) {
+        console.error("[APNS_TERMS][FETCH_ERROR]", err);
         status = 0;
       }
 
       if (status !== 200) {
-        console.error("[APNS_TERMS][APPLE_REJECTION]", JSON.stringify({
-          campaign,
-          ...appleFailureDiagnostic(status, reason),
-        }));
+        console.error(
+          "[APNS_TERMS][APPLE_REJECTION]",
+          JSON.stringify({
+            campaign,
+            ...appleFailureDiagnostic(status, reason),
+          }),
+        );
       }
 
       const resultStatus = status === 200 ? "accepted" : status === 0 ? "uncertain" : "failed";
