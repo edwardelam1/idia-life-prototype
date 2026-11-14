@@ -1,9 +1,10 @@
 # Roadmap
 
-- [ ] Connect direct Apple APNs delivery and automatic signed-in iPhone token registration; verify Apple secrets in the connected Supabase environment before implementing delivery.
-- [ ] Prepare the Terms update as the first iPhone push campaign, test on one real device, then send the production broadcast after approval.
-- [ ] Verify the authoritative Swift shell notification registration and notification-tap handling — Swift iOS source is not present in this checkout.
-- [ ] Review the supplied Xcode Swift source for notification compatibility and report required updates without compiling or changing Apple Health.
+- [x] Save Apple settings securely, deploy direct APNs sender, and add automatic signed-in iPhone token registration with checked scoped saves.
+- [x] Prepare the Terms campaign with protected administration, opt-in checks, duplicate prevention, and five passing sender-rule tests.
+- [ ] Test the Terms notification on one real iPhone, confirm display/opening, then send production broadcast after approval — no authenticated administrator session available here; device confirmation required.
+- [ ] Verify Swift AppDelegate and app entry notification registration/presentation/taps — these files were not included in the upload.
+- [x] Review supplied ContentView without compiling or changing Apple Health; required updates documented in Native/iOS-notification-review.md.
 
 - [x] Add mandatory consent pop-up using existing Terms and Authority of Record screens; block root, deep links, and foreground returns until completion.
 - [x] Verify saved-consent and ordering rules with seven passing tests; verify document scrolling and acceptance control on desktop/mobile with no runtime errors.

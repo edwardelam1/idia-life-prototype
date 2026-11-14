@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
     if (error || !data.user) return respond({ error: "Unauthorized" }, 401);
     const admin = createClient(url, service);
     const { data: role, error: roleError } = await admin.from("user_roles")
-      .select("id").eq("user_id", data.user.id).eq("role", "admin").maybeSingle();
+      .select("id").eq("user_id", data.user.id).eq("role", "super_admin").maybeSingle();
     if (roleError || !role) return respond({ error: "Administrator access required" }, 403);
     const names = ["APNS_KEY_ID", "APNS_TEAM_ID", "APNS_BUNDLE_ID", "APNS_PRIVATE_KEY", "APNS_ENVIRONMENT"];
     return respond({ configured: names.filter((name) => Boolean(Deno.env.get(name))),
